@@ -1,0 +1,36 @@
+# Systemd unit for order-tracker-bot, matching the same publish-and-run pattern as the
+# existing "aitutor" service on this VPS (dotnet publish -> systemd -> nginx reverse proxy;
+# only SQL Server runs in Docker, the app itself does not).
+#
+# Install:
+#   sudo cp deploy/order-tracker-bot.service.example /etc/systemd/system/order-tracker-bot.service
+#   sudo nano /etc/systemd/system/order-tracker-bot.service   # fill in the Environment= secrets
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now order-tracker-bot
+
+[Unit]
+Description=Order Tracker Bot (WhatsApp order-tracking API)
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/order-tracker-bot/publish
+ExecStart=/usr/bin/dotnet /opt/order-tracker-bot/publish/OrderTrackerBot.Api.dll
+Restart=always
+RestartSec=5
+User=www-data
+Environment=ASPNETCORE_ENVIRONMENT=Production
+# aitutor uses 127.0.0.1:5000 - this bot uses 5001 so nginx can route both by subdomain.
+Environment=ASPNETCORE_URLS=http://127.0.0.1:5001
+Environment=Database__Provider=SqlServer
+# Same SQL Server container ai-tutor already uses (127.0.0.1:1433) - just a different database name.
+Environment=ConnectionStrings__Default=Server=127.0.0.1,1433;Database=OrderTrackerBot;User Id=sa;Password=REPLACE_ME;TrustServerCertificate=true
+Environment=WhatsApp__PhoneNumberId=REPLACE_ME
+Environment=WhatsApp__AccessToken=REPLACE_ME
+Environment=WhatsApp__VerifyToken=REPLACE_ME
+Environment=WhatsApp__AppSecret=REPLACE_ME
+Environment=OpenAi__ApiKey=REPLACE_ME
+Environment=OpenAi__Model=gpt-4o-mini
+Environment=FounderAlerts__WebhookUrl=
+
+[Install]
+WantedBy=multi-user.target

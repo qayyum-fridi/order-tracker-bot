@@ -112,24 +112,61 @@ All config lives under `appsettings.json` / environment variables (see
 4. Copy the phone number ID and a permanent access token into
    `WhatsApp:PhoneNumberId` / `WhatsApp:AccessToken`.
 
-## Deployment (VPS, alongside other apps e.g. an existing "ai-tutor" deployment)
+## Deployment (VPS, alongside an existing app e.g. "ai-tutor")
 
-The container binds to `127.0.0.1` only; nginx is the single thing exposed on 80/443 and
-routes by subdomain, so this coexists with other Dockerized apps on the same VPS without
-port conflicts.
+Two options — pick whichever matches how the rest of your VPS is set up. If you already
+run another .NET app there as a plain systemd service (not Dockerized), option A keeps
+this one consistent with it and avoids running a second database container.
+
+### Option A — systemd + shared SQL Server (matches an ai-tutor-style deployment)
+
+If SQL Server is already running in Docker on the VPS (bound to `127.0.0.1:1433`), reuse
+that instance — just add a new database for this app instead of standing up a second
+SQL Server container:
+
+```bash
+docker exec -it <sqlserver-container> /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P '<sa-password>' \
+  -Q "CREATE DATABASE OrderTrackerBot"
+```
+
+Publish and install as a systemd service:
+
+```bash
+dotnet publish src/OrderTrackerBot.Api -c Release -o /opt/order-tracker-bot/publish
+sudo cp deploy/order-tracker-bot.service.example /etc/systemd/system/order-tracker-bot.service
+sudo nano /etc/systemd/system/order-tracker-bot.service   # fill in the Environment= secrets
+sudo systemctl daemon-reload
+sudo systemctl enable --now order-tracker-bot
+```
+
+Then nginx (see `deploy/nginx.order-tracker-bot.conf.example`, proxies to `127.0.0.1:5001`
+— one port per app, same pattern as an existing app on `:5000`):
+
+```bash
+sudo cp deploy/nginx.order-tracker-bot.conf.example /etc/nginx/sites-available/order-tracker-bot.conf
+sudo nano /etc/nginx/sites-available/order-tracker-bot.conf   # set your real subdomain
+sudo ln -s /etc/nginx/sites-available/order-tracker-bot.conf /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d order-tracker.yourdomain.com
+```
+
+EF Core migrations run automatically on startup (`Database:AutoMigrate`, default `true`).
+
+### Option B — fully Dockerized (self-contained, own SQL Server container)
+
+Simpler if this is the only app on the box, or you'd rather not touch the host's existing
+SQL Server: `Dockerfile` + `docker-compose.yml` in this repo run the API and its own SQL
+Server container, bound to `127.0.0.1` only.
 
 ```bash
 cp .env.example .env   # fill in WhatsApp + OpenAI credentials and a strong SQL password
 docker compose up -d --build
 ```
 
-Then point an nginx server block at the container port (see
-`deploy/nginx.order-tracker-bot.conf.example`) and issue a cert with
-`certbot --nginx -d order-tracker.yourdomain.com`.
+Then the same nginx step as above, but proxying to `127.0.0.1:8091` (the port
+`docker-compose.yml` publishes) instead of `:5001`.
 
-EF Core migrations run automatically on startup against SQL Server
-(`Database:AutoMigrate`, default `true`). To generate a new migration after a model
-change:
+### Generating a new migration after a model change
 
 ```bash
 dotnet tool install --global dotnet-ef   # once
