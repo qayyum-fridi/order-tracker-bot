@@ -39,11 +39,20 @@ public class WhatsAppSender : IWhatsAppSender
         };
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.AccessToken);
 
-        var response = await _httpClient.SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode)
+        try
         {
-            var body = await response.Content.ReadAsStringAsync(cancellationToken);
-            _logger.LogError("WhatsApp send failed ({Status}) to {Phone}: {Body}", response.StatusCode, toPhoneNumber, body);
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogError("WhatsApp send failed ({Status}) to {Phone}: {Body}", response.StatusCode, toPhoneNumber, body);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Never let an outbound send failure (network blip, WhatsApp API outage) blow up the
+            // caller — the inbound message must still get processed and the conversation state saved.
+            _logger.LogError(ex, "WhatsApp send threw while sending to {Phone}", toPhoneNumber);
         }
     }
 
