@@ -1,0 +1,18 @@
+## .NET
+bin/
+obj/
+*.user
+*.db
+*.db-shm
+*.db-wal
+
+## IDE
+.vs/
+.vscode/
+*.suo
+
+## Environment
+.env
+
+## OS
+.DS_Store

@@ -1,0 +1,47 @@
+services:
+  order-tracker-api:
+    build: .
+    container_name: order-tracker-api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8091:8080" # bind to localhost only — nginx on the host proxies to it
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Database__Provider: SqlServer
+      ConnectionStrings__Default: "Server=order-tracker-db;Database=OrderTrackerBot;User Id=sa;Password=${SQL_SA_PASSWORD};TrustServerCertificate=true"
+      WhatsApp__PhoneNumberId: "${WHATSAPP_PHONE_NUMBER_ID}"
+      WhatsApp__AccessToken: "${WHATSAPP_ACCESS_TOKEN}"
+      WhatsApp__VerifyToken: "${WHATSAPP_VERIFY_TOKEN}"
+      WhatsApp__AppSecret: "${WHATSAPP_APP_SECRET}"
+      OpenAi__ApiKey: "${OPENAI_API_KEY}"
+      OpenAi__Model: "${OPENAI_MODEL:-gpt-4o-mini}"
+      FounderAlerts__WebhookUrl: "${FOUNDER_ALERTS_WEBHOOK_URL:-}"
+    depends_on:
+      order-tracker-db:
+        condition: service_healthy
+    networks:
+      - order-tracker-net
+
+  order-tracker-db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: order-tracker-db
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${SQL_SA_PASSWORD}"
+    volumes:
+      - order-tracker-db-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - order-tracker-net
+
+volumes:
+  order-tracker-db-data:
+
+networks:
+  order-tracker-net:
+    name: order-tracker-net

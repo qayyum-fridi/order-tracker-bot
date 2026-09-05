@@ -1,0 +1,20 @@
+# Example nginx server block for running this bot alongside other apps (e.g. an existing
+# "ai-tutor" deployment) on the same VPS. Each app gets its own subdomain and its own
+# container port bound to 127.0.0.1 only (see docker-compose.yml) — nginx is the only thing
+# exposed on 80/443, so multiple apps coexist without port clashes.
+#
+# Install: copy to /etc/nginx/sites-available/order-tracker-bot.conf, symlink into
+# sites-enabled, then `certbot --nginx -d order-tracker.yourdomain.com`.
+
+server {
+    listen 80;
+    server_name order-tracker.yourdomain.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:8091;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
