@@ -121,6 +121,18 @@ public partial class ConversationEngine
         await PersistAsync(session, ctx, ct);
     }
 
+    public Task HandleUnsupportedMediaAsync(string fromPhoneNumber, string mediaType, CancellationToken ct = default) =>
+        _sender.SendTextMessageAsync(fromPhoneNumber, mediaType switch
+        {
+            "audio" =>
+                "🎤 Voice message mila, lekin abhi main sirf TEXT samajh sakta hoon.\n\n" +
+                "Order ko likh kar bhejein, e.g.:\n\"Ayesha, 2 suit, 03001234567\"",
+            "image" =>
+                "📷 Photo/screenshot mila, lekin abhi main sirf TEXT samajh sakta hoon.\n\n" +
+                "Order ki tafseel likh kar bhejein, e.g.:\n\"Ayesha, 2 suit, 03001234567\"",
+            _ => "Yeh file abhi main nahi samajh sakta — sirf TEXT bhejein, ya \"menu\" likhein."
+        }, ct);
+
     private async Task HandleIdleAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         var command = CommandParser.TryParse(message);

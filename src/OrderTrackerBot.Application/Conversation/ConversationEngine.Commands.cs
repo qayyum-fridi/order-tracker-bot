@@ -19,7 +19,7 @@ public partial class ConversationEngine
         "• \"add tracking: courier, number\"\n" +
         "• \"[naam] ka tracking\"\n" +
         "• \"cod pending\"\n" +
-        "• \"catalog\"\n" +
+        "• \"catalog\" / \"share catalog\"\n" +
         "• \"add product: naam - price\"\n" +
         "• \"payment link\"\n" +
         "• \"unpaid orders\"\n" +
@@ -36,7 +36,7 @@ public partial class ConversationEngine
         "📋 Main Menu\n\n" +
         "📦 Orders\n • new order: [details]\n • orders today / pending orders\n • [customer] ka order\n\n" +
         "📊 Reports\n • today's summary\n • trending products\n • slow movers\n • loyal customers\n • cod pending\n\n" +
-        "🛍️ Catalog\n • catalog\n • add/edit product\n\n" +
+        "🛍️ Catalog\n • catalog\n • share catalog\n • add/edit product\n\n" +
         "💰 Payments\n • payment link\n • mark [order] paid\n\n" +
         "🎟️ Discounts\n • create discount\n • discount list\n\n" +
         "Command type karein, ya poochein.";
@@ -102,10 +102,10 @@ public partial class ConversationEngine
                 await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MenuText, "Menu kholein", MenuSections, ct);
                 return;
             case CommandKind.OrdersToday:
-                await HandleOrdersTodayAsync(seller, ct);
+                await HandleOrdersTodayAsync(seller, ctx, ct);
                 return;
             case CommandKind.PendingOrders:
-                await HandlePendingOrdersAsync(seller, ct);
+                await HandlePendingOrdersAsync(seller, ctx, ct);
                 return;
             case CommandKind.TodaysSummary:
                 await HandleTodaysSummaryAsync(seller, ct);
@@ -115,6 +115,9 @@ public partial class ConversationEngine
                 return;
             case CommandKind.AddProduct:
                 await HandleAddProductAsync(seller, cmd, ct);
+                return;
+            case CommandKind.ShareCatalog:
+                await HandleShareCatalogAsync(seller, ct);
                 return;
             case CommandKind.HowTo:
                 if (cmd.Text == "discount") SetState(session, ConversationState.AwaitingDiscountDetails);
@@ -139,13 +142,14 @@ public partial class ConversationEngine
                 await HandleUndoAsync(seller, ct);
                 return;
             case CommandKind.PaymentLink:
-                await HandlePaymentLinkAsync(seller, cmd, ct);
+                await HandlePaymentLinkAsync(seller,
+                    new ParsedCommand { Kind = CommandKind.PaymentLink, Number = cmd.Number is { } n ? ResolveListNumber(ctx, n).OrderId : null }, ct);
                 return;
             case CommandKind.AddPaymentMethod:
                 await HandleAddPaymentMethodAsync(seller, cmd, ct);
                 return;
             case CommandKind.UnpaidOrders:
-                await HandleUnpaidOrdersAsync(seller, ct);
+                await HandleUnpaidOrdersAsync(seller, ctx, ct);
                 return;
             case CommandKind.CodPending:
                 ctx.RuntimeFilterCommand = "cod";
@@ -211,7 +215,14 @@ public partial class ConversationEngine
         await ReplyAsync(seller, Formatters.ReturningGreeting(seller.PreferredLanguage, seller.BusinessName, pending, unpaid), ct);
     }
 
-    private async Task HandleOrdersTodayAsync(Seller seller, CancellationToken ct)
+    // "mark 1 shipped" / "payment link 1" mean position 1 of the last numbered list shown; with no list (or a number
+    // beyond it) the number is the real order id.
+    private static (int OrderId, bool FromList) ResolveListNumber(SessionContextData ctx, int number) =>
+        ctx.LastListOrderIds is { Count: > 0 } ids && number >= 1 && number <= ids.Count
+            ? (ids[number - 1], true)
+            : (number, false);
+
+    private async Task HandleOrdersTodayAsync(Seller seller, SessionContextData ctx, CancellationToken ct)
     {
         var today = DateTime.UtcNow.Date;
         var orders = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
@@ -219,10 +230,11 @@ public partial class ConversationEngine
             .OrderBy(o => o.CreatedAt)
             .ToListAsync(ct);
 
+        ctx.LastListOrderIds = orders.Select(o => o.Id).ToList();
         await ReplyAsync(seller, Formatters.OrdersToday(seller.PreferredLanguage, orders), ct);
     }
 
-    private async Task HandlePendingOrdersAsync(Seller seller, CancellationToken ct)
+    private async Task HandlePendingOrdersAsync(Seller seller, SessionContextData ctx, CancellationToken ct)
     {
         var orders = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
             .Where(o => o.SellerId == seller.Id && o.Status == OrderStatus.Pending)
@@ -235,8 +247,9 @@ public partial class ConversationEngine
             return;
         }
 
+        ctx.LastListOrderIds = orders.Select(o => o.Id).ToList();
         var lines = orders.Select((o, i) => Formatters.OrderLine(i + 1, o));
-        await ReplyAsync(seller, $"📦 Pending Orders ({orders.Count}):\n\n{string.Join("\n", lines)}", ct);
+        await ReplyAsync(seller, $"📦 Pending Orders ({orders.Count}):\n\n{string.Join("\n", lines)}\n\nReply \"mark 1 shipped\" to update.", ct);
     }
 
     private async Task HandleTodaysSummaryAsync(Seller seller, CancellationToken ct)
@@ -283,6 +296,21 @@ public partial class ConversationEngine
         await ReplyAsync(seller,
             $"🛍️ Aapka Catalog ({products.Count} products):\n\n{string.Join("\n", lines)}\n\n" +
             "Naya product add karne ke liye bas likhein: Kurti - 1800", ct);
+    }
+
+    private async Task HandleShareCatalogAsync(Seller seller, CancellationToken ct)
+    {
+        var products = await _db.Products.Where(p => p.SellerId == seller.Id && p.IsActive).OrderBy(p => p.Id).ToListAsync(ct);
+        if (products.Count == 0)
+        {
+            await ReplyAsync(seller, "Catalog abhi khali hai — pehle products add karein (e.g. Kurti - 1800).", ct);
+            return;
+        }
+
+        var lines = products.Select((p, i) => $"{i + 1}. {p.Name} - {Formatters.Money(p.Price)}");
+        await ReplyAsync(seller,
+            $"📋 {seller.BusinessName} — Catalog\n\n{string.Join("\n", lines)}\n\n" +
+            "Yeh copy kar ke customer ko bhej dein, ya screenshot le kar forward karein.", ct);
     }
 
     private static string HowToText(string subject) => subject switch
@@ -363,8 +391,9 @@ public partial class ConversationEngine
 
     private async Task HandleMarkStatusAsync(Seller seller, ConversationSession session, SessionContextData ctx, ParsedCommand cmd, CancellationToken ct)
     {
+        var (orderId, fromList) = ResolveListNumber(ctx, cmd.Number!.Value);
         var order = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
-            .FirstOrDefaultAsync(o => o.SellerId == seller.Id && o.Id == cmd.Number, ct);
+            .FirstOrDefaultAsync(o => o.SellerId == seller.Id && o.Id == orderId, ct);
         if (order is null)
         {
             await ReplyAsync(seller, $"Order #{cmd.Number} nahi mila.", ct);
@@ -374,10 +403,14 @@ public partial class ConversationEngine
         if (cmd.Text == "paid")
         {
             await MarkOrderPaidAsync(seller, order, ct);
-            return;
+        }
+        else
+        {
+            await ApplyStatusChangeAsync(seller, session, ctx, order, cmd.Text!, ct);
         }
 
-        await ApplyStatusChangeAsync(seller, session, ctx, order, cmd.Text!, ct);
+        if (fromList)
+            await ReplyAsync(seller, $"ℹ️ \"{cmd.Number}\" aapki last list ka number tha (Order #{order.Id}). Naya number ke liye pehle list dobara dekhein.", ct);
     }
 
     private async Task ApplyStatusChangeAsync(Seller seller, ConversationSession session, SessionContextData ctx, Order order, string statusKeyword, CancellationToken ct)
@@ -432,7 +465,7 @@ public partial class ConversationEngine
         await CheckLoyaltyThresholdAsync(seller, order.CustomerId, ct);
     }
 
-    private async Task HandleUnpaidOrdersAsync(Seller seller, CancellationToken ct)
+    private async Task HandleUnpaidOrdersAsync(Seller seller, SessionContextData ctx, CancellationToken ct)
     {
         var orders = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
             .Where(o => o.SellerId == seller.Id && o.PaymentStatus == PaymentStatus.Unpaid && o.Status != OrderStatus.Cancelled)
@@ -445,6 +478,7 @@ public partial class ConversationEngine
             return;
         }
 
+        ctx.LastListOrderIds = orders.Select(o => o.Id).ToList();
         var lines = orders.Select((o, i) => Formatters.OrderLine(i + 1, o) + ", unpaid");
         await ReplyAsync(seller,
             $"💸 Unpaid Orders ({orders.Count}):\n\n{string.Join("\n", lines)}\n\n" +

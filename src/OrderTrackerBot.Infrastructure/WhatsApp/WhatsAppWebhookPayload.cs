@@ -26,6 +26,7 @@ public class WhatsAppWebhookPayload
 
     public class InboundMessage
     {
+        [JsonPropertyName("id")] public string? Id { get; set; }
         [JsonPropertyName("from")] public string? From { get; set; }
         [JsonPropertyName("type")] public string? Type { get; set; }
         [JsonPropertyName("text")] public InboundText? Text { get; set; }
@@ -54,18 +55,32 @@ public class WhatsAppWebhookPayload
     }
 
     /// <summary>Every (from, text) pair for a "text" message found in this payload.</summary>
-    public IEnumerable<(string From, string Text)> ExtractTextMessages()
+    public IEnumerable<(string From, string Text, string? MessageId)> ExtractTextMessages()
     {
         foreach (var entry in Entries)
         foreach (var change in entry.Changes)
         foreach (var message in change.Value?.Messages ?? Enumerable.Empty<InboundMessage>())
         {
             if (message.Type == "text" && message.From is not null && message.Text?.Body is not null)
-                yield return (message.From, message.Text.Body);
+                yield return (message.From, message.Text.Body, message.Id);
             else if (message.Type == "interactive" && message.From is not null && message.Interactive?.ButtonReply?.Title is not null)
-                yield return (message.From, message.Interactive.ButtonReply.Title);
+                yield return (message.From, message.Interactive.ButtonReply.Title, message.Id);
             else if (message.Type == "interactive" && message.From is not null && message.Interactive?.ListReply?.Id is not null)
-                yield return (message.From, message.Interactive.ListReply.Id);
+                yield return (message.From, message.Interactive.ListReply.Id, message.Id);
+        }
+    }
+
+    private static readonly HashSet<string> UnsupportedMediaTypes = new() { "audio", "image", "video", "document", "sticker" };
+
+    /// <summary>Voice notes, screenshots and other media the bot can't read yet — the seller still deserves a reply.</summary>
+    public IEnumerable<(string From, string Type, string? MessageId)> ExtractUnsupportedMessages()
+    {
+        foreach (var entry in Entries)
+        foreach (var change in entry.Changes)
+        foreach (var message in change.Value?.Messages ?? Enumerable.Empty<InboundMessage>())
+        {
+            if (message.From is not null && message.Type is not null && UnsupportedMediaTypes.Contains(message.Type))
+                yield return (message.From, message.Type, message.Id);
         }
     }
 }

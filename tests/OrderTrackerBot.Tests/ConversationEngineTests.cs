@@ -302,6 +302,108 @@ public class ConversationEngineTests : IDisposable
         Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
     }
 
+    private async Task<List<int>> SeedTwoPendingOrdersAsync(AppDbContext db)
+    {
+        var seller = await db.Sellers.FirstAsync();
+        var customer = new OrderTrackerBot.Domain.Entities.Customer { SellerId = seller.Id, Name = "Sara", Phone = "03001112222" };
+        db.Customers.Add(customer);
+        await db.SaveChangesAsync();
+        // Burn ids so list position != order id, which is exactly the mix-up screen 5c fixes.
+        for (var i = 0; i < 4; i++)
+        {
+            db.Orders.Add(new OrderTrackerBot.Domain.Entities.Order { SellerId = seller.Id, CustomerId = customer.Id, Status = OrderStatus.Delivered, PaymentStatus = PaymentStatus.Paid });
+        }
+        await db.SaveChangesAsync();
+        var pending = new List<OrderTrackerBot.Domain.Entities.Order>();
+        for (var i = 0; i < 2; i++)
+        {
+            var o = new OrderTrackerBot.Domain.Entities.Order { SellerId = seller.Id, CustomerId = customer.Id, Status = OrderStatus.Pending };
+            db.Orders.Add(o);
+            pending.Add(o);
+        }
+        await db.SaveChangesAsync();
+        return pending.Select(o => o.Id).ToList();
+    }
+
+    [Fact]
+    public async Task MarkByListNumber_UsesPositionInLastList_NotOrderId()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var pendingIds = await SeedTwoPendingOrdersAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "pending orders", default);
+        await engine.HandleIncomingMessageAsync(Phone, "mark 2 shipped", default);
+
+        var shipped = await db.Orders.Where(o => o.Status == OrderStatus.Shipped).ToListAsync();
+        Assert.Single(shipped);
+        Assert.Equal(pendingIds[1], shipped[0].Id);
+        Assert.Contains(_sentMessages, m => m.Contains("last list"));
+    }
+
+    [Fact]
+    public async Task MarkByNumber_WithNoRecentList_UsesRealOrderId()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var pendingIds = await SeedTwoPendingOrdersAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, $"mark {pendingIds[0]} shipped", default);
+
+        Assert.Equal(OrderStatus.Shipped, (await db.Orders.FindAsync(pendingIds[0]))!.Status);
+    }
+
+    [Theory]
+    [InlineData("odrers todya")]
+    [InlineData("pendng orders")]
+    [InlineData("catlog")]
+    [InlineData("آج کے آرڈرز")]
+    public async Task TypoAndUrduAliases_RunTheRightCommand(string message)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, message, default);
+
+        _ai.Verify(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.NotEmpty(_sentMessages);
+    }
+
+    [Theory]
+    [InlineData("👍")]
+    [InlineData("ok")]
+    [InlineData("Haan")]
+    [InlineData("✅")]
+    public void ShortAndEmojiReplies_CountAsYes(string reply) => Assert.True(CommandParser.IsAffirmative(reply));
+
+    [Fact]
+    public async Task ShareCatalog_ListsProductsReadyToForward()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "share catalog", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Lawn Suit - Rs.3,500") && m.Contains("customer ko bhej dein"));
+    }
+
+    [Theory]
+    [InlineData("audio", "Voice message")]
+    [InlineData("image", "screenshot")]
+    public async Task UnsupportedMedia_GetsAFriendlyTextOnlyReply(string type, string fragment)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+
+        await engine.HandleUnsupportedMediaAsync(Phone, type, default);
+
+        Assert.Contains(_sentMessages, m => m.Contains(fragment) && m.Contains("TEXT"));
+    }
+
     [Fact]
     public async Task MidOnboardingCommand_IsDeferredNotExecuted()
     {

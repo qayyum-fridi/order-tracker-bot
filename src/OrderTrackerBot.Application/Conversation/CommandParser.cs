@@ -14,6 +14,7 @@ public enum CommandKind
     Catalog,
     AddProduct,
     AddProductsBulk,
+    ShareCatalog,
     HowTo,
     EditProduct,
     MarkStatus,
@@ -60,12 +61,13 @@ public static class CommandParser
 
     private static readonly Regex Start = new(@"^start$", Opts);
     private static readonly Regex Greeting = new(@"^(hi|hello|hey|salam|assalam[u]?\s*alaikum|asalam[u]?\s*alaikum)$", Opts);
-    private static readonly Regex Help = new(@"^help$", Opts);
-    private static readonly Regex Menu = new(@"^menu$", Opts);
-    private static readonly Regex OrdersToday = new(@"^orders?\s+today$", Opts);
-    private static readonly Regex PendingOrders = new(@"^pending\s+orders?$", Opts);
-    private static readonly Regex TodaysSummary = new(@"^today'?s\s+summary$", Opts);
-    private static readonly Regex Catalog = new(@"^catalog$", Opts);
+    private static readonly Regex Help = new(@"^(help|مدد)$", Opts);
+    private static readonly Regex Menu = new(@"^(menu|مینو)$", Opts);
+    private static readonly Regex OrdersToday = new(@"^(orders?\s+today|آج\s+کے\s+آرڈرز)$", Opts);
+    private static readonly Regex PendingOrders = new(@"^(pending\s+orders?|پینڈنگ\s+آرڈرز)$", Opts);
+    private static readonly Regex TodaysSummary = new(@"^(today'?s\s+summary|آج\s+کا\s+خلاصہ)$", Opts);
+    private static readonly Regex Catalog = new(@"^(catalog|کیٹلاگ)$", Opts);
+    private static readonly Regex ShareCatalog = new(@"^share\s+catalog$", Opts);
     private static readonly Regex AddProduct = new(@"^add\s+product:\s*(.+?)\s*-\s*(\d+(?:\.\d+)?)$", Opts);
     private static readonly Regex EditProduct = new(@"^edit\s+product:\s*(.+?)\s*-\s*(\d+(?:\.\d+)?)$", Opts);
     private static readonly Regex MarkAllPendingShipped = new(@"^mark\s+all\s+pending\s+as\s+shipped$", Opts);
@@ -120,6 +122,7 @@ public static class CommandParser
         if (PendingOrders.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.PendingOrders };
         if (TodaysSummary.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.TodaysSummary };
         if (Catalog.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Catalog };
+        if (ShareCatalog.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ShareCatalog };
 
         if ((m = AddProduct.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.AddProduct, Text = m.Groups[1].Value.Trim(), Amount = decimal.Parse(m.Groups[2].Value) };
@@ -192,10 +195,51 @@ public static class CommandParser
         if (lines.Length > 1 && lines.All(l => TryParseProductLine(l, out _, out _)))
             return new ParsedCommand { Kind = CommandKind.AddProductsBulk, Text = message };
 
-        return null;
+        return FuzzyCommand(message);
     }
 
-    private static readonly Regex ConfirmYes = new(@"^(yes|y|ha|haan|ہاں)$", Opts);
+    // Typo tolerance ("odrers todya" -> orders today). Only fixed phrases; undo is excluded since a typo must never revert work.
+    private static readonly (string Phrase, CommandKind Kind)[] FuzzyPhrases =
+    {
+        ("orders today", CommandKind.OrdersToday), ("pending orders", CommandKind.PendingOrders),
+        ("today's summary", CommandKind.TodaysSummary), ("catalog", CommandKind.Catalog),
+        ("unpaid orders", CommandKind.UnpaidOrders), ("cod pending", CommandKind.CodPending),
+        ("loyal customers", CommandKind.LoyalCustomers), ("trending products", CommandKind.TrendingProducts),
+        ("slow movers", CommandKind.SlowMovers), ("discount list", CommandKind.DiscountList),
+        ("share catalog", CommandKind.ShareCatalog), ("menu", CommandKind.Menu), ("help", CommandKind.Help)
+    };
+
+    private static ParsedCommand? FuzzyCommand(string message)
+    {
+        var text = message.Trim().ToLowerInvariant();
+        if (text.Length < 4 || text.Any(char.IsDigit) || text.Contains(',')) return null;
+
+        var best = FuzzyPhrases
+            .Select(p => (p.Kind, Distance: EditDistance(text, p.Phrase), p.Phrase))
+            .OrderBy(p => p.Distance)
+            .First();
+        var allowed = best.Phrase.Length >= 8 ? 2 : 1;
+        return best.Distance is > 0 && best.Distance <= allowed ? new ParsedCommand { Kind = best.Kind } : null;
+    }
+
+    // Optimal-string-alignment distance: an adjacent swap ("odrers") costs 1, not 2.
+    private static int EditDistance(string a, string b)
+    {
+        var d = new int[a.Length + 1, b.Length + 1];
+        for (var i = 0; i <= a.Length; i++) d[i, 0] = i;
+        for (var j = 0; j <= b.Length; j++) d[0, j] = j;
+        for (var i = 1; i <= a.Length; i++)
+        for (var j = 1; j <= b.Length; j++)
+        {
+            var cost = a[i - 1] == b[j - 1] ? 0 : 1;
+            d[i, j] = Math.Min(Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1), d[i - 1, j - 1] + cost);
+            if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1])
+                d[i, j] = Math.Min(d[i, j], d[i - 2, j - 2] + 1);
+        }
+        return d[a.Length, b.Length];
+    }
+
+    private static readonly Regex ConfirmYes = new(@"^(yes|y|ha|haan|han|ji|ji haan|ok|okay|👍\S*|✅|ہاں|جی)[.!]*$", Opts);
     private static readonly Regex ConfirmNo = new(@"^(no|n|nahi|نہیں)$", Opts);
 
     public static bool IsAffirmative(string message) => ConfirmYes.IsMatch(message.Trim());
