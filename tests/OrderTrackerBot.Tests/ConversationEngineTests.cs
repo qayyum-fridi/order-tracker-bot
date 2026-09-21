@@ -106,6 +106,42 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task BareProductLine_AddsProductWithoutPrefix_AndIsCaseInsensitiveOnUpdate()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sharara-4200", default);
+        await engine.HandleIncomingMessageAsync(Phone, "sharara - 4500", default);
+
+        var products = await db.Products.Where(p => p.Name.ToLower() == "sharara").ToListAsync();
+        Assert.Single(products);
+        Assert.Equal(4500m, products[0].Price);
+    }
+
+    [Fact]
+    public async Task MultiLineProductList_AddsAllProductsAtOnce()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Dupatta - 900\nScarf - 600\nShawl - 2500", default);
+
+        Assert.Equal(5, await db.Products.CountAsync());
+        Assert.Contains(_sentMessages, m => m.Contains("3 products save ho gaye"));
+    }
+
+    [Theory]
+    [InlineData("Sara, 1 kurti, 03009876543, Gulberg Lahore")]
+    [InlineData("new order: Nimra, 1 kurti, 03211112233")]
+    public void OrderText_IsNotMistakenForProductLine(string message)
+    {
+        Assert.False(CommandParser.TryParseProductLine(message, out _, out _));
+    }
+
+    [Fact]
     public async Task MidOnboardingCommand_IsDeferredNotExecuted()
     {
         using var db = _dbFactory.CreateContext();

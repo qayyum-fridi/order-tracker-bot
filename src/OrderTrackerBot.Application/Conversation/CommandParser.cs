@@ -13,6 +13,7 @@ public enum CommandKind
     TodaysSummary,
     Catalog,
     AddProduct,
+    AddProductsBulk,
     EditProduct,
     MarkStatus,
     MarkAllPendingShipped,
@@ -88,6 +89,18 @@ public static class CommandParser
     private static readonly Regex ResetAccount = new(@"^(reset|delete)\s+account$", Opts);
     private static readonly Regex Feedback = new(@"^feedback:\s*(.+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Singleline);
     private static readonly Regex Broadcast = new(@"^broadcast:\s*(.+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Singleline);
+    // "Lawn Suit - 3500" / "Lawn suite-3500" / "Kurti = 1800" with no command prefix. The name has no digits,
+    // commas or colons, so real orders ("Sara, 1 kurti, 0300...") never match.
+    private static readonly Regex BareProductLine = new(@"^([^\d,:\n]{2,50}?)\s*[-–=]\s*(\d{1,7}(?:\.\d+)?)$", Opts);
+
+    public static bool TryParseProductLine(string line, out string name, out decimal price)
+    {
+        var m = BareProductLine.Match(line.Trim());
+        name = m.Success ? m.Groups[1].Value.Trim() : "";
+        price = m.Success ? decimal.Parse(m.Groups[2].Value) : 0;
+        return m.Success && name.Length > 0;
+    }
+
     private static readonly Regex SafepayId = new(@"^safepay\s+id:\s*(.+)$", Opts);
 
     public static ParsedCommand? TryParse(string rawMessage)
@@ -165,6 +178,12 @@ public static class CommandParser
 
         if ((m = SafepayId.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.AddPaymentMethod, Text = "safepay", Text2 = m.Groups[1].Value.Trim() };
+
+        var lines = message.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (lines.Length == 1 && TryParseProductLine(lines[0], out var name, out var price))
+            return new ParsedCommand { Kind = CommandKind.AddProduct, Text = name, Amount = price };
+        if (lines.Length > 1 && lines.All(l => TryParseProductLine(l, out _, out _)))
+            return new ParsedCommand { Kind = CommandKind.AddProductsBulk, Text = message };
 
         return null;
     }

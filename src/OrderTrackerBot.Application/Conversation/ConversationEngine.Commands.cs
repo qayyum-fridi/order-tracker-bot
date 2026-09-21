@@ -92,6 +92,9 @@ public partial class ConversationEngine
             case CommandKind.AddProduct:
                 await HandleAddProductAsync(seller, cmd, ct);
                 return;
+            case CommandKind.AddProductsBulk:
+                await HandleAddProductsBulkAsync(seller, cmd, ct);
+                return;
             case CommandKind.EditProduct:
                 await HandleEditProductAsync(seller, cmd, ct);
                 return;
@@ -239,28 +242,54 @@ public partial class ConversationEngine
 
         if (products.Count == 0)
         {
-            await ReplyAsync(seller, "Abhi koi product nahi hai. \"add product: naam - price\" likhein.", ct);
+            await ReplyAsync(seller,
+                "🛍️ Aapka catalog abhi khali hai.\n\n" +
+                "Product add karna bohot aasan hai — bas naam aur price bhejein:\n" +
+                "Lawn Suit - 3500\n\n" +
+                "Ek saath kai products bhi bhej saktay hain (har line mein ek):\n" +
+                "Lawn Suit - 3500\nKurti - 1800\nDupatta - 900", ct);
             return;
         }
 
         var lines = products.Select((p, i) => $"{i + 1} {p.Name} - {Formatters.Money(p.Price)}");
         await ReplyAsync(seller,
             $"🛍️ Aapka Catalog ({products.Count} products):\n\n{string.Join("\n", lines)}\n\n" +
-            "'add product: naam - price' likhein naya add karne ke liye.", ct);
+            "Naya product add karne ke liye bas likhein: Kurti - 1800", ct);
     }
 
     private async Task HandleAddProductAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
     {
-        var existing = await _db.Products.FirstOrDefaultAsync(p => p.SellerId == seller.Id && p.Name == cmd.Text, ct);
+        var (name, price, updated) = await UpsertProductAsync(seller, cmd.Text!, cmd.Amount!.Value, ct);
+        await ReplyAsync(seller, updated
+            ? $"✅ {name} price updated: {Formatters.Money(price)}"
+            : $"✅ {name} - {Formatters.Money(price)} catalog mein add ho gaya.\n\nAur add karein (Naam - price), ya \"catalog\" likhein.", ct);
+    }
+
+    private async Task HandleAddProductsBulkAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
+    {
+        var results = new List<string>();
+        foreach (var line in cmd.Text!.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (!CommandParser.TryParseProductLine(line, out var lineName, out var linePrice)) continue;
+            var (name, price, updated) = await UpsertProductAsync(seller, lineName, linePrice, ct);
+            results.Add($"{results.Count + 1} {name} - {Formatters.Money(price)}{(updated ? " (updated)" : "")}");
+        }
+        await ReplyAsync(seller, $"✅ {results.Count} products save ho gaye:\n\n{string.Join("\n", results)}\n\n\"catalog\" likh kar poori list dekhein.", ct);
+    }
+
+    private async Task<(string Name, decimal Price, bool Updated)> UpsertProductAsync(Seller seller, string name, decimal price, CancellationToken ct)
+    {
+        var lower = name.ToLower();
+        var existing = await _db.Products.FirstOrDefaultAsync(p => p.SellerId == seller.Id && p.Name.ToLower() == lower, ct);
         if (existing is not null)
         {
-            existing.Price = cmd.Amount!.Value;
-            await ReplyAsync(seller, $"✅ {existing.Name} price updated: {Formatters.Money(existing.Price)}", ct);
-            return;
+            existing.Price = price;
+            return (existing.Name, price, true);
         }
 
-        _db.Products.Add(new Product { SellerId = seller.Id, Name = cmd.Text!, Price = cmd.Amount!.Value });
-        await ReplyAsync(seller, $"✅ {cmd.Text} - {Formatters.Money(cmd.Amount!.Value)} catalog mein add ho gaya.", ct);
+        _db.Products.Add(new Product { SellerId = seller.Id, Name = name, Price = price });
+        await _db.SaveChangesAsync(ct);
+        return (name, price, false);
     }
 
     private async Task HandleEditProductAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
