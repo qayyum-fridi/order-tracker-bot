@@ -16,6 +16,9 @@ services:
       OpenAi__ApiKey: "${OPENAI_API_KEY}"
       OpenAi__Model: "${OPENAI_MODEL:-gpt-4o-mini}"
       FounderAlerts__WebhookUrl: "${FOUNDER_ALERTS_WEBHOOK_URL:-}"
+      WhatsApp__ProductFlowId: "${WHATSAPP_PRODUCT_FLOW_ID:-}"
+      WhatsApp__CustomerFlowId: "${WHATSAPP_CUSTOMER_FLOW_ID:-}"
+      WhatsApp__OrderFlowId: "${WHATSAPP_ORDER_FLOW_ID:-}"
     volumes:
       - order-tracker-db-data:/data
     networks:
