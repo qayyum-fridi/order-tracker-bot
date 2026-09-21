@@ -302,6 +302,51 @@ public partial class ConversationEngine
         await ReplyAsync(seller, reply, ct);
     }
 
+    private async Task HandleResetConfirmationAsync(Seller seller, ConversationSession session, string message, CancellationToken ct)
+    {
+        if (!CommandParser.IsAffirmative(message))
+        {
+            SetState(session, ConversationState.Idle);
+            await ReplyAsync(seller, "Theek hai, kuch delete nahi kiya.", ct);
+            return;
+        }
+
+        _db.Orders.RemoveRange(await _db.Orders.Where(o => o.SellerId == seller.Id).ToListAsync(ct));
+        await _db.SaveChangesAsync(ct);
+        _db.Customers.RemoveRange(await _db.Customers.Where(c => c.SellerId == seller.Id).ToListAsync(ct));
+        _db.Products.RemoveRange(await _db.Products.Where(p => p.SellerId == seller.Id).ToListAsync(ct));
+        _db.Discounts.RemoveRange(await _db.Discounts.Where(d => d.SellerId == seller.Id).ToListAsync(ct));
+        _db.LoyaltyRules.RemoveRange(await _db.LoyaltyRules.Where(l => l.SellerId == seller.Id).ToListAsync(ct));
+        _db.PaymentMethods.RemoveRange(await _db.PaymentMethods.Where(p => p.SellerId == seller.Id).ToListAsync(ct));
+        _db.ActionLogs.RemoveRange(await _db.ActionLogs.Where(a => a.SellerId == seller.Id).ToListAsync(ct));
+        _db.MerchantFeedbacks.RemoveRange(await _db.MerchantFeedbacks.Where(f => f.SellerId == seller.Id).ToListAsync(ct));
+        _db.CustomerFeedbacks.RemoveRange(await _db.CustomerFeedbacks.Where(f => f.SellerId == seller.Id).ToListAsync(ct));
+
+        seller.BusinessName = null;
+        seller.OnboardingComplete = false;
+        SetState(session, ConversationState.OnboardingBusinessName);
+        await ReplyAsync(seller, "✅ Account reset ho gaya.\n\nSalam! 👋 Main aapka order assistant hoon. Pehle business ka naam bataiye?", ct);
+    }
+
+    private async Task HandleCustomerFeedbackListAsync(Seller seller, CancellationToken ct)
+    {
+        var items = await _db.CustomerFeedbacks
+            .Where(f => f.SellerId == seller.Id)
+            .OrderByDescending(f => f.CreatedAt)
+            .Take(10)
+            .ToListAsync(ct);
+
+        if (items.Count == 0)
+        {
+            await ReplyAsync(seller, "Abhi tak koi customer feedback save nahi hua.", ct);
+            return;
+        }
+
+        var lines = items.Select((f, i) =>
+            $"{i + 1}. {f.CustomerName ?? "Customer"}{(f.OrderId is null ? "" : $" (#{f.OrderId})")} - \"{f.Text}\"");
+        await ReplyAsync(seller, $"💬 Recent Customer Feedback:\n\n{string.Join("\n", lines)}", ct);
+    }
+
     private async Task HandleDiscountListAsync(Seller seller, CancellationToken ct)
     {
         var discounts = await _db.Discounts

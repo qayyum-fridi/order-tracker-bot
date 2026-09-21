@@ -102,6 +102,15 @@ gated by `Database:AutoMigrate`).
 (`WhatsApp:AccessToken`, `OpenAi:ApiKey`, `FounderAlerts:WebhookUrl`) is absent, rather
 than throwing — this is what makes the credential-free local dev loop possible.
 
+## Deployment
+
+Full steps are in `README.md` ("Deployment"). Two paths: (A) `dotnet publish` + systemd
+service + nginx reverse proxy to `127.0.0.1:5001`, using `deploy/*.example` templates
+(secrets go in the unit's `Environment=` lines, never committed); (B) `docker compose up -d --build`
+via `Dockerfile` + `docker-compose.yml` (recently switched to Sqlite — README's mention of
+a bundled SQL Server container may be stale). Pushing to or restarting the server is a
+shared-state action: confirm with the user and get SSH/host details first.
+
 ## Known gaps (intentionally out of scope for this pass)
 
 - Weekly summary is not wired to a scheduler (`BackgroundService`/cron) yet.

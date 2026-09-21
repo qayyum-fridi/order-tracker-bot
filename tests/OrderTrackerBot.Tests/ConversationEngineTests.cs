@@ -52,6 +52,38 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task ResetAccount_WithConfirmation_WipesDataAndRestartsOnboarding()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "reset account", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        var seller = await db.Sellers.Include(s => s.Session).FirstAsync(s => s.WhatsAppPhoneNumber == Phone);
+        Assert.False(seller.OnboardingComplete);
+        Assert.Null(seller.BusinessName);
+        Assert.Equal(ConversationState.OnboardingBusinessName, seller.Session!.State);
+        Assert.Equal(0, await db.Products.CountAsync());
+        Assert.Contains(_sentMessages, m => m.Contains("business ka naam"));
+    }
+
+    [Fact]
+    public async Task ResetAccount_WithoutConfirmation_KeepsData()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "reset account", default);
+        await engine.HandleIncomingMessageAsync(Phone, "no", default);
+
+        Assert.Equal(2, await db.Products.CountAsync());
+        Assert.True((await db.Sellers.FirstAsync()).OnboardingComplete);
+    }
+
+    [Fact]
     public async Task MidOnboardingCommand_IsDeferredNotExecuted()
     {
         using var db = _dbFactory.CreateContext();

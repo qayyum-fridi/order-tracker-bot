@@ -16,7 +16,8 @@ public enum ConversationState
     AwaitingRuntimeFilterChoice,
     AwaitingCustomDateRange,
     AwaitingOrderGroupingChoice,
-    AwaitingBroadcastAudienceChoice
+    AwaitingBroadcastAudienceChoice,
+    AwaitingResetConfirmation
 }
 
 public enum OrderStatus

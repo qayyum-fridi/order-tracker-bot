@@ -131,6 +131,14 @@ public partial class ConversationEngine
                 SetState(session, ConversationState.AwaitingRuntimeFilterChoice);
                 await ReplyAsync(seller, "📉 Kitne din se koi order nahi aaya?\n1️⃣ 7 days\n2️⃣ 14 days\n3️⃣ 30 days", ct);
                 return;
+            case CommandKind.ResetAccount:
+                SetState(session, ConversationState.AwaitingResetConfirmation);
+                await ReplyAsync(seller,
+                    "⚠️ Yeh aapka poora data (orders, products, customers, discounts) delete kar dega aur setup dobara shuru hoga.\nReply YES to confirm, ya koi bhi aur message cancel karne ke liye.", ct);
+                return;
+            case CommandKind.CustomerFeedbackList:
+                await HandleCustomerFeedbackListAsync(seller, ct);
+                return;
             case CommandKind.Feedback:
                 await HandleFeedbackAsync(seller, cmd, ct);
                 return;

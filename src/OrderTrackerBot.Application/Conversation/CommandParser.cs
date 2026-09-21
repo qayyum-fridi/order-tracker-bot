@@ -33,6 +33,8 @@ public enum CommandKind
     TrendingProducts,
     SlowMovers,
     Feedback,
+    CustomerFeedbackList,
+    ResetAccount,
     Broadcast
 }
 
@@ -82,6 +84,8 @@ public static class CommandParser
     private static readonly Regex LoyalCustomers = new(@"^loyal\s+customers?$", Opts);
     private static readonly Regex TrendingProducts = new(@"^trending\s+products?$", Opts);
     private static readonly Regex SlowMovers = new(@"^slow\s+movers?$", Opts);
+    private static readonly Regex CustomerFeedbackList = new(@"^customer\s+feedback$", Opts);
+    private static readonly Regex ResetAccount = new(@"^(reset|delete)\s+account$", Opts);
     private static readonly Regex Feedback = new(@"^feedback:\s*(.+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Singleline);
     private static readonly Regex Broadcast = new(@"^broadcast:\s*(.+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Singleline);
     private static readonly Regex SafepayId = new(@"^safepay\s+id:\s*(.+)$", Opts);
@@ -148,6 +152,10 @@ public static class CommandParser
         if (LoyalCustomers.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.LoyalCustomers };
         if (TrendingProducts.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.TrendingProducts };
         if (SlowMovers.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.SlowMovers };
+
+        if (ResetAccount.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ResetAccount };
+
+        if (CustomerFeedbackList.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CustomerFeedbackList };
 
         if ((m = Feedback.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.Feedback, Text = m.Groups[1].Value.Trim() };
