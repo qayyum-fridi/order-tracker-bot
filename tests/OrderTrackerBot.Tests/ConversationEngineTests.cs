@@ -523,6 +523,20 @@ public class ConversationEngineTests : IDisposable
         Assert.Contains(_sentMessages, m => m.Contains("catalog mein nahi mila"));
     }
 
+    [Theory]
+    [InlineData("{\"name\":\"Kurti\",\"price\":\"1800\"}")]
+    [InlineData("{\"flow_token\":\"unused\",\"name\":\"Kurti\",\"price\":\"1800\"}")]
+    public async Task ProductForm_IsRecognizedFromItsFields_WhenFlowTokenIsMissingOrForeign(string json)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleFlowSubmissionAsync(Phone, json, default);
+
+        Assert.Contains(await db.Products.ToListAsync(), p => p.Name == "Kurti" && p.Price == 1800m);
+    }
+
     [Fact]
     public async Task FlowSubmission_WithGarbageJson_IsIgnoredSafely()
     {

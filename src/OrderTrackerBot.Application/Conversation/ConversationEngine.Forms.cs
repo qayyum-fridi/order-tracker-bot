@@ -42,7 +42,17 @@ public partial class ConversationEngine
             return string.IsNullOrWhiteSpace(text) ? null : text.Trim();
         }
 
-        switch (Field("flow_token"))
+        // Meta adds flow_token to the submission itself; if it's missing or not one of ours, infer the form from its fields.
+        var kind = Field("flow_token");
+        if (kind is not ("product" or "customer" or "order"))
+        {
+            kind = Field("customer") is not null && Field("product") is not null ? "order"
+                 : Field("price") is not null && Field("name") is not null ? "product"
+                 : Field("phone") is not null && Field("name") is not null ? "customer"
+                 : null;
+        }
+
+        switch (kind)
         {
             case "product": await SaveProductFormAsync(seller, Field, ct); break;
             case "customer": await SaveCustomerFormAsync(seller, Field, ct); break;

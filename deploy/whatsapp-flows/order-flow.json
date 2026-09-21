@@ -6,12 +6,6 @@
       "title": "Naya Order",
       "terminal": true,
       "success": true,
-      "data": {
-        "flow_token": {
-          "type": "string",
-          "__example__": "product"
-        }
-      },
       "layout": {
         "type": "SingleColumnLayout",
         "children": [
@@ -103,7 +97,6 @@
             "on-click-action": {
               "name": "complete",
               "payload": {
-                "flow_token": "${data.flow_token}",
                 "customer": "${form.customer}",
                 "product": "${form.product}",
                 "quantity": "${form.quantity}",
