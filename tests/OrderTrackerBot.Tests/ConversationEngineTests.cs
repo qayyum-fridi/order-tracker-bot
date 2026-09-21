@@ -87,6 +87,25 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task Menu_SendsTappableList_WhoseRowsAreAllValidCommands()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        IReadOnlyList<MenuSection>? sent = null;
+        _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, _, _, sections, _) => sent = sections)
+            .Returns(Task.CompletedTask);
+
+        await engine.HandleIncomingMessageAsync(Phone, "menu", default);
+
+        Assert.NotNull(sent);
+        var rows = sent!.SelectMany(s => s.Rows).ToList();
+        Assert.InRange(rows.Count, 1, 10);
+        Assert.All(rows, r => Assert.NotNull(CommandParser.TryParse(r.Id)));
+    }
+
+    [Fact]
     public async Task MidOnboardingCommand_IsDeferredNotExecuted()
     {
         using var db = _dbFactory.CreateContext();

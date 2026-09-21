@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
@@ -40,6 +41,29 @@ public partial class ConversationEngine
         "🎟️ Discounts\n • create discount\n • discount list\n\n" +
         "Command type karein, ya poochein.";
 
+    private static readonly IReadOnlyList<MenuSection> MenuSections = new[]
+    {
+        new MenuSection("📦 Orders", new[]
+        {
+            new MenuRow("orders today", "Orders today"),
+            new MenuRow("pending orders", "Pending orders"),
+            new MenuRow("unpaid orders", "Unpaid orders")
+        }),
+        new MenuSection("📊 Reports", new[]
+        {
+            new MenuRow("today's summary", "Today's summary"),
+            new MenuRow("trending products", "Trending products"),
+            new MenuRow("slow movers", "Slow movers"),
+            new MenuRow("loyal customers", "Loyal customers"),
+            new MenuRow("cod pending", "COD pending")
+        }),
+        new MenuSection("🛍️ Catalog & Discounts", new[]
+        {
+            new MenuRow("catalog", "Catalog"),
+            new MenuRow("discount list", "Discount list")
+        })
+    };
+
     private async Task ExecuteCommandAsync(Seller seller, ConversationSession session, SessionContextData ctx, ParsedCommand cmd, CancellationToken ct)
     {
         switch (cmd.Kind)
@@ -51,7 +75,7 @@ public partial class ConversationEngine
                 await ReplyAsync(seller, HelpText, ct);
                 return;
             case CommandKind.Menu:
-                await ReplyAsync(seller, MenuText, ct);
+                await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MenuText, "Menu kholein", MenuSections, ct);
                 return;
             case CommandKind.OrdersToday:
                 await HandleOrdersTodayAsync(seller, ct);

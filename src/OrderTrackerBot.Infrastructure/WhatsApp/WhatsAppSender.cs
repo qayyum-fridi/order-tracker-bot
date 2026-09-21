@@ -44,6 +44,29 @@ public class WhatsAppSender : IWhatsAppSender
             }
         }, cancellationToken);
 
+    public Task SendListMessageAsync(string toPhoneNumber, string bodyText, string buttonLabel, IReadOnlyList<MenuSection> sections, CancellationToken cancellationToken = default) =>
+        PostAsync(toPhoneNumber, bodyText, new SendListRequest
+        {
+            To = toPhoneNumber,
+            Interactive = new ListBody
+            {
+                Body = new SendMessageText { Body = bodyText },
+                Action = new ListAction
+                {
+                    Button = buttonLabel.Length > 20 ? buttonLabel[..20] : buttonLabel,
+                    Sections = sections.Select(s => new ListSection
+                    {
+                        Title = s.Title.Length > 24 ? s.Title[..24] : s.Title,
+                        Rows = s.Rows.Select(r => new ListRow
+                        {
+                            Id = r.Id,
+                            Title = r.Title.Length > 24 ? r.Title[..24] : r.Title
+                        }).ToList()
+                    }).ToList()
+                }
+            }
+        }, cancellationToken);
+
     private async Task PostAsync(string toPhoneNumber, string logText, object payload, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(_options.AccessToken))
@@ -95,6 +118,39 @@ public class WhatsAppSender : IWhatsAppSender
         [JsonPropertyName("to")] public required string To { get; set; }
         [JsonPropertyName("type")] public string Type { get; set; } = "interactive";
         [JsonPropertyName("interactive")] public required InteractiveBody Interactive { get; set; }
+    }
+
+    private class SendListRequest
+    {
+        [JsonPropertyName("messaging_product")] public string MessagingProduct { get; set; } = "whatsapp";
+        [JsonPropertyName("to")] public required string To { get; set; }
+        [JsonPropertyName("type")] public string Type { get; set; } = "interactive";
+        [JsonPropertyName("interactive")] public required ListBody Interactive { get; set; }
+    }
+
+    private class ListBody
+    {
+        [JsonPropertyName("type")] public string Type { get; set; } = "list";
+        [JsonPropertyName("body")] public required SendMessageText Body { get; set; }
+        [JsonPropertyName("action")] public required ListAction Action { get; set; }
+    }
+
+    private class ListAction
+    {
+        [JsonPropertyName("button")] public required string Button { get; set; }
+        [JsonPropertyName("sections")] public required List<ListSection> Sections { get; set; }
+    }
+
+    private class ListSection
+    {
+        [JsonPropertyName("title")] public required string Title { get; set; }
+        [JsonPropertyName("rows")] public required List<ListRow> Rows { get; set; }
+    }
+
+    private class ListRow
+    {
+        [JsonPropertyName("id")] public required string Id { get; set; }
+        [JsonPropertyName("title")] public required string Title { get; set; }
     }
 
     private class InteractiveBody
