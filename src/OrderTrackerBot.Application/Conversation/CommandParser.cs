@@ -14,6 +14,7 @@ public enum CommandKind
     Catalog,
     AddProduct,
     AddProductsBulk,
+    HowTo,
     EditProduct,
     MarkStatus,
     MarkAllPendingShipped,
@@ -101,6 +102,9 @@ public static class CommandParser
         return m.Success && name.Length > 0;
     }
 
+    // "add discount" / "new product" with no details: show the exact format instead of guessing via the AI.
+    private static readonly Regex HowTo = new(@"^(?:add|new|create|make)\s+(discount|product|payment|loyalty|tracking)s?$", Opts);
+
     private static readonly Regex SafepayId = new(@"^safepay\s+id:\s*(.+)$", Opts);
 
     public static ParsedCommand? TryParse(string rawMessage)
@@ -178,6 +182,9 @@ public static class CommandParser
 
         if ((m = SafepayId.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.AddPaymentMethod, Text = "safepay", Text2 = m.Groups[1].Value.Trim() };
+
+        if ((m = HowTo.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.HowTo, Text = m.Groups[1].Value.ToLowerInvariant() };
 
         var lines = message.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (lines.Length == 1 && TryParseProductLine(lines[0], out var name, out var price))

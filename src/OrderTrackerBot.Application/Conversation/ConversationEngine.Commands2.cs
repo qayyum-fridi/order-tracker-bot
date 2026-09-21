@@ -363,7 +363,7 @@ public partial class ConversationEngine
 
         if (discounts.Count == 0)
         {
-            await ReplyAsync(seller, "Koi active discount nahi hai.", ct);
+            await ReplyAsync(seller, "Abhi koi active discount nahi hai.\n\n" + HowToText("discount"), ct);
             return;
         }
 

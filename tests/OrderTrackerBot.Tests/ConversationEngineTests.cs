@@ -223,6 +223,36 @@ public class ConversationEngineTests : IDisposable
         Assert.Contains(_sentMessages, m => m.Contains("Phone number sahi nahi lagta"));
     }
 
+    [Theory]
+    [InlineData("add discount", "create discount: EID10")]
+    [InlineData("New Product", "Kurti - 1800")]
+    [InlineData("add payment", "add payment: jazzcash")]
+    [InlineData("create loyalty", "create loyalty: 5 orders")]
+    [InlineData("add tracking", "add tracking: Leopards")]
+    public async Task HowToPhrases_ShowExactFormat_InsteadOfAskingTheAi(string message, string expectedFragment)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, message, default);
+
+        Assert.Contains(_sentMessages, m => m.Contains(expectedFragment));
+        _ai.Verify(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DiscountList_WhenEmpty_ShowsHowToCreateOne()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "discount list", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("create discount: EID10"));
+    }
+
     [Fact]
     public async Task MidOnboardingCommand_IsDeferredNotExecuted()
     {

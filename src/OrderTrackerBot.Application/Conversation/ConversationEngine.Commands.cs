@@ -116,6 +116,9 @@ public partial class ConversationEngine
             case CommandKind.AddProduct:
                 await HandleAddProductAsync(seller, cmd, ct);
                 return;
+            case CommandKind.HowTo:
+                await ReplyAsync(seller, HowToText(cmd.Text!), ct);
+                return;
             case CommandKind.AddProductsBulk:
                 await HandleAddProductsBulkAsync(seller, cmd, ct);
                 return;
@@ -280,6 +283,26 @@ public partial class ConversationEngine
             $"🛍️ Aapka Catalog ({products.Count} products):\n\n{string.Join("\n", lines)}\n\n" +
             "Naya product add karne ke liye bas likhein: Kurti - 1800", ct);
     }
+
+    private static string HowToText(string subject) => subject switch
+    {
+        "discount" =>
+            "🎟️ Discount code banane ke liye copy karke bhejein:\n\n" +
+            "create discount: EID10, 10 percent, expires 15 days\n\n" +
+            "Ya flat amount:\n" +
+            "create discount: WELCOME50, Rs.50 flat\n\n" +
+            "(CODE apni marzi ka, expiry optional hai)",
+        "product" =>
+            "🛍️ Product add karne ke liye bas likhein:\n\nKurti - 1800\n\n" +
+            "Ek saath kai bhi bhej saktay hain (har line mein ek).",
+        "payment" =>
+            "💳 Payment method save karne ke liye likhein:\n\n" +
+            "add payment: jazzcash, 0300-1234567\nadd payment: easypaisa, 0300-1234567",
+        "loyalty" =>
+            "⭐ Loyalty rule banane ke liye likhein:\n\ncreate loyalty: 5 orders = 10 percent off",
+        _ =>
+            "🚚 Tracking number save karne ke liye likhein:\n\nadd tracking: Leopards, LC998877"
+    };
 
     private async Task HandleAddProductAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
     {
