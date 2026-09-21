@@ -17,4 +17,6 @@ public class WhatsAppOptions
     public string ProductFlowId { get; set; } = "";
     public string CustomerFlowId { get; set; } = "";
     public string OrderFlowId { get; set; } = "";
+    /// <summary>Send Flows in draft mode (for testing unpublished Flows); Meta only delivers drafts to test recipients.</summary>
+    public bool FlowDraftMode { get; set; }
 }

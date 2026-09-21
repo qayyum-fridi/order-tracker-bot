@@ -19,6 +19,7 @@ services:
       WhatsApp__ProductFlowId: "${WHATSAPP_PRODUCT_FLOW_ID:-}"
       WhatsApp__CustomerFlowId: "${WHATSAPP_CUSTOMER_FLOW_ID:-}"
       WhatsApp__OrderFlowId: "${WHATSAPP_ORDER_FLOW_ID:-}"
+      WhatsApp__FlowDraftMode: "${WHATSAPP_FLOW_DRAFT_MODE:-false}"
     volumes:
       - order-tracker-db-data:/data
     networks:

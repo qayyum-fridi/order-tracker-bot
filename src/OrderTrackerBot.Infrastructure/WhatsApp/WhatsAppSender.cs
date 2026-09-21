@@ -102,6 +102,7 @@ public class WhatsAppSender : IWhatsAppSender
                     {
                         FlowToken = flowKind,
                         FlowId = flowId,
+                        Mode = _options.FlowDraftMode ? "draft" : null,
                         FlowCta = ctaLabel.Length > 30 ? ctaLabel[..30] : ctaLabel,
                         FlowActionPayload = new FlowActionPayload { Screen = firstScreen }
                     }
@@ -225,6 +226,7 @@ public class WhatsAppSender : IWhatsAppSender
         [JsonPropertyName("flow_message_version")] public string FlowMessageVersion { get; set; } = "3";
         [JsonPropertyName("flow_token")] public required string FlowToken { get; set; }
         [JsonPropertyName("flow_id")] public required string FlowId { get; set; }
+        [JsonPropertyName("mode"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Mode { get; set; }
         [JsonPropertyName("flow_cta")] public required string FlowCta { get; set; }
         [JsonPropertyName("flow_action")] public string FlowAction { get; set; } = "navigate";
         [JsonPropertyName("flow_action_payload")] public required FlowActionPayload FlowActionPayload { get; set; }
