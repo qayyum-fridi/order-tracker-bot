@@ -15,6 +15,10 @@ public enum CommandKind
     AddProduct,
     AddProductsBulk,
     ShareCatalog,
+    MenuCategory,
+    CustomerList,
+    CustomerDetail,
+    CustomerSearch,
     DetailedForm,
     HowTo,
     EditProduct,
@@ -69,6 +73,10 @@ public static class CommandParser
     private static readonly Regex TodaysSummary = new(@"^(today'?s\s+summary|آج\s+کا\s+خلاصہ)$", Opts);
     private static readonly Regex Catalog = new(@"^(catalog|کیٹلاگ)$", Opts);
     private static readonly Regex ShareCatalog = new(@"^share\s+catalog$", Opts);
+    private static readonly Regex MenuCategory = new(@"^menu\s+(orders|reports|catalog|payments|discounts|customers)$", Opts);
+    private static readonly Regex CustomerList = new(@"^(customers?\s+list|my\s+customers)$", Opts);
+    private static readonly Regex CustomerSearch = new(@"^search\s+customers?:\s*(.+)$", Opts);
+    private static readonly Regex CustomerDetail = new(@"^customer\s+(?!list$|feedback$)(.+)$", Opts);
     private static readonly Regex AddProduct = new(@"^add\s+product:\s*(.+?)\s*-\s*(\d+(?:\.\d+)?)$", Opts);
     private static readonly Regex EditProduct = new(@"^edit\s+product:\s*(.+?)\s*-\s*(\d+(?:\.\d+)?)$", Opts);
     private static readonly Regex MarkAllPendingShipped = new(@"^mark\s+all\s+pending\s+as\s+shipped$", Opts);
@@ -125,6 +133,16 @@ public static class CommandParser
         if (TodaysSummary.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.TodaysSummary };
         if (Catalog.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Catalog };
         if (ShareCatalog.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ShareCatalog };
+        if ((m = MenuCategory.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.MenuCategory, Text = m.Groups[1].Value.ToLowerInvariant() };
+        if (CustomerList.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CustomerList };
+        if ((m = CustomerSearch.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.CustomerSearch, Text = m.Groups[1].Value.Trim() };
+        if ((m = CustomerDetail.Match(message)).Success)
+        {
+            var arg = m.Groups[1].Value.Trim();
+            return new ParsedCommand { Kind = CommandKind.CustomerDetail, Text = arg, Number = int.TryParse(arg, out var n) ? n : null };
+        }
 
         if ((m = AddProduct.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.AddProduct, Text = m.Groups[1].Value.Trim(), Amount = decimal.Parse(m.Groups[2].Value) };
@@ -211,7 +229,7 @@ public static class CommandParser
         ("unpaid orders", CommandKind.UnpaidOrders), ("cod pending", CommandKind.CodPending),
         ("loyal customers", CommandKind.LoyalCustomers), ("trending products", CommandKind.TrendingProducts),
         ("slow movers", CommandKind.SlowMovers), ("discount list", CommandKind.DiscountList),
-        ("share catalog", CommandKind.ShareCatalog), ("menu", CommandKind.Menu), ("help", CommandKind.Help)
+        ("share catalog", CommandKind.ShareCatalog), ("customer list", CommandKind.CustomerList), ("menu", CommandKind.Menu), ("help", CommandKind.Help)
     };
 
     private static ParsedCommand? FuzzyCommand(string message)

@@ -39,6 +39,7 @@ public sealed class SessionContextData
     public string? PendingDiscountCode { get; set; }
     /// <summary>Order ids in the order of the last numbered list shown, so "mark 1 shipped" means list position 1.</summary>
     public List<int>? LastListOrderIds { get; set; }
+    public List<int>? LastListCustomerIds { get; set; }
     public List<PendingOrderItemData>? QueuedSeparateOrderItems { get; set; }
     public PendingOrderData? QueuedOrderTemplate { get; set; }
 

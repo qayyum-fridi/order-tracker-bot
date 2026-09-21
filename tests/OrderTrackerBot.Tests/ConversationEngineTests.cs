@@ -536,6 +536,84 @@ public class ConversationEngineTests : IDisposable
         Assert.Empty(_sentMessages);
     }
 
+    [Theory]
+    [InlineData("orders")]
+    [InlineData("reports")]
+    [InlineData("catalog")]
+    [InlineData("payments")]
+    [InlineData("discounts")]
+    [InlineData("customers")]
+    public async Task MenuCategory_OpensTappableSubMenu_WithBackRow_AndOnlyRunnableRows(string category)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        string? body = null;
+        IReadOnlyList<MenuSection>? sent = null;
+        _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, text, _, sections, _) => { body = text; sent = sections; })
+            .Returns(Task.CompletedTask);
+
+        await engine.HandleIncomingMessageAsync(Phone, $"menu {category}", default);
+
+        var rows = sent!.SelectMany(s => s.Rows).ToList();
+        Assert.InRange(rows.Count, 2, 10);
+        Assert.Contains(rows, r => r.Id == "menu");
+        Assert.All(rows, r => Assert.NotNull(CommandParser.TryParse(r.Id)));
+        Assert.All(rows, r => Assert.True(r.Title.Length <= 24, r.Title));
+        Assert.True(body!.Length <= 1024);
+        Assert.DoesNotContain(rows, r => r.Id == "undo");
+    }
+
+    [Fact]
+    public async Task MainMenu_ListsSixCategories_AndHelpShowsOnlyTheEightCoreThings()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        var lists = new List<(string Body, IReadOnlyList<MenuSection> Sections)>();
+        _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, text, _, sections, _) => lists.Add((text, sections)))
+            .Returns(Task.CompletedTask);
+
+        await engine.HandleIncomingMessageAsync(Phone, "menu", default);
+        await engine.HandleIncomingMessageAsync(Phone, "help", default);
+
+        Assert.Equal(6, lists[0].Sections.SelectMany(s => s.Rows).Count(r => r.Id.StartsWith("menu ")));
+        Assert.Contains("8 cheezein", lists[1].Body);
+        Assert.DoesNotContain("trending", lists[1].Body);
+    }
+
+    [Fact]
+    public async Task CustomerList_Detail_AndSearch_ShowOrdersAndSpend()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        await SeedTwoPendingOrdersAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "customer list", default);
+        Assert.Contains(_sentMessages, m => m.Contains("Aapke Customers (1 total)") && m.Contains("1 Sara - 03001112222 - 6 orders"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "customer 1", default);
+        Assert.Contains(_sentMessages, m => m.Contains("👤 Sara") && m.Contains("Total orders: 6") && m.Contains("Loyal customer"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "search customer: 0300111", default);
+        Assert.Contains(_sentMessages, m => m.Contains("1 customer mila") && m.Contains("Sara"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "customer nobody", default);
+        Assert.Contains(_sentMessages, m => m.Contains("koi customer nahi mila"));
+    }
+
+    [Fact]
+    public async Task CustomerFeedbackCommand_IsNotMistakenForCustomerDetail()
+    {
+        Assert.Equal(CommandKind.CustomerFeedbackList, CommandParser.TryParse("customer feedback")!.Kind);
+        Assert.Equal(CommandKind.CustomerList, CommandParser.TryParse("customer list")!.Kind);
+        Assert.Equal(CommandKind.CustomerDetail, CommandParser.TryParse("customer 2")!.Kind);
+        await Task.CompletedTask;
+    }
+
     [Fact]
     public async Task MidOnboardingCommand_IsDeferredNotExecuted()
     {

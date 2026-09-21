@@ -8,86 +8,96 @@ namespace OrderTrackerBot.Application.Conversation;
 
 public partial class ConversationEngine
 {
+    // Discoverability rule: a seller memorizes only these 8 things; everything else is reached by tapping through "menu".
     private const string HelpText =
-        "🆘 Yeh commands try karein:\n\n" +
-        "• \"new order: naam, product, phone, address\"\n" +
-        "• \"orders today\"\n" +
-        "• \"today's summary\"\n" +
-        "• \"pending orders\"\n" +
-        "• \"[naam] ka order\"\n" +
-        "• \"mark [number] shipped/delivered\"\n" +
-        "• \"add tracking: courier, number\"\n" +
-        "• \"[naam] ka tracking\"\n" +
-        "• \"cod pending\"\n" +
-        "• \"catalog\" / \"share catalog\"\n" +
-        "• \"add product: naam - price\"\n" +
-        "• \"add product / add customer / new order (detailed)\" — form\n" +
-        "• \"payment link\"\n" +
-        "• \"unpaid orders\"\n" +
-        "• \"trending products\"\n" +
-        "• \"slow movers\"\n" +
-        "• \"discount performance\"\n" +
-        "• \"loyal customers\"\n" +
-        "• \"create discount\"\n" +
-        "• \"feedback: [your message]\"\n" +
-        "• \"undo\"\n\n" +
-        "Ya \"menu\" likh kar categorized list dekhein.";
+        "🆘 Bas yeh 8 cheezein yaad rakhein:\n\n" +
+        "1️⃣ Order forward/paste karein\n" +
+        "2️⃣ \"orders today\"\n" +
+        "3️⃣ \"pending orders\"\n" +
+        "4️⃣ \"mark [number] shipped/delivered\"\n" +
+        "5️⃣ \"[naam] ka order\"\n" +
+        "6️⃣ \"payment link\"\n" +
+        "7️⃣ \"catalog\"\n" +
+        "8️⃣ \"menu\" — baaki sab kuch yahan hai\n\n" +
+        "Discounts, reports, customers — sab \"menu\" mein tap karke mil jata hai, yaad rakhne ki zaroorat nahi.";
 
     private const string MenuText =
         "📋 Main Menu\n\n" +
-        "📦 Orders\n • new order: [details]\n • orders today / pending orders\n • [customer] ka order\n\n" +
-        "📊 Reports\n • today's summary\n • trending products\n • slow movers\n • loyal customers\n • cod pending\n\n" +
-        "🛍️ Catalog\n • catalog\n • share catalog\n • add/edit product\n\n" +
-        "💰 Payments\n • payment link\n • mark [order] paid\n\n" +
-        "🎟️ Discounts\n • create discount\n • discount list\n\n" +
-        "Command type karein, ya poochein.";
+        "Kya karna hai? Neeche button dabayein aur category chunein:\n\n" +
+        "📦 Orders · 📊 Reports · 🛍️ Catalog\n💰 Payments · 🎟️ Discounts · 👥 Customers\n\n" +
+        "(Ya seedha command likh dein.)";
 
-    // Undo is deliberately not tappable: an accidental tap would silently revert the last action.
+    private static readonly MenuRow BackToMenu = new("menu", "⬅️ Main menu");
+
     private static readonly IReadOnlyList<MenuSection> HelpSections = new[]
     {
-        new MenuSection("📦 Orders", new[]
+        new MenuSection("Core commands", new[]
         {
             new MenuRow("orders today", "Orders today"),
             new MenuRow("pending orders", "Pending orders"),
-            new MenuRow("today's summary", "Today's summary")
-        }),
-        new MenuSection("💰 Payments", new[]
-        {
-            new MenuRow("unpaid orders", "Unpaid orders"),
-            new MenuRow("cod pending", "COD pending"),
-            new MenuRow("payment link", "Payment link")
-        }),
-        new MenuSection("🛍️ More", new[]
-        {
             new MenuRow("catalog", "Catalog"),
-            new MenuRow("discount list", "Discount list"),
-            new MenuRow("loyal customers", "Loyal customers"),
-            new MenuRow("menu", "Main menu")
+            new MenuRow("payment link", "Payment link"),
+            new MenuRow("menu", "Menu (baaki sab)")
         })
     };
 
-    private static readonly IReadOnlyList<MenuSection> MenuSections = new[]
+    private static readonly IReadOnlyList<MenuSection> MainMenuSections = new[]
     {
-        new MenuSection("📦 Orders", new[]
+        new MenuSection("Categories", new[]
         {
-            new MenuRow("orders today", "Orders today"),
-            new MenuRow("pending orders", "Pending orders"),
-            new MenuRow("unpaid orders", "Unpaid orders")
-        }),
-        new MenuSection("📊 Reports", new[]
-        {
-            new MenuRow("today's summary", "Today's summary"),
-            new MenuRow("trending products", "Trending products"),
-            new MenuRow("slow movers", "Slow movers"),
-            new MenuRow("loyal customers", "Loyal customers"),
-            new MenuRow("cod pending", "COD pending")
-        }),
-        new MenuSection("🛍️ Catalog & Discounts", new[]
-        {
-            new MenuRow("catalog", "Catalog"),
-            new MenuRow("discount list", "Discount list")
+            new MenuRow("menu orders", "📦 Orders"),
+            new MenuRow("menu reports", "📊 Reports"),
+            new MenuRow("menu catalog", "🛍️ Catalog"),
+            new MenuRow("menu payments", "💰 Payments"),
+            new MenuRow("menu discounts", "🎟️ Discounts"),
+            new MenuRow("menu customers", "👥 Customers")
         })
     };
+
+    // Rows that need typed details (add product, add discount, ...) are "how to" commands that show the exact format.
+    // Undo is deliberately not tappable: an accidental tap would silently revert the last action.
+    private static readonly IReadOnlyDictionary<string, (string Title, string Body, MenuRow[] Rows)> MenuCategories =
+        new Dictionary<string, (string, string, MenuRow[])>
+        {
+            ["orders"] = ("📦 Orders", "📦 Orders\n • new order: [details]\n • [customer] ka order\n • mark [n] shipped/delivered", new[]
+            {
+                new MenuRow("orders today", "Orders today"), new MenuRow("pending orders", "Pending orders"),
+                new MenuRow("unpaid orders", "Unpaid orders"), new MenuRow("cod pending", "COD pending"),
+                new MenuRow("new order (detailed)", "New order (form)"), BackToMenu
+            }),
+            ["reports"] = ("📊 Reports", "📊 Reports\n Sales aur trends ek tap par.", new[]
+            {
+                new MenuRow("today's summary", "Today's summary"), new MenuRow("trending products", "Trending products"),
+                new MenuRow("slow movers", "Slow movers"), new MenuRow("loyal customers", "Loyal customers"),
+                new MenuRow("customer feedback", "Customer feedback"), BackToMenu
+            }),
+            ["catalog"] = ("🛍️ Catalog", "🛍️ Catalog\n • naya product: Kurti - 1800\n • ek saath kai products bhi bhej saktay hain", new[]
+            {
+                new MenuRow("catalog", "View catalog"), new MenuRow("share catalog", "Share catalog"),
+                new MenuRow("add product", "Add product"), new MenuRow("add product (detailed)", "Add product (form)"), BackToMenu
+            }),
+            ["payments"] = ("💰 Payments", "💰 Payments\n • mark [order] paid\n • add tracking: courier, number", new[]
+            {
+                new MenuRow("payment link", "Payment link"), new MenuRow("unpaid orders", "Unpaid orders"),
+                new MenuRow("cod pending", "COD pending"), new MenuRow("add payment", "Add payment method"), BackToMenu
+            }),
+            ["discounts"] = ("🎟️ Discounts", "🎟️ Discounts & loyalty\n Code banayein, ya loyalty rule set karein.", new[]
+            {
+                new MenuRow("discount list", "Discount list"), new MenuRow("add discount", "Add discount"),
+                new MenuRow("create loyalty", "Add loyalty rule"), new MenuRow("loyal customers", "Loyal customers"), BackToMenu
+            }),
+            ["customers"] = ("👥 Customers", "👥 Customers\n • \"customer 1\" ya naam likh kar detail\n • \"search customer: naam/phone\"", new[]
+            {
+                new MenuRow("customer list", "Customer list"), new MenuRow("add customer (detailed)", "Add customer (form)"), BackToMenu
+            })
+        };
+
+    private Task HandleMenuCategoryAsync(Seller seller, string category, CancellationToken ct)
+    {
+        var (title, body, rows) = MenuCategories[category];
+        return _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, body, "Options dekhein",
+            new[] { new MenuSection(title, rows) }, ct);
+    }
 
     private async Task ExecuteCommandAsync(Seller seller, ConversationSession session, SessionContextData ctx, ParsedCommand cmd, CancellationToken ct)
     {
@@ -100,7 +110,19 @@ public partial class ConversationEngine
                 await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, HelpText, "Commands dekhein", HelpSections, ct);
                 return;
             case CommandKind.Menu:
-                await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MenuText, "Menu kholein", MenuSections, ct);
+                await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MenuText, "Menu kholein", MainMenuSections, ct);
+                return;
+            case CommandKind.MenuCategory:
+                await HandleMenuCategoryAsync(seller, cmd.Text!, ct);
+                return;
+            case CommandKind.CustomerList:
+                await HandleCustomerListAsync(seller, ctx, ct);
+                return;
+            case CommandKind.CustomerDetail:
+                await HandleCustomerDetailAsync(seller, ctx, cmd, ct);
+                return;
+            case CommandKind.CustomerSearch:
+                await HandleCustomerSearchAsync(seller, cmd.Text!, ct);
                 return;
             case CommandKind.OrdersToday:
                 await HandleOrdersTodayAsync(seller, ctx, ct);
