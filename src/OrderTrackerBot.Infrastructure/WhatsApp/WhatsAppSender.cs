@@ -20,20 +20,22 @@ public class WhatsAppSender : IWhatsAppSender
         _logger = logger;
     }
 
-    public Task SendTextMessageAsync(string toPhoneNumber, string text, CancellationToken cancellationToken = default) =>
-        PostAsync(toPhoneNumber, text, new SendMessageRequest
+    public async Task SendTextMessageAsync(string toPhoneNumber, string text, CancellationToken cancellationToken = default) =>
+        await PostAsync(toPhoneNumber, text, new SendMessageRequest
         {
             To = toPhoneNumber,
             Text = new SendMessageText { Body = text }
         }, cancellationToken);
 
-    public Task SendButtonsMessageAsync(string toPhoneNumber, string bodyText, IReadOnlyList<string> buttonLabels, CancellationToken cancellationToken = default) =>
-        PostAsync(toPhoneNumber, bodyText, new SendInteractiveRequest
+    // Interactive messages fall back to plain text on failure so the seller is never left without a reply.
+    public async Task SendButtonsMessageAsync(string toPhoneNumber, string bodyText, IReadOnlyList<string> buttonLabels, CancellationToken cancellationToken = default)
+    {
+        var ok = await PostAsync(toPhoneNumber, bodyText, new SendInteractiveRequest
         {
             To = toPhoneNumber,
             Interactive = new InteractiveBody
             {
-                Body = new SendMessageText { Body = bodyText },
+                Body = new InteractiveText { Text = bodyText },
                 Action = new InteractiveAction
                 {
                     Buttons = buttonLabels.Take(3).Select((label, i) => new InteractiveButton
@@ -44,13 +46,18 @@ public class WhatsAppSender : IWhatsAppSender
             }
         }, cancellationToken);
 
-    public Task SendListMessageAsync(string toPhoneNumber, string bodyText, string buttonLabel, IReadOnlyList<MenuSection> sections, CancellationToken cancellationToken = default) =>
-        PostAsync(toPhoneNumber, bodyText, new SendListRequest
+        if (!ok)
+            await SendTextMessageAsync(toPhoneNumber, $"{bodyText}\n\n{string.Join(" / ", buttonLabels)}", cancellationToken);
+    }
+
+    public async Task SendListMessageAsync(string toPhoneNumber, string bodyText, string buttonLabel, IReadOnlyList<MenuSection> sections, CancellationToken cancellationToken = default)
+    {
+        var ok = await PostAsync(toPhoneNumber, bodyText, new SendListRequest
         {
             To = toPhoneNumber,
             Interactive = new ListBody
             {
-                Body = new SendMessageText { Body = bodyText },
+                Body = new InteractiveText { Text = bodyText },
                 Action = new ListAction
                 {
                     Button = buttonLabel.Length > 20 ? buttonLabel[..20] : buttonLabel,
@@ -67,12 +74,16 @@ public class WhatsAppSender : IWhatsAppSender
             }
         }, cancellationToken);
 
-    private async Task PostAsync(string toPhoneNumber, string logText, object payload, CancellationToken cancellationToken)
+        if (!ok)
+            await SendTextMessageAsync(toPhoneNumber, bodyText, cancellationToken);
+    }
+
+    private async Task<bool> PostAsync(string toPhoneNumber, string logText, object payload, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(_options.AccessToken))
         {
             _logger.LogWarning("WhatsApp access token not configured — skipping send to {Phone}: {Text}", toPhoneNumber, logText);
-            return;
+            return true;
         }
 
         var url = $"{_options.GraphApiBaseUrl.TrimEnd('/')}/{_options.PhoneNumberId}/messages";
@@ -89,13 +100,16 @@ public class WhatsAppSender : IWhatsAppSender
             {
                 var body = await response.Content.ReadAsStringAsync(cancellationToken);
                 _logger.LogError("WhatsApp send failed ({Status}) to {Phone}: {Body}", response.StatusCode, toPhoneNumber, body);
+                return false;
             }
+            return true;
         }
         catch (Exception ex)
         {
             // Never let an outbound send failure (network blip, WhatsApp API outage) blow up the
             // caller — the inbound message must still get processed and the conversation state saved.
             _logger.LogError(ex, "WhatsApp send threw while sending to {Phone}", toPhoneNumber);
+            return false;
         }
     }
 
@@ -131,7 +145,7 @@ public class WhatsAppSender : IWhatsAppSender
     private class ListBody
     {
         [JsonPropertyName("type")] public string Type { get; set; } = "list";
-        [JsonPropertyName("body")] public required SendMessageText Body { get; set; }
+        [JsonPropertyName("body")] public required InteractiveText Body { get; set; }
         [JsonPropertyName("action")] public required ListAction Action { get; set; }
     }
 
@@ -153,10 +167,15 @@ public class WhatsAppSender : IWhatsAppSender
         [JsonPropertyName("title")] public required string Title { get; set; }
     }
 
+    private class InteractiveText
+    {
+        [JsonPropertyName("text")] public required string Text { get; set; }
+    }
+
     private class InteractiveBody
     {
         [JsonPropertyName("type")] public string Type { get; set; } = "button";
-        [JsonPropertyName("body")] public required SendMessageText Body { get; set; }
+        [JsonPropertyName("body")] public required InteractiveText Body { get; set; }
         [JsonPropertyName("action")] public required InteractiveAction Action { get; set; }
     }
 
