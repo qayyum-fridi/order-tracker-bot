@@ -254,6 +254,55 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task AddDiscount_GuidedFlow_CodeThenValue_CreatesDiscount()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "add discount", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Welcome50", default);
+        Assert.Contains(_sentMessages, m => m.Contains("Ab kitna discount"));
+        await engine.HandleIncomingMessageAsync(Phone, "Rs.50 flat", default);
+
+        var discount = await db.Discounts.SingleAsync();
+        Assert.Equal("WELCOME50", discount.Code);
+        Assert.Equal(50m, discount.Value);
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+        _ai.Verify(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData("EID10, 10%", 10)]
+    [InlineData("EID10, 10 percent", 10)]
+    [InlineData("EID10, 50 rupees", 50)]
+    public async Task AddDiscount_AcceptsFullSpecInOneMessage_WithForgivingValueFormats(string spec, int expectedValue)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "add discount", default);
+        await engine.HandleIncomingMessageAsync(Phone, spec, default);
+
+        Assert.Equal(expectedValue, (int)(await db.Discounts.SingleAsync()).Value);
+    }
+
+    [Fact]
+    public async Task AddDiscount_CancelWordLeavesFlow_WithoutCreatingAnything()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "add discount", default);
+        await engine.HandleIncomingMessageAsync(Phone, "cancel", default);
+
+        Assert.Equal(0, await db.Discounts.CountAsync());
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+    }
+
+    [Fact]
     public async Task MidOnboardingCommand_IsDeferredNotExecuted()
     {
         using var db = _dbFactory.CreateContext();

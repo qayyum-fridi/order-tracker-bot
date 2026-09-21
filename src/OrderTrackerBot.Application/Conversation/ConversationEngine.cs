@@ -107,6 +107,9 @@ public partial class ConversationEngine
             case ConversationState.AwaitingBroadcastAudienceChoice:
                 await HandleBroadcastAudienceChoiceAsync(seller, session, ctx, message, ct);
                 break;
+            case ConversationState.AwaitingDiscountDetails:
+                await HandleDiscountDetailsAsync(seller, session, ctx, message, ct);
+                break;
             case ConversationState.AwaitingResetConfirmation:
                 await HandleResetConfirmationAsync(seller, session, message, ct);
                 break;

@@ -117,6 +117,7 @@ public partial class ConversationEngine
                 await HandleAddProductAsync(seller, cmd, ct);
                 return;
             case CommandKind.HowTo:
+                if (cmd.Text == "discount") SetState(session, ConversationState.AwaitingDiscountDetails);
                 await ReplyAsync(seller, HowToText(cmd.Text!), ct);
                 return;
             case CommandKind.AddProductsBulk:
@@ -167,7 +168,7 @@ public partial class ConversationEngine
                 await HandleCreateDiscountAsync(seller, cmd, ct);
                 return;
             case CommandKind.DiscountList:
-                await HandleDiscountListAsync(seller, ct);
+                await HandleDiscountListAsync(seller, session, ct);
                 return;
             case CommandKind.CreateLoyalty:
                 await HandleCreateLoyaltyAsync(seller, cmd, ct);
@@ -291,7 +292,7 @@ public partial class ConversationEngine
             "create discount: EID10, 10 percent, expires 15 days\n\n" +
             "Ya flat amount:\n" +
             "create discount: WELCOME50, Rs.50 flat\n\n" +
-            "(CODE apni marzi ka, expiry optional hai)",
+            "Ya seedha sirf code ka naam bhejein (e.g. EID10) — main value pooch loon ga. \"cancel\" likh kar ruk saktay hain.",
         "product" =>
             "🛍️ Product add karne ke liye bas likhein:\n\nKurti - 1800\n\n" +
             "Ek saath kai bhi bhej saktay hain (har line mein ek).",

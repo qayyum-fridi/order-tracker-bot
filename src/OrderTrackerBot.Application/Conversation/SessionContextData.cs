@@ -36,6 +36,7 @@ public sealed class SessionContextData
     public string? RuntimeFilterCommand { get; set; }
     public int? TrackingPromptOrderId { get; set; }
     public string? BroadcastMessageText { get; set; }
+    public string? PendingDiscountCode { get; set; }
     public List<PendingOrderItemData>? QueuedSeparateOrderItems { get; set; }
     public PendingOrderData? QueuedOrderTemplate { get; set; }
 

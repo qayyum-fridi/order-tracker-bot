@@ -18,7 +18,8 @@ public enum ConversationState
     AwaitingOrderGroupingChoice,
     AwaitingBroadcastAudienceChoice,
     AwaitingResetConfirmation,
-    OnboardingLanguage
+    OnboardingLanguage,
+    AwaitingDiscountDetails
 }
 
 public enum OrderStatus

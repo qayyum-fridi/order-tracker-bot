@@ -269,8 +269,52 @@ public partial class ConversationEngine
             .FirstOrDefaultAsync(ct)!;
 
     private static readonly Regex DiscountSpec = new(
-        @"^(?<code>\S+)\s*,\s*(?:(?<percent>\d+(?:\.\d+)?)\s*percent|Rs\.?\s*(?<flat>\d+(?:\.\d+)?)\s*flat)\s*(?:,\s*expires\s+(?<days>\d+)\s*days?)?$",
+        @"^(?<code>\S+)\s*,\s*(?:(?<percent>\d+(?:\.\d+)?)\s*(?:percent|%|pc)|Rs\.?\s*(?<flat>\d+(?:\.\d+)?)(?:\s*flat)?|(?<flat>\d+(?:\.\d+)?)\s*(?:rs|rupees?|flat))\s*(?:,\s*expires\s+(?<days>\d+)\s*days?)?$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex DiscountCodeOnly = new(@"^[A-Za-z0-9_-]{3,20}$", RegexOptions.Compiled);
+
+    // Guided flow: "add discount" -> code -> value. Accepts a full spec at any step, and lets cancel words / commands out.
+    private async Task HandleDiscountDetailsAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
+    {
+        var trimmed = message.Trim();
+        var command = CommandParser.TryParse(trimmed);
+        var isCancel = CancelWords.Contains(trimmed);
+        if (isCancel || (command is not null && command.Kind is not (CommandKind.AddProduct or CommandKind.AddProductsBulk)))
+        {
+            ctx.PendingDiscountCode = null;
+            SetState(session, ConversationState.Idle);
+            if (isCancel)
+            {
+                await ReplyAsync(seller, "Theek hai, discount nahi banaya.", ct);
+                return;
+            }
+            await ExecuteCommandAsync(seller, session, ctx, command!, ct);
+            return;
+        }
+
+        var spec = ctx.PendingDiscountCode is null ? trimmed : $"{ctx.PendingDiscountCode}, {trimmed}";
+        if (DiscountSpec.IsMatch(spec))
+        {
+            ctx.PendingDiscountCode = null;
+            SetState(session, ConversationState.Idle);
+            await HandleCreateDiscountAsync(seller, new ParsedCommand { Kind = CommandKind.CreateDiscount, Text = spec }, ct);
+            return;
+        }
+
+        if (ctx.PendingDiscountCode is null && DiscountCodeOnly.IsMatch(trimmed))
+        {
+            ctx.PendingDiscountCode = trimmed.ToUpperInvariant();
+            await ReplyAsync(seller,
+                $"👍 Code: {ctx.PendingDiscountCode}\n\nAb kitna discount? Likhein:\n10 percent\nya\nRs.50 flat\n\n(Expiry chahiye to: 10 percent, expires 15 days)", ct);
+            return;
+        }
+
+        await ReplyAsync(seller,
+            ctx.PendingDiscountCode is null
+                ? "Pehle discount code ka naam bhejein (e.g. EID10), ya \"cancel\" likhein."
+                : $"Code {ctx.PendingDiscountCode} ke liye value likhein: \"10 percent\" ya \"Rs.50 flat\", ya \"cancel\" likhein.", ct);
+    }
 
     private async Task HandleCreateDiscountAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
     {
@@ -355,7 +399,7 @@ public partial class ConversationEngine
         await ReplyAsync(seller, $"💬 Recent Customer Feedback:\n\n{string.Join("\n", lines)}", ct);
     }
 
-    private async Task HandleDiscountListAsync(Seller seller, CancellationToken ct)
+    private async Task HandleDiscountListAsync(Seller seller, ConversationSession session, CancellationToken ct)
     {
         var discounts = await _db.Discounts
             .Where(d => d.SellerId == seller.Id && d.IsActive && (d.ExpiresAt == null || d.ExpiresAt > DateTime.UtcNow))
@@ -363,6 +407,7 @@ public partial class ConversationEngine
 
         if (discounts.Count == 0)
         {
+            SetState(session, ConversationState.AwaitingDiscountDetails);
             await ReplyAsync(seller, "Abhi koi active discount nahi hai.\n\n" + HowToText("discount"), ct);
             return;
         }
