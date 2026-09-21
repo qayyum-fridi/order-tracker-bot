@@ -96,7 +96,7 @@
           },
           {
             "type": "TextInput",
-            "label": "Stock Qty (optional)",
+            "label": "Stock Qty",
             "name": "stock",
             "input-type": "number",
             "required": false

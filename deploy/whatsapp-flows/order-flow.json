@@ -60,7 +60,7 @@
           },
           {
             "type": "DatePicker",
-            "label": "Delivery Date (optional)",
+            "label": "Delivery Date",
             "name": "delivery_date",
             "required": false
           },
@@ -86,7 +86,7 @@
           },
           {
             "type": "TextInput",
-            "label": "Notes (optional)",
+            "label": "Notes",
             "name": "notes",
             "input-type": "text",
             "required": false
