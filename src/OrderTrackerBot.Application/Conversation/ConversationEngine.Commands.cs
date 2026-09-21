@@ -41,6 +41,30 @@ public partial class ConversationEngine
         "🎟️ Discounts\n • create discount\n • discount list\n\n" +
         "Command type karein, ya poochein.";
 
+    // Undo is deliberately not tappable: an accidental tap would silently revert the last action.
+    private static readonly IReadOnlyList<MenuSection> HelpSections = new[]
+    {
+        new MenuSection("📦 Orders", new[]
+        {
+            new MenuRow("orders today", "Orders today"),
+            new MenuRow("pending orders", "Pending orders"),
+            new MenuRow("today's summary", "Today's summary")
+        }),
+        new MenuSection("💰 Payments", new[]
+        {
+            new MenuRow("unpaid orders", "Unpaid orders"),
+            new MenuRow("cod pending", "COD pending"),
+            new MenuRow("payment link", "Payment link")
+        }),
+        new MenuSection("🛍️ More", new[]
+        {
+            new MenuRow("catalog", "Catalog"),
+            new MenuRow("discount list", "Discount list"),
+            new MenuRow("loyal customers", "Loyal customers"),
+            new MenuRow("menu", "Main menu")
+        })
+    };
+
     private static readonly IReadOnlyList<MenuSection> MenuSections = new[]
     {
         new MenuSection("📦 Orders", new[]
@@ -72,7 +96,7 @@ public partial class ConversationEngine
                 await HandleGreetingAsync(seller, ct);
                 return;
             case CommandKind.Help:
-                await ReplyAsync(seller, HelpText, ct);
+                await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, HelpText, "Commands dekhein", HelpSections, ct);
                 return;
             case CommandKind.Menu:
                 await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MenuText, "Menu kholein", MenuSections, ct);

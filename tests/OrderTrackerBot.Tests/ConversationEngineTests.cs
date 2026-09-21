@@ -142,6 +142,88 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task Help_SendsTappableList_WithinWhatsAppLimits()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        string? body = null;
+        IReadOnlyList<MenuSection>? sent = null;
+        _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, text, _, sections, _) => { body = text; sent = sections; })
+            .Returns(Task.CompletedTask);
+
+        await engine.HandleIncomingMessageAsync(Phone, "help", default);
+
+        Assert.NotNull(sent);
+        var rows = sent!.SelectMany(s => s.Rows).ToList();
+        Assert.InRange(rows.Count, 1, 10);
+        Assert.All(rows, r => Assert.NotNull(CommandParser.TryParse(r.Id)));
+        Assert.All(rows, r => Assert.True(r.Title.Length <= 24));
+        Assert.True(body!.Length <= 1024);
+        Assert.DoesNotContain(rows, r => r.Id == "undo");
+    }
+
+    private async Task SeedHalfEnteredOrderAsync(AppDbContext db, string missingField)
+    {
+        var session = await db.Sessions.FirstAsync();
+        session.State = ConversationState.AwaitingOrderMissingFields;
+        session.ContextJson = new SessionContextData
+        {
+            PendingOrder = new PendingOrderData { Items = { new PendingOrderItemData { ProductName = "Lawn Suit", UnitPrice = 3500 } } },
+            PendingMissingField = missingField
+        }.ToJson();
+        await db.SaveChangesAsync();
+    }
+
+    [Theory]
+    [InlineData("no")]
+    [InlineData("Cancel")]
+    [InlineData("nahi")]
+    public async Task HalfEnteredOrder_CancelWord_AbandonsDraft_NotSavedAsName(string word)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        await SeedHalfEnteredOrderAsync(db, "CustomerName");
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, word, default);
+
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sentMessages, m => m.Contains("order cancel kar diya"));
+        Assert.Equal(0, await db.Orders.CountAsync());
+    }
+
+    [Fact]
+    public async Task HalfEnteredOrder_Command_LeavesDraftAndRunsCommand()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        await SeedHalfEnteredOrderAsync(db, "Phone");
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "catalog", default);
+
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sentMessages, m => m.Contains("Adhoora order chhod diya"));
+        Assert.Contains(_sentMessages, m => m.Contains("Aapka Catalog"));
+    }
+
+    [Fact]
+    public async Task HalfEnteredOrder_InvalidPhone_IsRejected()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        await SeedHalfEnteredOrderAsync(db, "Phone");
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "abc", default);
+
+        Assert.Equal(ConversationState.AwaitingOrderMissingFields, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sentMessages, m => m.Contains("Phone number sahi nahi lagta"));
+    }
+
+    [Fact]
     public async Task MidOnboardingCommand_IsDeferredNotExecuted()
     {
         using var db = _dbFactory.CreateContext();

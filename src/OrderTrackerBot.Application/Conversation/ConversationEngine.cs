@@ -64,6 +64,14 @@ public partial class ConversationEngine
             return;
         }
 
+        if (session.State is ConversationState.AwaitingOrderConfirmation or ConversationState.AwaitingOrderMissingFields
+                or ConversationState.AwaitingOrderGroupingChoice
+            && await TryLeaveOrderDraftAsync(seller, session, ctx, message, ct))
+        {
+            await PersistAsync(session, ctx, ct);
+            return;
+        }
+
         switch (session.State)
         {
             case ConversationState.AwaitingOrderConfirmation:

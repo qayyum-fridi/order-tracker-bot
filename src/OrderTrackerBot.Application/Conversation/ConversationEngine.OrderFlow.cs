@@ -191,6 +191,39 @@ public partial class ConversationEngine
             ? $"{item.Quantity}x {item.ProductName} - {Formatters.Money(item.UnitPrice * item.Quantity)}"
             : $"{item.ProductName} - {Formatters.Money(item.UnitPrice)}";
 
+    private static readonly HashSet<string> CancelWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "cancel", "stop", "back", "no", "nahi", "nahin", "chhod do", "rehne do", "رہنے دو", "نہیں"
+    };
+
+    // While an order is half-entered, a cancel word or any command (menu, help, catalog, ...) abandons the draft
+    // instead of being swallowed as a customer name or phone number. Product-add lines keep the draft.
+    private async Task<bool> TryLeaveOrderDraftAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
+    {
+        var trimmed = message.Trim();
+        var command = CommandParser.TryParse(trimmed);
+        var isCancel = CancelWords.Contains(trimmed);
+        var isCommand = command is not null && command.Kind is not (CommandKind.AddProduct or CommandKind.AddProductsBulk);
+        if (!isCancel && !isCommand) return false;
+
+        ctx.PendingOrder = null;
+        ctx.PendingMissingField = null;
+        ctx.PendingNewProductName = null;
+        ctx.QueuedSeparateOrderItems = null;
+        ctx.QueuedOrderTemplate = null;
+        SetState(session, ConversationState.Idle);
+
+        if (isCancel)
+        {
+            await ReplyAsync(seller, "Theek hai, order cancel kar diya. Naya order bhejne ke liye tafseel likhein (naam, product, phone, address).", ct);
+            return true;
+        }
+
+        await ReplyAsync(seller, "↩️ Adhoora order chhod diya.", ct);
+        await ExecuteCommandAsync(seller, session, ctx, command!, ct);
+        return true;
+    }
+
     private async Task HandleOrderConfirmationAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         if (CommandParser.IsAffirmative(message))
@@ -271,6 +304,11 @@ public partial class ConversationEngine
                 return;
 
             case "Phone":
+                if (message.Count(char.IsDigit) < 10)
+                {
+                    await ReplyAsync(seller, "Phone number sahi nahi lagta — sirf number bhejein (e.g. 03001234567), ya \"cancel\" likhein.", ct);
+                    return;
+                }
                 pending.Phone = message.Trim();
                 ctx.PendingMissingField = null;
                 await ContinueResolvingDraftAsync(seller, session, ctx, ct);
