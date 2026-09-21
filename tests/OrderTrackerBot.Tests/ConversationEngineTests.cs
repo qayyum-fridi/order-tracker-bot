@@ -31,6 +31,7 @@ public class ConversationEngineTests : IDisposable
     {
         var engine = CreateEngine(db);
         await engine.HandleIncomingMessageAsync(Phone, "start", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "10 ke qareeb", default);
         await engine.HandleIncomingMessageAsync(Phone, "Lawn Suit - 3500", default);
@@ -64,9 +65,11 @@ public class ConversationEngineTests : IDisposable
         var seller = await db.Sellers.Include(s => s.Session).FirstAsync(s => s.WhatsAppPhoneNumber == Phone);
         Assert.False(seller.OnboardingComplete);
         Assert.Null(seller.BusinessName);
-        Assert.Equal(ConversationState.OnboardingBusinessName, seller.Session!.State);
+        Assert.Equal(ConversationState.OnboardingLanguage, seller.Session!.State);
         Assert.Equal(0, await db.Products.CountAsync());
-        Assert.Contains(_sentMessages, m => m.Contains("business ka naam"));
+        Assert.Contains(_sentMessages, m => m.Contains("Order Assistant"));
+        _sender.Verify(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(),
+            It.Is<IReadOnlyList<string>>(l => l.Count == 3), It.IsAny<CancellationToken>()), Times.AtLeastOnce);
     }
 
     [Fact]
@@ -89,6 +92,7 @@ public class ConversationEngineTests : IDisposable
         using var db = _dbFactory.CreateContext();
         var engine = CreateEngine(db);
         await engine.HandleIncomingMessageAsync(Phone, "start", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "10 ke qareeb", default);
         _sentMessages.Clear();
@@ -109,7 +113,7 @@ public class ConversationEngineTests : IDisposable
 
         await engine.HandleIncomingMessageAsync(Phone, "orders today", default);
 
-        Assert.Contains(_sentMessages, m => m.Contains("Aaj koi order nahi hai"));
+        Assert.Contains(_sentMessages, m => m.Contains("Aaj koi order nahi aaya"));
     }
 
     [Fact]
@@ -156,6 +160,26 @@ public class ConversationEngineTests : IDisposable
         Assert.Equal(ConversationState.AwaitingResetConfirmation, (await db.Sessions.FirstAsync()).State);
 
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        Assert.Equal(ConversationState.OnboardingLanguage, (await db.Sessions.FirstAsync()).State);
+    }
+
+    [Theory]
+    [InlineData("English", "english")]
+    [InlineData("اردو", "urdu_script")]
+    [InlineData("Roman Urdu", "roman_urdu")]
+    public async Task FirstTouch_ShowsIntroThenSavesChosenLanguage(string reply, string expected)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "hi", default);
+        Assert.Contains(_sentMessages, m => m.Contains("Order Assistant"));
+        Assert.Equal(ConversationState.OnboardingLanguage, (await db.Sessions.FirstAsync()).State);
+
+        await engine.HandleIncomingMessageAsync(Phone, reply, default);
+
+        var seller = await db.Sellers.FirstAsync();
+        Assert.Equal(expected, seller.PreferredLanguage);
         Assert.Equal(ConversationState.OnboardingBusinessName, (await db.Sessions.FirstAsync()).State);
     }
 

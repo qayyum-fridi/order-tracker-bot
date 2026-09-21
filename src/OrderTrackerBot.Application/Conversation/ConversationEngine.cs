@@ -57,7 +57,7 @@ public partial class ConversationEngine
         }
 
         if (!seller.OnboardingComplete || session.State is ConversationState.OnboardingBusinessName
-            or ConversationState.OnboardingCatalogSize or ConversationState.OnboardingAddProduct)
+            or ConversationState.OnboardingLanguage or ConversationState.OnboardingCatalogSize or ConversationState.OnboardingAddProduct)
         {
             await HandleOnboardingAsync(seller, session, ctx, message, ct);
             await PersistAsync(session, ctx, ct);

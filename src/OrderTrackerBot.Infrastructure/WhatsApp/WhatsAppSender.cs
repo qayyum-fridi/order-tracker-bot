@@ -20,22 +20,42 @@ public class WhatsAppSender : IWhatsAppSender
         _logger = logger;
     }
 
-    public async Task SendTextMessageAsync(string toPhoneNumber, string text, CancellationToken cancellationToken = default)
+    public Task SendTextMessageAsync(string toPhoneNumber, string text, CancellationToken cancellationToken = default) =>
+        PostAsync(toPhoneNumber, text, new SendMessageRequest
+        {
+            To = toPhoneNumber,
+            Text = new SendMessageText { Body = text }
+        }, cancellationToken);
+
+    public Task SendButtonsMessageAsync(string toPhoneNumber, string bodyText, IReadOnlyList<string> buttonLabels, CancellationToken cancellationToken = default) =>
+        PostAsync(toPhoneNumber, bodyText, new SendInteractiveRequest
+        {
+            To = toPhoneNumber,
+            Interactive = new InteractiveBody
+            {
+                Body = new SendMessageText { Body = bodyText },
+                Action = new InteractiveAction
+                {
+                    Buttons = buttonLabels.Take(3).Select((label, i) => new InteractiveButton
+                    {
+                        Reply = new InteractiveReply { Id = $"btn_{i + 1}", Title = label.Length > 20 ? label[..20] : label }
+                    }).ToList()
+                }
+            }
+        }, cancellationToken);
+
+    private async Task PostAsync(string toPhoneNumber, string logText, object payload, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(_options.AccessToken))
         {
-            _logger.LogWarning("WhatsApp access token not configured — skipping send to {Phone}: {Text}", toPhoneNumber, text);
+            _logger.LogWarning("WhatsApp access token not configured — skipping send to {Phone}: {Text}", toPhoneNumber, logText);
             return;
         }
 
         var url = $"{_options.GraphApiBaseUrl.TrimEnd('/')}/{_options.PhoneNumberId}/messages";
         var request = new HttpRequestMessage(HttpMethod.Post, url)
         {
-            Content = JsonContent.Create(new SendMessageRequest
-            {
-                To = toPhoneNumber,
-                Text = new SendMessageText { Body = text }
-            })
+            Content = JsonContent.Create(payload, payload.GetType())
         };
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.AccessToken);
 
@@ -67,5 +87,37 @@ public class WhatsAppSender : IWhatsAppSender
     private class SendMessageText
     {
         [JsonPropertyName("body")] public required string Body { get; set; }
+    }
+
+    private class SendInteractiveRequest
+    {
+        [JsonPropertyName("messaging_product")] public string MessagingProduct { get; set; } = "whatsapp";
+        [JsonPropertyName("to")] public required string To { get; set; }
+        [JsonPropertyName("type")] public string Type { get; set; } = "interactive";
+        [JsonPropertyName("interactive")] public required InteractiveBody Interactive { get; set; }
+    }
+
+    private class InteractiveBody
+    {
+        [JsonPropertyName("type")] public string Type { get; set; } = "button";
+        [JsonPropertyName("body")] public required SendMessageText Body { get; set; }
+        [JsonPropertyName("action")] public required InteractiveAction Action { get; set; }
+    }
+
+    private class InteractiveAction
+    {
+        [JsonPropertyName("buttons")] public required List<InteractiveButton> Buttons { get; set; }
+    }
+
+    private class InteractiveButton
+    {
+        [JsonPropertyName("type")] public string Type { get; set; } = "reply";
+        [JsonPropertyName("reply")] public required InteractiveReply Reply { get; set; }
+    }
+
+    private class InteractiveReply
+    {
+        [JsonPropertyName("id")] public required string Id { get; set; }
+        [JsonPropertyName("title")] public required string Title { get; set; }
     }
 }

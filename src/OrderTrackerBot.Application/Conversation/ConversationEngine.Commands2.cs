@@ -331,8 +331,9 @@ public partial class ConversationEngine
 
         seller.BusinessName = null;
         seller.OnboardingComplete = false;
-        SetState(session, ConversationState.OnboardingBusinessName);
-        await ReplyAsync(seller, "✅ Account reset ho gaya.\n\nSalam! 👋 Main aapka order assistant hoon. Pehle business ka naam bataiye?", ct);
+        seller.PreferredLanguage = Lang.RomanUrdu;
+        await ReplyAsync(seller, "✅ Account reset ho gaya.", ct);
+        await StartOnboardingAsync(seller, session, ct);
     }
 
     private async Task HandleCustomerFeedbackListAsync(Seller seller, CancellationToken ct)

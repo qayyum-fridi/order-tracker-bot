@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
 
@@ -62,18 +63,39 @@ public partial class ConversationEngine
                 await ReplyAsync(seller, "Samajh nahi aaya — format: 'naam - price' (e.g. 'Kurti - 1800'), ya 'done'/'skip'.", ct);
                 return;
 
+            case ConversationState.OnboardingLanguage:
+                seller.PreferredLanguage = Lang.Resolve(message);
+                SetState(session, ConversationState.OnboardingBusinessName);
+                await ReplyAsync(seller, seller.PreferredLanguage switch
+                {
+                    Lang.UrduScript => "✅ ٹھیک ہے، اردو میں بات کریں گے۔\n\nاب شروع کرتے ہیں — بزنس کا نام بتائیے؟",
+                    Lang.English => "✅ Great, we'll continue in English.\n\nLet's get started — what's your business name?",
+                    _ => "✅ Theek hai, Roman Urdu mein baat karenge. (Typed reply bhi chal jata hai, button zaroori nahi)\n\nAb shuru karte hain — business ka naam bataiye?"
+                }, ct);
+                return;
+
             default:
-                // New seller, not yet in an onboarding step.
-                if (CommandParser.TryParse(message)?.Kind == CommandKind.Start)
-                {
-                    SetState(session, ConversationState.OnboardingBusinessName);
-                    await ReplyAsync(seller, "Salam! 👋 Main aapka order assistant hoon. Pehle business ka naam bataiye?", ct);
-                }
-                else
-                {
-                    await ReplyAsync(seller, "Salam! 👋 Main aapka order assistant hoon. Shuru karne ke liye 'start' likhein.", ct);
-                }
+                // First touch from a brand-new seller (any message): intro + language picker.
+                await StartOnboardingAsync(seller, session, ct);
                 return;
         }
+    }
+
+    private const string IntroText =
+        "👋 Salam! Main aapka Order Assistant hoon.\n\n" +
+        "Main aapki madad karta hoon:\n" +
+        "📦 Orders record karne mein (Instagram/WhatsApp se forward karein)\n" +
+        "📊 Daily/weekly sales dekhne mein\n" +
+        "💰 Payment aur COD track karne mein\n" +
+        "🎟️ Discount aur loyal customers manage karne mein\n\n" +
+        "Sab kuch isi WhatsApp chat mein — koi app install nahi karna.";
+
+    private const string LanguagePromptText = "Pehle language select karein — button dabayein ya khud type karein:";
+
+    private async Task StartOnboardingAsync(Seller seller, ConversationSession session, CancellationToken ct)
+    {
+        SetState(session, ConversationState.OnboardingLanguage);
+        await ReplyAsync(seller, IntroText, ct);
+        await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, LanguagePromptText, Lang.ButtonLabels, ct);
     }
 }

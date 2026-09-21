@@ -9,7 +9,7 @@ public class Seller
     public required string WhatsAppPhoneNumber { get; set; }
     public string? BusinessName { get; set; }
     public bool OnboardingComplete { get; set; }
-    public string PreferredLanguage { get; set; } = "roman-urdu";
+    public string PreferredLanguage { get; set; } = "roman_urdu";
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public ConversationSession? Session { get; set; }

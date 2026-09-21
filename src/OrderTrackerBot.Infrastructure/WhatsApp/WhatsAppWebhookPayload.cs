@@ -29,6 +29,17 @@ public class WhatsAppWebhookPayload
         [JsonPropertyName("from")] public string? From { get; set; }
         [JsonPropertyName("type")] public string? Type { get; set; }
         [JsonPropertyName("text")] public InboundText? Text { get; set; }
+        [JsonPropertyName("interactive")] public InboundInteractive? Interactive { get; set; }
+    }
+
+    public class InboundInteractive
+    {
+        [JsonPropertyName("button_reply")] public InboundButtonReply? ButtonReply { get; set; }
+    }
+
+    public class InboundButtonReply
+    {
+        [JsonPropertyName("title")] public string? Title { get; set; }
     }
 
     public class InboundText
@@ -45,6 +56,8 @@ public class WhatsAppWebhookPayload
         {
             if (message.Type == "text" && message.From is not null && message.Text?.Body is not null)
                 yield return (message.From, message.Text.Body);
+            else if (message.Type == "interactive" && message.From is not null && message.Interactive?.ButtonReply?.Title is not null)
+                yield return (message.From, message.Interactive.ButtonReply.Title);
         }
     }
 }

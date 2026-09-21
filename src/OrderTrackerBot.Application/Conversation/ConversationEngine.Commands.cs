@@ -153,10 +153,7 @@ public partial class ConversationEngine
     {
         var pending = await _db.Orders.CountAsync(o => o.SellerId == seller.Id && o.Status == OrderStatus.Pending, ct);
         var unpaid = await _db.Orders.CountAsync(o => o.SellerId == seller.Id && o.PaymentStatus == PaymentStatus.Unpaid && o.Status != OrderStatus.Cancelled, ct);
-        await ReplyAsync(seller,
-            $"Salam {seller.BusinessName}! 👋 Wapas aane par khushi hui.\n\n" +
-            $"Quick stats: {pending} pending orders, {unpaid} unpaid.\n" +
-            "Type \"menu\" for options, ya seedha order bhej dein.", ct);
+        await ReplyAsync(seller, Formatters.ReturningGreeting(seller.PreferredLanguage, seller.BusinessName, pending, unpaid), ct);
     }
 
     private async Task HandleOrdersTodayAsync(Seller seller, CancellationToken ct)
@@ -167,15 +164,7 @@ public partial class ConversationEngine
             .OrderBy(o => o.CreatedAt)
             .ToListAsync(ct);
 
-        if (orders.Count == 0)
-        {
-            await ReplyAsync(seller, "Aaj koi order nahi hai.", ct);
-            return;
-        }
-
-        var lines = orders.Select((o, i) => Formatters.OrderLine(i + 1, o));
-        await ReplyAsync(seller,
-            $"📦 Today's Orders ({orders.Count}):\n\n{string.Join("\n", lines)}\n\nReply \"mark 1 shipped\" to update.", ct);
+        await ReplyAsync(seller, Formatters.OrdersToday(seller.PreferredLanguage, orders), ct);
     }
 
     private async Task HandlePendingOrdersAsync(Seller seller, CancellationToken ct)
