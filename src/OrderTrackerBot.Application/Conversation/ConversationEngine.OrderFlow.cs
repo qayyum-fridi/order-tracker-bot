@@ -445,6 +445,14 @@ public partial class ConversationEngine
     {
         var options = ctx.ClarificationOptions ?? DefaultClarificationOptions.ToList();
 
+        if (CommandParser.TryParse(message) is { } command)
+        {
+            ctx.ClarificationOptions = null;
+            SetState(session, ConversationState.Idle);
+            await ExecuteCommandAsync(seller, session, ctx, command, ct);
+            return;
+        }
+
         if (int.TryParse(message.Trim(), out var idx) && idx >= 1 && idx <= options.Count)
         {
             ctx.ClarificationOptions = null;

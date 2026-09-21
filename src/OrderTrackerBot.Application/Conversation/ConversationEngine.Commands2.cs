@@ -302,6 +302,13 @@ public partial class ConversationEngine
         await ReplyAsync(seller, reply, ct);
     }
 
+    private async Task StartResetAsync(Seller seller, ConversationSession session, CancellationToken ct)
+    {
+        SetState(session, ConversationState.AwaitingResetConfirmation);
+        await ReplyAsync(seller,
+            "⚠️ Yeh aapka poora data (orders, products, customers, discounts) delete kar dega aur setup dobara shuru hoga.\nReply YES to confirm, ya koi bhi aur message cancel karne ke liye.", ct);
+    }
+
     private async Task HandleResetConfirmationAsync(Seller seller, ConversationSession session, string message, CancellationToken ct)
     {
         if (!CommandParser.IsAffirmative(message))

@@ -48,6 +48,14 @@ public partial class ConversationEngine
         var session = seller.Session!;
         var ctx = SessionContextData.FromJson(session.ContextJson);
 
+        if (session.State != ConversationState.AwaitingResetConfirmation
+            && CommandParser.TryParse(message)?.Kind == CommandKind.ResetAccount)
+        {
+            await StartResetAsync(seller, session, ct);
+            await PersistAsync(session, ctx, ct);
+            return;
+        }
+
         if (!seller.OnboardingComplete || session.State is ConversationState.OnboardingBusinessName
             or ConversationState.OnboardingCatalogSize or ConversationState.OnboardingAddProduct)
         {

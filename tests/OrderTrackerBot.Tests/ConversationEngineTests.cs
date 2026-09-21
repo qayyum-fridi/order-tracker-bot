@@ -136,6 +136,30 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task ResetAccount_WorksEvenWhenStuckInClarificationMenu()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis
+            {
+                IsOrderAttempt = false,
+                ClarificationQuestion = "Kya aap:",
+                ClarificationOptions = { "Haan", "Nahi" }
+            });
+        await engine.HandleIncomingMessageAsync(Phone, "gibberish message", default);
+        Assert.Equal(ConversationState.AwaitingClarificationChoice, (await db.Sessions.FirstAsync()).State);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Reset account", default);
+        Assert.Equal(ConversationState.AwaitingResetConfirmation, (await db.Sessions.FirstAsync()).State);
+
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        Assert.Equal(ConversationState.OnboardingBusinessName, (await db.Sessions.FirstAsync()).State);
+    }
+
+    [Fact]
     public async Task FreeformOrder_FullyResolved_GoesStraightToConfirmation_ThenSavesOnYes()
     {
         using var db = _dbFactory.CreateContext();
