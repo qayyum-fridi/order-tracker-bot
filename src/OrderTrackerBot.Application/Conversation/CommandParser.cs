@@ -15,6 +15,7 @@ public enum CommandKind
     AddProduct,
     AddProductsBulk,
     ShareCatalog,
+    DetailedForm,
     HowTo,
     EditProduct,
     MarkStatus,
@@ -105,6 +106,7 @@ public static class CommandParser
     }
 
     // "add discount" / "new product" with no details: show the exact format instead of guessing via the AI.
+    private static readonly Regex DetailedForm = new(@"^(?:add\s+)?(product|customer|order)\s*\(\s*detailed\s*\)$|^new\s+(order)\s*\(\s*detailed\s*\)$", Opts);
     private static readonly Regex HowTo = new(@"^(?:add|new|create|make)\s+(discount|product|payment|loyalty|tracking)s?$", Opts);
 
     private static readonly Regex SafepayId = new(@"^safepay\s+id:\s*(.+)$", Opts);
@@ -185,6 +187,9 @@ public static class CommandParser
 
         if ((m = SafepayId.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.AddPaymentMethod, Text = "safepay", Text2 = m.Groups[1].Value.Trim() };
+
+        if ((m = DetailedForm.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.DetailedForm, Text = (m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value).ToLowerInvariant() };
 
         if ((m = HowTo.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.HowTo, Text = m.Groups[1].Value.ToLowerInvariant() };

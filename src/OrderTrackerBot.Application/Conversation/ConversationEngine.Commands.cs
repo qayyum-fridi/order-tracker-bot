@@ -21,6 +21,7 @@ public partial class ConversationEngine
         "• \"cod pending\"\n" +
         "• \"catalog\" / \"share catalog\"\n" +
         "• \"add product: naam - price\"\n" +
+        "• \"add product / add customer / new order (detailed)\" — form\n" +
         "• \"payment link\"\n" +
         "• \"unpaid orders\"\n" +
         "• \"trending products\"\n" +
@@ -115,6 +116,9 @@ public partial class ConversationEngine
                 return;
             case CommandKind.AddProduct:
                 await HandleAddProductAsync(seller, cmd, ct);
+                return;
+            case CommandKind.DetailedForm:
+                await HandleDetailedFormRequestAsync(seller, cmd.Text!, ct);
                 return;
             case CommandKind.ShareCatalog:
                 await HandleShareCatalogAsync(seller, ct);
@@ -292,7 +296,7 @@ public partial class ConversationEngine
             return;
         }
 
-        var lines = products.Select((p, i) => $"{i + 1} {p.Name} - {Formatters.Money(p.Price)}");
+        var lines = products.Select((p, i) => $"{i + 1} {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}");
         await ReplyAsync(seller,
             $"🛍️ Aapka Catalog ({products.Count} products):\n\n{string.Join("\n", lines)}\n\n" +
             "Naya product add karne ke liye bas likhein: Kurti - 1800", ct);
@@ -307,7 +311,7 @@ public partial class ConversationEngine
             return;
         }
 
-        var lines = products.Select((p, i) => $"{i + 1}. {p.Name} - {Formatters.Money(p.Price)}");
+        var lines = products.Select((p, i) => $"{i + 1}. {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}");
         await ReplyAsync(seller,
             $"📋 {seller.BusinessName} — Catalog\n\n{string.Join("\n", lines)}\n\n" +
             "Yeh copy kar ke customer ko bhej dein, ya screenshot le kar forward karein.", ct);

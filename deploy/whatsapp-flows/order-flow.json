@@ -1,0 +1,121 @@
+{
+  "version": "6.0",
+  "screens": [
+    {
+      "id": "ORDER_FORM",
+      "title": "Naya Order",
+      "terminal": true,
+      "success": true,
+      "data": {
+        "flow_token": {
+          "type": "string",
+          "__example__": "product"
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Naya Order"
+          },
+          {
+            "type": "TextInput",
+            "label": "Customer name",
+            "name": "customer",
+            "input-type": "text",
+            "required": true
+          },
+          {
+            "type": "TextInput",
+            "label": "Product (catalog wala naam)",
+            "name": "product",
+            "input-type": "text",
+            "required": true
+          },
+          {
+            "type": "TextInput",
+            "label": "Quantity",
+            "name": "quantity",
+            "input-type": "number",
+            "required": true
+          },
+          {
+            "type": "Dropdown",
+            "label": "Payment Method",
+            "name": "payment_method",
+            "required": true,
+            "data-source": [
+              {
+                "id": "COD",
+                "title": "COD"
+              },
+              {
+                "id": "JazzCash",
+                "title": "JazzCash"
+              },
+              {
+                "id": "Easypaisa",
+                "title": "Easypaisa"
+              },
+              {
+                "id": "Bank",
+                "title": "Bank"
+              }
+            ]
+          },
+          {
+            "type": "DatePicker",
+            "label": "Delivery Date (optional)",
+            "name": "delivery_date",
+            "required": false
+          },
+          {
+            "type": "Dropdown",
+            "label": "Order Source",
+            "name": "order_source",
+            "required": false,
+            "data-source": [
+              {
+                "id": "Instagram",
+                "title": "Instagram"
+              },
+              {
+                "id": "WhatsApp",
+                "title": "WhatsApp"
+              },
+              {
+                "id": "Referral",
+                "title": "Referral"
+              }
+            ]
+          },
+          {
+            "type": "TextInput",
+            "label": "Notes (optional)",
+            "name": "notes",
+            "input-type": "text",
+            "required": false
+          },
+          {
+            "type": "Footer",
+            "label": "Save Order",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {
+                "flow_token": "${data.flow_token}",
+                "customer": "${form.customer}",
+                "product": "${form.product}",
+                "quantity": "${form.quantity}",
+                "payment_method": "${form.payment_method}",
+                "delivery_date": "${form.delivery_date}",
+                "order_source": "${form.order_source}",
+                "notes": "${form.notes}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

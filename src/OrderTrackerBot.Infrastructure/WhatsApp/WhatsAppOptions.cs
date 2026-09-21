@@ -12,4 +12,9 @@ public class WhatsAppOptions
     public string VerifyToken { get; set; } = "";
     /// <summary>App secret, used to verify the X-Hub-Signature-256 header on incoming webhooks.</summary>
     public string AppSecret { get; set; } = "";
+
+    /// <summary>Ids of the published WhatsApp Flows (forms) for detailed entry; empty = form not set up yet.</summary>
+    public string ProductFlowId { get; set; } = "";
+    public string CustomerFlowId { get; set; } = "";
+    public string OrderFlowId { get; set; } = "";
 }

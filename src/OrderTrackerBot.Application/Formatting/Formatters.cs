@@ -17,6 +17,12 @@ public static class Formatters
         _ => status.ToString()
     };
 
+    public static string ProductLabel(Product product)
+    {
+        var variant = string.Join(", ", new[] { product.Color, product.Size }.Where(v => !string.IsNullOrWhiteSpace(v)));
+        return variant.Length == 0 ? product.Name : $"{product.Name} ({variant})";
+    }
+
     public static string ItemsSummary(Order order) =>
         string.Join(" + ", order.Items.Select(i => i.Quantity > 1
             ? $"{i.Quantity}x {i.ProductNameSnapshot}"

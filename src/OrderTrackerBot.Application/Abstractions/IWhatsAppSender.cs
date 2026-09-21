@@ -12,6 +12,12 @@ public interface IWhatsAppSender
 
     Task SendTextMessageAsync(string toPhoneNumber, string text, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Opens a WhatsApp Flow (in-chat form). <paramref name="flowKind"/> is "product", "customer" or "order" and comes back
+    /// as the flow_token on submit. Returns false when that form's Flow id isn't configured or Meta rejected it.
+    /// </summary>
+    Task<bool> SendFlowMessageAsync(string toPhoneNumber, string flowKind, string bodyText, string ctaLabel, CancellationToken cancellationToken = default);
+
     /// <summary>Sends up to 3 quick-reply buttons; a tapped button arrives as a normal text message with the button's label.</summary>
     Task SendButtonsMessageAsync(string toPhoneNumber, string bodyText, IReadOnlyList<string> buttonLabels, CancellationToken cancellationToken = default);
 }

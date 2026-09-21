@@ -22,6 +22,10 @@ public class Order
     public string? TrackingCourier { get; set; }
     public string? TrackingNumber { get; set; }
 
+    public DateTime? DeliveryDate { get; set; }
+    public string? OrderSource { get; set; }
+    public string? Notes { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? ShippedAt { get; set; }
     public DateTime? DeliveredAt { get; set; }

@@ -80,6 +80,19 @@ public class WhatsAppWebhookController : ControllerBase
             }
         }
 
+        foreach (var (from, json, messageId) in payload.ExtractFlowSubmissions())
+        {
+            if (IsDuplicateDelivery(messageId)) continue;
+            try
+            {
+                await _engine.HandleFlowSubmissionAsync(from, json, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to process WhatsApp Flow submission from {From}", from);
+            }
+        }
+
         foreach (var (from, type, messageId) in payload.ExtractUnsupportedMessages())
         {
             if (IsDuplicateDelivery(messageId)) continue;

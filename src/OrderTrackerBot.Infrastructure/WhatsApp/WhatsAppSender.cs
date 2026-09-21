@@ -78,6 +78,38 @@ public class WhatsAppSender : IWhatsAppSender
             await SendTextMessageAsync(toPhoneNumber, bodyText, cancellationToken);
     }
 
+    public Task<bool> SendFlowMessageAsync(string toPhoneNumber, string flowKind, string bodyText, string ctaLabel, CancellationToken cancellationToken = default)
+    {
+        var (flowId, firstScreen) = flowKind switch
+        {
+            "product" => (_options.ProductFlowId, "PRODUCT_FORM"),
+            "customer" => (_options.CustomerFlowId, "CUSTOMER_FORM"),
+            "order" => (_options.OrderFlowId, "ORDER_FORM"),
+            _ => ("", "")
+        };
+        if (string.IsNullOrWhiteSpace(flowId) || string.IsNullOrWhiteSpace(_options.AccessToken))
+            return Task.FromResult(false);
+
+        return PostAsync(toPhoneNumber, bodyText, new SendFlowRequest
+        {
+            To = toPhoneNumber,
+            Interactive = new FlowBody
+            {
+                Body = new InteractiveText { Text = bodyText },
+                Action = new FlowAction
+                {
+                    Parameters = new FlowParameters
+                    {
+                        FlowToken = flowKind,
+                        FlowId = flowId,
+                        FlowCta = ctaLabel.Length > 30 ? ctaLabel[..30] : ctaLabel,
+                        FlowActionPayload = new FlowActionPayload { Screen = firstScreen }
+                    }
+                }
+            }
+        }, cancellationToken);
+    }
+
     private async Task<bool> PostAsync(string toPhoneNumber, string logText, object payload, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(_options.AccessToken))
@@ -165,6 +197,42 @@ public class WhatsAppSender : IWhatsAppSender
     {
         [JsonPropertyName("id")] public required string Id { get; set; }
         [JsonPropertyName("title")] public required string Title { get; set; }
+    }
+
+    private class SendFlowRequest
+    {
+        [JsonPropertyName("messaging_product")] public string MessagingProduct { get; set; } = "whatsapp";
+        [JsonPropertyName("to")] public required string To { get; set; }
+        [JsonPropertyName("type")] public string Type { get; set; } = "interactive";
+        [JsonPropertyName("interactive")] public required FlowBody Interactive { get; set; }
+    }
+
+    private class FlowBody
+    {
+        [JsonPropertyName("type")] public string Type { get; set; } = "flow";
+        [JsonPropertyName("body")] public required InteractiveText Body { get; set; }
+        [JsonPropertyName("action")] public required FlowAction Action { get; set; }
+    }
+
+    private class FlowAction
+    {
+        [JsonPropertyName("name")] public string Name { get; set; } = "flow";
+        [JsonPropertyName("parameters")] public required FlowParameters Parameters { get; set; }
+    }
+
+    private class FlowParameters
+    {
+        [JsonPropertyName("flow_message_version")] public string FlowMessageVersion { get; set; } = "3";
+        [JsonPropertyName("flow_token")] public required string FlowToken { get; set; }
+        [JsonPropertyName("flow_id")] public required string FlowId { get; set; }
+        [JsonPropertyName("flow_cta")] public required string FlowCta { get; set; }
+        [JsonPropertyName("flow_action")] public string FlowAction { get; set; } = "navigate";
+        [JsonPropertyName("flow_action_payload")] public required FlowActionPayload FlowActionPayload { get; set; }
+    }
+
+    private class FlowActionPayload
+    {
+        [JsonPropertyName("screen")] public required string Screen { get; set; }
     }
 
     private class InteractiveText

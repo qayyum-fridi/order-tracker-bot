@@ -37,6 +37,12 @@ public class WhatsAppWebhookPayload
     {
         [JsonPropertyName("button_reply")] public InboundButtonReply? ButtonReply { get; set; }
         [JsonPropertyName("list_reply")] public InboundListReply? ListReply { get; set; }
+        [JsonPropertyName("nfm_reply")] public InboundFlowReply? FlowReply { get; set; }
+    }
+
+    public class InboundFlowReply
+    {
+        [JsonPropertyName("response_json")] public string? ResponseJson { get; set; }
     }
 
     public class InboundListReply
@@ -67,6 +73,18 @@ public class WhatsAppWebhookPayload
                 yield return (message.From, message.Interactive.ButtonReply.Title, message.Id);
             else if (message.Type == "interactive" && message.From is not null && message.Interactive?.ListReply?.Id is not null)
                 yield return (message.From, message.Interactive.ListReply.Id, message.Id);
+        }
+    }
+
+    /// <summary>Submitted WhatsApp Flow forms: the JSON payload the form's "complete" action produced.</summary>
+    public IEnumerable<(string From, string ResponseJson, string? MessageId)> ExtractFlowSubmissions()
+    {
+        foreach (var entry in Entries)
+        foreach (var change in entry.Changes)
+        foreach (var message in change.Value?.Messages ?? Enumerable.Empty<InboundMessage>())
+        {
+            if (message.Type == "interactive" && message.From is not null && message.Interactive?.FlowReply?.ResponseJson is not null)
+                yield return (message.From, message.Interactive.FlowReply.ResponseJson, message.Id);
         }
     }
 

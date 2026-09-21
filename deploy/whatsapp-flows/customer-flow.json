@@ -1,0 +1,126 @@
+{
+  "version": "6.0",
+  "screens": [
+    {
+      "id": "CUSTOMER_FORM",
+      "title": "Naya Customer",
+      "terminal": true,
+      "success": true,
+      "data": {
+        "flow_token": {
+          "type": "string",
+          "__example__": "product"
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Naya Customer"
+          },
+          {
+            "type": "TextInput",
+            "label": "Name",
+            "name": "name",
+            "input-type": "text",
+            "required": true
+          },
+          {
+            "type": "TextInput",
+            "label": "Phone",
+            "name": "phone",
+            "input-type": "phone",
+            "required": true
+          },
+          {
+            "type": "Dropdown",
+            "label": "City",
+            "name": "city",
+            "required": false,
+            "data-source": [
+              {
+                "id": "Lahore",
+                "title": "Lahore"
+              },
+              {
+                "id": "Karachi",
+                "title": "Karachi"
+              },
+              {
+                "id": "Islamabad",
+                "title": "Islamabad"
+              },
+              {
+                "id": "Rawalpindi",
+                "title": "Rawalpindi"
+              },
+              {
+                "id": "Faisalabad",
+                "title": "Faisalabad"
+              },
+              {
+                "id": "Multan",
+                "title": "Multan"
+              },
+              {
+                "id": "Other",
+                "title": "Other"
+              }
+            ]
+          },
+          {
+            "type": "TextInput",
+            "label": "Address",
+            "name": "address",
+            "input-type": "text",
+            "required": false
+          },
+          {
+            "type": "Dropdown",
+            "label": "Preferred Contact",
+            "name": "preferred_contact",
+            "required": false,
+            "data-source": [
+              {
+                "id": "WhatsApp",
+                "title": "WhatsApp"
+              },
+              {
+                "id": "Instagram",
+                "title": "Instagram"
+              },
+              {
+                "id": "Call",
+                "title": "Call"
+              }
+            ]
+          },
+          {
+            "type": "TextInput",
+            "label": "Notes (optional)",
+            "name": "notes",
+            "input-type": "text",
+            "required": false
+          },
+          {
+            "type": "Footer",
+            "label": "Save Customer",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {
+                "flow_token": "${data.flow_token}",
+                "name": "${form.name}",
+                "phone": "${form.phone}",
+                "city": "${form.city}",
+                "address": "${form.address}",
+                "preferred_contact": "${form.preferred_contact}",
+                "notes": "${form.notes}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -40,6 +40,11 @@ public class Product
     public Seller? Seller { get; set; }
     public required string Name { get; set; }
     public decimal Price { get; set; }
+    public string? Category { get; set; }
+    public string? Size { get; set; }
+    public string? Color { get; set; }
+    public string? Sku { get; set; }
+    public int? StockQty { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
@@ -52,6 +57,9 @@ public class Customer
     public required string Name { get; set; }
     public string? Phone { get; set; }
     public string? Address { get; set; }
+    public string? City { get; set; }
+    public string? PreferredContact { get; set; }
+    public string? Notes { get; set; }
 
     public ICollection<Order> Orders { get; set; } = new List<Order>();
 }

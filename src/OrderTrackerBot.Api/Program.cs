@@ -29,7 +29,10 @@ if (app.Configuration.GetValue("Database:AutoMigrate", true))
     // Sqlite (local dev) has no migrations of its own — EnsureCreated keeps the dev loop
     // migration-free; SQL Server (production) uses the real, versioned migrations.
     if (db.Database.IsSqlite())
+    {
         db.Database.EnsureCreated();
+        SqliteSchemaPatcher.Apply(db);
+    }
     else
         db.Database.Migrate();
 }

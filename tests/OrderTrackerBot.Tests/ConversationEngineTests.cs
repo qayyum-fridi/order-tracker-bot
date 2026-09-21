@@ -9,6 +9,33 @@ using Xunit;
 
 namespace OrderTrackerBot.Tests;
 
+public class SqliteSchemaPatcherTests
+{
+    [Fact]
+    public void Apply_AddsMissingColumnsToAnOldDatabase_AndIsSafeToRunTwice()
+    {
+        using var connection = new Microsoft.Data.Sqlite.SqliteConnection("DataSource=:memory:");
+        connection.Open();
+        foreach (var table in new[] { "Products", "Customers", "Orders" })
+        {
+            using var create = connection.CreateCommand();
+            create.CommandText = $"CREATE TABLE \"{table}\" (Id INTEGER PRIMARY KEY)";
+            create.ExecuteNonQuery();
+        }
+        var options = new DbContextOptionsBuilder<AppDbContext>().UseSqlite(connection).Options;
+        using var db = new AppDbContext(options);
+
+        SqliteSchemaPatcher.Apply(db);
+        SqliteSchemaPatcher.Apply(db);
+
+        using var check = connection.CreateCommand();
+        check.CommandText = "SELECT COUNT(*) FROM pragma_table_info('Products') WHERE name IN ('Category','Size','Color','Sku','StockQty')";
+        Assert.Equal(5L, check.ExecuteScalar());
+        check.CommandText = "SELECT COUNT(*) FROM pragma_table_info('Orders') WHERE name IN ('DeliveryDate','OrderSource','Notes')";
+        Assert.Equal(3L, check.ExecuteScalar());
+    }
+}
+
 public class ConversationEngineTests : IDisposable
 {
     private const string Phone = "923001234567";
@@ -402,6 +429,111 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleUnsupportedMediaAsync(Phone, type, default);
 
         Assert.Contains(_sentMessages, m => m.Contains(fragment) && m.Contains("TEXT"));
+    }
+
+    [Theory]
+    [InlineData("add product (detailed)", "product")]
+    [InlineData("Add Customer (Detailed)", "customer")]
+    [InlineData("new order (detailed)", "order")]
+    public async Task DetailedForm_OpensTheFlow_WhenConfigured(string message, string expectedKind)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        _sender.Setup(s => s.SendFlowMessageAsync(Phone, expectedKind, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        await engine.HandleIncomingMessageAsync(Phone, message, default);
+
+        _sender.Verify(s => s.SendFlowMessageAsync(Phone, expectedKind, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("setup nahi hua"));
+    }
+
+    [Fact]
+    public async Task DetailedForm_WhenNotConfigured_FallsBackToTypedFormat()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "add product (detailed)", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("setup nahi hua") && m.Contains("Kurti - 1800"));
+    }
+
+    [Fact]
+    public async Task ProductForm_SavesVariantDetails_AndUpdatesSameVariantInsteadOfDuplicating()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        var json = "{\"flow_token\":\"product\",\"name\":\"Lawn Suit\",\"category\":\"Lawn\",\"price\":\"3500\",\"size\":\"M\",\"color\":\"Red\",\"stock\":\"12\"}";
+
+        await engine.HandleFlowSubmissionAsync(Phone, json, default);
+        await engine.HandleFlowSubmissionAsync(Phone, json.Replace("3500", "3800"), default);
+
+        var product = await db.Products.SingleAsync(p => p.Color == "Red");
+        Assert.Equal((3800m, "M", "Lawn", 12), (product.Price, product.Size, product.Category, product.StockQty));
+        Assert.Contains(_sentMessages, m => m.Contains("Lawn Suit (Red, M)") && m.Contains("stock 12"));
+    }
+
+    [Fact]
+    public async Task CustomerForm_SavesDetails_AndUpsertsByPhone()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        var json = "{\"flow_token\":\"customer\",\"name\":\"Ramsha\",\"phone\":\"03211234567\",\"city\":\"Lahore\",\"address\":\"Johar Town\",\"preferred_contact\":\"WhatsApp\",\"notes\":\"Lal color pasand hai\"}";
+
+        await engine.HandleFlowSubmissionAsync(Phone, json, default);
+        await engine.HandleFlowSubmissionAsync(Phone, json.Replace("Lahore", "Karachi"), default);
+
+        var customer = await db.Customers.SingleAsync();
+        Assert.Equal(("Ramsha", "Karachi", "Johar Town", "Lal color pasand hai"), (customer.Name, customer.City, customer.Address, customer.Notes));
+    }
+
+    [Fact]
+    public async Task OrderForm_CreatesOrderWithDeliverySourceAndPayment()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        var json = "{\"flow_token\":\"order\",\"customer\":\"Ramsha\",\"product\":\"Lawn Suit\",\"quantity\":\"2\",\"payment_method\":\"COD\",\"delivery_date\":\"2026-09-28\",\"order_source\":\"Instagram\",\"notes\":\"Gift wrap chahiye\"}";
+
+        await engine.HandleFlowSubmissionAsync(Phone, json, default);
+
+        var order = await db.Orders.Include(o => o.Items).SingleAsync();
+        Assert.Equal(7000m, order.Total);
+        Assert.Equal(OrderPaymentMethod.Cod, order.PaymentMethod);
+        Assert.Equal(new DateTime(2026, 9, 28), order.DeliveryDate!.Value.Date);
+        Assert.Equal(("Instagram", "Gift wrap chahiye"), (order.OrderSource, order.Notes));
+        Assert.Contains(_sentMessages, m => m.Contains("Order saved") && m.Contains("delivery 28 Sep"));
+    }
+
+    [Fact]
+    public async Task OrderForm_UnknownProduct_RepliesInsteadOfSavingAnything()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleFlowSubmissionAsync(Phone, "{\"flow_token\":\"order\",\"customer\":\"Ramsha\",\"product\":\"Sharara\",\"quantity\":\"1\"}", default);
+
+        Assert.Equal(0, await db.Orders.CountAsync());
+        Assert.Contains(_sentMessages, m => m.Contains("catalog mein nahi mila"));
+    }
+
+    [Fact]
+    public async Task FlowSubmission_WithGarbageJson_IsIgnoredSafely()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleFlowSubmissionAsync(Phone, "not json", default);
+        await engine.HandleFlowSubmissionAsync(Phone, "{\"flow_token\":\"unknown\"}", default);
+
+        Assert.Empty(_sentMessages);
     }
 
     [Fact]
