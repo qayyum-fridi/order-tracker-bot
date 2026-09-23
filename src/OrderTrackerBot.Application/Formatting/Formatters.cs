@@ -20,7 +20,43 @@ public static class Formatters
     public static string ProductLabel(Product product)
     {
         var variant = string.Join(", ", new[] { product.Color, product.Size }.Where(v => !string.IsNullOrWhiteSpace(v)));
-        return variant.Length == 0 ? product.Name : $"{product.Name} ({variant})";
+        var label = variant.Length == 0 ? product.Name : $"{product.Name} ({variant})";
+        return product.UnitType is "piece" or "" && product.UnitQty == 1 ? label : $"{label} - {Quantity(product.UnitQty)}{UnitShort(product.UnitType)}";
+    }
+
+    public static string Quantity(decimal qty) => qty.ToString("0.###", CultureInfo.InvariantCulture);
+
+    /// <summary>Suffix after a quantity: 5 + "kg" = "5kg", 2 + " dozen" = "2 dozen".</summary>
+    public static string UnitShort(string unitType) => unitType switch
+    {
+        "kg" => "kg",
+        "gram" => "g",
+        "liter" => "L",
+        "meter" => "m",
+        "piece" or "" => " pc",
+        _ => " " + unitType
+    };
+
+    public static string SourceLabel(string source) => source.ToLowerInvariant() switch
+    {
+        "tiktok" => "TikTok",
+        "instagram" => "Instagram",
+        "whatsapp" => "WhatsApp",
+        "facebook" => "Facebook",
+        "referral" => "Referral",
+        var s => CultureInfo.InvariantCulture.TextInfo.ToTitleCase(s)
+    };
+
+    public static string Ordinal(int n) => (n % 100) switch
+    {
+        11 or 12 or 13 => $"{n}th",
+        _ => (n % 10) switch { 1 => $"{n}st", 2 => $"{n}nd", 3 => $"{n}rd", _ => $"{n}th" }
+    };
+
+    public static string DaysAgo(DateTime utc)
+    {
+        var days = (DateTime.UtcNow.Date - utc.Date).Days;
+        return days switch { <= 0 => "today", 1 => "yesterday", _ => $"{days} din pehle" };
     }
 
     public static string ItemsSummary(Order order) =>

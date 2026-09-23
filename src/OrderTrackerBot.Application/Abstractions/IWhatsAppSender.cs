@@ -20,4 +20,17 @@ public interface IWhatsAppSender
 
     /// <summary>Sends up to 3 quick-reply buttons; a tapped button arrives as a normal text message with the button's label.</summary>
     Task SendButtonsMessageAsync(string toPhoneNumber, string bodyText, IReadOnlyList<string> buttonLabels, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sends a Meta-approved template (the only way to message a customer outside the 24h window, e.g. a broadcast).
+    /// Returns false when no template is configured or Meta rejected it.
+    /// </summary>
+    Task<bool> SendTemplateMessageAsync(string toPhoneNumber, IReadOnlyList<string> bodyParameters, CancellationToken cancellationToken = default);
+}
+
+/// <summary>Downloads media (screenshots) a seller sent, by the media id in the webhook.</summary>
+public interface IWhatsAppMediaClient
+{
+    /// <summary>Returns null when media download isn't configured or failed.</summary>
+    Task<(byte[] Bytes, string MimeType)?> DownloadAsync(string mediaId, CancellationToken cancellationToken = default);
 }

@@ -76,6 +76,7 @@ public partial class ConversationEngine
         var size = field("size");
         var color = field("color");
         var stock = int.TryParse(field("stock"), out var s) ? s : (int?)null;
+        var unitType = CommandParser.NormalizeUnit(field("unit_type") ?? "piece") ?? "piece";
 
         var lower = name.ToLower();
         var existing = (await _db.Products.Where(p => p.SellerId == seller.Id && p.Name.ToLower() == lower).ToListAsync(ct))
@@ -88,6 +89,7 @@ public partial class ConversationEngine
         product.Size = size;
         product.Color = color;
         product.StockQty = stock;
+        product.UnitType = unitType;
         if (existing is null) _db.Products.Add(product);
 
         await ReplyAsync(seller,
@@ -157,17 +159,14 @@ public partial class ConversationEngine
         };
 
         var order = await SaveOrderFromDraftAsync(seller, pending, ct);
-        order.PaymentMethod = payment.ToLowerInvariant() switch
-        {
-            var p when p.Contains("cod") => OrderPaymentMethod.Cod,
-            var p when p.Contains("jazz") || p.Contains("easy") || p.Contains("bank") => OrderPaymentMethod.Manual,
-            _ => order.PaymentMethod
-        };
         order.DeliveryDate = ParseFlowDate(field("delivery_date"));
         order.OrderSource = field("order_source");
         order.Notes = field("notes");
         await _db.SaveChangesAsync(ct);
-        await CheckLoyaltyThresholdAsync(seller, order.CustomerId, ct);
+        var session = seller.Session!;
+        var ctx = SessionContextData.FromJson(session.ContextJson);
+        await CheckLoyaltyThresholdAsync(seller, session.State == ConversationState.Idle ? session : null, ctx, order, ct);
+        session.ContextJson = ctx.ToJson();
 
         await ReplyAsync(seller,
             $"✅ Order saved (#{order.Id}) — {customerName}, {Formatters.ProductLabel(product)} x{quantity}, {Formatters.Money(total)}, {payment}" +

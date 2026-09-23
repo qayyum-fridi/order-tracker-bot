@@ -20,6 +20,19 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<ActionLog> ActionLogs => Set<ActionLog>();
     public DbSet<MerchantFeedback> MerchantFeedbacks => Set<MerchantFeedback>();
     public DbSet<CustomerFeedback> CustomerFeedbacks => Set<CustomerFeedback>();
+    public DbSet<PriceTier> PriceTiers => Set<PriceTier>();
+    public DbSet<Campaign> Campaigns => Set<Campaign>();
+    public DbSet<CampaignSend> CampaignSends => Set<CampaignSend>();
+    public DbSet<MessageLog> MessageLogs => Set<MessageLog>();
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        var now = DateTime.UtcNow;
+        foreach (var entry in ChangeTracker.Entries<Order>())
+            if (entry.State is EntityState.Added or EntityState.Modified)
+                entry.Entity.UpdatedAt = now;
+        return base.SaveChangesAsync(cancellationToken);
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -34,6 +47,8 @@ public class AppDbContext : DbContext, IAppDbContext
         modelBuilder.Entity<Product>(e =>
         {
             e.Property(p => p.Price).HasColumnType("decimal(18,2)");
+            e.Property(p => p.UnitQty).HasColumnType("decimal(18,3)");
+            e.Property(p => p.UnitType).HasMaxLength(20);
             e.HasOne(p => p.Seller).WithMany(s => s.Products).HasForeignKey(p => p.SellerId).OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -73,6 +88,18 @@ public class AppDbContext : DbContext, IAppDbContext
         {
             e.HasOne(p => p.Seller).WithMany(s => s.PaymentMethods).HasForeignKey(p => p.SellerId).OnDelete(DeleteBehavior.Cascade);
         });
+
+        modelBuilder.Entity<PriceTier>(e =>
+        {
+            e.Property(t => t.MinQty).HasColumnType("decimal(18,3)");
+            e.Property(t => t.PricePerUnit).HasColumnType("decimal(18,2)");
+            e.HasOne(t => t.Product).WithMany().HasForeignKey(t => t.ProductId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Campaign>(e => e.HasIndex(c => c.SellerId));
+        modelBuilder.Entity<CampaignSend>(e =>
+            e.HasOne(s => s.Campaign).WithMany(c => c.Sends).HasForeignKey(s => s.CampaignId).OnDelete(DeleteBehavior.Cascade));
+        modelBuilder.Entity<MessageLog>(e => e.HasIndex(m => new { m.Phone, m.CreatedAt }));
 
         modelBuilder.Entity<ActionLog>(e => e.HasIndex(a => new { a.SellerId, a.Undone }));
         modelBuilder.Entity<MerchantFeedback>(e => e.HasIndex(m => m.SellerId));

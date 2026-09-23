@@ -111,6 +111,28 @@ public class WhatsAppSender : IWhatsAppSender
         }, cancellationToken);
     }
 
+    public Task<bool> SendTemplateMessageAsync(string toPhoneNumber, IReadOnlyList<string> bodyParameters, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(_options.BroadcastTemplateName) || string.IsNullOrWhiteSpace(_options.AccessToken))
+            return Task.FromResult(false);
+
+        return PostAsync(toPhoneNumber, $"[template {_options.BroadcastTemplateName}] {string.Join(" | ", bodyParameters)}", new
+        {
+            messaging_product = "whatsapp",
+            to = toPhoneNumber,
+            type = "template",
+            template = new
+            {
+                name = _options.BroadcastTemplateName,
+                language = new { code = _options.BroadcastTemplateLanguage },
+                components = new[]
+                {
+                    new { type = "body", parameters = bodyParameters.Select(p => new { type = "text", text = p }).ToArray() }
+                }
+            }
+        }, cancellationToken);
+    }
+
     private async Task<bool> PostAsync(string toPhoneNumber, string logText, object payload, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(_options.AccessToken))

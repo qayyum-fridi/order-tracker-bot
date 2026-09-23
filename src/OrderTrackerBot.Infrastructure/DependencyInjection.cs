@@ -35,6 +35,8 @@ public static class DependencyInjection
         services.AddHttpClient<IWhatsAppSender, WhatsAppSender>();
         services.AddHttpClient<IAiOrderAssistant, OpenAiOrderAssistant>();
         services.AddHttpClient<IFounderAlertNotifier, FounderAlertNotifier>();
+        services.AddHttpClient<IWhatsAppMediaClient, WhatsAppMediaClient>();
+        services.AddSingleton(configuration.GetSection(BillingOptions.SectionName).Get<BillingOptions>() ?? new BillingOptions());
 
         services.AddScoped<ConversationEngine>();
 

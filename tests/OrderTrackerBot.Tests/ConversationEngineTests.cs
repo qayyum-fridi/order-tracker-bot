@@ -60,6 +60,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "start", default);
         await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
+        await engine.HandleIncomingMessageAsync(Phone, "skip", default);
         await engine.HandleIncomingMessageAsync(Phone, "10 ke qareeb", default);
         await engine.HandleIncomingMessageAsync(Phone, "Lawn Suit - 3500", default);
         await engine.HandleIncomingMessageAsync(Phone, "Kurti - 1800", default);
@@ -580,7 +581,7 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
-    public async Task MainMenu_ListsSixCategories_AndHelpShowsOnlyTheEightCoreThings()
+    public async Task MainMenu_ListsSevenCategories_AndHelpShowsOnlyTheEightCoreThings()
     {
         using var db = _dbFactory.CreateContext();
         await OnboardSellerAsync(db);
@@ -593,7 +594,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "menu", default);
         await engine.HandleIncomingMessageAsync(Phone, "help", default);
 
-        Assert.Equal(6, lists[0].Sections.SelectMany(s => s.Rows).Count(r => r.Id.StartsWith("menu ")));
+        Assert.Equal(7, lists[0].Sections.SelectMany(s => s.Rows).Count(r => r.Id.StartsWith("menu ")));
         Assert.Contains("8 cheezein", lists[1].Body);
         Assert.DoesNotContain("trending", lists[1].Body);
     }
@@ -636,6 +637,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "start", default);
         await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
+        await engine.HandleIncomingMessageAsync(Phone, "skip", default);
         await engine.HandleIncomingMessageAsync(Phone, "10 ke qareeb", default);
         _sentMessages.Clear();
 

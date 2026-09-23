@@ -10,7 +10,17 @@ public class Seller
     public string? BusinessName { get; set; }
     public bool OnboardingComplete { get; set; }
     public string PreferredLanguage { get; set; } = "roman_urdu";
+    public string? City { get; set; }
+    public string? BusinessType { get; set; }
+    public string? InstagramHandle { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>Free trial end; null until onboarding completes (trial starts then).</summary>
+    public DateTime? TrialEndsAt { get; set; }
+    public SubscriptionPlan Plan { get; set; } = SubscriptionPlan.Trial;
+    public DateTime? SubscriptionActiveUntil { get; set; }
+    public DateTime? TrialReminderSentAt { get; set; }
+    public DateTime? LastWeeklySummaryAt { get; set; }
 
     public ConversationSession? Session { get; set; }
     public ICollection<Product> Products { get; set; } = new List<Product>();
@@ -40,6 +50,10 @@ public class Product
     public Seller? Seller { get; set; }
     public required string Name { get; set; }
     public decimal Price { get; set; }
+    /// <summary>piece | kg | gram | dozen | liter | meter | yard | pack — the catalog listing is the atomic sellable unit.</summary>
+    public string UnitType { get; set; } = "piece";
+    /// <summary>How many units one listing holds, e.g. 5 for a "Sugar 5kg" pack.</summary>
+    public decimal UnitQty { get; set; } = 1;
     public string? Category { get; set; }
     public string? Size { get; set; }
     public string? Color { get; set; }
@@ -61,5 +75,20 @@ public class Customer
     public string? PreferredContact { get; set; }
     public string? Notes { get; set; }
 
+    /// <summary>Soft delete: hidden from customer views, restorable for 30 days, then purged.</summary>
+    public DateTime? DeletedAt { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
     public ICollection<Order> Orders { get; set; } = new List<Order>();
+}
+
+/// <summary>Wholesale/bulk pricing: the per-unit rate for orders of at least <see cref="MinQty"/> units.</summary>
+public class PriceTier
+{
+    public int Id { get; set; }
+    public int ProductId { get; set; }
+    public Product? Product { get; set; }
+    public decimal MinQty { get; set; }
+    public decimal PricePerUnit { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

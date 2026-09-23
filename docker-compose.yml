@@ -20,6 +20,10 @@ services:
       WhatsApp__CustomerFlowId: "${WHATSAPP_CUSTOMER_FLOW_ID:-}"
       WhatsApp__OrderFlowId: "${WHATSAPP_ORDER_FLOW_ID:-}"
       WhatsApp__FlowDraftMode: "${WHATSAPP_FLOW_DRAFT_MODE:-false}"
+      WhatsApp__BroadcastTemplateName: "${WHATSAPP_BROADCAST_TEMPLATE:-}"
+      WhatsApp__BroadcastTemplateLanguage: "${WHATSAPP_BROADCAST_TEMPLATE_LANG:-en}"
+      Billing__Enabled: "${BILLING_ENABLED:-true}"
+      Billing__PaymentNumber: "${BILLING_PAYMENT_NUMBER:-}"
     volumes:
       - order-tracker-db-data:/data
     networks:

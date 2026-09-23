@@ -19,4 +19,8 @@ public class WhatsAppOptions
     public string OrderFlowId { get; set; } = "";
     /// <summary>Send Flows in draft mode (for testing unpublished Flows); Meta only delivers drafts to test recipients.</summary>
     public bool FlowDraftMode { get; set; }
+
+    /// <summary>Approved marketing template used for broadcasts; its body must take one {{1}} parameter (the message). Empty = broadcasts are recorded but not sent.</summary>
+    public string BroadcastTemplateName { get; set; } = "";
+    public string BroadcastTemplateLanguage { get; set; } = "en";
 }

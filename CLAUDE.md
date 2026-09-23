@@ -113,10 +113,17 @@ shared-state action: confirm with the user and get SSH/host details first.
 
 ## Known gaps (intentionally out of scope for this pass)
 
-- Weekly summary is not wired to a scheduler (`BackgroundService`/cron) yet.
-- Safepay payment gateway integration is a placeholder message only.
-- `broadcast: ...` records intent but doesn't call Meta's template-message API.
-- `CustomerFeedback` schema exists but no command populates it yet.
+- Safepay payment gateway integration is a placeholder message only (the merchant ID is saved;
+  "payment link" still shows manual numbers).
+- Broadcasts send via Meta's template API only when `WhatsApp:BroadcastTemplateName` points at an
+  approved template; SMS has no provider — SMS sends are recorded as `not_configured`.
+- Subscription "paid" is trusted on the seller's word and fires a founder alert to verify manually;
+  there is no payment verification.
+- Proactive messages (weekly summary Sunday 9:00 PKT, trial-ending reminder) come from
+  `ScheduledMessagesService`; outside WhatsApp's 24h window Meta rejects free-form text, so these
+  only reach sellers who messaged the bot in the last 24h until a template is used.
+- EF migrations (`InitialCreate`, `MockupParity`) were generated with the Sqlite provider; a real
+  SQL Server deploy would need them regenerated.
 - An order naming two unmatched catalog products only walks through add-new/map-existing
   for the first one.
 - Day-boundary calculations (`orders today`, `today's summary`) use UTC, not per-seller

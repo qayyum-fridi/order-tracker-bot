@@ -77,6 +77,21 @@ public class WhatsAppWebhookController : ControllerBase
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to process inbound WhatsApp message from {From}", from);
+                await _engine.SendSystemErrorAsync(from, ct);
+            }
+        }
+
+        foreach (var (from, mediaId, caption, messageId) in payload.ExtractImageMessages())
+        {
+            if (IsDuplicateDelivery(messageId)) continue;
+            try
+            {
+                await _engine.HandleImageMessageAsync(from, mediaId, caption, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to process screenshot from {From}", from);
+                await _engine.SendSystemErrorAsync(from, ct);
             }
         }
 
@@ -90,6 +105,7 @@ public class WhatsAppWebhookController : ControllerBase
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to process WhatsApp Flow submission from {From}", from);
+                await _engine.SendSystemErrorAsync(from, ct);
             }
         }
 

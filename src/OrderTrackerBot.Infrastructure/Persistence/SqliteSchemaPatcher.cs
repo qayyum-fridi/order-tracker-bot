@@ -1,19 +1,26 @@
+using System.Globalization;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace OrderTrackerBot.Infrastructure.Persistence;
 
 /// <summary>
-/// EnsureCreated never alters an existing Sqlite file, so columns added to the model after first deploy would be
-/// missing in production. This adds any missing nullable columns; it is additive and safe to run on every start.
+/// EnsureCreated never alters an existing Sqlite file, so tables and columns added to the model after first deploy
+/// would be missing in production. This creates missing tables/indexes and adds missing columns straight from the
+/// EF model; it is additive only and safe to run on every start.
 /// </summary>
 public static class SqliteSchemaPatcher
 {
-    private static readonly (string Table, string Column, string SqlType)[] Columns =
+    private static readonly Regex CreateTable = new(@"^CREATE TABLE ""(?<table>[^""]+)""", RegexOptions.Compiled);
+    private static readonly Regex CreateIndex = new(@"^CREATE (?<unique>UNIQUE )?INDEX ", RegexOptions.Compiled);
+
+    // Non-null columns added to an existing table need a constant default for the rows already there.
+    private static readonly Dictionary<(string Table, string Column), string> Defaults = new()
     {
-        ("Products", "Category", "TEXT"), ("Products", "Size", "TEXT"), ("Products", "Color", "TEXT"),
-        ("Products", "Sku", "TEXT"), ("Products", "StockQty", "INTEGER"),
-        ("Customers", "City", "TEXT"), ("Customers", "PreferredContact", "TEXT"), ("Customers", "Notes", "TEXT"),
-        ("Orders", "DeliveryDate", "TEXT"), ("Orders", "OrderSource", "TEXT"), ("Orders", "Notes", "TEXT")
+        [("Products", "UnitType")] = "'piece'",
+        [("Products", "UnitQty")] = "'1.0'",
+        [("Orders", "PaymentMethod")] = "1"
     };
 
     public static void Apply(AppDbContext db)
@@ -23,12 +30,37 @@ public static class SqliteSchemaPatcher
         if (wasClosed) connection.Open();
         try
         {
-            foreach (var (table, column, sqlType) in Columns)
+            var statements = db.Database.GenerateCreateScript()
+                .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            foreach (var sql in statements)
             {
-                if (ColumnExists(connection, table, column)) continue;
-                using var alter = connection.CreateCommand();
-                alter.CommandText = $"ALTER TABLE \"{table}\" ADD COLUMN \"{column}\" {sqlType} NULL";
-                alter.ExecuteNonQuery();
+                var m = CreateTable.Match(sql);
+                if (m.Success && !TableExists(connection, m.Groups["table"].Value)) Execute(connection, sql);
+            }
+
+            foreach (var entityType in db.Model.GetEntityTypes())
+            {
+                var table = entityType.GetTableName();
+                if (table is null) continue;
+                var store = StoreObjectIdentifier.Table(table, entityType.GetSchema());
+                var existing = ColumnNames(connection, table);
+
+                foreach (var property in entityType.GetProperties())
+                {
+                    var column = property.GetColumnName(store);
+                    if (column is null || existing.Contains(column)) continue;
+
+                    var nullable = property.IsColumnNullable(store);
+                    Execute(connection, $"ALTER TABLE \"{table}\" ADD COLUMN \"{column}\" {property.GetColumnType()}" +
+                        (nullable ? " NULL" : $" NOT NULL DEFAULT {DefaultFor(table, column, property.ClrType)}"));
+                }
+            }
+
+            foreach (var sql in statements)
+            {
+                var m = CreateIndex.Match(sql);
+                if (m.Success) Execute(connection, CreateIndex.Replace(sql, $"CREATE {m.Groups["unique"].Value}INDEX IF NOT EXISTS ", 1));
             }
         }
         finally
@@ -37,13 +69,41 @@ public static class SqliteSchemaPatcher
         }
     }
 
-    private static bool ColumnExists(System.Data.Common.DbConnection connection, string table, string column)
+    private static string DefaultFor(string table, string column, Type clrType)
     {
+        if (Defaults.TryGetValue((table, column), out var value)) return value;
+        var type = Nullable.GetUnderlyingType(clrType) ?? clrType;
+        if (type == typeof(string)) return "''";
+        if (type == typeof(DateTime)) return $"'{DateTime.UnixEpoch.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}'";
+        if (type == typeof(decimal)) return "'0.0'";
+        return "0";
+    }
+
+    private static void Execute(System.Data.Common.DbConnection connection, string sql)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        command.ExecuteNonQuery();
+    }
+
+    private static bool TableExists(System.Data.Common.DbConnection connection, string table)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = $name";
+        var p = command.CreateParameter();
+        p.ParameterName = "$name";
+        p.Value = table;
+        command.Parameters.Add(p);
+        return Convert.ToInt64(command.ExecuteScalar()) > 0;
+    }
+
+    private static HashSet<string> ColumnNames(System.Data.Common.DbConnection connection, string table)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         using var command = connection.CreateCommand();
         command.CommandText = $"PRAGMA table_info(\"{table}\")";
         using var reader = command.ExecuteReader();
-        while (reader.Read())
-            if (string.Equals(reader.GetString(1), column, StringComparison.OrdinalIgnoreCase)) return true;
-        return false;
+        while (reader.Read()) names.Add(reader.GetString(1));
+        return names;
     }
 }

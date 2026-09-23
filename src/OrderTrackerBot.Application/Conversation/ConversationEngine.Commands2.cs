@@ -39,6 +39,13 @@ public partial class ConversationEngine
         ctx.CancelOrderId = null;
         if (order is null) return;
 
+        _db.ActionLogs.Add(new ActionLog
+        {
+            SellerId = seller.Id,
+            ActionType = ActionType.OrderCancelled,
+            OrderId = order.Id,
+            PayloadJson = JsonSerializer.Serialize(new { PreviousStatus = order.Status.ToString() })
+        });
         order.Status = OrderStatus.Cancelled;
         order.CancelledAt = DateTime.UtcNow;
         await ReplyAsync(seller, $"✅ Order #{order.Id} CANCELLED.", ct);
@@ -100,7 +107,16 @@ public partial class ConversationEngine
 
         switch (last.ActionType)
         {
-            case ActionType.OrderStatusChanged when last.OrderId is not null:
+            case ActionType.OrderCreated when last.OrderId is not null:
+            {
+                var order = await _db.Orders.FirstOrDefaultAsync(o => o.Id == last.OrderId && o.SellerId == seller.Id, ct);
+                if (order is null) return;
+                order.Status = OrderStatus.Cancelled;
+                order.CancelledAt = DateTime.UtcNow;
+                await ReplyAsync(seller, $"↩️ Reverted — Order #{order.Id} hata diya (CANCELLED).", ct);
+                return;
+            }
+            case ActionType.OrderStatusChanged or ActionType.OrderCancelled when last.OrderId is not null:
             {
                 var order = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
                     .FirstOrDefaultAsync(o => o.Id == last.OrderId, ct);
@@ -115,6 +131,7 @@ public partial class ConversationEngine
                 else if (doc.RootElement.TryGetProperty("PreviousPaymentStatus", out var prevPayEl))
                 {
                     order.PaymentStatus = Enum.Parse<PaymentStatus>(prevPayEl.GetString()!);
+                    if (order.PaymentStatus == PaymentStatus.Unpaid) order.PaidAt = null;
                     await ReplyAsync(seller, $"↩️ Reverted — Order #{order.Id} payment status back to {order.PaymentStatus}.", ct);
                 }
                 return;
@@ -164,12 +181,20 @@ public partial class ConversationEngine
             return;
         }
 
-        var lines = methods.Select(m => $"{m.Type}: {m.AccountNumberOrId}");
+        var lines = methods.Select(m => $"{PaymentMethodName(m.Type)}: {m.AccountNumberOrId}");
         await ReplyAsync(seller,
             $"💰 Payment details for Order #{order.Id}:\n\n" +
             $"Amount: {Formatters.Money(order.Total)}\n{string.Join("\n", lines)}\n({seller.BusinessName})\n\n" +
             $"Customer ko bhej dein. Payment hone par \"mark {order.Id} paid\" likhein.", ct);
     }
+
+    private static string PaymentMethodName(SellerPaymentMethodType type) => type switch
+    {
+        SellerPaymentMethodType.JazzCash => "JazzCash",
+        SellerPaymentMethodType.Easypaisa => "Easypaisa",
+        SellerPaymentMethodType.Bank => "Bank",
+        _ => type.ToString()
+    };
 
     private async Task HandleAddPaymentMethodAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
     {
@@ -179,9 +204,10 @@ public partial class ConversationEngine
         {
             await ReplyAsync(seller,
                 "💳 Safepay se automatic payment links banane ke liye:\n\n" +
-                "1. safepay.pk par apna merchant account banayein\n" +
+                "1. safepay.pk par apna merchant account banayein (5 min)\n" +
                 "2. Apna Merchant ID copy karein\n" +
-                "3. Yahan bhejein: \"safepay id: [your-id]\"", ct);
+                "3. Yahan bhejein: \"safepay id: [your-id]\"\n\n" +
+                "Account nahi bana? Link: safepay.pk/signup", ct);
             return;
         }
 
@@ -196,10 +222,13 @@ public partial class ConversationEngine
         else _db.PaymentMethods.Add(new SellerPaymentMethod { SellerId = seller.Id, Type = type, AccountNumberOrId = cmd.Text2 });
 
         var count = await _db.PaymentMethods.CountAsync(p => p.SellerId == seller.Id, ct) + (existing is null ? 1 : 0);
+        var others = new[] { "JazzCash", "Easypaisa", "Bank" }.Where(n => !n.Equals(type.ToString(), StringComparison.OrdinalIgnoreCase));
         await ReplyAsync(seller,
             type == SellerPaymentMethodType.Safepay
-                ? "✅ Safepay connect ho gaya."
-                : $"✅ {type} saved. Total {count} payment methods active.", ct);
+                ? "✅ Safepay ID save ho gayi. (Automatic payment links ka integration jald aa raha hai — tab tak \"payment link\" aapke manual numbers dikhayega.)"
+                : count == 1
+                    ? $"✅ {PaymentMethodName(type)} number saved.\n\"payment link\" command ab customer ko yeh number dikhayega.\n\nAur payment method add karna hai? ({string.Join(", ", others)})"
+                    : $"✅ {PaymentMethodName(type)} bhi saved. Total {count} payment methods active.", ct);
     }
 
     private async Task HandleAddTrackingAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
@@ -394,9 +423,15 @@ public partial class ConversationEngine
             return;
         }
 
+        static string Emoji(string? s) => s switch { "positive" => " 😊", "negative" => " 😞", "neutral" => " 😐", _ => "" };
         var lines = items.Select((f, i) =>
-            $"{i + 1}. {f.CustomerName ?? "Customer"}{(f.OrderId is null ? "" : $" (#{f.OrderId})")} - \"{f.Text}\"");
-        await ReplyAsync(seller, $"💬 Recent Customer Feedback:\n\n{string.Join("\n", lines)}", ct);
+            $"{i + 1}. {f.CustomerName ?? "Customer"}{(f.OrderId is null ? "" : $" (#{f.OrderId})")} - \"{f.Text}\"{Emoji(f.Sentiment)}");
+        var positive = items.Count(f => f.Sentiment == "positive");
+        var negative = items.Count(f => f.Sentiment == "negative");
+        var overall = positive + negative == 0 ? "" : positive >= negative
+            ? "\n\nOverall sentiment: Mostly positive"
+            : "\n\nOverall sentiment: Kuch customers naraz hain — follow-up karein";
+        await ReplyAsync(seller, $"💬 Recent Customer Feedback:\n\n{string.Join("\n", lines)}{overall}", ct);
     }
 
     private async Task HandleDiscountListAsync(Seller seller, ConversationSession session, CancellationToken ct)
@@ -432,7 +467,7 @@ public partial class ConversationEngine
     private async Task HandleLoyalCustomersAsync(Seller seller, CancellationToken ct)
     {
         var top = await _db.Orders
-            .Where(o => o.SellerId == seller.Id && o.Status != OrderStatus.Cancelled)
+            .Where(o => o.SellerId == seller.Id && o.Status != OrderStatus.Cancelled && o.Customer!.DeletedAt == null)
             .GroupBy(o => new { o.CustomerId, o.Customer!.Name })
             .Select(g => new { g.Key.Name, Orders = g.Count(), Total = g.Sum(o => o.Total) })
             .OrderByDescending(g => g.Orders)

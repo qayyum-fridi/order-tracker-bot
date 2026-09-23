@@ -18,9 +18,11 @@ public partial class ConversationEngine
         var order = await _db.Orders.FirstOrDefaultAsync(o => o.Id == orderId && o.SellerId == seller.Id, ct);
         if (order is null) return;
 
+        var previous = order.PaymentStatus;
         order.PaymentStatus = PaymentStatus.Paid;
+        order.PaidAt = DateTime.UtcNow;
+        LogPaymentChange(seller, order, previous);
         await ReplyAsync(seller, $"✅ {Formatters.Money(order.Total)} COD collected — payment marked PAID", ct);
-        await CheckLoyaltyThresholdAsync(seller, order.CustomerId, ct);
     }
 
     private async Task HandleRuntimeFilterChoiceAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
@@ -28,9 +30,18 @@ public partial class ConversationEngine
         var command = ctx.RuntimeFilterCommand;
         var choice = NormalizeQuickReply(message);
 
+        // A different command instead of a choice: leave the filter prompt and run it.
+        if (CommandParser.TryParse(message) is { } other && !int.TryParse(choice, out _))
+        {
+            ctx.RuntimeFilterCommand = null;
+            SetState(session, ConversationState.Idle);
+            await ExecuteCommandAsync(seller, session, ctx, other, ct);
+            return;
+        }
+
         switch (command)
         {
-            case "trending" when choice.Contains("custom"):
+            case "trending" when choice.Contains("custom") || choice == "3":
                 ctx.RuntimeFilterCommand = null;
                 SetState(session, ConversationState.AwaitingCustomDateRange);
                 await ReplyAsync(seller, "📅 Konsi dates ke beech? (e.g. \"1 May se 15 May\")", ct);
@@ -38,16 +49,21 @@ public partial class ConversationEngine
 
             case "trending":
             {
-                var since = choice.Contains("month") || choice == "2" ? DateTime.UtcNow.AddMonths(-1) : DateTime.UtcNow.AddDays(-7);
-                await SendTrendingProductsAsync(seller, since, "Is period", ct);
                 SetState(session, ConversationState.Idle);
                 ctx.RuntimeFilterCommand = null;
+                var now = DateTime.UtcNow;
+                if (choice.Contains("30") || choice.Contains("last"))
+                    await SendTrendingProductsAsync(seller, now.AddDays(-30), "Last 30 Days", ct, compareLabel: "pichle 30 din");
+                else if (choice.Contains("month") || choice == "2")
+                    await SendTrendingProductsAsync(seller, now.AddMonths(-1), "This Month", ct, compareLabel: "last month");
+                else
+                    await SendTrendingProductsAsync(seller, now.AddDays(-7), "This Week", ct, compareLabel: "last week");
                 return;
             }
 
             case "slow":
             {
-                var days = choice.Contains("14") || choice == "2" ? 14 : choice.Contains("30") || choice == "3" ? 30 : 7;
+                var days = choice.StartsWith("14") || choice == "2" ? 14 : choice.StartsWith("30") || choice == "3" ? 30 : 7;
                 await SendSlowMoversAsync(seller, days, ct);
                 SetState(session, ConversationState.Idle);
                 ctx.RuntimeFilterCommand = null;
@@ -56,7 +72,7 @@ public partial class ConversationEngine
 
             case "cod":
             {
-                int? minDaysOld = (choice.Contains("3") || choice == "2") ? 3 : (choice.Contains("7") || choice == "3") ? 7 : null;
+                int? minDaysOld = choice.StartsWith("3+") || choice == "2" ? 3 : choice.StartsWith("7") || choice == "3" ? 7 : null;
                 await SendCodPendingAsync(seller, minDaysOld, ct);
                 SetState(session, ConversationState.Idle);
                 ctx.RuntimeFilterCommand = null;
@@ -80,32 +96,35 @@ public partial class ConversationEngine
             return;
         }
 
-        await SendTrendingProductsAsync(seller, from, $"{from:d MMM}-{to:d MMM}", ct, to);
+        var label = from.Month == to.Month ? $"{from.Day}-{to:d MMM}" : $"{from:d MMM}-{to:d MMM}";
+        await SendTrendingProductsAsync(seller, from, label, ct, to.AddDays(1));
     }
+
+    private static readonly string[] DateFormats = { "d MMM", "d MMMM", "d MMM yyyy", "d MMMM yyyy", "d/M", "d/M/yyyy", "yyyy-MM-dd", "MMM d", "MMMM d" };
 
     private static bool TryParseDateRange(string message, out DateTime from, out DateTime to)
     {
         from = DateTime.UtcNow.AddDays(-30);
         to = DateTime.UtcNow;
-        var parts = message.Split(new[] { " se ", " to ", "-" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var parts = message.Split(new[] { " se ", " to ", " tak ", " - ", "–" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (parts.Length != 2) return false;
-        if (!DateTime.TryParse(parts[0], out var start) || !DateTime.TryParse(parts[1], out var end)) return false;
+        var culture = System.Globalization.CultureInfo.InvariantCulture;
+        var style = System.Globalization.DateTimeStyles.AllowWhiteSpaces | System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal;
+        if (!DateTime.TryParseExact(parts[0].Trim(), DateFormats, culture, style, out var start)
+            || !DateTime.TryParseExact(parts[1].Replace("tak", "").Trim(), DateFormats, culture, style, out var end)) return false;
+        // No year typed means the most recent such date.
+        if (start > DateTime.UtcNow) start = start.AddYears(-1);
+        if (end < start) end = end.AddYears(1);
         from = start;
         to = end;
         return true;
     }
 
-    private async Task SendTrendingProductsAsync(Seller seller, DateTime since, string periodLabel, CancellationToken ct, DateTime? until = null)
+    private async Task SendTrendingProductsAsync(Seller seller, DateTime since, string periodLabel, CancellationToken ct, DateTime? until = null, string? compareLabel = null)
     {
-        var query = _db.OrderItems
-            .Where(i => i.Order!.SellerId == seller.Id && i.Order.Status != OrderStatus.Cancelled && i.Order.CreatedAt >= since);
-        if (until is not null) query = query.Where(i => i.Order!.CreatedAt <= until);
-
-        var top = await query.GroupBy(i => i.ProductNameSnapshot)
-            .Select(g => new { Name = g.Key, Orders = g.Count() })
-            .OrderByDescending(g => g.Orders)
-            .Take(5)
-            .ToListAsync(ct);
+        var end = until ?? DateTime.UtcNow;
+        var counts = await ProductOrderCountsAsync(seller, since, end, ct);
+        var top = counts.OrderByDescending(kv => kv.Value).Take(5).ToList();
 
         if (top.Count == 0)
         {
@@ -113,12 +132,29 @@ public partial class ConversationEngine
             return;
         }
 
-        var lines = top.Select((p, i) => $"{i + 1}. {p.Name} - {p.Orders} orders");
-        var reply = $"📈 Trending ({periodLabel}):\n\n{string.Join("\n", lines)}";
-        var insight = await _ai.GenerateInsightAsync($"Top products: {string.Join(", ", top.Select(t => $"{t.Name} ({t.Orders})"))}", ct);
+        var previous = compareLabel is null ? null : await ProductOrderCountsAsync(seller, since - (end - since), since, ct);
+        string Trend(string name, int now)
+        {
+            if (previous is null) return "";
+            var before = previous.GetValueOrDefault(name);
+            return now > before ? $" (↑ from {before} {compareLabel})" : now < before ? $" (↓ from {before} {compareLabel})" : " (steady)";
+        }
+
+        var lines = top.Select((p, i) => $"{i + 1}. {p.Key} - {p.Value} orders{Trend(p.Key, p.Value)}");
+        var reply = compareLabel is null
+            ? $"📈 Trending ({periodLabel}):\n\n{string.Join("\n", lines)}"
+            : $"📈 Trending {periodLabel}:\n\n{string.Join("\n", lines)}";
+        var insight = await _ai.GenerateInsightAsync($"Top products ({periodLabel}): {string.Join(", ", top.Select(t => $"{t.Key} ({t.Value}{Trend(t.Key, t.Value)})"))}", ct);
         if (insight is not null) reply += $"\n\n🤖 Insight: {insight}";
         await ReplyAsync(seller, reply, ct);
     }
+
+    private async Task<Dictionary<string, int>> ProductOrderCountsAsync(Seller seller, DateTime from, DateTime to, CancellationToken ct) =>
+        await _db.OrderItems
+            .Where(i => i.Order!.SellerId == seller.Id && i.Order.Status != OrderStatus.Cancelled && i.Order.CreatedAt >= from && i.Order.CreatedAt < to)
+            .GroupBy(i => i.ProductNameSnapshot)
+            .Select(g => new { Name = g.Key, Orders = g.Count() })
+            .ToDictionaryAsync(g => g.Name, g => g.Orders, ct);
 
     private async Task SendSlowMoversAsync(Seller seller, int days, CancellationToken ct)
     {
@@ -139,7 +175,7 @@ public partial class ConversationEngine
             return;
         }
 
-        var lines = slow.Select((p, i) => $"{i + 1}. {p.Name} - {Formatters.Money(p.Price)}");
+        var lines = slow.Select((p, i) => $"{i + 1}. {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}");
         var reply = $"📉 Slow Movers ({days}+ din se koi order nahi):\n\n{string.Join("\n", lines)}";
         var insight = await _ai.GenerateInsightAsync($"Slow-moving products with no orders in {days} days: {string.Join(", ", slow.Select(s => s.Name))}", ct);
         reply += insight is not null ? $"\n\n🤖 Suggestion: {insight}" : "\n\n🤖 Suggestion: Inpe discount code try karein customers wapas laane ke liye.";
@@ -164,44 +200,11 @@ public partial class ConversationEngine
             return;
         }
 
-        var lines = orders.Select((o, i) => $"{i + 1}. {o.Customer?.Name} - {Formatters.ItemsSummary(o)} - {Formatters.Money(o.Total)}");
-        await ReplyAsync(seller,
-            $"💵 Delivered but Cash Not Collected ({orders.Count}):\n\n{string.Join("\n", lines)}\n\n" +
-            $"Total pending cash: {Formatters.Money(orders.Sum(o => o.Total))}", ct);
-    }
-
-    private async Task HandleBroadcastRequestAsync(Seller seller, ConversationSession session, SessionContextData ctx, ParsedCommand cmd, CancellationToken ct)
-    {
-        var totalCustomers = await _db.Customers.CountAsync(c => c.SellerId == seller.Id, ct);
-        var repeatCustomers = await _db.Customers.CountAsync(c => c.SellerId == seller.Id && c.Orders.Count(o => o.Status != OrderStatus.Cancelled) > 1, ct);
-        var inactiveSince = DateTime.UtcNow.AddDays(-30);
-        var inactiveCustomers = await _db.Customers.CountAsync(c => c.SellerId == seller.Id && !c.Orders.Any(o => o.CreatedAt >= inactiveSince), ct);
-
-        ctx.BroadcastMessageText = cmd.Text;
-        SetState(session, ConversationState.AwaitingBroadcastAudienceChoice);
-        await ReplyAsync(seller,
-            "Kitne customers ko bhejna hai?\n\n" +
-            $"1️⃣ Sab ({totalCustomers} customers)\n" +
-            $"2️⃣ Sirf repeat customers ({repeatCustomers})\n" +
-            $"3️⃣ 30 din se inactive ({inactiveCustomers})", ct);
-    }
-
-    private async Task HandleBroadcastAudienceChoiceAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
-    {
-        SetState(session, ConversationState.Idle);
-        var text = ctx.BroadcastMessageText;
-        ctx.BroadcastMessageText = null;
-
-        if (message.Trim() is not ("1" or "2" or "3") || text is null)
-        {
-            await ReplyAsync(seller, "Reply 1, 2 ya 3.", ct);
-            return;
-        }
-
-        // NOTE: Meta requires a pre-approved message template for any WhatsApp broadcast
-        // outside the 24h session window. This records the campaign; wiring the actual
-        // template send is a follow-up once a template is approved for this seller.
-        await ReplyAsync(seller,
-            "✅ Broadcast queued (approved template use kiya gaya).\n\"campaign status\" se delivery check karein.", ct);
+        var lines = orders.Select((o, i) => $"{i + 1}. {o.Customer?.Name} - {Formatters.ItemsSummary(o)} - {Formatters.Money(o.Total)}" +
+                                             (o.DeliveredAt is { } d ? $" (delivered {Formatters.DaysAgo(d)})" : ""));
+        var total = Formatters.Money(orders.Sum(o => o.Total));
+        await ReplyAsync(seller, minDaysOld is int age
+            ? $"💵 {age}+ Din Purane Unpaid ({orders.Count}):\n\n{string.Join("\n", lines)}\n\nTotal: {total} — follow-up karein."
+            : $"💵 Delivered but Cash Not Collected ({orders.Count}):\n\n{string.Join("\n", lines)}\n\nTotal pending cash: {total}", ct);
     }
 }

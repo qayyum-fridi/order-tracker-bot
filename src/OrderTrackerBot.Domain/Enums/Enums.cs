@@ -19,7 +19,16 @@ public enum ConversationState
     AwaitingBroadcastAudienceChoice,
     AwaitingResetConfirmation,
     OnboardingLanguage,
-    AwaitingDiscountDetails
+    AwaitingDiscountDetails,
+    // Appended only — states are stored as ints.
+    OnboardingOptionalDetails,
+    AwaitingBusinessInfo,
+    AwaitingSubscriptionPayment,
+    AwaitingReceiptOrderChoice,
+    AwaitingDeleteCustomerConfirmation,
+    AwaitingLoyaltyDiscountConfirmation,
+    AwaitingMultiOrderConfirmation,
+    AwaitingBroadcastChannelChoice
 }
 
 public enum OrderStatus
@@ -64,4 +73,11 @@ public enum ActionType
     OrderStatusChanged,
     OrderCancelled,
     ProductPriceChanged
+}
+
+public enum SubscriptionPlan
+{
+    Trial,
+    Basic,
+    Pro
 }

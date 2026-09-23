@@ -19,12 +19,13 @@ public partial class ConversationEngine
         "6️⃣ \"payment link\"\n" +
         "7️⃣ \"catalog\"\n" +
         "8️⃣ \"menu\" — baaki sab kuch yahan hai\n\n" +
-        "Discounts, reports, customers — sab \"menu\" mein tap karke mil jata hai, yaad rakhne ki zaroorat nahi.";
+        "Discounts, reports, customers — sab \"menu\" mein tap karke mil jata hai, yaad rakhne ki zaroorat nahi.\n\n" +
+        "📷 Tip: Order ya payment receipt ki screenshot bhi bhej saktay hain — text zaroori nahi.";
 
     private const string MenuText =
         "📋 Main Menu\n\n" +
         "Kya karna hai? Neeche button dabayein aur category chunein:\n\n" +
-        "📦 Orders · 📊 Reports · 🛍️ Catalog\n💰 Payments · 🎟️ Discounts · 👥 Customers\n\n" +
+        "📦 Orders · 📊 Reports · 🛍️ Catalog\n💰 Payments · 🎟️ Discounts · 👥 Customers · ⚙️ Settings\n\n" +
         "(Ya seedha command likh dein.)";
 
     private static readonly MenuRow BackToMenu = new("menu", "⬅️ Main menu");
@@ -50,7 +51,8 @@ public partial class ConversationEngine
             new MenuRow("menu catalog", "🛍️ Catalog"),
             new MenuRow("menu payments", "💰 Payments"),
             new MenuRow("menu discounts", "🎟️ Discounts"),
-            new MenuRow("menu customers", "👥 Customers")
+            new MenuRow("menu customers", "👥 Customers"),
+            new MenuRow("menu settings", "⚙️ Settings")
         })
     };
 
@@ -69,9 +71,9 @@ public partial class ConversationEngine
             {
                 new MenuRow("today's summary", "Today's summary"), new MenuRow("trending products", "Trending products"),
                 new MenuRow("slow movers", "Slow movers"), new MenuRow("loyal customers", "Loyal customers"),
-                new MenuRow("customer feedback", "Customer feedback"), BackToMenu
+                new MenuRow("customer feedback", "Customer feedback"), new MenuRow("weekly summary", "Weekly summary"), BackToMenu
             }),
-            ["catalog"] = ("🛍️ Catalog", "🛍️ Catalog\n • naya product: Kurti - 1800\n • ek saath kai products bhi bhej saktay hain", new[]
+            ["catalog"] = ("🛍️ Catalog", "🛍️ Catalog\n • naya product: Kurti - 1800\n • weight/pack: Sugar 5 kg - 500\n • edit product: Kurti - 1900\n • delete product: Kurti\n • wholesale: Kaju - price tiers: 1kg=320, 10kg=300\n • ek saath kai products bhi bhej saktay hain", new[]
             {
                 new MenuRow("catalog", "View catalog"), new MenuRow("share catalog", "Share catalog"),
                 new MenuRow("add product", "Add product"), new MenuRow("add product (detailed)", "Add product (form)"), BackToMenu
@@ -84,11 +86,17 @@ public partial class ConversationEngine
             ["discounts"] = ("🎟️ Discounts", "🎟️ Discounts & loyalty\n Code banayein, ya loyalty rule set karein.", new[]
             {
                 new MenuRow("discount list", "Discount list"), new MenuRow("add discount", "Add discount"),
-                new MenuRow("create loyalty", "Add loyalty rule"), new MenuRow("loyal customers", "Loyal customers"), BackToMenu
+                new MenuRow("create loyalty", "Add loyalty rule"), new MenuRow("loyal customers", "Loyal customers"),
+                new MenuRow("campaign status", "Campaign status"), BackToMenu
             }),
-            ["customers"] = ("👥 Customers", "👥 Customers\n • \"customer 1\" ya naam likh kar detail\n • \"search customer: naam/phone\"", new[]
+            ["customers"] = ("👥 Customers", "👥 Customers\n • \"customer 1\" ya naam likh kar detail\n • \"search customer: naam/phone\"\n • \"delete customer naam\" / \"restore customer naam\"\n • promotion: \"sab customers ko batao: naya stock aaya\"", new[]
             {
                 new MenuRow("customer list", "Customer list"), new MenuRow("add customer (detailed)", "Add customer (form)"), BackToMenu
+            }),
+            ["settings"] = ("⚙️ Settings", "⚙️ Settings\n • feedback: [aapka message] — hamein bot ke baare mein batayein", new[]
+            {
+                new MenuRow("update business info", "Business info"), new MenuRow("add payment", "Payment methods"),
+                new MenuRow("subscribe", "Plan / subscribe"), BackToMenu
             })
         };
 
@@ -101,8 +109,42 @@ public partial class ConversationEngine
 
     private async Task ExecuteCommandAsync(Seller seller, ConversationSession session, SessionContextData ctx, ParsedCommand cmd, CancellationToken ct)
     {
+        if (IsBlockedByPlan(seller, cmd.Kind))
+        {
+            await SendProOnlyAsync(seller, ct);
+            return;
+        }
+
         switch (cmd.Kind)
         {
+            case CommandKind.DeleteProduct:
+                await HandleDeleteProductAsync(seller, cmd.Text!, ct);
+                return;
+            case CommandKind.PriceTiers:
+                await HandlePriceTiersAsync(seller, cmd, ct);
+                return;
+            case CommandKind.DeleteCustomer:
+                await HandleDeleteCustomerRequestAsync(seller, session, ctx, cmd, ct);
+                return;
+            case CommandKind.RestoreCustomer:
+                await HandleRestoreCustomerAsync(seller, cmd.Text!, ct);
+                return;
+            case CommandKind.MoreCustomers:
+                await HandleCustomerListAsync(seller, ctx, ct, ctx.CustomerListPage + 1);
+                return;
+            case CommandKind.CampaignStatus:
+                await HandleCampaignStatusAsync(seller, ct);
+                return;
+            case CommandKind.WeeklySummary:
+                await SendWeeklySummaryAsync(seller, DateTime.UtcNow, ct);
+                return;
+            case CommandKind.UpdateBusinessInfo:
+                SetState(session, ConversationState.AwaitingBusinessInfo);
+                await ReplyAsync(seller, BusinessInfoPrompt, ct);
+                return;
+            case CommandKind.Subscribe:
+                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, $"💳 Plans:\n\n{PlansText}\n\nPlan chunein:", PlanButtons, ct);
+                return;
             case CommandKind.Greeting:
                 await HandleGreetingAsync(seller, ct);
                 return;
@@ -180,7 +222,7 @@ public partial class ConversationEngine
             case CommandKind.CodPending:
                 ctx.RuntimeFilterCommand = "cod";
                 SetState(session, ConversationState.AwaitingRuntimeFilterChoice);
-                await ReplyAsync(seller, "💵 Kitne purane pending dekhne hain?\n1️⃣ All\n2️⃣ 3+ days\n3️⃣ 7+ days", ct);
+                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, "💵 Kitne purane pending dekhne hain?", new[] { "All", "3+ days", "7+ days" }, ct);
                 return;
             case CommandKind.AddTracking:
                 await HandleAddTrackingAsync(seller, cmd, ct);
@@ -209,12 +251,13 @@ public partial class ConversationEngine
             case CommandKind.TrendingProducts:
                 ctx.RuntimeFilterCommand = "trending";
                 SetState(session, ConversationState.AwaitingRuntimeFilterChoice);
-                await ReplyAsync(seller, "📈 Konsi time period dekhna chahte hain?\n1️⃣ This Week\n2️⃣ This Month\n3️⃣ Custom Dates", ct);
+                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, "📈 Konsi time period dekhna chahte hain? (\"last 30 days\" bhi likh saktay hain)",
+                    new[] { "This Week", "This Month", "Custom Dates" }, ct);
                 return;
             case CommandKind.SlowMovers:
                 ctx.RuntimeFilterCommand = "slow";
                 SetState(session, ConversationState.AwaitingRuntimeFilterChoice);
-                await ReplyAsync(seller, "📉 Kitne din se koi order nahi aaya?\n1️⃣ 7 days\n2️⃣ 14 days\n3️⃣ 30 days", ct);
+                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, "📉 Kitne din se koi order nahi aaya?", new[] { "7 days", "14 days", "30 days" }, ct);
                 return;
             case CommandKind.ResetAccount:
                 await StartResetAsync(seller, session, ct);
@@ -314,14 +357,16 @@ public partial class ConversationEngine
                 "Product add karna bohot aasan hai — bas naam aur price bhejein:\n" +
                 "Lawn Suit - 3500\n\n" +
                 "Ek saath kai products bhi bhej saktay hain (har line mein ek):\n" +
-                "Lawn Suit - 3500\nKurti - 1800\nDupatta - 900", ct);
+                "Lawn Suit - 3500\nKurti - 1800\nDupatta - 900\n\n" +
+                "Weight/pack wale products: Sugar 5 kg - 500", ct);
             return;
         }
 
         var lines = products.Select((p, i) => $"{i + 1} {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}");
         await ReplyAsync(seller,
             $"🛍️ Aapka Catalog ({products.Count} products):\n\n{string.Join("\n", lines)}\n\n" +
-            "Naya product add karne ke liye bas likhein: Kurti - 1800", ct);
+            "Naya product add karne ke liye bas likhein: Kurti - 1800\n" +
+            "Price badalne ke liye: edit product: Kurti - 1900", ct);
     }
 
     private async Task HandleShareCatalogAsync(Seller seller, CancellationToken ct)
@@ -361,10 +406,13 @@ public partial class ConversationEngine
 
     private async Task HandleAddProductAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
     {
-        var (name, price, updated) = await UpsertProductAsync(seller, cmd.Text!, cmd.Amount!.Value, ct);
-        await ReplyAsync(seller, updated
-            ? $"✅ {name} price updated: {Formatters.Money(price)}"
-            : $"✅ {name} - {Formatters.Money(price)} catalog mein add ho gaya.\n\nAur add karein (Naam - price), ya \"catalog\" likhein.", ct);
+        var line = cmd.Product ?? new ProductLine(cmd.Text!, cmd.Amount!.Value, "piece", 1);
+        var (product, updated) = await UpsertProductAsync(seller, line, ct);
+        var label = Formatters.ProductLabel(product);
+        await ReplyAsync(seller,
+            updated ? $"✅ {label} price updated: {Formatters.Money(product.Price)}"
+            : line.UnitType != "piece" || line.UnitQty != 1 ? $"✅ Added: {label} - {Formatters.Money(product.Price)}"
+            : $"✅ {label} - {Formatters.Money(product.Price)} catalog mein add ho gaya.\n\nAur add karein (Naam - price), ya \"catalog\" likhein.", ct);
     }
 
     private async Task HandleAddProductsBulkAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
@@ -372,31 +420,96 @@ public partial class ConversationEngine
         var results = new List<string>();
         foreach (var line in cmd.Text!.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
-            if (!CommandParser.TryParseProductLine(line, out var lineName, out var linePrice)) continue;
-            var (name, price, updated) = await UpsertProductAsync(seller, lineName, linePrice, ct);
-            results.Add($"{results.Count + 1} {name} - {Formatters.Money(price)}{(updated ? " (updated)" : "")}");
+            if (!CommandParser.TryParseProductLine(line, out ProductLine? parsed)) continue;
+            var (product, updated) = await UpsertProductAsync(seller, parsed!, ct);
+            results.Add($"{results.Count + 1} {Formatters.ProductLabel(product)} - {Formatters.Money(product.Price)}{(updated ? " (updated)" : "")}");
         }
         await ReplyAsync(seller, $"✅ {results.Count} products save ho gaye:\n\n{string.Join("\n", results)}\n\n\"catalog\" likh kar poori list dekhein.", ct);
     }
 
-    private async Task<(string Name, decimal Price, bool Updated)> UpsertProductAsync(Seller seller, string name, decimal price, CancellationToken ct)
+    // The same name with a different pack size ("Sugar 5kg" vs "Sugar 10kg") is a separate listing.
+    private async Task<(Product Product, bool Updated)> UpsertProductAsync(Seller seller, ProductLine line, CancellationToken ct)
     {
-        var lower = name.ToLower();
-        var existing = await _db.Products.FirstOrDefaultAsync(p => p.SellerId == seller.Id && p.Name.ToLower() == lower, ct);
+        var lower = line.Name.ToLower();
+        var existing = (await _db.Products.Where(p => p.SellerId == seller.Id && p.Name.ToLower() == lower).ToListAsync(ct))
+            .FirstOrDefault(p => p.UnitType == line.UnitType && p.UnitQty == line.UnitQty);
         if (existing is not null)
         {
-            existing.Price = price;
-            return (existing.Name, price, true);
+            existing.Price = line.Price;
+            existing.IsActive = true;
+            return (existing, true);
         }
 
-        _db.Products.Add(new Product { SellerId = seller.Id, Name = name, Price = price });
+        var product = new Product { SellerId = seller.Id, Name = line.Name, Price = line.Price, UnitType = line.UnitType, UnitQty = line.UnitQty };
+        _db.Products.Add(product);
         await _db.SaveChangesAsync(ct);
-        return (name, price, false);
+        return (product, false);
+    }
+
+    private async Task HandleDeleteProductAsync(Seller seller, string name, CancellationToken ct)
+    {
+        var product = await FindProductAsync(seller, name, ct);
+        if (product is null)
+        {
+            await ReplyAsync(seller, $"\"{name}\" catalog mein nahi mila. \"catalog\" likh kar list dekhein.", ct);
+            return;
+        }
+
+        product.IsActive = false; // soft delete: old orders keep pointing at it
+        await ReplyAsync(seller, $"✅ {Formatters.ProductLabel(product)} catalog se hata diya.", ct);
+    }
+
+    private async Task<Product?> FindProductAsync(Seller seller, string name, CancellationToken ct)
+    {
+        var products = await _db.Products.Where(p => p.SellerId == seller.Id && p.IsActive).ToListAsync(ct);
+        var wanted = name.Trim().ToLower();
+        return products.FirstOrDefault(p => Formatters.ProductLabel(p).ToLower() == wanted)
+               ?? products.FirstOrDefault(p => p.Name.ToLower() == wanted);
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex TierSpec =
+        new(@"(\d+(?:\.\d+)?)\s*([a-z]*)\s*[=:]\s*(?:rs\.?\s*)?(\d+(?:\.\d+)?)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    /// <summary>Screen 7c-4: "Dakao Kaju - price tiers: 1kg=320, 10kg=300, 25kg=280".</summary>
+    private async Task HandlePriceTiersAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
+    {
+        var matches = TierSpec.Matches(cmd.Text2!);
+        var tiers = matches.Select(m => (Min: decimal.Parse(m.Groups[1].Value), Unit: CommandParser.NormalizeUnit(m.Groups[2].Value), Price: decimal.Parse(m.Groups[3].Value)))
+            .OrderBy(t => t.Min).ToList();
+        if (tiers.Count == 0)
+        {
+            await ReplyAsync(seller, "Format: \"Kaju - price tiers: 1kg=320, 10kg=300, 25kg=280\"", ct);
+            return;
+        }
+
+        var unit = tiers.Select(t => t.Unit).FirstOrDefault(u => u is not null) ?? "piece";
+        var product = await FindProductAsync(seller, cmd.Text!, ct);
+        if (product is null)
+        {
+            product = new Product { SellerId = seller.Id, Name = cmd.Text!, Price = tiers[0].Price, UnitType = unit, UnitQty = 1 };
+            _db.Products.Add(product);
+        }
+        else
+        {
+            product.UnitType = unit;
+            product.UnitQty = 1;
+            product.Price = tiers[0].Price;
+        }
+        await _db.SaveChangesAsync(ct);
+
+        _db.PriceTiers.RemoveRange(await _db.PriceTiers.Where(t => t.ProductId == product.Id).ToListAsync(ct));
+        foreach (var t in tiers) _db.PriceTiers.Add(new PriceTier { ProductId = product.Id, MinQty = t.Min, PricePerUnit = t.Price });
+
+        var u = Formatters.UnitShort(unit).Trim();
+        var lines = tiers.Select((t, i) => i + 1 < tiers.Count
+            ? $"{Formatters.Quantity(t.Min)}-{Formatters.Quantity(tiers[i + 1].Min - 1)} {u}: {Formatters.Money(t.Price)}/{u}"
+            : $"{Formatters.Quantity(t.Min)}+ {u}: {Formatters.Money(t.Price)}/{u}");
+        await ReplyAsync(seller, $"✅ {product.Name} — bulk pricing saved:\n{string.Join("\n", lines)}", ct);
     }
 
     private async Task HandleEditProductAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
     {
-        var product = await _db.Products.FirstOrDefaultAsync(p => p.SellerId == seller.Id && p.Name == cmd.Text, ct);
+        var product = await FindProductAsync(seller, cmd.Text!, ct);
         if (product is null)
         {
             await ReplyAsync(seller, $"\"{cmd.Text}\" catalog mein nahi mila.", ct);
@@ -479,17 +592,21 @@ public partial class ConversationEngine
 
     private async Task MarkOrderPaidAsync(Seller seller, Order order, CancellationToken ct)
     {
+        var previous = order.PaymentStatus;
         order.PaymentStatus = PaymentStatus.Paid;
+        order.PaidAt = DateTime.UtcNow;
+        LogPaymentChange(seller, order, previous);
+        await ReplyAsync(seller, $"✅ Order #{order.Id} marked as PAID.", ct);
+    }
+
+    private void LogPaymentChange(Seller seller, Order order, PaymentStatus previous) =>
         _db.ActionLogs.Add(new ActionLog
         {
             SellerId = seller.Id,
             ActionType = ActionType.OrderStatusChanged,
             OrderId = order.Id,
-            PayloadJson = System.Text.Json.JsonSerializer.Serialize(new { PreviousPaymentStatus = PaymentStatus.Unpaid.ToString() })
+            PayloadJson = System.Text.Json.JsonSerializer.Serialize(new { PreviousPaymentStatus = previous.ToString() })
         });
-        await ReplyAsync(seller, $"✅ Order #{order.Id} marked as PAID.", ct);
-        await CheckLoyaltyThresholdAsync(seller, order.CustomerId, ct);
-    }
 
     private async Task HandleUnpaidOrdersAsync(Seller seller, SessionContextData ctx, CancellationToken ct)
     {

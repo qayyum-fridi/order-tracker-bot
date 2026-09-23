@@ -8,6 +8,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddHostedService<OrderTrackerBot.Api.ScheduledMessagesService>();
 
 var app = builder.Build();
 

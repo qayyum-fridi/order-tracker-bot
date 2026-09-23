@@ -31,6 +31,14 @@ public class WhatsAppWebhookPayload
         [JsonPropertyName("type")] public string? Type { get; set; }
         [JsonPropertyName("text")] public InboundText? Text { get; set; }
         [JsonPropertyName("interactive")] public InboundInteractive? Interactive { get; set; }
+        [JsonPropertyName("image")] public InboundMedia? Image { get; set; }
+    }
+
+    public class InboundMedia
+    {
+        [JsonPropertyName("id")] public string? Id { get; set; }
+        [JsonPropertyName("mime_type")] public string? MimeType { get; set; }
+        [JsonPropertyName("caption")] public string? Caption { get; set; }
     }
 
     public class InboundInteractive
@@ -88,7 +96,19 @@ public class WhatsAppWebhookPayload
         }
     }
 
-    private static readonly HashSet<string> UnsupportedMediaTypes = new() { "audio", "image", "video", "document", "sticker" };
+    /// <summary>Screenshots (Instagram/TikTok order DMs, payment receipts) — read with AI vision.</summary>
+    public IEnumerable<(string From, string MediaId, string? Caption, string? MessageId)> ExtractImageMessages()
+    {
+        foreach (var entry in Entries)
+        foreach (var change in entry.Changes)
+        foreach (var message in change.Value?.Messages ?? Enumerable.Empty<InboundMessage>())
+        {
+            if (message.Type == "image" && message.From is not null && message.Image?.Id is not null)
+                yield return (message.From, message.Image.Id, message.Image.Caption, message.Id);
+        }
+    }
+
+    private static readonly HashSet<string> UnsupportedMediaTypes = new() { "audio", "video", "document", "sticker" };
 
     /// <summary>Voice notes, screenshots and other media the bot can't read yet — the seller still deserves a reply.</summary>
     public IEnumerable<(string From, string Type, string? MessageId)> ExtractUnsupportedMessages()

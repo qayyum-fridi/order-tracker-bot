@@ -43,8 +43,20 @@ public enum CommandKind
     Feedback,
     CustomerFeedbackList,
     ResetAccount,
-    Broadcast
+    Broadcast,
+    DeleteProduct,
+    PriceTiers,
+    DeleteCustomer,
+    RestoreCustomer,
+    MoreCustomers,
+    CampaignStatus,
+    WeeklySummary,
+    UpdateBusinessInfo,
+    Subscribe
 }
+
+/// <summary>A catalog line: "Lawn Suit - 3500" or "Sugar 5 kg - 500" (unit type + pack size split off the name).</summary>
+public sealed record ProductLine(string Name, decimal Price, string UnitType, decimal UnitQty);
 
 /// <summary>
 /// A deterministic command: fixed/near-fixed syntax that is answered by a plain DB
@@ -58,6 +70,7 @@ public sealed class ParsedCommand
     public string? Text2 { get; init; }
     public int? Number { get; init; }
     public decimal? Amount { get; init; }
+    public ProductLine? Product { get; init; }
 }
 
 public static class CommandParser
@@ -73,10 +86,20 @@ public static class CommandParser
     private static readonly Regex TodaysSummary = new(@"^(today'?s\s+summary|آج\s+کا\s+خلاصہ)$", Opts);
     private static readonly Regex Catalog = new(@"^(catalog|کیٹلاگ)$", Opts);
     private static readonly Regex ShareCatalog = new(@"^share\s+catalog$", Opts);
-    private static readonly Regex MenuCategory = new(@"^menu\s+(orders|reports|catalog|payments|discounts|customers)$", Opts);
+    private static readonly Regex MenuCategory = new(@"^menu\s+(orders|reports|catalog|payments|discounts|customers|settings)$", Opts);
     private static readonly Regex CustomerList = new(@"^(customers?\s+list|my\s+customers)$", Opts);
     private static readonly Regex CustomerSearch = new(@"^search\s+customers?:\s*(.+)$", Opts);
     private static readonly Regex CustomerDetail = new(@"^customer\s+(?!list$|feedback$)(.+)$", Opts);
+    private static readonly Regex DeleteCustomer = new(@"^(?:delete|remove)\s+customer:?\s*(.+)$", Opts);
+    private static readonly Regex RestoreCustomer = new(@"^restore\s+customer:?\s*(.+)$", Opts);
+    private static readonly Regex MoreCustomers = new(@"^(more|aur|next)$", Opts);
+    private static readonly Regex DeleteProduct = new(@"^(?:delete|remove)\s+product:?\s*(.+)$", Opts);
+    private static readonly Regex PriceTiers = new(@"^(.+?)\s*[-–:]\s*(?:price\s+tiers?|bulk\s+pric(?:e|ing)|wholesale)\s*:\s*(.+)$", Opts);
+    private static readonly Regex CampaignStatus = new(@"^campaign\s+status$", Opts);
+    private static readonly Regex WeeklySummary = new(@"^(weekly\s+summary|week\s+ka\s+summary)$", Opts);
+    private static readonly Regex UpdateBusinessInfo = new(@"^update\s+business\s+(info|details)$", Opts);
+    private static readonly Regex Subscribe = new(@"^(subscribe|subscription|upgrade|plans?)$", Opts);
+    private static readonly Regex BroadcastNatural = new(@"\b(?:sab|saare|sare|all)\s+customers?\s+ko\s+(?:batao|bata\s+do|bhejo|bhej\s+do|message\s+karo)\s*:\s*(.+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Singleline);
     private static readonly Regex AddProduct = new(@"^add\s+product:\s*(.+?)\s*-\s*(\d+(?:\.\d+)?)$", Opts);
     private static readonly Regex EditProduct = new(@"^edit\s+product:\s*(.+?)\s*-\s*(\d+(?:\.\d+)?)$", Opts);
     private static readonly Regex MarkAllPendingShipped = new(@"^mark\s+all\s+pending\s+as\s+shipped$", Opts);
@@ -93,7 +116,7 @@ public static class CommandParser
     private static readonly Regex FuzzyStatusUpdate = new(@"^(.+?)\s+ka\s+order\s+.*\b(deliver|ship|pending)\w*\b", Opts);
     private static readonly Regex CreateDiscount = new(@"^create\s+discount:\s*(.+)$", Opts);
     private static readonly Regex DiscountList = new(@"^discount\s+list$", Opts);
-    private static readonly Regex CreateLoyalty = new(@"^create\s+loyalty:\s*(\d+)\s+orders?\s*=\s*(\d+(?:\.\d+)?)\s*%?\s*off$", Opts);
+    private static readonly Regex CreateLoyalty = new(@"^create\s+loyalty:\s*(\d+)\s+orders?\s*=\s*(\d+(?:\.\d+)?)\s*(?:%|percent|pc)?\s*off$", Opts);
     private static readonly Regex LoyalCustomers = new(@"^loyal\s+customers?$", Opts);
     private static readonly Regex TrendingProducts = new(@"^trending\s+products?$", Opts);
     private static readonly Regex SlowMovers = new(@"^slow\s+movers?$", Opts);
@@ -104,13 +127,52 @@ public static class CommandParser
     // "Lawn Suit - 3500" / "Lawn suite-3500" / "Kurti = 1800" with no command prefix. The name has no digits,
     // commas or colons, so real orders ("Sara, 1 kurti, 0300...") never match.
     private static readonly Regex BareProductLine = new(@"^([^\d,:\n]{2,50}?)\s*[-–=]\s*(\d{1,7}(?:\.\d+)?)$", Opts);
+    // Weight/pack products: "Sugar 5 kg - 500", "Rice 10kg - 1200", "Eggs 1 dozen - 400".
+    private static readonly Regex UnitProductLine = new(@"^([^\d,:\n]{2,50}?)\s+(\d+(?:\.\d+)?)\s*([a-z]+)\s*[-–=]\s*(\d{1,7}(?:\.\d+)?)$", Opts);
+    private static readonly Regex NameWithUnit = new(@"^(.+?)\s+(\d+(?:\.\d+)?)\s*([a-z]+)$", Opts);
+
+    private static readonly Dictionary<string, string> UnitAliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["kg"] = "kg", ["kgs"] = "kg", ["kilo"] = "kg", ["g"] = "gram", ["gm"] = "gram", ["gms"] = "gram", ["gram"] = "gram", ["grams"] = "gram",
+        ["dozen"] = "dozen", ["darjan"] = "dozen", ["l"] = "liter", ["ltr"] = "liter", ["liter"] = "liter", ["litre"] = "liter", ["liters"] = "liter",
+        ["m"] = "meter", ["meter"] = "meter", ["metre"] = "meter", ["meters"] = "meter", ["yard"] = "yard", ["yards"] = "yard", ["gaz"] = "yard",
+        ["pack"] = "pack", ["packs"] = "pack", ["packet"] = "pack", ["pc"] = "piece", ["pcs"] = "piece", ["piece"] = "piece", ["pieces"] = "piece"
+    };
+
+    public static string? NormalizeUnit(string raw) => UnitAliases.TryGetValue(raw.Trim(), out var unit) ? unit : null;
 
     public static bool TryParseProductLine(string line, out string name, out decimal price)
     {
-        var m = BareProductLine.Match(line.Trim());
-        name = m.Success ? m.Groups[1].Value.Trim() : "";
-        price = m.Success ? decimal.Parse(m.Groups[2].Value) : 0;
-        return m.Success && name.Length > 0;
+        var ok = TryParseProductLine(line, out ProductLine? product);
+        name = product?.Name ?? "";
+        price = product?.Price ?? 0;
+        return ok;
+    }
+
+    public static bool TryParseProductLine(string line, out ProductLine? product)
+    {
+        product = null;
+        var text = line.Trim();
+        var m = UnitProductLine.Match(text);
+        if (m.Success && NormalizeUnit(m.Groups[3].Value) is { } unit)
+        {
+            product = new ProductLine(m.Groups[1].Value.Trim(), decimal.Parse(m.Groups[4].Value), unit, decimal.Parse(m.Groups[2].Value));
+            return true;
+        }
+
+        m = BareProductLine.Match(text);
+        if (!m.Success || m.Groups[1].Value.Trim().Length == 0) return false;
+        product = new ProductLine(m.Groups[1].Value.Trim(), decimal.Parse(m.Groups[2].Value), "piece", 1);
+        return true;
+    }
+
+    /// <summary>"Sugar 5 kg" -> (Sugar, kg, 5); a name without a recognised unit is a single piece.</summary>
+    public static ProductLine SplitUnit(string name, decimal price)
+    {
+        var m = NameWithUnit.Match(name.Trim());
+        return m.Success && NormalizeUnit(m.Groups[3].Value) is { } unit
+            ? new ProductLine(m.Groups[1].Value.Trim(), price, unit, decimal.Parse(m.Groups[2].Value))
+            : new ProductLine(name.Trim(), price, "piece", 1);
     }
 
     // "add discount" / "new product" with no details: show the exact format instead of guessing via the AI.
@@ -138,6 +200,23 @@ public static class CommandParser
         if (CustomerList.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CustomerList };
         if ((m = CustomerSearch.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.CustomerSearch, Text = m.Groups[1].Value.Trim() };
+        if ((m = DeleteCustomer.Match(message)).Success)
+        {
+            var arg = m.Groups[1].Value.Trim();
+            return new ParsedCommand { Kind = CommandKind.DeleteCustomer, Text = arg, Number = int.TryParse(arg, out var n) ? n : null };
+        }
+        if ((m = RestoreCustomer.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.RestoreCustomer, Text = m.Groups[1].Value.Trim() };
+        if (MoreCustomers.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.MoreCustomers };
+        if ((m = DeleteProduct.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.DeleteProduct, Text = m.Groups[1].Value.Trim() };
+        if ((m = PriceTiers.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.PriceTiers, Text = m.Groups[1].Value.Trim(), Text2 = m.Groups[2].Value.Trim() };
+        if (CampaignStatus.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CampaignStatus };
+        if (WeeklySummary.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.WeeklySummary };
+        if (UpdateBusinessInfo.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.UpdateBusinessInfo };
+        if (Subscribe.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Subscribe };
+
         if ((m = CustomerDetail.Match(message)).Success)
         {
             var arg = m.Groups[1].Value.Trim();
@@ -145,7 +224,10 @@ public static class CommandParser
         }
 
         if ((m = AddProduct.Match(message)).Success)
-            return new ParsedCommand { Kind = CommandKind.AddProduct, Text = m.Groups[1].Value.Trim(), Amount = decimal.Parse(m.Groups[2].Value) };
+        {
+            var product = SplitUnit(m.Groups[1].Value, decimal.Parse(m.Groups[2].Value));
+            return new ParsedCommand { Kind = CommandKind.AddProduct, Text = product.Name, Amount = product.Price, Product = product };
+        }
 
         if ((m = EditProduct.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.EditProduct, Text = m.Groups[1].Value.Trim(), Amount = decimal.Parse(m.Groups[2].Value) };
@@ -200,7 +282,7 @@ public static class CommandParser
         if ((m = Feedback.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.Feedback, Text = m.Groups[1].Value.Trim() };
 
-        if ((m = Broadcast.Match(message)).Success)
+        if ((m = Broadcast.Match(message)).Success || (m = BroadcastNatural.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.Broadcast, Text = m.Groups[1].Value.Trim() };
 
         if ((m = SafepayId.Match(message)).Success)
@@ -213,9 +295,9 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.HowTo, Text = m.Groups[1].Value.ToLowerInvariant() };
 
         var lines = message.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (lines.Length == 1 && TryParseProductLine(lines[0], out var name, out var price))
-            return new ParsedCommand { Kind = CommandKind.AddProduct, Text = name, Amount = price };
-        if (lines.Length > 1 && lines.All(l => TryParseProductLine(l, out _, out _)))
+        if (lines.Length == 1 && TryParseProductLine(lines[0], out ProductLine? line))
+            return new ParsedCommand { Kind = CommandKind.AddProduct, Text = line!.Name, Amount = line.Price, Product = line };
+        if (lines.Length > 1 && lines.All(l => TryParseProductLine(l, out ProductLine? _)))
             return new ParsedCommand { Kind = CommandKind.AddProductsBulk, Text = message };
 
         return FuzzyCommand(message);
@@ -229,7 +311,8 @@ public static class CommandParser
         ("unpaid orders", CommandKind.UnpaidOrders), ("cod pending", CommandKind.CodPending),
         ("loyal customers", CommandKind.LoyalCustomers), ("trending products", CommandKind.TrendingProducts),
         ("slow movers", CommandKind.SlowMovers), ("discount list", CommandKind.DiscountList),
-        ("share catalog", CommandKind.ShareCatalog), ("customer list", CommandKind.CustomerList), ("menu", CommandKind.Menu), ("help", CommandKind.Help)
+        ("share catalog", CommandKind.ShareCatalog), ("customer list", CommandKind.CustomerList), ("menu", CommandKind.Menu), ("help", CommandKind.Help),
+        ("campaign status", CommandKind.CampaignStatus), ("weekly summary", CommandKind.WeeklySummary)
     };
 
     private static ParsedCommand? FuzzyCommand(string message)

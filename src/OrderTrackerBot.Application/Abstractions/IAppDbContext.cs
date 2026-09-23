@@ -17,6 +17,10 @@ public interface IAppDbContext
     DbSet<ActionLog> ActionLogs { get; }
     DbSet<MerchantFeedback> MerchantFeedbacks { get; }
     DbSet<CustomerFeedback> CustomerFeedbacks { get; }
+    DbSet<PriceTier> PriceTiers { get; }
+    DbSet<Campaign> Campaigns { get; }
+    DbSet<CampaignSend> CampaignSends { get; }
+    DbSet<MessageLog> MessageLogs { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
