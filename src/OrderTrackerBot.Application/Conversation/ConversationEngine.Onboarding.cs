@@ -54,6 +54,7 @@ public partial class ConversationEngine
         await ReplyAsync(seller, $"✅ Business info update ho gayi, shukriya — {BusinessInfoSummary(seller)}.", ct);
     }
     private static readonly Regex DoneOrSkip = new(@"^(done|skip)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private const string AddAnotherLabel = "➕ Add Another";
     private static readonly string[] ManyProductsWords =
         { "zyada", "ziyada", "bohat", "bohot", "bahut", "kafi", "many", "more", "a lot", "lots", "bara", "bara (20+)", "20+" };
 
@@ -113,6 +114,12 @@ public partial class ConversationEngine
                     return;
                 }
 
+                if (message.Trim().Equals(AddAnotherLabel, StringComparison.OrdinalIgnoreCase))
+                {
+                    await ReplyAsync(seller, "Theek hai, agle product ka naam aur price likh dein (jaise 'Kurti - 1800').", ct);
+                    return;
+                }
+
                 var productLines = message.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                     .Select(l => CommandParser.TryParseProductLine(l, out ProductLine? p) ? p : ParseLooseProductLine(l))
                     .ToList();
@@ -120,8 +127,10 @@ public partial class ConversationEngine
                 {
                     foreach (var line in productLines) await UpsertProductAsync(seller, line!, ct);
                     await ReplyAsync(seller, productLines.Count == 1
-                        ? "✅ Product add ho gaya. Agla product bhejein, ya jab mukammal ho jaye to \"done\" likhein."
-                        : $"✅ {productLines.Count} products add ho gaye. Aur koi product hai? Warna \"done\" likh dein.", ct);
+                        ? "✅ Product add ho gaya."
+                        : $"✅ {productLines.Count} products add ho gaye.", ct);
+                    await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, "Ab kya karna chahte hain?",
+                        new[] { AddAnotherLabel, "Done" }, ct);
                     return;
                 }
 
@@ -156,16 +165,17 @@ public partial class ConversationEngine
         }
     }
 
+    // Shown before the seller has chosen a language, so it's always in Urdu script regardless of their eventual preference.
     private const string IntroText =
-        "👋 Assalam-o-Alaikum! Main aapka Order Assistant hoon.\n\n" +
-        "Main aapki in cheezon mein madad karta hoon:\n" +
-        "📦 Orders record karne mein (Instagram/WhatsApp se forward karein)\n" +
-        "📊 Daily/weekly sales dekhne mein\n" +
-        "💰 Payment aur COD track karne mein\n" +
-        "🎟️ Discount aur loyal customers manage karne mein\n\n" +
-        "Yeh sab isi WhatsApp chat mein ho jata hai — koi alag app install karne ki zaroorat nahi.";
+        "👋 السلام علیکم! میں آپ کا Order Assistant ہوں۔\n\n" +
+        "میں آپ کی درج ذیل کاموں میں مدد کرتا ہوں:\n" +
+        "📦 آرڈرز ریکارڈ کرنے میں (انسٹاگرام/واٹس ایپ سے فارورڈ کریں)\n" +
+        "📊 روزانہ اور ہفتہ وار سیلز دیکھنے میں\n" +
+        "💰 ادائیگی اور COD ٹریک کرنے میں\n" +
+        "🎟️ ڈسکاؤنٹ اور وفادار گاہکوں کا انتظام کرنے میں\n\n" +
+        "یہ سب کچھ اسی واٹس ایپ چیٹ میں ہو جاتا ہے — کسی الگ ایپ کی ضرورت نہیں۔";
 
-    private const string LanguagePromptText = "Sab se pehle apni pasandeeda zaban muntakhib karein — neeche button dabayein ya khud likh dein:";
+    private const string LanguagePromptText = "سب سے پہلے اپنی پسندیدہ زبان منتخب کریں — نیچے بٹن دبائیں یا خود لکھ دیں:";
 
     private async Task StartOnboardingAsync(Seller seller, ConversationSession session, CancellationToken ct)
     {
