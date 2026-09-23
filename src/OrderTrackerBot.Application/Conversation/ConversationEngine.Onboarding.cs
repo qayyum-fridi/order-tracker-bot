@@ -54,6 +54,7 @@ public partial class ConversationEngine
         await ReplyAsync(seller, $"✅ Business info update ho gayi — {BusinessInfoSummary(seller)}.", ct);
     }
     private static readonly Regex DoneOrSkip = new(@"^(done|skip)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly string[] ManyProductsWords = { "zyada", "ziyada", "bohat", "bohot", "bahut", "kafi", "many", "more", "a lot", "lots" };
 
     private async Task HandleOnboardingAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
@@ -87,7 +88,7 @@ public partial class ConversationEngine
 
             case ConversationState.OnboardingCatalogSize:
                 SetState(session, ConversationState.OnboardingAddProduct);
-                var many = message.Contains("zyada", StringComparison.OrdinalIgnoreCase) || message.Contains("more", StringComparison.OrdinalIgnoreCase)
+                var many = ManyProductsWords.Any(w => message.Contains(w, StringComparison.OrdinalIgnoreCase))
                            || message.Split(' ', StringSplitOptions.RemoveEmptyEntries).Any(w => int.TryParse(w, out var n) && n > 20);
                 await ReplyAsync(seller, many
                     ? "Theek hai — ek saath kai products paste kar saktay hain, har line mein ek:\nLawn Suit - 3500\nKurti - 1800\nSugar 5 kg - 500\n\n('done' likhein jab khatam ho)"
