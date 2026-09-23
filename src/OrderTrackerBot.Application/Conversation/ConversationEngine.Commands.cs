@@ -140,7 +140,9 @@ public partial class ConversationEngine
                 return;
             case CommandKind.UpdateBusinessInfo:
                 SetState(session, ConversationState.AwaitingBusinessInfo);
-                await ReplyAsync(seller, BusinessInfoPrompt, ct);
+                var currentSummary = BusinessInfoSummary(seller);
+                await ReplyAsync(seller,
+                    (currentSummary.Length > 0 ? $"📋 Abhi ka record: {currentSummary}\n\n" : "") + BusinessInfoPrompt, ct);
                 return;
             case CommandKind.Subscribe:
                 await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, $"💳 Plans:\n\n{PlansText}\n\nPlan chunein:", PlanButtons, ct);
