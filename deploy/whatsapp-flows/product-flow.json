@@ -1,11 +1,12 @@
 {
-  "version": "6.0",
+  "version": "7.3",
   "screens": [
     {
       "id": "PRODUCT_FORM",
       "title": "Naya Product",
       "terminal": true,
       "success": true,
+      "data": {},
       "layout": {
         "type": "SingleColumnLayout",
         "children": [
@@ -14,107 +15,113 @@
             "text": "Naya Product"
           },
           {
-            "type": "TextInput",
-            "label": "Product Name",
-            "name": "name",
-            "input-type": "text",
-            "required": true
-          },
-          {
-            "type": "Dropdown",
-            "label": "Category",
-            "name": "category",
-            "required": false,
-            "data-source": [
+            "type": "Form",
+            "name": "form",
+            "children": [
               {
-                "id": "Lawn",
-                "title": "Lawn"
+                "type": "TextInput",
+                "label": "Product Name",
+                "name": "name",
+                "input-type": "text",
+                "required": true
               },
               {
-                "id": "Chiffon",
-                "title": "Chiffon"
+                "type": "Dropdown",
+                "label": "Category",
+                "name": "category",
+                "required": false,
+                "data-source": [
+                  {
+                    "id": "Lawn",
+                    "title": "Lawn"
+                  },
+                  {
+                    "id": "Chiffon",
+                    "title": "Chiffon"
+                  },
+                  {
+                    "id": "Cotton",
+                    "title": "Cotton"
+                  },
+                  {
+                    "id": "Silk",
+                    "title": "Silk"
+                  },
+                  {
+                    "id": "Other",
+                    "title": "Other"
+                  }
+                ]
               },
               {
-                "id": "Cotton",
-                "title": "Cotton"
+                "type": "TextInput",
+                "label": "Price (Rs.)",
+                "name": "price",
+                "input-type": "number",
+                "required": true
               },
               {
-                "id": "Silk",
-                "title": "Silk"
+                "type": "Dropdown",
+                "label": "Size",
+                "name": "size",
+                "required": false,
+                "data-source": [
+                  {
+                    "id": "XS",
+                    "title": "XS"
+                  },
+                  {
+                    "id": "S",
+                    "title": "S"
+                  },
+                  {
+                    "id": "M",
+                    "title": "M"
+                  },
+                  {
+                    "id": "L",
+                    "title": "L"
+                  },
+                  {
+                    "id": "XL",
+                    "title": "XL"
+                  },
+                  {
+                    "id": "Free Size",
+                    "title": "Free Size"
+                  }
+                ]
               },
               {
-                "id": "Other",
-                "title": "Other"
+                "type": "TextInput",
+                "label": "Color",
+                "name": "color",
+                "input-type": "text",
+                "required": false
+              },
+              {
+                "type": "TextInput",
+                "label": "Stock Qty",
+                "name": "stock",
+                "input-type": "number",
+                "required": false
+              },
+              {
+                "type": "Footer",
+                "label": "Save Product",
+                "on-click-action": {
+                  "name": "complete",
+                  "payload": {
+                    "name": "${form.name}",
+                    "category": "${form.category}",
+                    "price": "${form.price}",
+                    "size": "${form.size}",
+                    "color": "${form.color}",
+                    "stock": "${form.stock}"
+                  }
+                }
               }
             ]
-          },
-          {
-            "type": "TextInput",
-            "label": "Price (Rs.)",
-            "name": "price",
-            "input-type": "number",
-            "required": true
-          },
-          {
-            "type": "Dropdown",
-            "label": "Size",
-            "name": "size",
-            "required": false,
-            "data-source": [
-              {
-                "id": "XS",
-                "title": "XS"
-              },
-              {
-                "id": "S",
-                "title": "S"
-              },
-              {
-                "id": "M",
-                "title": "M"
-              },
-              {
-                "id": "L",
-                "title": "L"
-              },
-              {
-                "id": "XL",
-                "title": "XL"
-              },
-              {
-                "id": "Free Size",
-                "title": "Free Size"
-              }
-            ]
-          },
-          {
-            "type": "TextInput",
-            "label": "Color",
-            "name": "color",
-            "input-type": "text",
-            "required": false
-          },
-          {
-            "type": "TextInput",
-            "label": "Stock Qty",
-            "name": "stock",
-            "input-type": "number",
-            "required": false
-          },
-          {
-            "type": "Footer",
-            "label": "Save Product",
-            "on-click-action": {
-              "name": "complete",
-              "payload": {
-                "name": "${form.name}",
-                "category": "${form.category}",
-                "price": "${form.price}",
-                "size": "${form.size}",
-                "color": "${form.color}",
-                "stock": "${form.stock}"
-              }
-            }
           }
         ]
       }
