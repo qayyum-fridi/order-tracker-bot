@@ -41,7 +41,7 @@ public partial class ConversationEngine
         SetState(session, ConversationState.Idle);
         if (CancelWords.Contains(message.Trim()))
         {
-            await ReplyAsync(seller, "Theek hai, kuch change nahi kiya.", ct);
+            await ReplyAsync(seller, "Ji theek hai, koi tabdeeli nahi ki gayi.", ct);
             return;
         }
         if (CommandParser.TryParse(message) is { } command)
@@ -51,10 +51,11 @@ public partial class ConversationEngine
         }
 
         ApplyBusinessInfo(seller, message);
-        await ReplyAsync(seller, $"✅ Business info update ho gayi — {BusinessInfoSummary(seller)}.", ct);
+        await ReplyAsync(seller, $"✅ Business info update ho gayi, shukriya — {BusinessInfoSummary(seller)}.", ct);
     }
     private static readonly Regex DoneOrSkip = new(@"^(done|skip)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly string[] ManyProductsWords = { "zyada", "ziyada", "bohat", "bohot", "bahut", "kafi", "many", "more", "a lot", "lots" };
+    private static readonly string[] ManyProductsWords =
+        { "zyada", "ziyada", "bohat", "bohot", "bahut", "kafi", "many", "more", "a lot", "lots", "bara", "bara (20+)", "20+" };
 
     private async Task HandleOnboardingAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
@@ -64,26 +65,30 @@ public partial class ConversationEngine
                 seller.BusinessName = message;
                 SetState(session, ConversationState.OnboardingOptionalDetails);
                 await ReplyAsync(seller,
-                    "Shukriya! Kuch aur details bhi dena chahenge? (optional, skip bhi kar saktay hain)\n" +
-                    "📍 City\n🏷️ Business type (e.g. Clothing, Food, Jewelry)\n📸 Instagram handle (agar hai)\n\n" +
-                    "Ek ek kar ke bata dein, ya \"skip\" likh kar aage barhein.", ct);
+                    "Shukriya! Kya aap kuch mazeed tafseelat bhi dena chahenge? (ikhtiyari hai, \"skip\" bhi kar saktay hain)\n" +
+                    "📍 Shehar\n🏷️ Karobar ki qisam (jaise Clothing, Food, Jewelry)\n📸 Instagram handle (agar mojood ho)\n\n" +
+                    "Baari baari bata dein, ya aage barhne ke liye \"skip\" likhein.", ct);
                 return;
 
             case ConversationState.OnboardingOptionalDetails:
                 if (CommandParser.TryParse(message) is { Kind: not CommandKind.AddProduct })
                 {
-                    await ReplyAsync(seller, "Pehle setup complete kar lein — City, business type, @instagram bhejein, ya \"skip\" likhein.", ct);
+                    await ReplyAsync(seller, "Meharbani kar ke pehle setup mukammal karein — shehar, karobar ki qisam ya @instagram handle bhejein, ya \"skip\" likhein.", ct);
                     return;
                 }
                 SetState(session, ConversationState.OnboardingCatalogSize);
-                const string askCatalog = "Ab products add karte hain. Kitne products hain — 20 se kam ya zyada?";
+                const string askCatalog = "Ab products add karte hain. Neeche button dabayein, ya seedha number likh dein.";
                 if (DoneOrSkip.IsMatch(message))
                 {
-                    await ReplyAsync(seller, $"Theek hai — baad mein \"update business info\" se add kar saktay hain.\n\n{askCatalog}", ct);
-                    return;
+                    await ReplyAsync(seller, $"Ji theek hai — yeh tafseelat aap baad mein \"update business info\" likh kar add kar saktay hain.\n\n{askCatalog}", ct);
                 }
-                ApplyBusinessInfo(seller, message);
-                await ReplyAsync(seller, $"✅ Noted — {BusinessInfoSummary(seller)}.\n\n{askCatalog}", ct);
+                else
+                {
+                    ApplyBusinessInfo(seller, message);
+                    await ReplyAsync(seller, $"✅ Noted — {BusinessInfoSummary(seller)}. Shukriya!\n\n{askCatalog}", ct);
+                }
+                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, "Aapke paas kitne products hain?",
+                    new[] { "Chhota (20 se kam)", "Bara (20+)" }, ct);
                 return;
 
             case ConversationState.OnboardingCatalogSize:
@@ -91,8 +96,8 @@ public partial class ConversationEngine
                 var many = ManyProductsWords.Any(w => message.Contains(w, StringComparison.OrdinalIgnoreCase))
                            || message.Split(' ', StringSplitOptions.RemoveEmptyEntries).Any(w => int.TryParse(w, out var n) && n > 20);
                 await ReplyAsync(seller, many
-                    ? "Theek hai — ek saath kai products paste kar saktay hain, har line mein ek:\nLawn Suit - 3500\nKurti - 1800\nSugar 5 kg - 500\n\n('done' likhein jab khatam ho)"
-                    : "Theek hai, ek ek karke bataiye — naam aur price (e.g. 'Lawn Suit - 3500')", ct);
+                    ? "Bohot khoob — aap ek saath kai products bhi bhej saktay hain, har line mein aik product likhein:\nLawn Suit - 3500\nKurti - 1800\nSugar 5 kg - 500\n\nJab tamam products add ho jayein to \"done\" likh dein."
+                    : "Theek hai, barah-e-meharbani ek ek karke product ka naam aur price bataein — misaal ke taur par 'Lawn Suit - 3500'.", ct);
                 return;
 
             case ConversationState.OnboardingAddProduct:
@@ -102,8 +107,8 @@ public partial class ConversationEngine
                     StartTrial(seller);
                     SetState(session, ConversationState.Idle);
                     var reply = message.Equals("skip", StringComparison.OrdinalIgnoreCase)
-                        ? $"Theek hai — jab chahein \"catalog\" likh kar wapas add kar saktay hain.\n{TrialStartedText(seller)}"
-                        : $"🎉 Setup complete — catalog saved.{TrialStartedText(seller)}\nAb jab bhi order aaye, forward kar dein ya likh dein 'new order: ...'";
+                        ? $"Ji theek hai — jab bhi chahein \"catalog\" likh kar dobara products add kar saktay hain.\n{TrialStartedText(seller)}"
+                        : $"🎉 Mubarak ho, aapka setup mukammal ho gaya aur catalog save ho gayi hai.{TrialStartedText(seller)}\nAb jab bhi koi order aaye, usay forward kar dein ya 'new order: ...' likh kar darj karein.";
                     await ReplyAsync(seller, reply.TrimEnd(), ct);
                     return;
                 }
@@ -115,8 +120,8 @@ public partial class ConversationEngine
                 {
                     foreach (var line in productLines) await UpsertProductAsync(seller, line!, ct);
                     await ReplyAsync(seller, productLines.Count == 1
-                        ? "✅ Added. Agla? (ya 'done' likhein jab khatam ho)"
-                        : $"✅ {productLines.Count} products added. Aur? (ya 'done' likhein jab khatam ho)", ct);
+                        ? "✅ Product add ho gaya. Agla product bhejein, ya jab mukammal ho jaye to \"done\" likhein."
+                        : $"✅ {productLines.Count} products add ho gaye. Aur koi product hai? Warna \"done\" likh dein.", ct);
                     return;
                 }
 
@@ -125,12 +130,12 @@ public partial class ConversationEngine
                 if (CommandParser.TryParse(message) is not null)
                 {
                     await ReplyAsync(seller,
-                        "Abhi koi order nahi hai — pehle catalog complete karein.\n" +
-                        "Product name/price bhejein, ya \"skip\" likh kar baad mein karein.", ct);
+                        "Filhaal koi order darj nahi ho sakta — pehle catalog complete karein.\n" +
+                        "Product ka naam aur price bhejein, ya \"skip\" likh kar yeh marhala baad mein mukammal karein.", ct);
                     return;
                 }
 
-                await ReplyAsync(seller, "Samajh nahi aaya — format: 'naam - price' (e.g. 'Kurti - 1800'), ya 'done'/'skip'.", ct);
+                await ReplyAsync(seller, "Maazrat, samajh nahi aaya. Format yeh hai: 'naam - price' (misaal: 'Kurti - 1800'), ya 'done'/'skip' likhein.", ct);
                 return;
 
             case ConversationState.OnboardingLanguage:
@@ -138,9 +143,9 @@ public partial class ConversationEngine
                 SetState(session, ConversationState.OnboardingBusinessName);
                 await ReplyAsync(seller, seller.PreferredLanguage switch
                 {
-                    Lang.UrduScript => "✅ ٹھیک ہے، اردو میں بات کریں گے۔\n\nاب شروع کرتے ہیں — بزنس کا نام بتائیے؟",
-                    Lang.English => "✅ Great, we'll continue in English.\n\nLet's get started — what's your business name?",
-                    _ => "✅ Theek hai, Roman Urdu mein baat karenge. (Typed reply bhi chal jata hai, button zaroori nahi)\n\nAb shuru karte hain — business ka naam bataiye?"
+                    Lang.UrduScript => "✅ بہت اچھا، ہم اردو میں بات کریں گے۔\n\nآئیے شروع کرتے ہیں — براہ کرم اپنے کاروبار کا نام بتائیں؟",
+                    Lang.English => "✅ Wonderful, we'll continue in English.\n\nLet's get started — could you please share your business name?",
+                    _ => "✅ Bohot khoob, hum Roman Urdu mein baat karenge. (Aap type kar ke bhi jawab de saktay hain, button zaroori nahi)\n\nAayein shuru karte hain — barah-e-meharbani apne karobar ka naam bataein?"
                 }, ct);
                 return;
 
@@ -152,15 +157,15 @@ public partial class ConversationEngine
     }
 
     private const string IntroText =
-        "👋 Salam! Main aapka Order Assistant hoon.\n\n" +
-        "Main aapki madad karta hoon:\n" +
+        "👋 Assalam-o-Alaikum! Main aapka Order Assistant hoon.\n\n" +
+        "Main aapki in cheezon mein madad karta hoon:\n" +
         "📦 Orders record karne mein (Instagram/WhatsApp se forward karein)\n" +
         "📊 Daily/weekly sales dekhne mein\n" +
         "💰 Payment aur COD track karne mein\n" +
         "🎟️ Discount aur loyal customers manage karne mein\n\n" +
-        "Sab kuch isi WhatsApp chat mein — koi app install nahi karna.";
+        "Yeh sab isi WhatsApp chat mein ho jata hai — koi alag app install karne ki zaroorat nahi.";
 
-    private const string LanguagePromptText = "Pehle language select karein — button dabayein ya khud type karein:";
+    private const string LanguagePromptText = "Sab se pehle apni pasandeeda zaban muntakhib karein — neeche button dabayein ya khud likh dein:";
 
     private async Task StartOnboardingAsync(Seller seller, ConversationSession session, CancellationToken ct)
     {

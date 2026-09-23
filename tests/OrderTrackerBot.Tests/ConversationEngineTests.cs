@@ -630,6 +630,41 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task CatalogSizeStep_OffersButtons_SoUserCanTapInsteadOfTypingWrongInput()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+        IReadOnlyList<string>? labels = null;
+        _sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, _, l, _) => labels = l)
+            .Returns(Task.CompletedTask);
+
+        await engine.HandleIncomingMessageAsync(Phone, "start", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
+        await engine.HandleIncomingMessageAsync(Phone, "skip", default);
+
+        Assert.Equal(new[] { "Chhota (20 se kam)", "Bara (20+)" }, labels);
+        Assert.Equal(ConversationState.OnboardingCatalogSize, (await db.Sessions.FirstAsync()).State);
+    }
+
+    [Fact]
+    public async Task CatalogSizeStep_TappingLargeButton_OffersBulkPaste()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+        await engine.HandleIncomingMessageAsync(Phone, "start", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
+        await engine.HandleIncomingMessageAsync(Phone, "skip", default);
+        _sentMessages.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "Bara (20+)", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("ek saath kai products"));
+    }
+
+    [Fact]
     public async Task MidOnboardingCommand_IsDeferredNotExecuted()
     {
         using var db = _dbFactory.CreateContext();
