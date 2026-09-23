@@ -81,6 +81,14 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task ResetAccount_RecognizesReversedWordOrder_AccountReset()
+    {
+        Assert.Equal(CommandKind.ResetAccount, CommandParser.TryParse("Account reset")!.Kind);
+        Assert.Equal(CommandKind.ResetAccount, CommandParser.TryParse("reset account")!.Kind);
+        await Task.CompletedTask;
+    }
+
+    [Fact]
     public async Task ResetAccount_WithConfirmation_WipesDataAndRestartsOnboarding()
     {
         using var db = _dbFactory.CreateContext();

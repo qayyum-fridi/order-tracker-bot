@@ -121,7 +121,7 @@ public static class CommandParser
     private static readonly Regex TrendingProducts = new(@"^trending\s+products?$", Opts);
     private static readonly Regex SlowMovers = new(@"^slow\s+movers?$", Opts);
     private static readonly Regex CustomerFeedbackList = new(@"^customer\s+feedback$", Opts);
-    private static readonly Regex ResetAccount = new(@"^(reset|delete)\s+account$", Opts);
+    private static readonly Regex ResetAccount = new(@"^(reset|delete)\s+account$|^account\s+(reset|delete)$", Opts);
     private static readonly Regex Feedback = new(@"^feedback:\s*(.+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Singleline);
     private static readonly Regex Broadcast = new(@"^broadcast:\s*(.+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Singleline);
     // "Lawn Suit - 3500" / "Lawn suite-3500" / "Kurti = 1800" with no command prefix. The name has no digits,
@@ -312,7 +312,8 @@ public static class CommandParser
         ("loyal customers", CommandKind.LoyalCustomers), ("trending products", CommandKind.TrendingProducts),
         ("slow movers", CommandKind.SlowMovers), ("discount list", CommandKind.DiscountList),
         ("share catalog", CommandKind.ShareCatalog), ("customer list", CommandKind.CustomerList), ("menu", CommandKind.Menu), ("help", CommandKind.Help),
-        ("campaign status", CommandKind.CampaignStatus), ("weekly summary", CommandKind.WeeklySummary)
+        ("campaign status", CommandKind.CampaignStatus), ("weekly summary", CommandKind.WeeklySummary),
+        ("reset account", CommandKind.ResetAccount)
     };
 
     private static ParsedCommand? FuzzyCommand(string message)
