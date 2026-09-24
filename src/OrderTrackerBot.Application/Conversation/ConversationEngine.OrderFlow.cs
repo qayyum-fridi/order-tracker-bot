@@ -60,6 +60,12 @@ public partial class ConversationEngine
             return;
         }
 
+        if (analysis.Intent == "support_query" && analysis.SupportQuery is { } supportQuery)
+        {
+            await HandleForwardedQueryAsync(seller, session, ctx, supportQuery.CustomerName, supportQuery.Question, ct);
+            return;
+        }
+
         if (!analysis.IsOrderAttempt || analysis.Order is null)
         {
             var options = analysis.ClarificationOptions.Count > 0 ? analysis.ClarificationOptions : DefaultClarificationOptions.ToList();
@@ -73,6 +79,18 @@ public partial class ConversationEngine
 
         var drafts = new[] { analysis.Order }.Concat(analysis.AdditionalOrders)
             .Select(d => BuildPendingOrder(d, catalog, fromScreenshot)).ToList();
+
+        // Screen 5d-7: after "lead 1 converted", the next single order is the one that lead turned into.
+        if (ctx.ConvertingLeadId is { } convertingLeadId && drafts.Count == 1)
+        {
+            ctx.ConvertingLeadId = null;
+            if (await _db.CommentLeads.FirstOrDefaultAsync(l => l.Id == convertingLeadId && l.SellerId == seller.Id, ct) is { } lead)
+            {
+                drafts[0].CommentLeadId = lead.Id;
+                drafts[0].CommentLeadNumber = lead.Number;
+                drafts[0].OrderSource ??= "instagram";
+            }
+        }
 
         if (drafts.Count > 1)
         {
@@ -313,7 +331,8 @@ public partial class ConversationEngine
         if (!string.IsNullOrWhiteSpace(pending.Phone)) lines.Add($"Phone: {pending.Phone}");
         if (!string.IsNullOrWhiteSpace(pending.Address)) lines.Add($"Address: {pending.Address}");
         lines.Add($"Payment: {PaymentLabel(ResolvePaymentMethod(pending.PaymentMethodText), pending.PaymentMethodText)}");
-        if (!string.IsNullOrWhiteSpace(pending.OrderSource)) lines.Add($"Source: {Formatters.SourceLabel(pending.OrderSource)}");
+        if (pending.CommentLeadNumber is { } leadNumber) lines.Add($"Source: Instagram comment lead #{leadNumber}");
+        else if (!string.IsNullOrWhiteSpace(pending.OrderSource)) lines.Add($"Source: {Formatters.SourceLabel(pending.OrderSource)}");
         if (pending.DiscountAmount > 0) lines.Add($"Discount ({pending.DiscountCode?.ToUpperInvariant()}): -{Formatters.Money(pending.DiscountAmount)}");
         lines.Add($"Total: {Formatters.Money(pending.Total)}");
         lines.Add("");
@@ -365,7 +384,7 @@ public partial class ConversationEngine
             ctx.PendingOrder = null;
             SetState(session, ConversationState.Idle);
             var order = await SaveOrderFromDraftAsync(seller, pending, ct);
-            await ReplyAsync(seller, SavedText(seller, order), ct);
+            await ReplyAsync(seller, SavedText(seller, order, pending), ct);
             await AfterOrderSavedAsync(seller, session, ctx, order, ct);
             return;
         }
@@ -380,6 +399,9 @@ public partial class ConversationEngine
 
         await ReplyAsync(seller, "Reply YES to save, ya EDIT to fix.", ct);
     }
+
+    private static string SavedText(Seller seller, Order order, PendingOrderData pending) =>
+        SavedText(seller, order) + (pending.CommentLeadNumber is { } leadNumber ? $"\nLead #{leadNumber} marked CONVERTED." : "");
 
     private static string SavedText(Seller seller, Order order) =>
         Lang.Normalize(seller.PreferredLanguage) == Lang.UrduScript
@@ -584,6 +606,13 @@ public partial class ConversationEngine
             PayloadJson = "{}"
         });
 
+        if (pending.CommentLeadId is { } leadId
+            && await _db.CommentLeads.FirstOrDefaultAsync(l => l.Id == leadId && l.SellerId == seller.Id, ct) is { } lead)
+        {
+            lead.Status = "converted_to_order";
+            lead.OrderId = order.Id;
+        }
+
         return order;
     }
 
@@ -627,7 +656,7 @@ public partial class ConversationEngine
             ctx.PendingOrder = null;
             SetState(session, ConversationState.Idle);
             var order = await SaveOrderFromDraftAsync(seller, pending, ct);
-            await ReplyAsync(seller, SavedText(seller, order), ct);
+            await ReplyAsync(seller, SavedText(seller, order, pending), ct);
             await AfterOrderSavedAsync(seller, session, ctx, order, ct);
             return;
         }
@@ -667,7 +696,10 @@ public partial class ConversationEngine
             return;
         }
 
-        await ReplyAsync(seller, $"Reply number se (1-{options.Count}), ya \"help\" likhein.", ct);
+        // Not a number: the seller moved on (e.g. pasted the actual order) — handle it as a fresh message.
+        ctx.ClarificationOptions = null;
+        SetState(session, ConversationState.Idle);
+        await HandleFreeformMessageAsync(seller, session, ctx, message, ct);
     }
 
     /// <summary>

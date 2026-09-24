@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using System.Text.RegularExpressions;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
@@ -54,7 +55,29 @@ public partial class ConversationEngine
         await ReplyAsync(seller, $"✅ Business info update ho gayi, shukriya — {BusinessInfoSummary(seller)}.", ct);
     }
     private static readonly Regex DoneOrSkip = new(@"^(done|skip)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private const string AddAnotherLabel = "➕ Add Another";
+    private static readonly string[] AddProductChoices = { "➕ Aur product", "📋 Catalog dekhein", "✅ Done" };
+
+    // Row ids are real commands — a tapped row arrives as that text.
+    private static readonly IReadOnlyList<Abstractions.MenuSection> AfterSetupSections = new[]
+    {
+        new Abstractions.MenuSection("Shuru karein", new[]
+        {
+            new Abstractions.MenuRow("new order (detailed)", "📦 Pehla order darj karein"),
+            new Abstractions.MenuRow("catalog", "🛍️ Catalog dekhein"),
+            new Abstractions.MenuRow("add payment", "💰 Payment number add"),
+            new Abstractions.MenuRow("menu", "📋 Main menu"),
+            new Abstractions.MenuRow("help", "🆘 Help")
+        })
+    };
+
+    /// <summary>After each product: the confirmation and the next-step buttons in one message, so the options sit right under it.</summary>
+    private Task SendAddProductChoicesAsync(Seller seller, string text, CancellationToken ct) =>
+        _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
+            $"{text}\n\nAb kya karna chahte hain? Neeche button dabayein, ya seedha agla product likh dein.", AddProductChoices, ct);
+
+    /// <summary>A tapped button's label without emoji/punctuation, lower-cased ("✅ Done" -> "done").</summary>
+    private static string ButtonWords(string message) =>
+        Regex.Replace(message, @"[^\p{L}\p{N} ]", "").Trim().ToLowerInvariant();
     private static readonly string[] ManyProductsWords =
         { "zyada", "ziyada", "bohat", "bohot", "bahut", "kafi", "many", "more", "a lot", "lots", "bara", "bara (20+)", "20+" };
 
@@ -102,7 +125,7 @@ public partial class ConversationEngine
                 return;
 
             case ConversationState.OnboardingAddProduct:
-                if (DoneOrSkip.IsMatch(message))
+                if (DoneOrSkip.IsMatch(message) || ButtonWords(message) == "done")
                 {
                     seller.OnboardingComplete = true;
                     StartTrial(seller);
@@ -110,13 +133,25 @@ public partial class ConversationEngine
                     var reply = message.Equals("skip", StringComparison.OrdinalIgnoreCase)
                         ? $"Ji theek hai — jab bhi chahein \"catalog\" likh kar dobara products add kar saktay hain.\n{TrialStartedText(seller)}"
                         : $"🎉 Mubarak ho, aapka setup mukammal ho gaya aur catalog save ho gayi hai.{TrialStartedText(seller)}\nAb jab bhi koi order aaye, usay forward kar dein ya 'new order: ...' likh kar darj karein.";
-                    await ReplyAsync(seller, reply.TrimEnd(), ct);
+                    await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, $"{reply.TrimEnd()}\n\nAage kya karna hai? Neeche se chunein 👇",
+                        "Options dekhein", AfterSetupSections, ct);
                     return;
                 }
 
-                if (message.Trim().Equals(AddAnotherLabel, StringComparison.OrdinalIgnoreCase))
+                var choice = ButtonWords(message);
+                if (choice is "add another" or "aur product" or "add more" or "aur")
                 {
                     await ReplyAsync(seller, "Theek hai, agle product ka naam aur price likh dein (jaise 'Kurti - 1800').", ct);
+                    return;
+                }
+
+                if (choice is "catalog dekhein" or "catalog")
+                {
+                    var catalog = await _db.Products.Where(p => p.SellerId == seller.Id && p.IsActive).OrderBy(p => p.Id).ToListAsync(ct);
+                    var list = catalog.Count == 0
+                        ? "Abhi catalog khali hai."
+                        : $"🛍️ Aapka Catalog ({catalog.Count}):\n" + string.Join("\n", catalog.Select((p, i) => $"{i + 1}. {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}"));
+                    await SendAddProductChoicesAsync(seller, list, ct);
                     return;
                 }
 
@@ -125,12 +160,14 @@ public partial class ConversationEngine
                     .ToList();
                 if (productLines.Count > 0 && productLines.All(p => p is not null))
                 {
-                    foreach (var line in productLines) await UpsertProductAsync(seller, line!, ct);
-                    await ReplyAsync(seller, productLines.Count == 1
-                        ? "✅ Product add ho gaya."
-                        : $"✅ {productLines.Count} products add ho gaye.", ct);
-                    await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, "Ab kya karna chahte hain?",
-                        new[] { AddAnotherLabel, "Done" }, ct);
+                    var added = new List<Product>();
+                    foreach (var line in productLines) added.Add((await UpsertProductAsync(seller, line!, ct)).Product);
+                    await _db.SaveChangesAsync(ct);
+                    var total = await _db.Products.CountAsync(p => p.SellerId == seller.Id && p.IsActive, ct);
+                    var summary = added.Count == 1
+                        ? $"✅ Add ho gaya: {Formatters.ProductLabel(added[0])} - {Formatters.Money(added[0].Price)}"
+                        : $"✅ {added.Count} products add ho gaye:\n" + string.Join("\n", added.Select(p => $"• {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}"));
+                    await SendAddProductChoicesAsync(seller, $"{summary}\n\nCatalog mein ab {total} product{(total == 1 ? "" : "s")} hain.", ct);
                     return;
                 }
 

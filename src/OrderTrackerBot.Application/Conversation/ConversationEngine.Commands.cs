@@ -67,11 +67,12 @@ public partial class ConversationEngine
                 new MenuRow("unpaid orders", "Unpaid orders"), new MenuRow("cod pending", "COD pending"),
                 new MenuRow("new order (detailed)", "New order (form)"), BackToMenu
             }),
-            ["reports"] = ("📊 Reports", "📊 Reports\n Sales aur trends ek tap par.", new[]
+            ["reports"] = ("📊 Reports", "📊 Reports\n Sales aur trends ek tap par.\n • [product] ka report — e.g. \"Lawn Suit ka report\"", new[]
             {
                 new MenuRow("today's summary", "Today's summary"), new MenuRow("trending products", "Trending products"),
                 new MenuRow("slow movers", "Slow movers"), new MenuRow("loyal customers", "Loyal customers"),
-                new MenuRow("customer feedback", "Customer feedback"), new MenuRow("weekly summary", "Weekly summary"), BackToMenu
+                new MenuRow("customer feedback", "Customer feedback"), new MenuRow("weekly summary", "Weekly summary"),
+                new MenuRow("discount performance", "Discount performance"), BackToMenu
             }),
             ["catalog"] = ("🛍️ Catalog", "🛍️ Catalog\n • naya product: Kurti - 1800\n • weight/pack: Sugar 5 kg - 500\n • edit product: Kurti - 1900\n • delete product: Kurti\n • wholesale: Kaju - price tiers: 1kg=320, 10kg=300\n • ek saath kai products bhi bhej saktay hain", new[]
             {
@@ -89,9 +90,11 @@ public partial class ConversationEngine
                 new MenuRow("create loyalty", "Add loyalty rule"), new MenuRow("loyal customers", "Loyal customers"),
                 new MenuRow("campaign status", "Campaign status"), BackToMenu
             }),
-            ["customers"] = ("👥 Customers", "👥 Customers\n • \"customer 1\" ya naam likh kar detail\n • \"search customer: naam/phone\"\n • \"delete customer naam\" / \"restore customer naam\"\n • promotion: \"sab customers ko batao: naya stock aaya\"", new[]
+            ["customers"] = ("👥 Customers", "👥 Customers\n • \"customer 1\" ya naam likh kar detail\n • \"search customer: naam/phone\"\n • \"delete customer naam\" / \"restore customer naam\"\n • promotion: \"sab customers ko batao: naya stock aaya\"\n • customer ka sawal: \"order kab aayega? — Bilal ne poocha\"\n • \"mark [n] resolved\"", new[]
             {
-                new MenuRow("customer list", "Customer list"), new MenuRow("add customer (detailed)", "Add customer (form)"), BackToMenu
+                new MenuRow("customer list", "Customer list"), new MenuRow("support queries", "Support queries"),
+                new MenuRow("comment leads", "📷 Comment leads"), new MenuRow("connect instagram", "📷 Connect Instagram"),
+                new MenuRow("add customer (detailed)", "Add customer (form)"), BackToMenu
             }),
             ["settings"] = ("⚙️ Settings", "⚙️ Settings\n • feedback: [aapka message] — hamein bot ke baare mein batayein", new[]
             {
@@ -134,6 +137,36 @@ public partial class ConversationEngine
                 return;
             case CommandKind.CampaignStatus:
                 await HandleCampaignStatusAsync(seller, ct);
+                return;
+            case CommandKind.SupportQueries:
+                await HandleSupportQueriesListAsync(seller, session, ct);
+                return;
+            case CommandKind.ResolveSupportQuery:
+                await HandleResolveSupportQueryAsync(seller, cmd.Number!.Value, ct);
+                return;
+            case CommandKind.ReplySupportQuery:
+                await HandleReplySupportQueryAsync(seller, cmd, ct);
+                return;
+            case CommandKind.ForwardedQuery:
+                await HandleForwardedQueryAsync(seller, session, ctx, cmd.Text, cmd.Text2!, ct);
+                return;
+            case CommandKind.ConnectInstagram:
+                await HandleConnectInstagramAsync(seller, ct);
+                return;
+            case CommandKind.DisconnectInstagram:
+                await HandleDisconnectInstagramAsync(seller, ct);
+                return;
+            case CommandKind.ProductReport:
+                await HandleProductReportAsync(seller, cmd.Text!, ct);
+                return;
+            case CommandKind.DiscountPerformance:
+                await HandleDiscountPerformanceAsync(seller, ct);
+                return;
+            case CommandKind.CommentLeads:
+                await HandleCommentLeadsListAsync(seller, ct);
+                return;
+            case CommandKind.LeadAction:
+                await HandleLeadActionAsync(seller, ctx, cmd, ct);
                 return;
             case CommandKind.WeeklySummary:
                 await SendWeeklySummaryAsync(seller, DateTime.UtcNow, ct);
@@ -182,6 +215,9 @@ public partial class ConversationEngine
                 return;
             case CommandKind.AddProduct:
                 await HandleAddProductAsync(seller, cmd, ct);
+                return;
+            case CommandKind.NewOrderHelp:
+                await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, NewOrderHelpText, "Options dekhein", NewOrderHelpSections, ct);
                 return;
             case CommandKind.DetailedForm:
                 await HandleDetailedFormRequestAsync(seller, cmd.Text!, ct);
@@ -385,6 +421,25 @@ public partial class ConversationEngine
             $"📋 {seller.BusinessName} — Catalog\n\n{string.Join("\n", lines)}\n\n" +
             "Yeh copy kar ke customer ko bhej dein, ya screenshot le kar forward karein.", ct);
     }
+
+    // "new order" typed on its own: show how, instead of sending an empty order to the AI.
+    private const string NewOrderHelpText =
+        "📦 Naya order darj karne ke 3 aasaan tareeqay:\n\n" +
+        "1️⃣ Customer ka message yahan forward/paste kar dein\n" +
+        "2️⃣ Ya ek line mein likhein:\nAyesha, 2 Lawn Suit, 03001234567, Lahore\n" +
+        "3️⃣ Ya order ki screenshot bhej dein 📷\n\n" +
+        "Main tafseel nikaal kar confirm karwa loon ga. Form se darj karna ho to neeche se chunein 👇";
+
+    private static readonly IReadOnlyList<MenuSection> NewOrderHelpSections = new[]
+    {
+        new MenuSection("Order", new[]
+        {
+            new MenuRow("new order (detailed)", "📝 Form se order"),
+            new MenuRow("catalog", "🛍️ Catalog dekhein"),
+            new MenuRow("orders today", "📦 Aaj ke orders"),
+            BackToMenu
+        })
+    };
 
     private static string HowToText(string subject) => subject switch
     {

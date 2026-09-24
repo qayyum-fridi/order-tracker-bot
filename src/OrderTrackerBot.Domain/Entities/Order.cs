@@ -149,3 +149,56 @@ public class MessageLog
     public required string RawText { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
+
+/// <summary>A seller's Instagram Business/Creator account connected via OAuth, so comment webhooks can be routed to them (V5, section 6c).</summary>
+public class InstagramConnection
+{
+    public int Id { get; set; }
+    public int SellerId { get; set; }
+    public Seller? Seller { get; set; }
+    /// <summary>The IG professional account id — the <c>entry.id</c> on comment webhooks.</summary>
+    public required string IgUserId { get; set; }
+    public string? Username { get; set; }
+    /// <summary>Facebook Page linked to the IG account (Facebook Login mode only).</summary>
+    public string? PageId { get; set; }
+    public required string AccessToken { get; set; }
+    public DateTime ConnectedAt { get; set; } = DateTime.UtcNow;
+    /// <summary>Null when the token never expires (Page tokens).</summary>
+    public DateTime? TokenExpiresAt { get; set; }
+}
+
+/// <summary>An Instagram comment on the seller's post, captured by webhook before (maybe) becoming an order.</summary>
+public class CommentLead
+{
+    public int Id { get; set; }
+    public int SellerId { get; set; }
+    /// <summary>Per-seller running number shown in chat ("lead 1 converted").</summary>
+    public int Number { get; set; }
+    /// <summary>Meta's comment id; unique so a redelivered webhook is ignored.</summary>
+    public required string IgCommentId { get; set; }
+    public string? CommenterUsername { get; set; }
+    public required string CommentText { get; set; }
+    public string? PostId { get; set; }
+    public required string ClassifiedIntent { get; set; } // order_interest | support_query | spam | unclear
+    public string Status { get; set; } = "new"; // new | followed_up | converting | converted_to_order | dismissed
+    public int? OrderId { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>A buyer question the seller forwarded (or an IG comment question); the bot drafts a reply, the seller sends it.</summary>
+public class SupportQuery
+{
+    public int Id { get; set; }
+    public int SellerId { get; set; }
+    public int Number { get; set; }
+    public string? CustomerName { get; set; }
+    public string? CustomerPhone { get; set; }
+    public required string Source { get; set; } // whatsapp | instagram_comment
+    public required string QueryText { get; set; }
+    public string? SuggestedReply { get; set; }
+    public string Status { get; set; } = "open"; // open | replied | resolved
+    public int? LinkedOrderId { get; set; }
+    /// <summary>Set for instagram_comment queries: the comment the reply is posted under.</summary>
+    public string? IgCommentId { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}

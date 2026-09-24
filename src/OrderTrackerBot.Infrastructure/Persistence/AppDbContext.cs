@@ -24,6 +24,9 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<Campaign> Campaigns => Set<Campaign>();
     public DbSet<CampaignSend> CampaignSends => Set<CampaignSend>();
     public DbSet<MessageLog> MessageLogs => Set<MessageLog>();
+    public DbSet<InstagramConnection> InstagramConnections => Set<InstagramConnection>();
+    public DbSet<CommentLead> CommentLeads => Set<CommentLead>();
+    public DbSet<SupportQuery> SupportQueries => Set<SupportQuery>();
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -104,5 +107,16 @@ public class AppDbContext : DbContext, IAppDbContext
         modelBuilder.Entity<ActionLog>(e => e.HasIndex(a => new { a.SellerId, a.Undone }));
         modelBuilder.Entity<MerchantFeedback>(e => e.HasIndex(m => m.SellerId));
         modelBuilder.Entity<CustomerFeedback>(e => e.HasIndex(c => c.SellerId));
+        modelBuilder.Entity<InstagramConnection>(e =>
+        {
+            e.HasIndex(c => c.SellerId).IsUnique();
+            e.HasIndex(c => c.IgUserId);
+        });
+        modelBuilder.Entity<CommentLead>(e =>
+        {
+            e.HasIndex(l => l.IgCommentId).IsUnique();
+            e.HasIndex(l => new { l.SellerId, l.Number });
+        });
+        modelBuilder.Entity<SupportQuery>(e => e.HasIndex(q => new { q.SellerId, q.Number }));
     }
 }

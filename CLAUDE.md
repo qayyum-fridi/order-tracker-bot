@@ -75,7 +75,7 @@ no dots = instant" distinction from the original UX spec, checked in this priori
    `AwaitingClarificationChoice`, `AwaitingCancelConfirmation`, `AwaitingBulkStatusConfirmation`,
    `AwaitingDuplicateOrderConfirmation`, `AwaitingCodCollectedConfirmation`,
    `AwaitingRuntimeFilterChoice`, `AwaitingCustomDateRange`, `AwaitingBroadcastAudienceChoice`,
-   plus onboarding states) takes priority over everything else — it's checked before
+   `AwaitingSupportReplyConfirmation`/`Edit`, `AwaitingSupportQueryPick`, plus onboarding states) takes priority over everything else — it's checked before
    `OnboardingComplete` handling and before command parsing.
 2. **Deterministic command** (`CommandParser`) — fixed/near-fixed syntax like
    `"orders today"`, `"mark 3 shipped"`, `"[name] ka order"`, `"create discount: ..."`.
@@ -128,3 +128,9 @@ shared-state action: confirm with the user and get SSH/host details first.
   for the first one.
 - Day-boundary calculations (`orders today`, `today's summary`) use UTC, not per-seller
   timezone.
+- Instagram comment leads / support queries (`ConversationEngine.Support.cs`, `InstagramController`,
+  `InstagramClient`) need `Instagram:*` config; `LoginMode` must match which permission Meta approved
+  (`facebook` = `instagram_manage_comments` via a linked Page, `instagram` = Instagram Login). The bot never
+  messages buyers on WhatsApp — support replies are drafted for the seller to forward; only public IG comment
+  replies are posted directly. Comment notifications are free-form WhatsApp text, so they share the 24h-window
+  limitation above.

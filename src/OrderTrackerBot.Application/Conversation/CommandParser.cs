@@ -52,7 +52,18 @@ public enum CommandKind
     CampaignStatus,
     WeeklySummary,
     UpdateBusinessInfo,
-    Subscribe
+    Subscribe,
+    SupportQueries,
+    ResolveSupportQuery,
+    ReplySupportQuery,
+    ForwardedQuery,
+    ConnectInstagram,
+    DisconnectInstagram,
+    CommentLeads,
+    LeadAction,
+    ProductReport,
+    DiscountPerformance,
+    NewOrderHelp
 }
 
 /// <summary>A catalog line: "Lawn Suit - 3500" or "Sugar 5 kg - 500" (unit type + pack size split off the name).</summary>
@@ -96,6 +107,8 @@ public static class CommandParser
     private static readonly Regex DeleteProduct = new(@"^(?:delete|remove)\s+product:?\s*(.+)$", Opts);
     private static readonly Regex PriceTiers = new(@"^(.+?)\s*[-–:]\s*(?:price\s+tiers?|bulk\s+pric(?:e|ing)|wholesale)\s*:\s*(.+)$", Opts);
     private static readonly Regex CampaignStatus = new(@"^campaign\s+status$", Opts);
+    private static readonly Regex ProductReport = new(@"^(.+?)\s+(?:ka|ki)\s+report$|^report:?\s+(.+)$", Opts);
+    private static readonly Regex DiscountPerformance = new(@"^discount\s+(?:performance|report)$", Opts);
     private static readonly Regex WeeklySummary = new(@"^(weekly\s+summary|week\s+ka\s+summary)$", Opts);
     private static readonly Regex UpdateBusinessInfo = new(@"^update\s+business\s+(info|details)$", Opts);
     private static readonly Regex Subscribe = new(@"^(subscribe|subscription|upgrade|plans?)$", Opts);
@@ -177,9 +190,42 @@ public static class CommandParser
 
     // "add discount" / "new product" with no details: show the exact format instead of guessing via the AI.
     private static readonly Regex DetailedForm = new(@"^(?:add\s+)?(product|customer|order)\s*\(\s*detailed\s*\)$|^new\s+(order)\s*\(\s*detailed\s*\)$", Opts);
-    private static readonly Regex HowTo = new(@"^(?:add|new|create|make)\s+(discount|product|payment|loyalty|tracking)s?$", Opts);
+    private static readonly Regex NewOrderHelp = new(@"^(?:new|naya|nya|add|create|make)\s+orders?$|^(?:naya\s+)?orders?\s+(?:add|darj|likhna|karna|dalna)(?:\s+(?:karna|karni|hai|karein|krna))*$", Opts);
+    private static readonly Regex HowTo =new(@"^(?:add|new|create|make)\s+(discount|product|payment|loyalty|tracking)s?$", Opts);
 
     private static readonly Regex SafepayId = new(@"^safepay\s+id:\s*(.+)$", Opts);
+
+    // Screens 5d-5..5d-10: Instagram comment leads and buyer support queries.
+    private static readonly Regex SupportQueries = new(@"^(?:support\s+quer(?:y|ies)|customer\s+quer(?:y|ies)|open\s+quer(?:y|ies)|queries)$", Opts);
+    private static readonly Regex ResolveSupportQuery = new(@"^mark\s+(?:query\s+)?(\d+)\s+(?:as\s+)?(?:resolved|solved|done)$", Opts);
+    private static readonly Regex ReplySupportQuery = new(@"^reply\s+(\d+)(?:\s*:\s*(.+))?$", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Singleline);
+    private static readonly Regex ConnectInstagram = new(@"^(?:connect|link)\s+(?:instagram|insta|ig)$", Opts);
+    private static readonly Regex DisconnectInstagram = new(@"^(?:disconnect|unlink)\s+(?:instagram|insta|ig)$", Opts);
+    private static readonly Regex CommentLeads = new(@"^(?:comment\s+leads?|leads|ig\s+leads?|instagram\s+leads?)$", Opts);
+    private static readonly Regex LeadAction = new(@"^lead\s+#?(\d+)\s+(converted|convert|followed\s*up|follow\s*up|dismiss(?:ed)?|spam)(?:\s+(?:order\s+)?#?(\d+))?$", Opts);
+    private const string AskedVerb = @"(?:poocha|pucha|puchha|poochha|puocha|pooch\s+raha|pooch\s+rahi|pooch\s+rahe|asked)(?:\s+(?:hai|he|tha|thi))?";
+    private const RegexOptions QueryOpts = RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Singleline;
+    // "mera order kab tak aayega? — Bilal ne poocha" (any punctuation separator: -, –, —, ?, …)
+    private static readonly Regex QueryThenAsker = new(@"^(?<q>.+?)\s*[^\p{L}\p{N}\s]+\s*(?<name>[\p{L}][\p{L} .]{0,39}?)\s+ne\s+" + AskedVerb + @"[.!]*$", QueryOpts);
+    // "Bilal ne poocha: mera order kab aayega?"
+    private static readonly Regex AskerThenQuery = new(@"^(?<name>[\p{L}][\p{L} .]{0,39}?)\s+ne\s+" + AskedVerb + @"\s*[:\-—–]\s*(?<q>.+)$", QueryOpts);
+    // "query: Bilal, mera order kab aayega?"
+    private static readonly Regex QueryPrefix = new(@"^(?:customer\s+)?(?:query|sawal)\s*:\s*(?<name>[^,\n]{2,40}?)\s*,\s*(?<q>.+)$", QueryOpts);
+
+    /// <summary>A buyer question the seller forwarded, in one of the fixed shapes above; the AI catches looser phrasings.</summary>
+    public static bool TryParseForwardedQuery(string message, out string customerName, out string question)
+    {
+        foreach (var regex in new[] { QueryThenAsker, AskerThenQuery, QueryPrefix })
+        {
+            var m = regex.Match(message.Trim());
+            if (!m.Success) continue;
+            customerName = m.Groups["name"].Value.Trim();
+            question = m.Groups["q"].Value.Trim();
+            if (customerName.Length > 0 && question.Length > 0) return true;
+        }
+        customerName = question = "";
+        return false;
+    }
 
     public static ParsedCommand? TryParse(string rawMessage)
     {
@@ -213,9 +259,32 @@ public static class CommandParser
         if ((m = PriceTiers.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.PriceTiers, Text = m.Groups[1].Value.Trim(), Text2 = m.Groups[2].Value.Trim() };
         if (CampaignStatus.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CampaignStatus };
+        if (DiscountPerformance.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DiscountPerformance };
+        if ((m = ProductReport.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.ProductReport, Text = (m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value).Trim() };
         if (WeeklySummary.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.WeeklySummary };
         if (UpdateBusinessInfo.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.UpdateBusinessInfo };
         if (Subscribe.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Subscribe };
+        if (SupportQueries.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.SupportQueries };
+        if ((m = ResolveSupportQuery.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.ResolveSupportQuery, Number = int.Parse(m.Groups[1].Value) };
+        if ((m = ReplySupportQuery.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.ReplySupportQuery, Number = int.Parse(m.Groups[1].Value), Text = m.Groups[2].Success ? m.Groups[2].Value.Trim() : null };
+        if (ConnectInstagram.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ConnectInstagram };
+        if (DisconnectInstagram.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DisconnectInstagram };
+        if (CommentLeads.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CommentLeads };
+        if ((m = LeadAction.Match(message)).Success)
+        {
+            var verb = m.Groups[2].Value.ToLowerInvariant();
+            var action = verb.StartsWith("conv") ? "converted" : verb.StartsWith("follow") ? "followed_up" : "dismissed";
+            return new ParsedCommand
+            {
+                Kind = CommandKind.LeadAction, Number = int.Parse(m.Groups[1].Value), Text = action,
+                Amount = m.Groups[3].Success ? int.Parse(m.Groups[3].Value) : null
+            };
+        }
+        if (TryParseForwardedQuery(message, out var asker, out var question))
+            return new ParsedCommand { Kind = CommandKind.ForwardedQuery, Text = asker, Text2 = question };
 
         if ((m = CustomerDetail.Match(message)).Success)
         {
@@ -291,6 +360,8 @@ public static class CommandParser
         if ((m = DetailedForm.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.DetailedForm, Text = (m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value).ToLowerInvariant() };
 
+        if (NewOrderHelp.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.NewOrderHelp };
+
         if ((m = HowTo.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.HowTo, Text = m.Groups[1].Value.ToLowerInvariant() };
 
@@ -313,7 +384,8 @@ public static class CommandParser
         ("slow movers", CommandKind.SlowMovers), ("discount list", CommandKind.DiscountList),
         ("share catalog", CommandKind.ShareCatalog), ("customer list", CommandKind.CustomerList), ("menu", CommandKind.Menu), ("help", CommandKind.Help),
         ("campaign status", CommandKind.CampaignStatus), ("weekly summary", CommandKind.WeeklySummary),
-        ("reset account", CommandKind.ResetAccount)
+        ("reset account", CommandKind.ResetAccount), ("support queries", CommandKind.SupportQueries),
+        ("comment leads", CommandKind.CommentLeads), ("discount performance", CommandKind.DiscountPerformance), ("new order", CommandKind.NewOrderHelp), ("connect instagram", CommandKind.ConnectInstagram)
     };
 
     private static ParsedCommand? FuzzyCommand(string message)

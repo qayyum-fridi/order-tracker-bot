@@ -21,9 +21,10 @@ public partial class ConversationEngine
     private readonly IFounderAlertNotifier _founderAlerts;
     private readonly BillingOptions _billing;
     private readonly IWhatsAppMediaClient? _media;
+    private readonly IInstagramClient _instagram;
 
     public ConversationEngine(IAppDbContext db, IAiOrderAssistant ai, IWhatsAppSender sender, IFounderAlertNotifier founderAlerts,
-        BillingOptions? billing = null, IWhatsAppMediaClient? media = null)
+        BillingOptions? billing = null, IWhatsAppMediaClient? media = null, IInstagramClient? instagram = null)
     {
         _db = db;
         _ai = ai;
@@ -31,6 +32,7 @@ public partial class ConversationEngine
         _founderAlerts = founderAlerts;
         _billing = billing ?? new BillingOptions();
         _media = media;
+        _instagram = instagram ?? new NullInstagramClient();
     }
 
     private static readonly ConversationState[] OnboardingStates =
@@ -137,6 +139,15 @@ public partial class ConversationEngine
                 break;
             case ConversationState.AwaitingLoyaltyDiscountConfirmation:
                 await HandleLoyaltyDiscountConfirmationAsync(seller, session, ctx, message, ct);
+                break;
+            case ConversationState.AwaitingSupportReplyConfirmation:
+                await HandleSupportReplyConfirmationAsync(seller, session, ctx, message, ct);
+                break;
+            case ConversationState.AwaitingSupportReplyEdit:
+                await HandleSupportReplyEditAsync(seller, session, ctx, message, ct);
+                break;
+            case ConversationState.AwaitingSupportQueryPick:
+                await HandleSupportQueryPickAsync(seller, session, ctx, message, ct);
                 break;
             default:
                 await HandleIdleAsync(seller, session, ctx, message, ct);

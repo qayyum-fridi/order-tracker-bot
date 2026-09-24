@@ -42,7 +42,7 @@ public sealed class AiOrderDraft
 /// </summary>
 public sealed class AiMessageAnalysis
 {
-    /// <summary>new_order | status_update | customer_feedback | off_topic | unclear.</summary>
+    /// <summary>new_order | status_update | customer_feedback | support_query | off_topic | unclear.</summary>
     public string Intent { get; init; } = "";
     public bool IsOrderAttempt { get; init; }
     public AiOrderDraft? Order { get; init; }
@@ -50,6 +50,8 @@ public sealed class AiMessageAnalysis
     public List<AiOrderDraft> AdditionalOrders { get; init; } = new();
     /// <summary>Set for customer_feedback: the merchant relaying what a buyer thought of an order.</summary>
     public AiCustomerFeedback? Feedback { get; init; }
+    /// <summary>Set for support_query: the seller forwarded a buyer's question ("mera order kab aayega?").</summary>
+    public AiSupportQuery? SupportQuery { get; init; }
     /// <summary>Set when a screenshot is a payment receipt (JazzCash/Easypaisa/bank), not an order.</summary>
     public AiPaymentReceipt? Receipt { get; init; }
     /// <summary>True when the message named 2+ items in a way that could mean separate orders or one combined order (spec screen 3).</summary>
@@ -64,6 +66,20 @@ public sealed class AiCustomerFeedback
     public required string Text { get; init; }
     /// <summary>positive | neutral | negative.</summary>
     public string? Sentiment { get; init; }
+}
+
+public sealed class AiSupportQuery
+{
+    public string? CustomerName { get; init; }
+    public required string Question { get; init; }
+}
+
+/// <summary>Classification of an Instagram comment (section 6c) plus a drafted public reply for questions.</summary>
+public sealed class AiCommentClassification
+{
+    /// <summary>order_interest | support_query | spam | unclear.</summary>
+    public required string Intent { get; init; }
+    public string? SuggestedReply { get; init; }
 }
 
 public sealed class AiPaymentReceipt
@@ -81,6 +97,12 @@ public interface IAiOrderAssistant
 
     /// <summary>Same analysis for a forwarded screenshot (Instagram/TikTok DM order, or a payment receipt).</summary>
     Task<AiMessageAnalysis> AnalyzeImageAsync(AiAnalysisContext context, AiImageInput image, CancellationToken cancellationToken = default);
+
+    /// <summary>Classifies an IG comment. Returns null when AI is unavailable — callers fall back to keyword rules.</summary>
+    Task<AiCommentClassification?> ClassifyCommentAsync(string businessName, string commentText, CancellationToken cancellationToken = default);
+
+    /// <summary>Drafts a short reply the seller can forward to a buyer, grounded in the order facts given. Null when AI is unavailable.</summary>
+    Task<string?> DraftSupportReplyAsync(string businessName, string question, string orderFacts, CancellationToken cancellationToken = default);
 
     /// <summary>Best-effort one-line insight appended to a trend/slow-mover report. Returns null if AI is unavailable — callers must not block on it.</summary>
     Task<string?> GenerateInsightAsync(string factsSummary, CancellationToken cancellationToken = default);

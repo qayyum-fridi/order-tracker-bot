@@ -29,6 +29,9 @@ public class MockupFeatureTests : IDisposable
         _sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
             .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, body, buttons, _) => { _buttons.Add((body, buttons)); _sent.Add(body); })
             .Returns(Task.CompletedTask);
+        _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, body, _, _, _) => _sent.Add(body))
+            .Returns(Task.CompletedTask);
     }
 
     public void Dispose() => _dbFactory.Dispose();

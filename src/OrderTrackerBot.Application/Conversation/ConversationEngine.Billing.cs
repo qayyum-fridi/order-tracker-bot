@@ -16,7 +16,8 @@ public partial class ConversationEngine
     private static readonly HashSet<CommandKind> ProOnlyCommands = new()
     {
         CommandKind.CreateDiscount, CommandKind.DiscountList, CommandKind.CreateLoyalty, CommandKind.LoyalCustomers,
-        CommandKind.TrendingProducts, CommandKind.SlowMovers, CommandKind.Broadcast, CommandKind.CampaignStatus
+        CommandKind.TrendingProducts, CommandKind.SlowMovers, CommandKind.Broadcast, CommandKind.CampaignStatus,
+        CommandKind.DiscountPerformance
     };
 
     private bool HasAccess(Seller seller, DateTime now) =>

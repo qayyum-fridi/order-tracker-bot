@@ -678,8 +678,13 @@ public class ConversationEngineTests : IDisposable
         using var db = _dbFactory.CreateContext();
         var engine = CreateEngine(db);
         IReadOnlyList<string>? labels = null;
+        string? body = null;
+        string? listBody = null;
         _sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
-            .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, _, l, _) => labels = l)
+            .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, b, l, _) => { body = b; labels = l; })
+            .Returns(Task.CompletedTask);
+        _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, b, _, _, _) => listBody = b)
             .Returns(Task.CompletedTask);
         await engine.HandleIncomingMessageAsync(Phone, "start", default);
         await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
@@ -688,13 +693,19 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Chhota (20 se kam)", default);
 
         await engine.HandleIncomingMessageAsync(Phone, "Kurti - 1800", default);
-        Assert.Equal(new[] { "➕ Add Another", "Done" }, labels);
+        Assert.Equal(new[] { "➕ Aur product", "📋 Catalog dekhein", "✅ Done" }, labels);
+        Assert.Contains("✅ Add ho gaya: Kurti - Rs.1,800", body);
+        Assert.Contains("Catalog mein ab 1 product hain", body);
 
-        await engine.HandleIncomingMessageAsync(Phone, "Done", default);
+        await engine.HandleIncomingMessageAsync(Phone, "📋 Catalog dekhein", default);
+        Assert.Contains("1. Kurti - Rs.1,800", body);
+
+        await engine.HandleIncomingMessageAsync(Phone, "✅ Done", default);
 
         var seller = await db.Sellers.FirstAsync();
         Assert.True(seller.OnboardingComplete);
         Assert.Equal(1, await db.Products.CountAsync());
+        Assert.Contains("Aage kya karna hai?", listBody);
     }
 
     [Fact]

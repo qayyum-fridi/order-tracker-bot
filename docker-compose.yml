@@ -24,6 +24,11 @@ services:
       WhatsApp__BroadcastTemplateLanguage: "${WHATSAPP_BROADCAST_TEMPLATE_LANG:-en}"
       Billing__Enabled: "${BILLING_ENABLED:-true}"
       Billing__PaymentNumber: "${BILLING_PAYMENT_NUMBER:-}"
+      Instagram__LoginMode: "${INSTAGRAM_LOGIN_MODE:-facebook}"
+      Instagram__AppId: "${INSTAGRAM_APP_ID:-}"
+      Instagram__AppSecret: "${INSTAGRAM_APP_SECRET:-}"
+      Instagram__PublicBaseUrl: "${PUBLIC_BASE_URL:-}"
+      Instagram__VerifyToken: "${INSTAGRAM_VERIFY_TOKEN:-}"
     volumes:
       - order-tracker-db-data:/data
     networks:

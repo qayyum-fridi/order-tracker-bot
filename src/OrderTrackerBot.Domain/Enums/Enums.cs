@@ -28,7 +28,10 @@ public enum ConversationState
     AwaitingDeleteCustomerConfirmation,
     AwaitingLoyaltyDiscountConfirmation,
     AwaitingMultiOrderConfirmation,
-    AwaitingBroadcastChannelChoice
+    AwaitingBroadcastChannelChoice,
+    AwaitingSupportReplyConfirmation,
+    AwaitingSupportReplyEdit,
+    AwaitingSupportQueryPick
 }
 
 public enum OrderStatus

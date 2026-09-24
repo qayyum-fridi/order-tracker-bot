@@ -99,6 +99,27 @@ All config lives under `appsettings.json` / environment variables (see
 | `WhatsApp:AppSecret` | verifies `X-Hub-Signature-256` on inbound webhooks |
 | `OpenAi:ApiKey` / `Model` | order extraction + insight generation |
 | `FounderAlerts:WebhookUrl` | optional n8n/webhook target for merchant `feedback:` messages |
+| `Instagram:LoginMode` | `facebook` (Facebook Login, `instagram_manage_comments`) or `instagram` (Instagram Login, `instagram_business_manage_comments`) |
+| `Instagram:AppId` / `AppSecret` | the Meta app used for IG comment leads; the secret also verifies IG webhooks |
+| `Instagram:PublicBaseUrl` | public https URL of this API (connect link + OAuth redirect `<url>/instagram/callback`) |
+| `Instagram:VerifyToken` | IG webhook verify token (empty = reuse `WhatsApp:VerifyToken`) |
+
+## Instagram comment leads setup (optional)
+
+Without these settings, "connect instagram" just tells the seller it isn't active yet; everything else works.
+
+1. Use the Meta app that has the approved comment permission. Set `Instagram:LoginMode` to match what was
+   approved: `facebook` for `instagram_manage_comments` (the seller's IG must be Business/Creator **and linked
+   to a Facebook Page**), or `instagram` for `instagram_business_manage_comments` (no Page needed).
+2. Add the OAuth redirect URI `https://your-domain/instagram/callback` (Facebook Login → Settings →
+   Valid OAuth Redirect URIs, or Instagram → Business login settings).
+3. Webhooks → object **Instagram** → callback `https://your-domain/webhook/instagram`, verify token as
+   configured → subscribe to the `comments` field.
+4. The app must be in **Live** mode for comment webhooks from real sellers (in Development mode only app
+   role users' accounts send events).
+5. A seller types `connect instagram` in WhatsApp, opens the link, approves — the bot confirms in chat.
+   New comments then arrive as leads (`comment leads`, `lead 1 converted`) or support queries with a
+   one-tap public reply.
 
 ## WhatsApp Cloud API setup
 

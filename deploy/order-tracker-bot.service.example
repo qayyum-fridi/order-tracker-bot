@@ -31,6 +31,11 @@ Environment=WhatsApp__AppSecret=REPLACE_ME
 Environment=OpenAi__ApiKey=REPLACE_ME
 Environment=OpenAi__Model=gpt-4o-mini
 Environment=FounderAlerts__WebhookUrl=
+# Instagram comment leads (optional): login mode (facebook|instagram), app id/secret, this server's public https URL
+Environment=Instagram__LoginMode=facebook
+Environment=Instagram__AppId=
+Environment=Instagram__AppSecret=
+Environment=Instagram__PublicBaseUrl=https://REPLACE_ME
 
 [Install]
 WantedBy=multi-user.target

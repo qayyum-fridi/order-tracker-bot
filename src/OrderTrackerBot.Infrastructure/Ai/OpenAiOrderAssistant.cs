@@ -71,7 +71,9 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "(typos, informal names, missing words) against this seller's catalog:\n" + catalogText + "\n\n" +
             "intent values: new_order (a customer order to record), status_update (an order was shipped/delivered etc.), customer_feedback " +
             "(the seller relays how a buyer felt about their order, e.g. \"ayesha bahut khush thi order se\" — fill feedback), off_topic (small talk " +
-            "or chatter unrelated to the business, e.g. \"bohat thak gayi hoon aaj\"), unclear. " +
+            "or chatter unrelated to the business, e.g. \"bohat thak gayi hoon aaj\"), support_query (the seller forwards a question a buyer " +
+            "asked them, e.g. \"mera order kab tak aayega? — Bilal ne poocha\" or \"Ayesha pooch rahi hai Karachi bhejte hain?\" — fill support_query " +
+            "with the buyer's name if given and the question itself), unclear. " +
             "For new_order put one entry per customer in orders (two different customers in one message = two entries). Quantity is the number " +
             "of catalog units; for weight-sold items like \"15kg kaju\" use the number of kg (15). " +
             "Required order fields are customer_name and phone; if either is missing, still return the order with what you found and list the " +
@@ -125,7 +127,47 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         }
     }
 
-    public async Task<string?> GenerateInsightAsync(string factsSummary, CancellationToken cancellationToken = default)
+    public Task<string?> GenerateInsightAsync(string factsSummary, CancellationToken cancellationToken = default) =>
+        CompleteTextAsync("One short Roman Urdu sentence of business insight/suggestion for a small seller, based on the facts given. No preamble.",
+            factsSummary, 0.4, "insight generation", cancellationToken);
+
+    public Task<string?> DraftSupportReplyAsync(string businessName, string question, string orderFacts, CancellationToken cancellationToken = default) =>
+        CompleteTextAsync(
+            $"You draft WhatsApp replies for the small Pakistani shop '{businessName}'. The seller will forward your reply to their customer. " +
+            "Write 1-2 short, polite sentences in Roman Urdu (match the customer's language if they wrote English/Urdu script). Use ONLY the " +
+            "order facts given — never invent dates, prices or tracking numbers; if a fact is missing, say the seller will confirm shortly. " +
+            "Reply with the message text only, no quotes or preamble.",
+            $"Customer question: {question}\nOrder facts: {orderFacts}", 0.3, "support reply draft", cancellationToken);
+
+    public async Task<AiCommentClassification?> ClassifyCommentAsync(string businessName, string commentText, CancellationToken cancellationToken = default)
+    {
+        var json = await CompleteTextAsync(
+            $"Classify an Instagram comment left on a post by the Pakistani shop '{businessName}'. Return ONLY JSON: " +
+            "{\"intent\": \"order_interest\"|\"support_query\"|\"spam\"|\"unclear\", \"suggested_reply\": string|null}. " +
+            "order_interest = wants to buy / asks to order / shares a phone number to order. support_query = a question (delivery area, sizes, " +
+            "availability, shipping time) that is not yet an order. spam = promotion, links, bots, irrelevant. For support_query and order_interest " +
+            "write suggested_reply: one short friendly public reply in the commenter's language (Roman Urdu by default); never invent prices — for " +
+            "price/order questions invite them to DM. For spam/unclear use null.",
+            commentText, 0.1, "comment classification", cancellationToken, jsonMode: true);
+        if (json is null) return null;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var intent = GetNullableString(doc.RootElement, "intent");
+            if (intent is not ("order_interest" or "support_query" or "spam" or "unclear")) return null;
+            return new AiCommentClassification { Intent = intent, SuggestedReply = GetNullableString(doc.RootElement, "suggested_reply") };
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "OpenAI comment classification returned invalid JSON.");
+            return null;
+        }
+    }
+
+    /// <summary>A plain single-turn completion; null when AI is unavailable or fails (every caller has a non-AI fallback).</summary>
+    private async Task<string?> CompleteTextAsync(string systemPrompt, string userText, double temperature, string purpose,
+        CancellationToken cancellationToken, bool jsonMode = false)
     {
         if (string.IsNullOrWhiteSpace(_options.ApiKey)) return null;
 
@@ -134,13 +176,14 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             var requestBody = new JsonObject
             {
                 ["model"] = _options.Model,
-                ["temperature"] = 0.4,
+                ["temperature"] = temperature,
                 ["messages"] = new JsonArray
                 {
-                    new JsonObject { ["role"] = "system", ["content"] = "One short Roman Urdu sentence of business insight/suggestion for a small seller, based on the facts given. No preamble." },
-                    new JsonObject { ["role"] = "user", ["content"] = factsSummary }
+                    new JsonObject { ["role"] = "system", ["content"] = systemPrompt },
+                    new JsonObject { ["role"] = "user", ["content"] = userText }
                 }
             };
+            if (jsonMode) requestBody["response_format"] = new JsonObject { ["type"] = "json_object" };
 
             using var request = new HttpRequestMessage(HttpMethod.Post, $"{_options.BaseUrl.TrimEnd('/')}/chat/completions")
             {
@@ -151,11 +194,12 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             var response = await _httpClient.SendAsync(request, cancellationToken);
             response.EnsureSuccessStatusCode();
             var payload = await response.Content.ReadFromJsonAsync<JsonObject>(cancellationToken: cancellationToken);
-            return payload?["choices"]?[0]?["message"]?["content"]?.GetValue<string>()?.Trim();
+            var text = payload?["choices"]?[0]?["message"]?["content"]?.GetValue<string>()?.Trim();
+            return string.IsNullOrWhiteSpace(text) ? null : text;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "OpenAI insight generation failed — omitting insight line.");
+            _logger.LogWarning(ex, "OpenAI {Purpose} failed — using the non-AI fallback.", purpose);
             return null;
         }
     }
@@ -178,6 +222,11 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             && GetNullableString(fb, "customer_name") is { } fbName && GetNullableString(fb, "text") is { } fbText)
             feedback = new AiCustomerFeedback { CustomerName = fbName, Text = fbText, Sentiment = GetNullableString(fb, "sentiment") };
 
+        AiSupportQuery? supportQuery = null;
+        if (root.TryGetProperty("support_query", out var sq) && sq.ValueKind == JsonValueKind.Object
+            && GetNullableString(sq, "question") is { Length: > 0 } question)
+            supportQuery = new AiSupportQuery { CustomerName = GetNullableString(sq, "customer_name"), Question = question };
+
         AiPaymentReceipt? receipt = null;
         if (root.TryGetProperty("receipt", out var rc) && rc.ValueKind == JsonValueKind.Object)
             receipt = new AiPaymentReceipt
@@ -197,6 +246,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             Order = orders.FirstOrDefault(),
             AdditionalOrders = orders.Skip(1).ToList(),
             Feedback = feedback,
+            SupportQuery = supportQuery,
             Receipt = receipt
         };
     }
@@ -271,8 +321,13 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             ["intent"] = new JsonObject
             {
                 ["type"] = "string",
-                ["enum"] = new JsonArray { "new_order", "status_update", "customer_feedback", "off_topic", "unclear" }
+                ["enum"] = new JsonArray { "new_order", "status_update", "customer_feedback", "support_query", "off_topic", "unclear" }
             },
+            ["support_query"] = StrictObject(new JsonObject
+            {
+                ["customer_name"] = NullableString(),
+                ["question"] = NullableString()
+            }, nullable: true),
             ["is_order_attempt"] = new JsonObject { ["type"] = "boolean" },
             ["is_ambiguous_item_grouping"] = new JsonObject { ["type"] = "boolean" },
             ["clarification_question"] = NullableString(),

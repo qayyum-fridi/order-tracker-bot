@@ -30,6 +30,9 @@ public sealed class PendingOrderData
     public decimal Subtotal { get; set; }
     public decimal Total { get; set; }
     public int? DuplicateOfOrderId { get; set; }
+    /// <summary>Instagram comment lead this order converts (screen 5d-7); marked converted when the order is saved.</summary>
+    public int? CommentLeadId { get; set; }
+    public int? CommentLeadNumber { get; set; }
 }
 
 /// <summary>Everything an in-flight multi-turn flow needs, serialized to ConversationSession.ContextJson.</summary>
@@ -65,6 +68,10 @@ public sealed class SessionContextData
     public int? LoyaltyOrderId { get; set; }
     public decimal? LoyaltyDiscountPercent { get; set; }
     public string? SelectedPlan { get; set; }
+    /// <summary>Support query whose drafted reply is awaiting YES/EDIT.</summary>
+    public int? SupportQueryId { get; set; }
+    /// <summary>Set by "lead N converted": the next order logged is linked to this comment lead.</summary>
+    public int? ConvertingLeadId { get; set; }
 
     public string ToJson() => JsonSerializer.Serialize(this);
 
