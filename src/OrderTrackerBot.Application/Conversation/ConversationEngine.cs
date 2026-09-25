@@ -38,7 +38,7 @@ public partial class ConversationEngine
     private static readonly ConversationState[] OnboardingStates =
     {
         ConversationState.OnboardingBusinessName, ConversationState.OnboardingLanguage, ConversationState.OnboardingOptionalDetails,
-        ConversationState.OnboardingCatalogSize, ConversationState.OnboardingAddProduct
+        ConversationState.OnboardingCatalogSize, ConversationState.OnboardingAddProduct, ConversationState.OnboardingStartChoice
     };
 
     public async Task HandleIncomingMessageAsync(string fromPhoneNumber, string rawMessage, CancellationToken ct = default)
@@ -145,6 +145,12 @@ public partial class ConversationEngine
                 break;
             case ConversationState.AwaitingSupportReplyEdit:
                 await HandleSupportReplyEditAsync(seller, session, ctx, message, ct);
+                break;
+            case ConversationState.AwaitingLanguageChoice:
+                await HandleLanguageChoiceAsync(seller, session, ctx, message, ct);
+                break;
+            case ConversationState.AwaitingPaymentMethodInput:
+                await HandlePaymentMethodInputAsync(seller, session, ctx, message, ct);
                 break;
             case ConversationState.AwaitingGuideStep:
                 await HandleGuideStepAsync(seller, session, ctx, message, ct);

@@ -12,6 +12,7 @@ public partial class ConversationEngine
     private const string HelpText =
         "🆘 Yeh commands try karein:\n" +
         "• \"guide\" — naya hain? step-by-step seekhein\n" +
+        "• \"change language\" — Roman Urdu/English/اردو\n" +
         "• \"new order: naam, product, phone, address\"\n" +
         "• \"orders today\"\n" +
         "• \"today's summary\"\n" +
@@ -48,6 +49,7 @@ public partial class ConversationEngine
         "📋 Main Menu\n" +
         "\n" +
         "📖 \"guide\" — naya hain? Step-by-step seekhein\n" +
+        "🌐 \"change language\" — Roman Urdu/English/اردو\n" +
         "\n" +
         "📦 Orders\n" +
         " • new order: [details]\n" +
@@ -76,6 +78,12 @@ public partial class ConversationEngine
         " • create discount\n" +
         " • discount list\n" +
         "\n" +
+        "⚙️ Business Setup\n" +
+        " • update business info (naam, city, type, IG handle)\n" +
+        " • add payment: jazzcash/easypaisa, number\n" +
+        " • change language\n" +
+        " • create loyalty rule\n" +
+        "\n" +
         "Command type karein, ya neeche button se category chunein.";
 
     private static readonly MenuRow BackToMenu = new("menu", "⬅️ Main menu");
@@ -102,7 +110,9 @@ public partial class ConversationEngine
             new MenuRow("menu payments", "💰 Payments"),
             new MenuRow("menu discounts", "🎟️ Discounts"),
             new MenuRow("menu customers", "👥 Customers"),
-            new MenuRow("menu settings", "⚙️ Settings")
+            new MenuRow("menu settings", "⚙️ Settings"),
+            new MenuRow("business setup", "⚙️ Business Setup"),
+            new MenuRow("change language", "🌐 Change Language")
         })
     };
 
@@ -229,6 +239,15 @@ public partial class ConversationEngine
                 return;
             case CommandKind.Subscribe:
                 await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, $"💳 Plans:\n\n{PlansText}\n\nPlan chunein:", PlanButtons, ct);
+                return;
+            case CommandKind.ChangeLanguage:
+                await StartChangeLanguageAsync(seller, session, ct);
+                return;
+            case CommandKind.BusinessSetup:
+                await HandleBusinessSetupAsync(seller, ct);
+                return;
+            case CommandKind.PaymentMethodPrompt:
+                await StartPaymentMethodInputAsync(seller, session, ct);
                 return;
             case CommandKind.Guide:
                 await StartGuideAsync(seller, session, ctx, cmd.Text, ct);

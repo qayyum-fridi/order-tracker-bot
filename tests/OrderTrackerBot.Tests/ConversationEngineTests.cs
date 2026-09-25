@@ -59,6 +59,7 @@ public class ConversationEngineTests : IDisposable
         var engine = CreateEngine(db);
         await engine.HandleIncomingMessageAsync(Phone, "start", default);
         await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
         await engine.HandleIncomingMessageAsync(Phone, "10 ke qareeb", default);
@@ -676,6 +677,7 @@ public class ConversationEngineTests : IDisposable
 
         await engine.HandleIncomingMessageAsync(Phone, "start", default);
         await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
 
@@ -690,6 +692,7 @@ public class ConversationEngineTests : IDisposable
         var engine = CreateEngine(db);
         await engine.HandleIncomingMessageAsync(Phone, "start", default);
         await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
         _sentMessages.Clear();
@@ -715,6 +718,7 @@ public class ConversationEngineTests : IDisposable
             .Returns(Task.CompletedTask);
         await engine.HandleIncomingMessageAsync(Phone, "start", default);
         await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
         await engine.HandleIncomingMessageAsync(Phone, "Chhota (20 se kam)", default);
@@ -742,6 +746,7 @@ public class ConversationEngineTests : IDisposable
         var engine = CreateEngine(db);
         await engine.HandleIncomingMessageAsync(Phone, "start", default);
         await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
         await engine.HandleIncomingMessageAsync(Phone, "10 ke qareeb", default);
@@ -830,7 +835,51 @@ public class ConversationEngineTests : IDisposable
 
         var seller = await db.Sellers.FirstAsync();
         Assert.Equal(expected, seller.PreferredLanguage);
+        Assert.Equal(ConversationState.OnboardingStartChoice, (await db.Sessions.FirstAsync()).State);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         Assert.Equal(ConversationState.OnboardingBusinessName, (await db.Sessions.FirstAsync()).State);
+    }
+
+    [Fact]
+    public async Task ChangeLanguage_SwitchesLanguage_AndOffersNextActionButtons()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        var buttons = new List<(string Text, IReadOnlyList<string> Labels)>();
+        _sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, text, labels, _) => buttons.Add((text, labels)))
+            .Returns(Task.CompletedTask);
+
+        await engine.HandleIncomingMessageAsync(Phone, "change language", default);
+        await engine.HandleIncomingMessageAsync(Phone, "English", default);
+
+        Assert.Contains("Konsi language", buttons[0].Text);
+        Assert.Contains("switching to English", buttons[1].Text);
+        Assert.Equal(new[] { "📋 Menu", "📦 New Order", "📖 Guide" }, buttons[1].Labels);
+        Assert.Equal("english", (await db.Sellers.FirstAsync()).PreferredLanguage);
+    }
+
+    [Fact]
+    public async Task BusinessSetup_ShowsSummary_AndPaymentMethodButtonSavesNewMethod()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        var buttons = new List<string>();
+        _sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, text, _, _) => buttons.Add(text))
+            .Returns(Task.CompletedTask);
+
+        await engine.HandleIncomingMessageAsync(Phone, "⚙️ Business Setup", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Payment Method", default);
+        await engine.HandleIncomingMessageAsync(Phone, "easypaisa, 0300-9876543", default);
+
+        Assert.Contains("Business Setup — Ayesha Collections", buttons[0]);
+        Assert.Contains("Language: Roman Urdu", buttons[0]);
+        Assert.Contains(_sentMessages, m => m.Contains("Naya payment method bhejein"));
+        Assert.Contains(_sentMessages, m => m.Contains("Easypaisa") && m.Contains("saved"));
     }
 
     [Fact]

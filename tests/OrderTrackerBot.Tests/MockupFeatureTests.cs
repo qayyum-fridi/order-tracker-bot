@@ -42,7 +42,7 @@ public class MockupFeatureTests : IDisposable
     private async Task<ConversationEngine> OnboardAsync(AppDbContext db, BillingOptions? billing = null, params string[] products)
     {
         var engine = Engine(db, billing);
-        foreach (var m in new[] { "start", "Roman Urdu", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "10 ke qareeb" })
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "10 ke qareeb" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         foreach (var p in products.Length == 0 ? new[] { "Lawn Suit - 3500", "Kurti - 1800" } : products)
             await engine.HandleIncomingMessageAsync(Phone, p, default);
@@ -67,7 +67,7 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = Engine(db);
-        foreach (var m in new[] { "start", "Roman Urdu", "Ayesha Collections" })
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         await engine.HandleIncomingMessageAsync(Phone, "Lahore, Clothing, @ayesha.collections", default);
         Assert.Contains(_sent, m => m.Contains("Noted — Lahore, Clothing business, @ayesha.collections"));

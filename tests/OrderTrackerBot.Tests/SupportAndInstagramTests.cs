@@ -45,7 +45,7 @@ public class SupportAndInstagramTests : IDisposable
     private async Task<ConversationEngine> OnboardAsync(AppDbContext db)
     {
         var engine = Engine(db);
-        foreach (var m in new[] { "start", "Roman Urdu", "Ayesha Collections", "skip", "10", "Lawn Suit - 3500", "Kurti - 1800", "done" })
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "10", "Lawn Suit - 3500", "Kurti - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         _sent.Clear();
         _buttons.Clear();

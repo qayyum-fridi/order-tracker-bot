@@ -65,7 +65,10 @@ public enum CommandKind
     DiscountPerformance,
     NewOrderHelp,
     Guide,
-    GuideLater
+    GuideLater,
+    ChangeLanguage,
+    BusinessSetup,
+    PaymentMethodPrompt
 }
 
 /// <summary>A catalog line: "Lawn Suit - 3500" or "Sugar 5 kg - 500" (unit type + pack size split off the name).</summary>
@@ -95,6 +98,10 @@ public static class CommandParser
     private static readonly Regex Help = new(@"^(help|مدد)$", Opts);
     private static readonly Regex Guide = new(@"^(guide|gaid|guide\s+dekhein|guide\s+dekhna|poora\s+guide)$", Opts);
     private static readonly Regex GuideLater = new(@"^baad\s+mein$", Opts);
+    private static readonly Regex ChangeLanguage = new(@"^(change\s+language|language(\s+(badlein|badlo|change))?|zabaan\s+badlein|language\s+badal(na|ein)?|زبان\s+بدلیں)$", Opts);
+    private static readonly Regex BusinessSetup = new(@"^(business\s+setup|setup|settings)$", Opts);
+    private static readonly Regex PaymentMethodPrompt = new(@"^payment\s+method$", Opts);
+    private static readonly Regex LeadingSymbols = new(@"^[\p{So}\p{Cs}\uFE0F\u200D\s]+", RegexOptions.Compiled);
     private static readonly Regex Menu = new(@"^(menu|مینو)$", Opts);
     private static readonly Regex OrdersToday = new(@"^(orders?\s+today|آج\s+کے\s+آرڈرز)$", Opts);
     private static readonly Regex PendingOrders = new(@"^(pending\s+orders?|پینڈنگ\s+آرڈرز)$", Opts);
@@ -114,7 +121,7 @@ public static class CommandParser
     private static readonly Regex ProductReport = new(@"^(.+?)\s+(?:ka|ki)\s+report$|^report:?\s+(.+)$", Opts);
     private static readonly Regex DiscountPerformance = new(@"^discount\s+(?:performance|report)$", Opts);
     private static readonly Regex WeeklySummary = new(@"^(weekly\s+summary|week\s+ka\s+summary)$", Opts);
-    private static readonly Regex UpdateBusinessInfo = new(@"^update\s+business\s+(info|details)$", Opts);
+    private static readonly Regex UpdateBusinessInfo = new(@"^(update\s+)?business\s+(info|details)$", Opts);
     private static readonly Regex Subscribe = new(@"^(subscribe|subscription|upgrade|plans?)$", Opts);
     private static readonly Regex BroadcastNatural = new(@"\b(?:sab|saare|sare|all)\s+customers?\s+ko\s+(?:batao|bata\s+do|bhejo|bhej\s+do|message\s+karo)\s*:\s*(.+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Singleline);
     private static readonly Regex AddProduct = new(@"^add\s+product:\s*(.+?)\s*-\s*(\d+(?:\.\d+)?)$", Opts);
@@ -234,11 +241,17 @@ public static class CommandParser
     public static ParsedCommand? TryParse(string rawMessage)
     {
         var message = rawMessage.Trim();
+        // A tapped button keeps its emoji ("📋 Menu", "⚙️ Business Setup") — parse the words.
+        var stripped = LeadingSymbols.Replace(message, "").Trim();
+        if (stripped.Length > 0) message = stripped;
         Match m;
 
         if (Start.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Start };
         if (Greeting.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Greeting };
         if (Help.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Help };
+        if (ChangeLanguage.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ChangeLanguage };
+        if (BusinessSetup.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.BusinessSetup };
+        if (PaymentMethodPrompt.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.PaymentMethodPrompt };
         if (Guide.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Guide, Text = message.Contains("dekh", StringComparison.OrdinalIgnoreCase) || message.StartsWith("poora", StringComparison.OrdinalIgnoreCase) ? "full" : null };
         if (GuideLater.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.GuideLater };
         if (Menu.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Menu };

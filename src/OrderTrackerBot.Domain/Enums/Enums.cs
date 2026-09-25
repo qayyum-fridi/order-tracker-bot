@@ -32,7 +32,10 @@ public enum ConversationState
     AwaitingSupportReplyConfirmation,
     AwaitingSupportReplyEdit,
     AwaitingSupportQueryPick,
-    AwaitingGuideStep
+    AwaitingGuideStep,
+    OnboardingStartChoice,
+    AwaitingLanguageChoice,
+    AwaitingPaymentMethodInput
 }
 
 public enum OrderStatus

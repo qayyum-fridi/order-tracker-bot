@@ -86,6 +86,7 @@ public partial class ConversationEngine
         switch (session.State)
         {
             case ConversationState.OnboardingBusinessName:
+                if (await TryOnboardingShortcutAsync(seller, session, message, ct)) return;
                 seller.BusinessName = message;
                 SetState(session, ConversationState.OnboardingOptionalDetails);
                 await ReplyAsync(seller,
@@ -187,14 +188,11 @@ public partial class ConversationEngine
                 return;
 
             case ConversationState.OnboardingLanguage:
-                seller.PreferredLanguage = Lang.Resolve(message);
-                SetState(session, ConversationState.OnboardingBusinessName);
-                await ReplyAsync(seller, seller.PreferredLanguage switch
-                {
-                    Lang.UrduScript => "✅ بہت اچھا، ہم اردو میں بات کریں گے۔\n\nآئیے شروع کرتے ہیں — براہ کرم اپنے کاروبار کا نام بتائیں؟",
-                    Lang.English => "✅ Wonderful, we'll continue in English.\n\nLet's get started — could you please share your business name?",
-                    _ => "✅ Bohot khoob, hum Roman Urdu mein baat karenge. (Aap type kar ke bhi jawab de saktay hain, button zaroori nahi)\n\nAayein shuru karte hain — barah-e-meharbani apne karobar ka naam bataein?"
-                }, ct);
+                await OnboardingLanguageChosenAsync(seller, session, message, ct);
+                return;
+
+            case ConversationState.OnboardingStartChoice:
+                await HandleOnboardingStartChoiceAsync(seller, session, message, ct);
                 return;
 
             default:
