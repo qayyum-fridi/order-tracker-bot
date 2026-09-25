@@ -466,13 +466,17 @@ public partial class ConversationEngine
 
     private async Task HandleLoyalCustomersAsync(Seller seller, CancellationToken ct)
     {
-        var top = await _db.Orders
+        // Aggregated client-side: Sqlite (dev/docker provider) can't SUM a decimal column in SQL.
+        var rows = await _db.Orders
             .Where(o => o.SellerId == seller.Id && o.Status != OrderStatus.Cancelled && o.Customer!.DeletedAt == null)
-            .GroupBy(o => new { o.CustomerId, o.Customer!.Name })
-            .Select(g => new { g.Key.Name, Orders = g.Count(), Total = g.Sum(o => o.Total) })
-            .OrderByDescending(g => g.Orders)
-            .Take(5)
+            .Select(o => new { o.CustomerId, o.Customer!.Name, o.Total })
             .ToListAsync(ct);
+        var top = rows
+            .GroupBy(o => new { o.CustomerId, o.Name })
+            .Select(g => new { g.Key.Name, Orders = g.Count(), Total = g.Sum(o => o.Total) })
+            .OrderByDescending(g => g.Orders).ThenByDescending(g => g.Total)
+            .Take(5)
+            .ToList();
 
         if (top.Count == 0)
         {

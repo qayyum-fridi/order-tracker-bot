@@ -146,6 +146,9 @@ public partial class ConversationEngine
             case ConversationState.AwaitingSupportReplyEdit:
                 await HandleSupportReplyEditAsync(seller, session, ctx, message, ct);
                 break;
+            case ConversationState.AwaitingGuideStep:
+                await HandleGuideStepAsync(seller, session, ctx, message, ct);
+                break;
             case ConversationState.AwaitingSupportQueryPick:
                 await HandleSupportQueryPickAsync(seller, session, ctx, message, ct);
                 break;

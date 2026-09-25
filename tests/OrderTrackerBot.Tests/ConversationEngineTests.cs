@@ -603,8 +603,35 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "help", default);
 
         Assert.Equal(7, lists[0].Sections.SelectMany(s => s.Rows).Count(r => r.Id.StartsWith("menu ")));
-        Assert.Contains("8 cheezein", lists[1].Body);
-        Assert.DoesNotContain("trending", lists[1].Body);
+        Assert.Contains("Main Menu", lists[0].Body);
+        Assert.Contains("📊 Reports", lists[0].Body);
+        Assert.Contains("Yeh commands try karein", lists[1].Body);
+        Assert.Contains("trending products", lists[1].Body);
+        Assert.Contains("\"guide\"", lists[1].Body);
+    }
+
+    [Fact]
+    public async Task Guide_OffersTopics_ThenWalksFourStepsWithNext()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        var buttons = new List<string>();
+        _sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, text, _, _) => buttons.Add(text))
+            .Returns(Task.CompletedTask);
+
+        await engine.HandleIncomingMessageAsync(Phone, "guide", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Poora guide", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Next ➜", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Next ➜", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Next ➜", default);
+
+        Assert.Contains("Guide kahan se shuru karein?", buttons[0]);
+        Assert.Contains("Step 1/4", buttons[1]);
+        Assert.Contains("Step 2/4", buttons[2]);
+        Assert.Contains("Step 3/4", buttons[3]);
+        Assert.Contains(_sentMessages, m => m.Contains("Step 4/4"));
     }
 
     [Fact]

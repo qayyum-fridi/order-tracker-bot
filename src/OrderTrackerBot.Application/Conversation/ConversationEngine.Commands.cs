@@ -8,25 +8,75 @@ namespace OrderTrackerBot.Application.Conversation;
 
 public partial class ConversationEngine
 {
-    // Discoverability rule: a seller memorizes only these 8 things; everything else is reached by tapping through "menu".
+    // Screen 10: the full command list (the 9 core commands are what a seller memorizes; the rest lives under "menu").
     private const string HelpText =
-        "🆘 Bas yeh 8 cheezein yaad rakhein:\n\n" +
-        "1️⃣ Order forward/paste karein\n" +
-        "2️⃣ \"orders today\"\n" +
-        "3️⃣ \"pending orders\"\n" +
-        "4️⃣ \"mark [number] shipped/delivered\"\n" +
-        "5️⃣ \"[naam] ka order\"\n" +
-        "6️⃣ \"payment link\"\n" +
-        "7️⃣ \"catalog\"\n" +
-        "8️⃣ \"menu\" — baaki sab kuch yahan hai\n\n" +
-        "Discounts, reports, customers — sab \"menu\" mein tap karke mil jata hai, yaad rakhne ki zaroorat nahi.\n\n" +
-        "📷 Tip: Order ya payment receipt ki screenshot bhi bhej saktay hain — text zaroori nahi.";
+        "🆘 Yeh commands try karein:\n" +
+        "• \"guide\" — naya hain? step-by-step seekhein\n" +
+        "• \"new order: naam, product, phone, address\"\n" +
+        "• \"orders today\"\n" +
+        "• \"today's summary\"\n" +
+        "• \"pending orders\"\n" +
+        "• \"[naam] ka order\"\n" +
+        "• \"mark [number] shipped/delivered\"\n" +
+        "• \"add tracking: courier, number\"\n" +
+        "• \"[naam] ka tracking\"\n" +
+        "• \"cod pending\"\n" +
+        "• \"catalog\"\n" +
+        "• \"share catalog\"\n" +
+        "• \"add product: naam - price\"\n" +
+        "• \"add product (detailed)\" — full form\n" +
+        "• \"add customer (detailed)\" — full form\n" +
+        "• \"new order (detailed)\" — full form\n" +
+        "• \"payment link\"\n" +
+        "• \"unpaid orders\"\n" +
+        "• \"trending products\"\n" +
+        "• \"slow movers\"\n" +
+        "• \"[product] ka report\"\n" +
+        "• \"discount performance\"\n" +
+        "• \"loyal customers\"\n" +
+        "• \"create discount\"\n" +
+        "• \"feedback: [your message]\"\n" +
+        "• \"support queries\"\n" +
+        "• \"mark [n] resolved\"\n" +
+        "• \"undo\"\n" +
+        "\n" +
+        "📷 Tip: Order ya payment receipt ki screenshot bhi bhej saktay hain — text zaroori nahi.\n" +
+        "Ya \"menu\" likh kar categorized list dekhein.";
 
+    // Screen 10b: categorized menu.
     private const string MenuText =
-        "📋 Main Menu\n\n" +
-        "Kya karna hai? Neeche button dabayein aur category chunein:\n\n" +
-        "📦 Orders · 📊 Reports · 🛍️ Catalog\n💰 Payments · 🎟️ Discounts · 👥 Customers · ⚙️ Settings\n\n" +
-        "(Ya seedha command likh dein.)";
+        "📋 Main Menu\n" +
+        "\n" +
+        "📖 \"guide\" — naya hain? Step-by-step seekhein\n" +
+        "\n" +
+        "📦 Orders\n" +
+        " • new order: [details]\n" +
+        " • orders today / pending orders\n" +
+        " • [customer] ka order\n" +
+        "\n" +
+        "📊 Reports\n" +
+        " • today's summary\n" +
+        " • trending products (custom dates bhi)\n" +
+        " • slow movers\n" +
+        " • [product] ka report\n" +
+        " • discount performance\n" +
+        " • loyal customers\n" +
+        " • cod pending\n" +
+        "\n" +
+        "🛍️ Catalog\n" +
+        " • catalog\n" +
+        " • share catalog\n" +
+        " • add/edit/delete product\n" +
+        "\n" +
+        "💰 Payments\n" +
+        " • payment link\n" +
+        " • mark [order] paid\n" +
+        "\n" +
+        "🎟️ Discounts\n" +
+        " • create discount\n" +
+        " • discount list\n" +
+        "\n" +
+        "Command type karein, ya neeche button se category chunein.";
 
     private static readonly MenuRow BackToMenu = new("menu", "⬅️ Main menu");
 
@@ -179,6 +229,12 @@ public partial class ConversationEngine
                 return;
             case CommandKind.Subscribe:
                 await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, $"💳 Plans:\n\n{PlansText}\n\nPlan chunein:", PlanButtons, ct);
+                return;
+            case CommandKind.Guide:
+                await StartGuideAsync(seller, session, ctx, cmd.Text, ct);
+                return;
+            case CommandKind.GuideLater:
+                await ReplyAsync(seller, "Theek hai 👍 Jab bhi zaroorat ho, \"guide\" likh dein.", ct);
                 return;
             case CommandKind.Greeting:
                 await HandleGreetingAsync(seller, ct);

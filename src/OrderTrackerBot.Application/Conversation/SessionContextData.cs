@@ -73,6 +73,10 @@ public sealed class SessionContextData
     /// <summary>Set by "lead N converted": the next order logged is linked to this comment lead.</summary>
     public int? ConvertingLeadId { get; set; }
 
+    /// <summary>Interactive guide (screens 1c-2/1c-3): topic, and the step shown last (0 = topic not chosen yet).</summary>
+    public string? GuideTopic { get; set; }
+    public int GuideStep { get; set; }
+
     public string ToJson() => JsonSerializer.Serialize(this);
 
     public static SessionContextData FromJson(string? json) =>

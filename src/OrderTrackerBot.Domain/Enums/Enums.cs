@@ -31,7 +31,8 @@ public enum ConversationState
     AwaitingBroadcastChannelChoice,
     AwaitingSupportReplyConfirmation,
     AwaitingSupportReplyEdit,
-    AwaitingSupportQueryPick
+    AwaitingSupportQueryPick,
+    AwaitingGuideStep
 }
 
 public enum OrderStatus

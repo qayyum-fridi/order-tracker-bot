@@ -135,6 +135,8 @@ public partial class ConversationEngine
                         : $"🎉 Mubarak ho, aapka setup mukammal ho gaya aur catalog save ho gayi hai.{TrialStartedText(seller)}\nAb jab bhi koi order aaye, usay forward kar dein ya 'new order: ...' likh kar darj karein.";
                     await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, $"{reply.TrimEnd()}\n\nAage kya karna hai? Neeche se chunein 👇",
                         "Options dekhein", AfterSetupSections, ct);
+                    await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
+                        "👉 2 minute ka quick guide dekhna chahenge? Sab kuch samajh aa jayega, ek tap mein.", GuideOfferButtons, ct);
                     return;
                 }
 

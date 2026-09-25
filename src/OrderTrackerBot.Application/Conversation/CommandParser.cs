@@ -63,7 +63,9 @@ public enum CommandKind
     LeadAction,
     ProductReport,
     DiscountPerformance,
-    NewOrderHelp
+    NewOrderHelp,
+    Guide,
+    GuideLater
 }
 
 /// <summary>A catalog line: "Lawn Suit - 3500" or "Sugar 5 kg - 500" (unit type + pack size split off the name).</summary>
@@ -91,6 +93,8 @@ public static class CommandParser
     private static readonly Regex Start = new(@"^start$", Opts);
     private static readonly Regex Greeting = new(@"^(hi|hello|hey|salam|assalam[u]?\s*alaikum|asalam[u]?\s*alaikum)$", Opts);
     private static readonly Regex Help = new(@"^(help|مدد)$", Opts);
+    private static readonly Regex Guide = new(@"^(guide|gaid|guide\s+dekhein|guide\s+dekhna|poora\s+guide)$", Opts);
+    private static readonly Regex GuideLater = new(@"^baad\s+mein$", Opts);
     private static readonly Regex Menu = new(@"^(menu|مینو)$", Opts);
     private static readonly Regex OrdersToday = new(@"^(orders?\s+today|آج\s+کے\s+آرڈرز)$", Opts);
     private static readonly Regex PendingOrders = new(@"^(pending\s+orders?|پینڈنگ\s+آرڈرز)$", Opts);
@@ -235,6 +239,8 @@ public static class CommandParser
         if (Start.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Start };
         if (Greeting.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Greeting };
         if (Help.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Help };
+        if (Guide.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Guide, Text = message.Contains("dekh", StringComparison.OrdinalIgnoreCase) || message.StartsWith("poora", StringComparison.OrdinalIgnoreCase) ? "full" : null };
+        if (GuideLater.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.GuideLater };
         if (Menu.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Menu };
         if (OrdersToday.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.OrdersToday };
         if (PendingOrders.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.PendingOrders };
