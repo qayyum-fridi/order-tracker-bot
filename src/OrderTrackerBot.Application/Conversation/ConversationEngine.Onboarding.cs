@@ -96,8 +96,14 @@ public partial class ConversationEngine
                 return;
 
             case ConversationState.OnboardingOptionalDetails:
-                if (CommandParser.TryParse(message) is { Kind: not CommandKind.AddProduct })
+                if (CommandParser.TryParse(message) is { Kind: not CommandKind.AddProduct } parsedOptional)
                 {
+                    if (parsedOptional.Kind is CommandKind.Help or CommandKind.Menu or CommandKind.ConnectInstagram)
+                    {
+                        await ExecuteCommandAsync(seller, session, ctx, parsedOptional, ct);
+                        return;
+                    }
+
                     await ReplyAsync(seller, "Meharbani kar ke pehle setup mukammal karein — shehar, karobar ki qisam ya @instagram handle bhejein, ya \"skip\" likhein.", ct);
                     return;
                 }
@@ -121,7 +127,9 @@ public partial class ConversationEngine
                 var many = ManyProductsWords.Any(w => message.Contains(w, StringComparison.OrdinalIgnoreCase))
                            || message.Split(' ', StringSplitOptions.RemoveEmptyEntries).Any(w => int.TryParse(w, out var n) && n > 20);
                 await ReplyAsync(seller, many
-                    ? "Bohot khoob — aap ek saath kai products bhi bhej saktay hain, har line mein aik product likhein:\nLawn Suit - 3500\nKurti - 1800\nSugar 5 kg - 500\n\nJab tamam products add ho jayein to \"done\" likh dein."
+                    ? "Bohot khoob — aap ek saath kai products bhi bhej saktay hain, har line mein aik product likhein:\nLawn Suit - 3500\nKurti - 1800\nSugar 5 kg - 500\n\n" +
+                      "Ya, agar catalog bohat bara hai, Google Sheet mein bhi bhar kar uska link yahan bhej saktay hain — pehla column naam, doosra column price ho aur sheet \"Anyone with the link can view\" par set ho.\n\n" +
+                      "Jab tamam products add ho jayein to \"done\" likh dein."
                     : "Theek hai, barah-e-meharbani ek ek karke product ka naam aur price bataein — misaal ke taur par 'Lawn Suit - 3500'.", ct);
                 return;
 
@@ -176,8 +184,16 @@ public partial class ConversationEngine
 
                 // Mid-onboarding interruption (spec screen 17): a recognised command doesn't
                 // execute yet — the catalog step must finish (or be explicitly skipped) first.
-                if (CommandParser.TryParse(message) is not null)
+                // Escape-hatch commands (help/menu/connect instagram) still work since they
+                // can't corrupt onboarding state and the seller needs a way out if stuck.
+                if (CommandParser.TryParse(message) is { } parsed)
                 {
+                    if (parsed.Kind is CommandKind.Help or CommandKind.Menu or CommandKind.ConnectInstagram or CommandKind.ImportCatalogSheet)
+                    {
+                        await ExecuteCommandAsync(seller, session, ctx, parsed, ct);
+                        return;
+                    }
+
                     await ReplyAsync(seller,
                         "Filhaal koi order darj nahi ho sakta — pehle catalog complete karein.\n" +
                         "Product ka naam aur price bhejein, ya \"skip\" likh kar yeh marhala baad mein mukammal karein.", ct);

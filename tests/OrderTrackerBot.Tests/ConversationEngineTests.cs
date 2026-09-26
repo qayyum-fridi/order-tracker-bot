@@ -43,6 +43,7 @@ public class ConversationEngineTests : IDisposable
     private readonly Mock<IAiOrderAssistant> _ai = new();
     private readonly Mock<IWhatsAppSender> _sender = new();
     private readonly Mock<IFounderAlertNotifier> _founderAlerts = new();
+    private readonly Mock<ICatalogSheetImporter> _catalogSheets = new();
     private readonly List<string> _sentMessages = new();
 
     public ConversationEngineTests()
@@ -52,7 +53,8 @@ public class ConversationEngineTests : IDisposable
             .Returns(Task.CompletedTask);
     }
 
-    private ConversationEngine CreateEngine(AppDbContext db) => new(db, _ai.Object, _sender.Object, _founderAlerts.Object);
+    private ConversationEngine CreateEngine(AppDbContext db) =>
+        new(db, _ai.Object, _sender.Object, _founderAlerts.Object, catalogSheets: _catalogSheets.Object);
 
     private async Task OnboardSellerAsync(AppDbContext db)
     {
@@ -168,6 +170,44 @@ public class ConversationEngineTests : IDisposable
 
         Assert.Equal(5, await db.Products.CountAsync());
         Assert.Contains(_sentMessages, m => m.Contains("3 products save ho gaye"));
+    }
+
+    [Fact]
+    public void CatalogSheetLink_IsRecognizedAsImportCommand()
+    {
+        var command = CommandParser.TryParse("https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOp/edit?gid=0#gid=0");
+        Assert.Equal(CommandKind.ImportCatalogSheet, command!.Kind);
+        Assert.StartsWith("https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOp", command.Text);
+    }
+
+    [Fact]
+    public async Task ImportCatalogSheet_AddsEachRowAsAProduct()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        _catalogSheets.Setup(s => s.FetchProductLinesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { "Dupatta - 900", "Scarf - 600" });
+
+        await engine.HandleIncomingMessageAsync(Phone, "https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOp/edit", default);
+
+        Assert.Equal(4, await db.Products.CountAsync());
+        Assert.Contains(_sentMessages, m => m.Contains("2 products import ho gaye"));
+    }
+
+    [Fact]
+    public async Task ImportCatalogSheet_WhenFetchFails_RepliesGracefully_WithoutThrowing()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        _catalogSheets.Setup(s => s.FetchProductLinesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<string>?)null);
+
+        await engine.HandleIncomingMessageAsync(Phone, "https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOp/edit", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("load nahi ho sake"));
+        Assert.Equal(2, await db.Products.CountAsync());
     }
 
     [Theory]
@@ -760,6 +800,55 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task OnboardingOptionalDetailsStep_HelpOrMenu_StillExecutes_AndStepResumesAfter()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+        await engine.HandleIncomingMessageAsync(Phone, "start", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
+        _sentMessages.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "help", default);
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("pehle setup mukammal karein"));
+        Assert.Equal(ConversationState.OnboardingOptionalDetails, (await db.Sessions.FirstAsync()).State);
+
+        await engine.HandleIncomingMessageAsync(Phone, "menu", default);
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("pehle setup mukammal karein"));
+        Assert.Equal(ConversationState.OnboardingOptionalDetails, (await db.Sessions.FirstAsync()).State);
+
+        // The optional-details step is still open afterward.
+        await engine.HandleIncomingMessageAsync(Phone, "skip", default);
+        Assert.Equal(ConversationState.OnboardingCatalogSize, (await db.Sessions.FirstAsync()).State);
+    }
+
+    [Fact]
+    public async Task MidOnboardingHelpOrMenu_StillExecutes_AndCatalogStepResumesAfter()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+        await engine.HandleIncomingMessageAsync(Phone, "start", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
+        await engine.HandleIncomingMessageAsync(Phone, "skip", default);
+        await engine.HandleIncomingMessageAsync(Phone, "10 ke qareeb", default);
+        _sentMessages.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "help", default);
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("pehle catalog complete karein"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "menu", default);
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("pehle catalog complete karein"));
+
+        // Onboarding catalog step is still open afterward — a product line still adds to the catalog.
+        await engine.HandleIncomingMessageAsync(Phone, "Kurti - 1800", default);
+        Assert.Equal(ConversationState.OnboardingAddProduct, (await db.Sessions.FirstAsync()).State);
+        Assert.Equal(1, await db.Products.CountAsync());
+    }
+
+    [Fact]
     public async Task OrdersToday_WithNoOrders_RepliesNoOrders()
     {
         using var db = _dbFactory.CreateContext();
@@ -913,6 +1002,44 @@ public class ConversationEngineTests : IDisposable
         Assert.Equal("Sara", order.Customer!.Name);
         Assert.Equal(1800m, order.Total);
         Assert.Equal(OrderStatus.Pending, order.Status);
+    }
+
+    [Fact]
+    public async Task DuplicateOrderConfirmation_HelpOrMenu_StillExecutes_AndPromptStaysOpen()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis
+            {
+                IsOrderAttempt = true,
+                Order = new AiOrderDraft
+                {
+                    CustomerName = "Sara",
+                    Phone = "03009876543",
+                    Address = "Gulberg Lahore",
+                    Items = { new AiOrderItemDraft { ProductName = "Kurti", MatchedCatalogProductName = "Kurti", Quantity = 1 } }
+                }
+            });
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03009876543, Gulberg Lahore", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        _sentMessages.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03009876543, Gulberg Lahore", default);
+        Assert.Contains(_sentMessages, m => m.Contains("isi jaisa order"));
+        Assert.Equal(ConversationState.AwaitingDuplicateOrderConfirmation, (await db.Sessions.FirstAsync()).State);
+        _sentMessages.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "help", default);
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("Reply 1 ya 2"));
+        Assert.Equal(ConversationState.AwaitingDuplicateOrderConfirmation, (await db.Sessions.FirstAsync()).State);
+
+        // The duplicate prompt is still open afterward — "1" still saves the second order.
+        await engine.HandleIncomingMessageAsync(Phone, "1", default);
+        Assert.Equal(2, await db.Orders.CountAsync());
     }
 
     [Fact]
