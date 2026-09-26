@@ -215,7 +215,7 @@ public static class CommandParser
     private static readonly Regex SupportQueries = new(@"^(?:support\s+quer(?:y|ies)|customer\s+quer(?:y|ies)|open\s+quer(?:y|ies)|queries)$", Opts);
     private static readonly Regex ResolveSupportQuery = new(@"^mark\s+(?:query\s+)?(\d+)\s+(?:as\s+)?(?:resolved|solved|done)$", Opts);
     private static readonly Regex ReplySupportQuery = new(@"^reply\s+(\d+)(?:\s*:\s*(.+))?$", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Singleline);
-    private static readonly Regex ConnectInstagram = new(@"^(?:connect|link)\s+(?:instagram|insta|ig)$", Opts);
+    private static readonly Regex ConnectInstagram = new(@"^(?:connect|link)\s+(?:instagram|insta|ig)$|^(?:instagram|insta|ig)\s+(?:connect|link)$", Opts);
     private static readonly Regex DisconnectInstagram = new(@"^(?:disconnect|unlink)\s+(?:instagram|insta|ig)$", Opts);
     private static readonly Regex CommentLeads = new(@"^(?:comment\s+leads?|leads|ig\s+leads?|instagram\s+leads?)$", Opts);
     private static readonly Regex LeadAction = new(@"^lead\s+#?(\d+)\s+(converted|convert|followed\s*up|follow\s*up|dismiss(?:ed)?|spam)(?:\s+(?:order\s+)?#?(\d+))?$", Opts);

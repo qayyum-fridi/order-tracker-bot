@@ -62,7 +62,12 @@ public partial class ConversationEngine
             return;
         }
 
-        if (!seller.OnboardingComplete || OnboardingStates.Contains(session.State))
+        // An incomplete seller normally always routes to the onboarding handler — except a state that
+        // has its own handler elsewhere (currently just the guide, reachable as a mid-onboarding escape
+        // hatch): otherwise the very next message after opening it would fall to HandleOnboardingAsync's
+        // default case and restart onboarding from scratch instead of reaching that handler.
+        if (OnboardingStates.Contains(session.State)
+            || (!seller.OnboardingComplete && session.State != ConversationState.AwaitingGuideStep))
         {
             await HandleOnboardingAsync(seller, session, ctx, message, ct);
             await PersistAsync(session, ctx, ct);

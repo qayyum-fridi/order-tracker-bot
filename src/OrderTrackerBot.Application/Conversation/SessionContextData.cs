@@ -1,4 +1,5 @@
 using System.Text.Json;
+using OrderTrackerBot.Domain.Enums;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -76,6 +77,9 @@ public sealed class SessionContextData
     /// <summary>Interactive guide (screens 1c-2/1c-3): topic, and the step shown last (0 = topic not chosen yet).</summary>
     public string? GuideTopic { get; set; }
     public int GuideStep { get; set; }
+    /// <summary>Set when "guide" is opened mid-onboarding, so exiting resumes there instead of dropping to Idle
+    /// (an incomplete seller landing on Idle would otherwise restart onboarding from scratch).</summary>
+    public ConversationState? GuideReturnState { get; set; }
 
     public string ToJson() => JsonSerializer.Serialize(this);
 
