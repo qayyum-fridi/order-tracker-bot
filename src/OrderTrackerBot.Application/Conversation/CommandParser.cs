@@ -68,7 +68,8 @@ public enum CommandKind
     GuideLater,
     ChangeLanguage,
     BusinessSetup,
-    PaymentMethodPrompt
+    PaymentMethodPrompt,
+    ImportCatalogSheet
 }
 
 /// <summary>A catalog line: "Lawn Suit - 3500" or "Sugar 5 kg - 500" (unit type + pack size split off the name).</summary>
@@ -206,6 +207,10 @@ public static class CommandParser
 
     private static readonly Regex SafepayId = new(@"^safepay\s+id:\s*(.+)$", Opts);
 
+    // Large-catalog onboarding path (Setup Effort spec): seller fills a Google Sheet template
+    // and sends the share link back instead of typing 50+ products one by one.
+    private static readonly Regex CatalogSheetLink = new(@"https://docs\.google\.com/spreadsheets/d/[A-Za-z0-9_-]+[^\s]*", Opts);
+
     // Screens 5d-5..5d-10: Instagram comment leads and buyer support queries.
     private static readonly Regex SupportQueries = new(@"^(?:support\s+quer(?:y|ies)|customer\s+quer(?:y|ies)|open\s+quer(?:y|ies)|queries)$", Opts);
     private static readonly Regex ResolveSupportQuery = new(@"^mark\s+(?:query\s+)?(\d+)\s+(?:as\s+)?(?:resolved|solved|done)$", Opts);
@@ -246,6 +251,8 @@ public static class CommandParser
         if (stripped.Length > 0) message = stripped;
         Match m;
 
+        if ((m = CatalogSheetLink.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.ImportCatalogSheet, Text = m.Value };
         if (Start.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Start };
         if (Greeting.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Greeting };
         if (Help.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Help };

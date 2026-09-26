@@ -22,9 +22,10 @@ public partial class ConversationEngine
     private readonly BillingOptions _billing;
     private readonly IWhatsAppMediaClient? _media;
     private readonly IInstagramClient _instagram;
+    private readonly ICatalogSheetImporter? _catalogSheets;
 
     public ConversationEngine(IAppDbContext db, IAiOrderAssistant ai, IWhatsAppSender sender, IFounderAlertNotifier founderAlerts,
-        BillingOptions? billing = null, IWhatsAppMediaClient? media = null, IInstagramClient? instagram = null)
+        BillingOptions? billing = null, IWhatsAppMediaClient? media = null, IInstagramClient? instagram = null, ICatalogSheetImporter? catalogSheets = null)
     {
         _db = db;
         _ai = ai;
@@ -33,6 +34,7 @@ public partial class ConversationEngine
         _billing = billing ?? new BillingOptions();
         _media = media;
         _instagram = instagram ?? new NullInstagramClient();
+        _catalogSheets = catalogSheets;
     }
 
     private static readonly ConversationState[] OnboardingStates =

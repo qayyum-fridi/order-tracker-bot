@@ -43,6 +43,7 @@ public class ConversationEngineTests : IDisposable
     private readonly Mock<IAiOrderAssistant> _ai = new();
     private readonly Mock<IWhatsAppSender> _sender = new();
     private readonly Mock<IFounderAlertNotifier> _founderAlerts = new();
+    private readonly Mock<ICatalogSheetImporter> _catalogSheets = new();
     private readonly List<string> _sentMessages = new();
 
     public ConversationEngineTests()
@@ -52,7 +53,8 @@ public class ConversationEngineTests : IDisposable
             .Returns(Task.CompletedTask);
     }
 
-    private ConversationEngine CreateEngine(AppDbContext db) => new(db, _ai.Object, _sender.Object, _founderAlerts.Object);
+    private ConversationEngine CreateEngine(AppDbContext db) =>
+        new(db, _ai.Object, _sender.Object, _founderAlerts.Object, catalogSheets: _catalogSheets.Object);
 
     private async Task OnboardSellerAsync(AppDbContext db)
     {
@@ -168,6 +170,44 @@ public class ConversationEngineTests : IDisposable
 
         Assert.Equal(5, await db.Products.CountAsync());
         Assert.Contains(_sentMessages, m => m.Contains("3 products save ho gaye"));
+    }
+
+    [Fact]
+    public void CatalogSheetLink_IsRecognizedAsImportCommand()
+    {
+        var command = CommandParser.TryParse("https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOp/edit?gid=0#gid=0");
+        Assert.Equal(CommandKind.ImportCatalogSheet, command!.Kind);
+        Assert.StartsWith("https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOp", command.Text);
+    }
+
+    [Fact]
+    public async Task ImportCatalogSheet_AddsEachRowAsAProduct()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        _catalogSheets.Setup(s => s.FetchProductLinesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { "Dupatta - 900", "Scarf - 600" });
+
+        await engine.HandleIncomingMessageAsync(Phone, "https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOp/edit", default);
+
+        Assert.Equal(4, await db.Products.CountAsync());
+        Assert.Contains(_sentMessages, m => m.Contains("2 products import ho gaye"));
+    }
+
+    [Fact]
+    public async Task ImportCatalogSheet_WhenFetchFails_RepliesGracefully_WithoutThrowing()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        _catalogSheets.Setup(s => s.FetchProductLinesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<string>?)null);
+
+        await engine.HandleIncomingMessageAsync(Phone, "https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOp/edit", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("load nahi ho sake"));
+        Assert.Equal(2, await db.Products.CountAsync());
     }
 
     [Theory]

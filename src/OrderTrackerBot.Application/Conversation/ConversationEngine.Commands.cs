@@ -69,6 +69,7 @@ public partial class ConversationEngine
         " • catalog\n" +
         " • share catalog\n" +
         " • add/edit/delete product\n" +
+        " • bara catalog? Google Sheet link bhi bhej saktay hain (naam, price columns)\n" +
         "\n" +
         "💰 Payments\n" +
         " • payment link\n" +
@@ -306,6 +307,9 @@ public partial class ConversationEngine
                 return;
             case CommandKind.AddProductsBulk:
                 await HandleAddProductsBulkAsync(seller, cmd, ct);
+                return;
+            case CommandKind.ImportCatalogSheet:
+                await HandleImportCatalogSheetAsync(seller, cmd, ct);
                 return;
             case CommandKind.EditProduct:
                 await HandleEditProductAsync(seller, cmd, ct);
@@ -557,6 +561,34 @@ public partial class ConversationEngine
             results.Add($"{results.Count + 1} {Formatters.ProductLabel(product)} - {Formatters.Money(product.Price)}{(updated ? " (updated)" : "")}");
         }
         await ReplyAsync(seller, $"✅ {results.Count} products save ho gaye:\n\n{string.Join("\n", results)}\n\n\"catalog\" likh kar poori list dekhein.", ct);
+    }
+
+    private async Task HandleImportCatalogSheetAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
+    {
+        var lines = _catalogSheets is null ? null : await _catalogSheets.FetchProductLinesAsync(cmd.Text!, ct);
+        if (lines is null)
+        {
+            await ReplyAsync(seller,
+                "⚠️ Sheet se products load nahi ho sake. Check karein ke sheet \"Anyone with the link can view\" par set ho, ya products ek ek karke bhi bhej saktay hain (e.g. 'Kurti - 1800').", ct);
+            return;
+        }
+
+        var results = new List<string>();
+        foreach (var line in lines)
+        {
+            if (!CommandParser.TryParseProductLine(line, out ProductLine? parsed)) continue;
+            var (product, updated) = await UpsertProductAsync(seller, parsed!, ct);
+            results.Add($"{results.Count + 1} {Formatters.ProductLabel(product)} - {Formatters.Money(product.Price)}{(updated ? " (updated)" : "")}");
+        }
+
+        if (results.Count == 0)
+        {
+            await ReplyAsync(seller,
+                "Sheet parh li lekin koi valid product row nahi mila — har row mein pehla column naam, doosra column price hona chahiye.", ct);
+            return;
+        }
+
+        await ReplyAsync(seller, $"✅ Sheet se {results.Count} products import ho gaye:\n\n{string.Join("\n", results)}\n\n\"catalog\" likh kar poori list dekhein.", ct);
     }
 
     // The same name with a different pack size ("Sugar 5kg" vs "Sugar 10kg") is a separate listing.
