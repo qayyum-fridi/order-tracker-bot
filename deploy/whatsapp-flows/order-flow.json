@@ -27,7 +27,8 @@
               },
               {
                 "type": "TextInput",
-                "label": "Product (catalog wala naam)",
+                "label": "Product name",
+                "helper-text": "Catalog wala naam likhein",
                 "name": "product",
                 "input-type": "text",
                 "required": true
