@@ -70,6 +70,20 @@ public partial class ConversationEngine
         })
     };
 
+    // Offered right after the catalog-size question, alongside the "enter your first product" prompt — a way
+    // out for sellers who aren't ready to type products yet. 4 options need a list (WhatsApp buttons cap at 3).
+    // Row ids are real commands, all recognized as escape hatches by the OnboardingAddProduct handler below.
+    private static readonly IReadOnlyList<Abstractions.MenuSection> CatalogStepQuickActions = new[]
+    {
+        new Abstractions.MenuSection("Ya, kuch aur karein", new[]
+        {
+            new Abstractions.MenuRow("setup", "⚙️ Setup"),
+            new Abstractions.MenuRow("new order", "📦 New Order"),
+            new Abstractions.MenuRow("guide", "📖 Guide"),
+            new Abstractions.MenuRow("connect instagram", "📷 Instagram Connect")
+        })
+    };
+
     /// <summary>After each product: the confirmation and the next-step buttons in one message, so the options sit right under it.</summary>
     private Task SendAddProductChoicesAsync(Seller seller, string text, CancellationToken ct) =>
         _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
@@ -131,6 +145,8 @@ public partial class ConversationEngine
                       "Ya, agar catalog bohat bara hai, Google Sheet mein bhi bhar kar uska link yahan bhej saktay hain — pehla column naam, doosra column price ho aur sheet \"Anyone with the link can view\" par set ho.\n\n" +
                       "Jab tamam products add ho jayein to \"done\" likh dein."
                     : "Theek hai, barah-e-meharbani ek ek karke product ka naam aur price bataein — misaal ke taur par 'Lawn Suit - 3500'.", ct);
+                await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, "Ya, abhi kuch aur karna hai?",
+                    "Options dekhein", CatalogStepQuickActions, ct);
                 return;
 
             case ConversationState.OnboardingAddProduct:
@@ -184,11 +200,13 @@ public partial class ConversationEngine
 
                 // Mid-onboarding interruption (spec screen 17): a recognised command doesn't
                 // execute yet — the catalog step must finish (or be explicitly skipped) first.
-                // Escape-hatch commands (help/menu/connect instagram) still work since they
-                // can't corrupt onboarding state and the seller needs a way out if stuck.
+                // Escape-hatch commands (help/menu/connect instagram/setup/new order/guide) still
+                // work since they can't corrupt onboarding state and the seller needs a way out
+                // if stuck — Guide is state-preserving too (see StartGuideAsync/ExitGuide).
                 if (CommandParser.TryParse(message) is { } parsed)
                 {
-                    if (parsed.Kind is CommandKind.Help or CommandKind.Menu or CommandKind.ConnectInstagram or CommandKind.ImportCatalogSheet)
+                    if (parsed.Kind is CommandKind.Help or CommandKind.Menu or CommandKind.ConnectInstagram or CommandKind.ImportCatalogSheet
+                        or CommandKind.BusinessSetup or CommandKind.NewOrderHelp or CommandKind.Guide)
                     {
                         await ExecuteCommandAsync(seller, session, ctx, parsed, ct);
                         return;

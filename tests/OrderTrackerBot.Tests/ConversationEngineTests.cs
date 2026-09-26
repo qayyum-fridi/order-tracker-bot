@@ -849,6 +849,70 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task CatalogSizeStep_OffersQuickActionsList_AlongsideTheProductPrompt()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+        IReadOnlyList<MenuSection>? sections = null;
+        _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, _, _, s, _) => sections = s)
+            .Returns(Task.CompletedTask);
+
+        await engine.HandleIncomingMessageAsync(Phone, "start", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
+        await engine.HandleIncomingMessageAsync(Phone, "skip", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Chhota (20 se kam)", default);
+
+        var rows = sections!.SelectMany(s => s.Rows).ToList();
+        Assert.Equal(new[] { "setup", "new order", "guide", "connect instagram" }, rows.Select(r => r.Id));
+        Assert.All(rows, r => Assert.NotNull(CommandParser.TryParse(r.Id)));
+    }
+
+    [Fact]
+    public async Task MidOnboardingGuideOrSetup_StillExecutes_AndCatalogStepResumesAfter()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+        await engine.HandleIncomingMessageAsync(Phone, "start", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
+        await engine.HandleIncomingMessageAsync(Phone, "skip", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Chhota (20 se kam)", default);
+        _sentMessages.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "setup", default);
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("pehle catalog complete karein"));
+        Assert.Equal(ConversationState.OnboardingAddProduct, (await db.Sessions.FirstAsync()).State);
+
+        await engine.HandleIncomingMessageAsync(Phone, "new order", default);
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("pehle catalog complete karein"));
+        Assert.Equal(ConversationState.OnboardingAddProduct, (await db.Sessions.FirstAsync()).State);
+
+        // Opening the guide mid-catalog-step and closing it again must resume the catalog step,
+        // not drop to Idle (an incomplete seller landing on Idle would restart onboarding).
+        await engine.HandleIncomingMessageAsync(Phone, "guide", default);
+        Assert.Equal(ConversationState.AwaitingGuideStep, (await db.Sessions.FirstAsync()).State);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sirf orders", default);
+        Assert.Equal(ConversationState.OnboardingAddProduct, (await db.Sessions.FirstAsync()).State);
+
+        // The catalog step is genuinely still open — a product line still adds to the catalog.
+        await engine.HandleIncomingMessageAsync(Phone, "Kurti - 1800", default);
+        Assert.Equal(1, await db.Products.CountAsync());
+    }
+
+    [Theory]
+    [InlineData("connect instagram")]
+    [InlineData("instagram connect")]
+    public void ConnectInstagram_RecognizesEitherWordOrder(string message)
+    {
+        Assert.Equal(CommandKind.ConnectInstagram, CommandParser.TryParse(message)!.Kind);
+    }
+
+    [Fact]
     public async Task OrdersToday_WithNoOrders_RepliesNoOrders()
     {
         using var db = _dbFactory.CreateContext();

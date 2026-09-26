@@ -28,6 +28,9 @@ public partial class ConversationEngine
 
     private async Task StartGuideAsync(Seller seller, ConversationSession session, SessionContextData ctx, string? topic, CancellationToken ct)
     {
+        // Opened mid-onboarding (e.g. tapped from the catalog-step buttons): remember where to
+        // resume, since an incomplete seller landing on Idle would otherwise restart onboarding.
+        if (!seller.OnboardingComplete && ctx.GuideReturnState is null) ctx.GuideReturnState = session.State;
         SetState(session, ConversationState.AwaitingGuideStep);
         if (topic == "full")
         {
@@ -91,7 +94,8 @@ public partial class ConversationEngine
 
     private static void ExitGuide(ConversationSession session, SessionContextData ctx)
     {
-        SetState(session, ConversationState.Idle);
+        SetState(session, ctx.GuideReturnState ?? ConversationState.Idle);
+        ctx.GuideReturnState = null;
         ctx.GuideTopic = null;
         ctx.GuideStep = 0;
     }
