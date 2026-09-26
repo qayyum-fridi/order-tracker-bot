@@ -760,6 +760,30 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task OnboardingOptionalDetailsStep_HelpOrMenu_StillExecutes_AndStepResumesAfter()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+        await engine.HandleIncomingMessageAsync(Phone, "start", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
+        _sentMessages.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "help", default);
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("pehle setup mukammal karein"));
+        Assert.Equal(ConversationState.OnboardingOptionalDetails, (await db.Sessions.FirstAsync()).State);
+
+        await engine.HandleIncomingMessageAsync(Phone, "menu", default);
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("pehle setup mukammal karein"));
+        Assert.Equal(ConversationState.OnboardingOptionalDetails, (await db.Sessions.FirstAsync()).State);
+
+        // The optional-details step is still open afterward.
+        await engine.HandleIncomingMessageAsync(Phone, "skip", default);
+        Assert.Equal(ConversationState.OnboardingCatalogSize, (await db.Sessions.FirstAsync()).State);
+    }
+
+    [Fact]
     public async Task MidOnboardingHelpOrMenu_StillExecutes_AndCatalogStepResumesAfter()
     {
         using var db = _dbFactory.CreateContext();
@@ -938,6 +962,44 @@ public class ConversationEngineTests : IDisposable
         Assert.Equal("Sara", order.Customer!.Name);
         Assert.Equal(1800m, order.Total);
         Assert.Equal(OrderStatus.Pending, order.Status);
+    }
+
+    [Fact]
+    public async Task DuplicateOrderConfirmation_HelpOrMenu_StillExecutes_AndPromptStaysOpen()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis
+            {
+                IsOrderAttempt = true,
+                Order = new AiOrderDraft
+                {
+                    CustomerName = "Sara",
+                    Phone = "03009876543",
+                    Address = "Gulberg Lahore",
+                    Items = { new AiOrderItemDraft { ProductName = "Kurti", MatchedCatalogProductName = "Kurti", Quantity = 1 } }
+                }
+            });
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03009876543, Gulberg Lahore", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        _sentMessages.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03009876543, Gulberg Lahore", default);
+        Assert.Contains(_sentMessages, m => m.Contains("isi jaisa order"));
+        Assert.Equal(ConversationState.AwaitingDuplicateOrderConfirmation, (await db.Sessions.FirstAsync()).State);
+        _sentMessages.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "help", default);
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("Reply 1 ya 2"));
+        Assert.Equal(ConversationState.AwaitingDuplicateOrderConfirmation, (await db.Sessions.FirstAsync()).State);
+
+        // The duplicate prompt is still open afterward — "1" still saves the second order.
+        await engine.HandleIncomingMessageAsync(Phone, "1", default);
+        Assert.Equal(2, await db.Orders.CountAsync());
     }
 
     [Fact]

@@ -96,8 +96,14 @@ public partial class ConversationEngine
                 return;
 
             case ConversationState.OnboardingOptionalDetails:
-                if (CommandParser.TryParse(message) is { Kind: not CommandKind.AddProduct })
+                if (CommandParser.TryParse(message) is { Kind: not CommandKind.AddProduct } parsedOptional)
                 {
+                    if (parsedOptional.Kind is CommandKind.Help or CommandKind.Menu or CommandKind.ConnectInstagram)
+                    {
+                        await ExecuteCommandAsync(seller, session, ctx, parsedOptional, ct);
+                        return;
+                    }
+
                     await ReplyAsync(seller, "Meharbani kar ke pehle setup mukammal karein — shehar, karobar ki qisam ya @instagram handle bhejein, ya \"skip\" likhein.", ct);
                     return;
                 }

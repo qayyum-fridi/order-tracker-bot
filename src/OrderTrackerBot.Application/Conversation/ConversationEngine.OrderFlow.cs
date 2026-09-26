@@ -669,6 +669,12 @@ public partial class ConversationEngine
             return;
         }
 
+        if (CommandParser.TryParse(message) is { Kind: CommandKind.Help or CommandKind.Menu } command)
+        {
+            await ExecuteCommandAsync(seller, session, ctx, command, ct);
+            return;
+        }
+
         await ReplyAsync(seller, "Reply 1 ya 2.", ct);
     }
 
