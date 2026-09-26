@@ -176,8 +176,16 @@ public partial class ConversationEngine
 
                 // Mid-onboarding interruption (spec screen 17): a recognised command doesn't
                 // execute yet — the catalog step must finish (or be explicitly skipped) first.
-                if (CommandParser.TryParse(message) is not null)
+                // Escape-hatch commands (help/menu/connect instagram) still work since they
+                // can't corrupt onboarding state and the seller needs a way out if stuck.
+                if (CommandParser.TryParse(message) is { } parsed)
                 {
+                    if (parsed.Kind is CommandKind.Help or CommandKind.Menu or CommandKind.ConnectInstagram)
+                    {
+                        await ExecuteCommandAsync(seller, session, ctx, parsed, ct);
+                        return;
+                    }
+
                     await ReplyAsync(seller,
                         "Filhaal koi order darj nahi ho sakta — pehle catalog complete karein.\n" +
                         "Product ka naam aur price bhejein, ya \"skip\" likh kar yeh marhala baad mein mukammal karein.", ct);

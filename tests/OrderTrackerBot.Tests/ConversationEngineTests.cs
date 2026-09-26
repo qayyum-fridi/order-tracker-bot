@@ -760,6 +760,31 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task MidOnboardingHelpOrMenu_StillExecutes_AndCatalogStepResumesAfter()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+        await engine.HandleIncomingMessageAsync(Phone, "start", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
+        await engine.HandleIncomingMessageAsync(Phone, "skip", default);
+        await engine.HandleIncomingMessageAsync(Phone, "10 ke qareeb", default);
+        _sentMessages.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "help", default);
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("pehle catalog complete karein"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "menu", default);
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("pehle catalog complete karein"));
+
+        // Onboarding catalog step is still open afterward — a product line still adds to the catalog.
+        await engine.HandleIncomingMessageAsync(Phone, "Kurti - 1800", default);
+        Assert.Equal(ConversationState.OnboardingAddProduct, (await db.Sessions.FirstAsync()).State);
+        Assert.Equal(1, await db.Products.CountAsync());
+    }
+
+    [Fact]
     public async Task OrdersToday_WithNoOrders_RepliesNoOrders()
     {
         using var db = _dbFactory.CreateContext();
