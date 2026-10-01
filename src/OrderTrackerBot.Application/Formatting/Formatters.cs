@@ -85,18 +85,32 @@ public static class Formatters
             : $"{index}. {order.Customer?.Name} - {ItemsSummary(order)} - {Money(order.Total)} - {status}";
     }
 
-    public static string OrdersToday(string language, IReadOnlyList<Order> orders)
+    public static string OrdersToday(string language, IReadOnlyList<Order> orders, string? period = null)
     {
         var lang = Lang.Normalize(language);
         if (orders.Count == 0)
-            return lang switch
+            return (lang, period) switch
             {
-                Lang.UrduScript => "📦 آج کوئی آرڈر نہیں آیا۔",
-                Lang.English => "📦 No orders yet today.",
+                (Lang.UrduScript, "yesterday") => "📦 کل کوئی آرڈر نہیں آیا۔",
+                (Lang.UrduScript, "lastmonth") => "📦 پچھلے مہینے کوئی آرڈر نہیں آیا۔",
+                (Lang.UrduScript, _) => "📦 آج کوئی آرڈر نہیں آیا۔",
+                (Lang.English, "yesterday") => "📦 No orders yesterday.",
+                (Lang.English, "lastmonth") => "📦 No orders last month.",
+                (Lang.English, _) => "📦 No orders yet today.",
+                (_, "yesterday") => "📦 Kal koi order nahi aaya.",
+                (_, "lastmonth") => "📦 Pichle mahine koi order nahi aaya.",
                 _ => "📦 Aaj koi order nahi aaya abhi tak."
             };
 
-        var header = lang == Lang.UrduScript ? $"📦 آج کے آرڈرز ({orders.Count}):" : $"📦 Today's Orders ({orders.Count}):";
+        var header = (lang, period) switch
+        {
+            (Lang.UrduScript, "yesterday") => $"📦 کل کے آرڈرز ({orders.Count}):",
+            (Lang.UrduScript, "lastmonth") => $"📦 پچھلے مہینے کے آرڈرز ({orders.Count}):",
+            (Lang.UrduScript, _) => $"📦 آج کے آرڈرز ({orders.Count}):",
+            (_, "yesterday") => $"📦 Yesterday's Orders ({orders.Count}):",
+            (_, "lastmonth") => $"📦 Last Month's Orders ({orders.Count}):",
+            _ => $"📦 Today's Orders ({orders.Count}):"
+        };
         var footer = lang switch
         {
             Lang.UrduScript => "\"mark 1 shipped\" لکھ کر اپڈیٹ کریں۔",
