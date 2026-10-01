@@ -279,13 +279,13 @@ public partial class ConversationEngine
                 await HandleCustomerSearchAsync(seller, cmd.Text!, ct);
                 return;
             case CommandKind.OrdersToday:
-                await HandleOrdersTodayAsync(seller, ctx, ct);
+                await HandleOrdersTodayAsync(seller, ctx, cmd.Text, ct);
                 return;
             case CommandKind.PendingOrders:
                 await HandlePendingOrdersAsync(seller, ctx, ct);
                 return;
             case CommandKind.TodaysSummary:
-                await HandleTodaysSummaryAsync(seller, ct);
+                await HandleTodaysSummaryAsync(seller, cmd.Text, ct);
                 return;
             case CommandKind.Catalog:
                 await HandleCatalogAsync(seller, ct);
@@ -409,16 +409,28 @@ public partial class ConversationEngine
             ? (ids[number - 1], true)
             : (number, false);
 
-    private async Task HandleOrdersTodayAsync(Seller seller, SessionContextData ctx, CancellationToken ct)
+    /// <summary>The report window for "today" (null) / "yesterday" / "lastmonth" in the seller's local time.</summary>
+    private static (DateTime StartUtc, DateTime EndUtc) ReportRange(Seller seller, string? period)
     {
-        var today = SellerClock.StartOfLocalDayUtc(seller.TimeZoneId, DateTime.UtcNow);
+        var now = DateTime.UtcNow;
+        return period switch
+        {
+            "yesterday" => SellerClock.LocalDayRangeUtc(seller.TimeZoneId, now, -1),
+            "lastmonth" => SellerClock.PreviousMonthRangeUtc(seller.TimeZoneId, now),
+            _ => (SellerClock.StartOfLocalDayUtc(seller.TimeZoneId, now), DateTime.MaxValue)
+        };
+    }
+
+    private async Task HandleOrdersTodayAsync(Seller seller, SessionContextData ctx, string? period, CancellationToken ct)
+    {
+        var (start, end) = ReportRange(seller, period);
         var orders = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
-            .Where(o => o.SellerId == seller.Id && o.CreatedAt >= today && o.Status != OrderStatus.Cancelled)
+            .Where(o => o.SellerId == seller.Id && o.CreatedAt >= start && o.CreatedAt < end && o.Status != OrderStatus.Cancelled)
             .OrderBy(o => o.CreatedAt)
             .ToListAsync(ct);
 
         ctx.LastListOrderIds = orders.Select(o => o.Id).ToList();
-        await ReplyAsync(seller, Formatters.OrdersToday(seller.PreferredLanguage, orders), ct);
+        await ReplyAsync(seller, Formatters.OrdersToday(seller.PreferredLanguage, orders, period), ct);
     }
 
     private async Task HandlePendingOrdersAsync(Seller seller, SessionContextData ctx, CancellationToken ct)
@@ -439,11 +451,12 @@ public partial class ConversationEngine
         await ReplyAsync(seller, $"📦 Pending Orders ({orders.Count}):\n\n{string.Join("\n", lines)}\n\nReply \"mark 1 shipped\" to update.", ct);
     }
 
-    private async Task HandleTodaysSummaryAsync(Seller seller, CancellationToken ct)
+    private async Task HandleTodaysSummaryAsync(Seller seller, string? period, CancellationToken ct)
     {
-        var today = SellerClock.StartOfLocalDayUtc(seller.TimeZoneId, DateTime.UtcNow);
+        var (start, end) = ReportRange(seller, period);
+        var label = period switch { "yesterday" => "Yesterday's", "lastmonth" => "Last Month's", _ => "Today's" };
         var orders = await _db.Orders
-            .Where(o => o.SellerId == seller.Id && o.CreatedAt >= today && o.Status != OrderStatus.Cancelled)
+            .Where(o => o.SellerId == seller.Id && o.CreatedAt >= start && o.CreatedAt < end && o.Status != OrderStatus.Cancelled)
             .ToListAsync(ct);
 
         var delivered = orders.Count(o => o.Status == OrderStatus.Delivered);
@@ -454,12 +467,12 @@ public partial class ConversationEngine
         var totalSales = orders.Sum(o => o.Total);
 
         await ReplyAsync(seller,
-            $"🧾 Today's Reconciliation — {seller.BusinessName}\n\n" +
+            $"🧾 {label} Reconciliation — {seller.BusinessName}\n\n" +
             $"Orders: {orders.Count}\n" +
             $"Delivered: {delivered} | Shipped: {shipped} | Pending: {pending}\n" +
             $"Cash collected (COD): {Formatters.Money(cod)}\n" +
             $"Prepaid received: {Formatters.Money(prepaid)}\n" +
-            $"Total sales today: {Formatters.Money(totalSales)}\n\n" +
+            $"Total sales {(period is null ? "today" : label.Replace("'s", "").ToLowerInvariant())}: {Formatters.Money(totalSales)}\n\n" +
             "Sab theek lag raha hai ✅", ct);
     }
 

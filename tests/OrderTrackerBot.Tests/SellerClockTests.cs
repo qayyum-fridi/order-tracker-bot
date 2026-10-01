@@ -19,4 +19,20 @@ public class SellerClockTests
         var start = SellerClock.StartOfLocalDayUtc("Asia/Karachi", new DateTime(2026, 10, 1, 3, 0, 0, DateTimeKind.Utc));
         Assert.Equal(new DateTime(2026, 9, 30, 19, 0, 0), start);
     }
+
+    [Fact]
+    public void LocalDayRange_Yesterday_IsPreviousLocalDay()
+    {
+        var (start, end) = SellerClock.LocalDayRangeUtc("Asia/Karachi", new DateTime(2026, 10, 1, 3, 0, 0, DateTimeKind.Utc), -1);
+        Assert.Equal(new DateTime(2026, 9, 29, 19, 0, 0), start);
+        Assert.Equal(new DateTime(2026, 9, 30, 19, 0, 0), end);
+    }
+
+    [Fact]
+    public void PreviousMonthRange_CoversLocalCalendarMonth()
+    {
+        var (start, end) = SellerClock.PreviousMonthRangeUtc("Asia/Karachi", new DateTime(2026, 10, 1, 3, 0, 0, DateTimeKind.Utc));
+        Assert.Equal(new DateTime(2026, 8, 31, 19, 0, 0), start);
+        Assert.Equal(new DateTime(2026, 9, 30, 19, 0, 0), end);
+    }
 }

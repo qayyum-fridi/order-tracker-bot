@@ -1012,6 +1012,26 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task OrdersYesterday_ListsOnlyYesterdaysOrders()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var seller = await db.Sellers.FirstAsync();
+        var customer = new OrderTrackerBot.Domain.Entities.Customer { SellerId = seller.Id, Name = "Sara", Phone = "03001112222" };
+        db.Customers.Add(customer);
+        await db.SaveChangesAsync();
+        var (yStart, _) = OrderTrackerBot.Application.Time.SellerClock.LocalDayRangeUtc(seller.TimeZoneId, DateTime.UtcNow, -1);
+        db.Orders.Add(new OrderTrackerBot.Domain.Entities.Order { SellerId = seller.Id, CustomerId = customer.Id, CreatedAt = yStart.AddHours(2) });
+        db.Orders.Add(new OrderTrackerBot.Domain.Entities.Order { SellerId = seller.Id, CustomerId = customer.Id, CreatedAt = DateTime.UtcNow });
+        await db.SaveChangesAsync();
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "kal ke orders", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Yesterday's Orders (1)"));
+    }
+
+    [Fact]
     public async Task FreeformMessage_WhenAiFindsNoOrder_AsksClarification()
     {
         using var db = _dbFactory.CreateContext();
