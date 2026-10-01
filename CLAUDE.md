@@ -115,7 +115,7 @@ shared-state action: confirm with the user and get SSH/host details first.
 
 - Safepay payment gateway integration is a placeholder message only (the merchant ID is saved;
   "payment link" still shows manual numbers).
-- Broadcasts send via Meta's template API only when `WhatsApp:BroadcastTemplateName` points at an
+- Broadcasts send via Meta's template API only when `WhatsAppTemplates:broadcast:Name` (in `src/OrderTrackerBot.Api/whatsapp-templates.json`, hot-reloaded) is set to an
   approved template; SMS has no provider — SMS sends are recorded as `not_configured`.
 - Subscription "paid" is trusted on the seller's word and fires a founder alert to verify manually;
   there is no payment verification.

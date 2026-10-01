@@ -6,7 +6,7 @@ using OrderTrackerBot.Domain.Enums;
 namespace OrderTrackerBot.Application.Conversation;
 
 // Screens 16 / 16h: promote to past customers — channel, audience, send, then "campaign status".
-// WhatsApp needs a Meta-approved template (WhatsApp:BroadcastTemplateName); no SMS provider is wired yet,
+// WhatsApp needs a Meta-approved template (whatsapp-templates.json → broadcast); no SMS provider is wired yet,
 // so SMS sends are recorded as not_configured rather than pretending to deliver.
 public partial class ConversationEngine
 {

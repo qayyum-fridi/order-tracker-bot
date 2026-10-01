@@ -31,6 +31,7 @@ public static class DependencyInjection
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
 
         services.Configure<WhatsAppOptions>(configuration.GetSection(WhatsAppOptions.SectionName));
+        services.Configure<WhatsAppTemplatesOptions>(configuration.GetSection(WhatsAppTemplatesOptions.SectionName));
         services.Configure<OpenAiOptions>(configuration.GetSection(OpenAiOptions.SectionName));
         services.Configure<FounderAlertOptions>(configuration.GetSection(FounderAlertOptions.SectionName));
         services.Configure<InstagramOptions>(configuration.GetSection(InstagramOptions.SectionName));
