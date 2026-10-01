@@ -352,14 +352,44 @@ public partial class ConversationEngine
         "cancel", "stop", "back", "no", "nahi", "nahin", "chhod do", "rehne do", "رہنے دو", "نہیں"
     };
 
-    // While an order is half-entered, a cancel word or any command (menu, help, catalog, ...) abandons the draft
-    // instead of being swallowed as a customer name or phone number. Product-add lines keep the draft.
-    private async Task<bool> TryLeaveOrderDraftAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
+    private static readonly ConversationState[] OrderDraftStates =
     {
+        ConversationState.AwaitingOrderConfirmation, ConversationState.AwaitingOrderMissingFields,
+        ConversationState.AwaitingOrderGroupingChoice, ConversationState.AwaitingMultiOrderConfirmation
+    };
+
+    // States with their own exit handling (or driven by another handler) — the universal escape skips them.
+    private static readonly ConversationState[] NoEscapeStates =
+    {
+        ConversationState.Idle, ConversationState.AwaitingResetConfirmation, ConversationState.AwaitingGuideStep,
+        ConversationState.AwaitingSubscriptionPayment
+    };
+
+    // "no"/"nahi" are real answers in confirmation states, so only unambiguous exit words escape there.
+    private static readonly HashSet<string> EscapeWords = new(StringComparer.OrdinalIgnoreCase) { "cancel", "back", "stop" };
+
+    // Universal escape hatch: from any mid-flow state, "cancel"/"back" or the menu/help/start commands clear the state.
+    // While an order is half-entered, any command (catalog, orders, ...) abandons the draft instead of being swallowed
+    // as a customer name or phone number; product-add lines keep the draft.
+    private async Task<bool> TryEscapeAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
+    {
+        if (Array.IndexOf(NoEscapeStates, session.State) >= 0) return false;
+
         var trimmed = message.Trim();
         var command = CommandParser.TryParse(trimmed);
-        var isCancel = CancelWords.Contains(trimmed);
-        var isCommand = command is not null && command.Kind is not (CommandKind.AddProduct or CommandKind.AddProductsBulk or CommandKind.MoreCustomers);
+        var isDraft = Array.IndexOf(OrderDraftStates, session.State) >= 0;
+
+        bool isCancel, isCommand;
+        if (isDraft)
+        {
+            isCancel = CancelWords.Contains(trimmed);
+            isCommand = command is not null && command.Kind is not (CommandKind.AddProduct or CommandKind.AddProductsBulk or CommandKind.MoreCustomers);
+        }
+        else
+        {
+            isCancel = EscapeWords.Contains(trimmed);
+            isCommand = command is { Kind: CommandKind.Menu or CommandKind.Help or CommandKind.Start };
+        }
         if (!isCancel && !isCommand) return false;
 
         ResetFlowContext(ctx);
@@ -367,11 +397,13 @@ public partial class ConversationEngine
 
         if (isCancel)
         {
-            await ReplyAsync(seller, "Theek hai, order cancel kar diya. Naya order bhejne ke liye tafseel likhein (naam, product, phone, address).", ct);
+            await ReplyAsync(seller, isDraft
+                ? "Theek hai, order cancel kar diya. Naya order bhejne ke liye tafseel likhein (naam, product, phone, address)."
+                : "Theek hai, chhod diya. Menu ke liye \"menu\" likhein.", ct);
             return true;
         }
 
-        await ReplyAsync(seller, "↩️ Adhoora order chhod diya.", ct);
+        if (isDraft) await ReplyAsync(seller, "↩️ Adhoora order chhod diya.", ct);
         await ExecuteCommandAsync(seller, session, ctx, command!, ct);
         return true;
     }
