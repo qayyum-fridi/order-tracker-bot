@@ -8,14 +8,44 @@ namespace OrderTrackerBot.Application.Conversation;
 
 public partial class ConversationEngine
 {
-    private static readonly Regex LooseProductLine = new(@"^(.+?)\s*-\s*(\d+(?:\.\d+)?)$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex LooseProductLine = new(@"^(.+?)\s*[-–—:=]\s*(?:rs\.?|pkr)?\s*(\d+(?:\.\d+)?)\s*(?:/-|rs\.?|rupay|rupees|pkr)?$", RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     private static readonly Regex InstagramHandle = new(@"@[A-Za-z0-9._]{2,30}", RegexOptions.Compiled);
 
-    // Onboarding accepts any "name - price" (digits allowed in the name, e.g. "Suit 2pc - 3500").
+    // A Pakistani mobile number in any common spelling (0300-1234567, 03001234567, +92 300 1234567) — its presence
+    // means the text is an order/customer detail, never a "name - price" catalog line.
+    private static readonly Regex PhoneNumber = new(@"(?<!\d)(?:\+?92[-\s]?|0)3\d{2}[-\s]?\d{7}(?!\d)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    // Onboarding accepts any "name - price" (digits allowed in the name, e.g. "Suit 2pc - 3500"), also with ":"/"=" or an Rs/PKR marker.
     private static ProductLine? ParseLooseProductLine(string line)
     {
+        if (PhoneNumber.IsMatch(line)) return null;
         var m = LooseProductLine.Match(line);
         return m.Success ? CommandParser.SplitUnit(m.Groups[1].Value, decimal.Parse(m.Groups[2].Value)) : null;
+    }
+
+    /// <summary>
+    /// A real order text typed while onboarding is still open ("Ayesha 2 lawn suit aur 1 kurti, 0300-1234567, Lahore, ...").
+    /// Instead of rejecting it, treat it as an implicit "skip" of the rest of setup and hand it to the normal order flow —
+    /// which already saves the customer and walks through adding unmatched products to the catalog.
+    /// <paramref name="requirePhoneHint"/> avoids an AI call on steps where free text is normally something else (business name, city...).
+    /// </summary>
+    private async Task<bool> TryOrderDuringOnboardingAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message,
+        bool requirePhoneHint, CancellationToken ct)
+    {
+        if (requirePhoneHint && !PhoneNumber.IsMatch(message)) return false;
+
+        var catalog = await LoadCatalogAsync(seller, ct);
+        var analysis = await _ai.AnalyzeMessageAsync(AiContext(seller, catalog), message, ct);
+        if (!analysis.IsOrderAttempt || analysis.Order is null) return false;
+
+        seller.OnboardingComplete = true;
+        StartTrial(seller);
+        SetState(session, ConversationState.Idle);
+        await ReplyAsync(seller,
+            "📦 Yeh to order lag raha hai — setup ka baqi hissa baad mein \"setup\" / \"catalog\" likh kar mukammal kar lijiye ga. Pehle yeh order darj karte hain." +
+            TrialStartedText(seller), ct);
+        await HandleAnalysisAsync(seller, session, ctx, analysis, catalog, fromScreenshot: false, ct);
+        return true;
     }
 
     private const string BusinessInfoPrompt =
@@ -101,6 +131,7 @@ public partial class ConversationEngine
         {
             case ConversationState.OnboardingBusinessName:
                 if (await TryOnboardingShortcutAsync(seller, session, message, ct)) return;
+                if (await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: true, ct)) return;
                 seller.BusinessName = message;
                 SetState(session, ConversationState.OnboardingOptionalDetails);
                 await ReplyAsync(seller,
@@ -121,6 +152,7 @@ public partial class ConversationEngine
                     await ReplyAsync(seller, "Meharbani kar ke pehle setup mukammal karein — shehar, karobar ki qisam ya @instagram handle bhejein, ya \"skip\" likhein.", ct);
                     return;
                 }
+                if (await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: true, ct)) return;
                 SetState(session, ConversationState.OnboardingCatalogSize);
                 const string askCatalog = "Ab products add karte hain. Neeche button dabayein, ya seedha number likh dein.";
                 if (DoneOrSkip.IsMatch(message))
@@ -137,6 +169,7 @@ public partial class ConversationEngine
                 return;
 
             case ConversationState.OnboardingCatalogSize:
+                if (await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: true, ct)) return;
                 SetState(session, ConversationState.OnboardingAddProduct);
                 var many = ManyProductsWords.Any(w => message.Contains(w, StringComparison.OrdinalIgnoreCase))
                            || message.Split(' ', StringSplitOptions.RemoveEmptyEntries).Any(w => int.TryParse(w, out var n) && n > 20);
@@ -218,7 +251,12 @@ public partial class ConversationEngine
                     return;
                 }
 
-                await ReplyAsync(seller, "Maazrat, samajh nahi aaya. Format yeh hai: 'naam - price' (misaal: 'Kurti - 1800'), ya 'done'/'skip' likhein.", ct);
+                // Not a product line or command: if it's really a customer order, take it instead of rejecting it.
+                if (await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: false, ct)) return;
+
+                await ReplyAsync(seller,
+                    "Maazrat, samajh nahi aaya.\n• Product add karna ho to: 'naam - price' (misaal: 'Kurti - 1800')\n" +
+                    "• Order darj karna ho to customer ka naam, items aur phone number ek saath bhej dein\n• Ya 'done'/'skip' likhein.", ct);
                 return;
 
             case ConversationState.OnboardingLanguage:
