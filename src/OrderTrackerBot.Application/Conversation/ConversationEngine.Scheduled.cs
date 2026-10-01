@@ -20,6 +20,17 @@ public partial class ConversationEngine
         if (lastSundayNineLocal > local) lastSundayNineLocal = lastSundayNineLocal.AddDays(-7);
         var weeklyDueUtc = lastSundayNineLocal - PakistanOffset;
 
+        // Meta stops redelivering well within a day; keep claims a week so the dedupe table stays small.
+        try
+        {
+            var cutoff = utcNow.AddDays(-7);
+            await _db.ProcessedWebhookMessages.Where(m => m.ProcessedAt < cutoff).ExecuteDeleteAsync(ct);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            _logger?.LogError(ex, "Purging processed webhook ids failed");
+        }
+
         var sellers = await _db.Sellers.Where(s => s.OnboardingComplete).ToListAsync(ct);
         foreach (var seller in sellers)
         {
