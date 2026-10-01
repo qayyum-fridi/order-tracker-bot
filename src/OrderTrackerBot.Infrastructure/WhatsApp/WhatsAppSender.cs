@@ -11,12 +11,14 @@ public class WhatsAppSender : IWhatsAppSender
 {
     private readonly HttpClient _httpClient;
     private readonly WhatsAppOptions _options;
+    private readonly IOptionsMonitor<WhatsAppTemplatesOptions> _templates;
     private readonly ILogger<WhatsAppSender> _logger;
 
-    public WhatsAppSender(HttpClient httpClient, IOptions<WhatsAppOptions> options, ILogger<WhatsAppSender> logger)
+    public WhatsAppSender(HttpClient httpClient, IOptions<WhatsAppOptions> options, IOptionsMonitor<WhatsAppTemplatesOptions> templates, ILogger<WhatsAppSender> logger)
     {
         _httpClient = httpClient;
         _options = options.Value;
+        _templates = templates;
         _logger = logger;
     }
 
@@ -113,18 +115,20 @@ public class WhatsAppSender : IWhatsAppSender
 
     public Task<bool> SendTemplateMessageAsync(string toPhoneNumber, IReadOnlyList<string> bodyParameters, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(_options.BroadcastTemplateName) || string.IsNullOrWhiteSpace(_options.AccessToken))
+        // Broadcast template must take one {{1}} body parameter (the message).
+        if (!_templates.CurrentValue.TryGetValue(WhatsAppTemplatesOptions.Broadcast, out var template)
+            || string.IsNullOrWhiteSpace(template.Name) || string.IsNullOrWhiteSpace(_options.AccessToken))
             return Task.FromResult(false);
 
-        return PostAsync(toPhoneNumber, $"[template {_options.BroadcastTemplateName}] {string.Join(" | ", bodyParameters)}", new
+        return PostAsync(toPhoneNumber, $"[template {template.Name}] {string.Join(" | ", bodyParameters)}", new
         {
             messaging_product = "whatsapp",
             to = toPhoneNumber,
             type = "template",
             template = new
             {
-                name = _options.BroadcastTemplateName,
-                language = new { code = _options.BroadcastTemplateLanguage },
+                name = template.Name,
+                language = new { code = template.Language },
                 components = new[]
                 {
                     new { type = "body", parameters = bodyParameters.Select(p => new { type = "text", text = p }).ToArray() }

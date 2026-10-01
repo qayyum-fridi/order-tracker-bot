@@ -115,7 +115,7 @@ shared-state action: confirm with the user and get SSH/host details first.
 
 - Safepay payment gateway integration is a placeholder message only (the merchant ID is saved;
   "payment link" still shows manual numbers).
-- Broadcasts send via Meta's template API only when `WhatsApp:BroadcastTemplateName` points at an
+- Broadcasts send via Meta's template API only when `WhatsAppTemplates:broadcast:Name` (in `src/OrderTrackerBot.Api/whatsapp-templates.json`, hot-reloaded) is set to an
   approved template; SMS has no provider — SMS sends are recorded as `not_configured`.
 - Subscription "paid" is trusted on the seller's word and fires a founder alert to verify manually;
   there is no payment verification.
@@ -126,8 +126,9 @@ shared-state action: confirm with the user and get SSH/host details first.
   SQL Server deploy would need them regenerated.
 - An order naming two unmatched catalog products only walks through add-new/map-existing
   for the first one.
-- Day-boundary calculations (`orders today`, `today's summary`) use UTC, not per-seller
-  timezone.
+- Day boundaries for `orders today` / `today's summary` use `Seller.TimeZoneId` (default
+  `Asia/Karachi`) via `SellerClock`; other "last N days"/weekly windows are still UTC-based, and there is
+  no command to change a seller's timezone yet. `TimeZoneId` has no EF migration yet (generate one).
 - Instagram comment leads / support queries (`ConversationEngine.Support.cs`, `InstagramController`,
   `InstagramClient`) need `Instagram:*` config; `LoginMode` must match which permission Meta approved
   (`facebook` = `instagram_manage_comments` via a linked Page, `instagram` = Instagram Login). The bot never
