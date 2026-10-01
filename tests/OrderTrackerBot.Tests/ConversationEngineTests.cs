@@ -904,6 +904,93 @@ public class ConversationEngineTests : IDisposable
         Assert.Equal(1, await db.Products.CountAsync());
     }
 
+    private async Task StartCatalogStepAsync(ConversationEngine engine)
+    {
+        await engine.HandleIncomingMessageAsync(Phone, "start", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
+        await engine.HandleIncomingMessageAsync(Phone, "skip", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Chhota (20 se kam)", default);
+        _sentMessages.Clear();
+    }
+
+    [Fact]
+    public async Task OrderTextDuringCatalogStep_IsHandedToOrderFlow_NotRejected()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+        await StartCatalogStepAsync(engine);
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis
+            {
+                Intent = "new_order",
+                IsOrderAttempt = true,
+                Order = new AiOrderDraft
+                {
+                    CustomerName = "Ayesha",
+                    Phone = "03001234567",
+                    Items = { new AiOrderItemDraft { ProductName = "Lawn Suit", Quantity = 2 } }
+                }
+            });
+
+        await engine.HandleIncomingMessageAsync(Phone,
+            "Ayesha 2 lawn suit aur 1 kurti, 0300-1234567, Gulberg Lahore, jazzcash advance, code EID10", default);
+
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("samajh nahi aaya"));
+        Assert.True((await db.Sellers.FirstAsync()).OnboardingComplete);
+        // Unmatched product -> the normal order flow offers to add it to the catalog.
+        Assert.Equal(ConversationState.AwaitingOrderMissingFields, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sentMessages, m => m.Contains("catalog mein nahi mila"));
+    }
+
+    [Fact]
+    public async Task NonOrderTextDuringCatalogStep_StillGetsHelpfulHint()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+        await StartCatalogStepAsync(engine);
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "unclear", IsOrderAttempt = false });
+
+        await engine.HandleIncomingMessageAsync(Phone, "hmm kya likhoon", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("samajh nahi aaya") && m.Contains("Order darj"));
+        Assert.False((await db.Sellers.FirstAsync()).OnboardingComplete);
+        Assert.Equal(ConversationState.OnboardingAddProduct, (await db.Sessions.FirstAsync()).State);
+    }
+
+    [Fact]
+    public async Task OrderLineWithPhoneNumber_IsNeverSavedAsCatalogProduct()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+        await StartCatalogStepAsync(engine);
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "unclear", IsOrderAttempt = false });
+
+        await engine.HandleIncomingMessageAsync(Phone, "Ayesha, 2 suit, 0300-1234567", default);
+
+        Assert.Equal(0, await db.Products.CountAsync());
+    }
+
+    [Theory]
+    [InlineData("Kurti: 1800", "Kurti", 1800)]
+    [InlineData("Kurti = Rs 1800", "Kurti", 1800)]
+    [InlineData("Lawn Suit - 3500 rs", "Lawn Suit", 3500)]
+    public async Task CatalogStep_AcceptsLooserProductLines(string line, string name, int price)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+        await StartCatalogStepAsync(engine);
+
+        await engine.HandleIncomingMessageAsync(Phone, line, default);
+
+        var product = await db.Products.SingleAsync();
+        Assert.Equal(name, product.Name);
+        Assert.Equal(price, product.Price);
+    }
+
     [Theory]
     [InlineData("connect instagram")]
     [InlineData("instagram connect")]
