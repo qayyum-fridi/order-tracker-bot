@@ -1,3 +1,4 @@
+using OrderTrackerBot.Application.Time;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Formatting;
@@ -410,7 +411,7 @@ public partial class ConversationEngine
 
     private async Task HandleOrdersTodayAsync(Seller seller, SessionContextData ctx, CancellationToken ct)
     {
-        var today = DateTime.UtcNow.Date;
+        var today = SellerClock.StartOfLocalDayUtc(seller.TimeZoneId, DateTime.UtcNow);
         var orders = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
             .Where(o => o.SellerId == seller.Id && o.CreatedAt >= today && o.Status != OrderStatus.Cancelled)
             .OrderBy(o => o.CreatedAt)
@@ -440,7 +441,7 @@ public partial class ConversationEngine
 
     private async Task HandleTodaysSummaryAsync(Seller seller, CancellationToken ct)
     {
-        var today = DateTime.UtcNow.Date;
+        var today = SellerClock.StartOfLocalDayUtc(seller.TimeZoneId, DateTime.UtcNow);
         var orders = await _db.Orders
             .Where(o => o.SellerId == seller.Id && o.CreatedAt >= today && o.Status != OrderStatus.Cancelled)
             .ToListAsync(ct);

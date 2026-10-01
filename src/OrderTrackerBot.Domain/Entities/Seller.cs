@@ -11,6 +11,8 @@ public class Seller
     public bool OnboardingComplete { get; set; }
     public string PreferredLanguage { get; set; } = "roman_urdu";
     public string? City { get; set; }
+    /// <summary>IANA zone used for "today" boundaries; all stored timestamps stay UTC.</summary>
+    public string TimeZoneId { get; set; } = "Asia/Karachi";
     public string? BusinessType { get; set; }
     public string? InstagramHandle { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
