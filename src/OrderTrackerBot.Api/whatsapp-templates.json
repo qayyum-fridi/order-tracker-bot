@@ -1,0 +1,9 @@
+{
+  "WhatsAppTemplates": {
+    "broadcast": {
+      "Name": "",
+      "Language": "en",
+      "Body": "{{1}}"
+    }
+  }
+}

@@ -3,6 +3,7 @@ using OrderTrackerBot.Infrastructure;
 using OrderTrackerBot.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddJsonFile("whatsapp-templates.json", optional: true, reloadOnChange: true);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
