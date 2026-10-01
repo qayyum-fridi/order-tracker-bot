@@ -203,20 +203,20 @@ dotnet ef migrations add <Name> \
 These match the spec's own version tags (V2/V3/V4) and are intentionally out of scope
 for this first pass:
 
-- **Weekly summary** (proactive, scheduled) — not wired to a scheduler yet; the query
-  logic would reuse `SendTodaysSummaryAsync`-style aggregation, triggered by a hosted
-  `BackgroundService`/cron instead of an inbound message.
+- **Weekly summary** — sent by `ScheduledMessagesService` (Sunday 9:00 PKT); outside the 24h
+  window Meta rejects free-form text until a template is used.
 - **Safepay payment gateway** — `payment link` degrades gracefully to a placeholder
   message when a seller has a Safepay payment method; wiring the real hosted-checkout
   API call and webhook-driven auto-confirmation is a follow-up.
-- **WhatsApp broadcast** — `broadcast: ...` records the campaign intent but does not
-  call Meta's template-message API; Meta requires a pre-approved message template for
-  any send outside the 24h customer-service window, which needs to be set up per seller
-  first.
+- **WhatsApp broadcast** — sends via Meta's template API only when
+  `WhatsAppTemplates:broadcast:Name` is set to an approved template; SMS has no provider.
 - **Customer sentiment logging** (screen "10d" in the spec) — schema (`CustomerFeedback`)
   is in place; no command wires it up yet.
 - **Multiple unresolved catalog products in one order** — if an order names two products
   neither of which matches the catalog, only the first is walked through the
   add-new/map-existing flow; this is a rare case for the typical 1–2 item order.
-- Day-boundary calculations (`orders today`, `today's summary`) use UTC, not a
-  per-seller timezone.
+- Day boundaries for `orders today` / `today's summary` use `Seller.TimeZoneId` (default
+  `Asia/Karachi`); other "last N days" windows are still UTC.
+- Webhook dedupe is DB-backed; the per-sender processing lock is in-process, so multi-instance
+  deployments need sticky routing per sender.
+- Voice notes are not transcribed yet (sellers get a "send text" reply).
