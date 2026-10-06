@@ -108,4 +108,10 @@ public interface IAiOrderAssistant
 
     /// <summary>Best-effort one-line insight appended to a trend/slow-mover report. Returns null if AI is unavailable — callers must not block on it.</summary>
     Task<string?> GenerateInsightAsync(string factsSummary, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Translates bot messages from Roman Urdu into <paramref name="targetLanguage"/> (a <c>Lang</c> constant), one result per input in the
+    /// same order. Null when AI is unavailable or the result is unusable — callers send the original text instead.
+    /// </summary>
+    Task<IReadOnlyList<string>?> TranslateAsync(IReadOnlyList<string> texts, string targetLanguage, CancellationToken cancellationToken = default);
 }

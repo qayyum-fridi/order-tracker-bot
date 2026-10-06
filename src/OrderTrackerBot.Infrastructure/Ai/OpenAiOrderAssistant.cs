@@ -133,6 +133,36 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         CompleteTextAsync("One short Roman Urdu sentence of business insight/suggestion for a small seller, based on the facts given. No preamble.",
             factsSummary, 0.4, "insight generation", cancellationToken);
 
+    public async Task<IReadOnlyList<string>?> TranslateAsync(IReadOnlyList<string> texts, string targetLanguage, CancellationToken cancellationToken = default)
+    {
+        if (texts.Count == 0) return texts;
+
+        var language = targetLanguage == "english" ? "natural, simple English" : "natural Urdu in Urdu (Nastaliq) script, simple everyday wording";
+        var json = await CompleteTextAsync(
+            "You translate messages of a WhatsApp order-tracking bot for small Pakistani sellers. The input is a JSON object {\"texts\": [...]} " +
+            $"whose strings are in Roman Urdu / English. Translate each into {language}. Rules: keep every number, price, order number (#6), phone number, " +
+            "code, emoji, line break and bullet exactly as is (use ASCII digits); keep text inside double quotes (commands the seller must type, e.g. " +
+            "\"mark 3 shipped\", \"catalog\", \"menu\", \"done\", \"skip\") unchanged; keep proper nouns, business names and product names as written; " +
+            "do not add, drop or explain anything. Return ONLY JSON: {\"texts\": [...]} with exactly the same number of strings in the same order.",
+            new JsonObject { ["texts"] = new JsonArray(texts.Select(t => (JsonNode?)JsonValue.Create(t)).ToArray()) }.ToJsonString(),
+            0.1, "message translation", cancellationToken, jsonMode: true);
+        if (json is null) return null;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("texts", out var array) || array.ValueKind != JsonValueKind.Array || array.GetArrayLength() != texts.Count)
+                return null;
+            var result = array.EnumerateArray().Select(e => e.ValueKind == JsonValueKind.String ? e.GetString() : null).ToList();
+            return result.Any(string.IsNullOrWhiteSpace) ? null : result!;
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "OpenAI message translation returned invalid JSON — sending the original text.");
+            return null;
+        }
+    }
+
     public Task<string?> DraftSupportReplyAsync(string businessName, string question, string orderFacts, CancellationToken cancellationToken = default) =>
         CompleteTextAsync(
             $"You draft WhatsApp replies for the small Pakistani shop '{businessName}'. The seller will forward your reply to their customer. " +

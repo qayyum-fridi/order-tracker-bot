@@ -3,6 +3,7 @@ using Moq;
 using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Ai;
 using OrderTrackerBot.Application.Conversation;
+using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Enums;
 using OrderTrackerBot.Infrastructure.Persistence;
 using Xunit;
@@ -958,6 +959,63 @@ public class ConversationEngineTests : IDisposable
         Assert.Contains(_sentMessages, m => m.Contains("samajh nahi aaya") && m.Contains("Order darj"));
         Assert.False((await db.Sellers.FirstAsync()).OnboardingComplete);
         Assert.Equal(ConversationState.OnboardingAddProduct, (await db.Sessions.FirstAsync()).State);
+    }
+
+    private async Task SetSellerLanguageAsync(AppDbContext db, string language)
+    {
+        (await db.Sellers.FirstAsync()).PreferredLanguage = language;
+        await db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task UrduSeller_GetsRepliesTranslated_ListsKeepRowIds_ButButtonLabelsStayAsIs()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        await SetSellerLanguageAsync(db, Lang.UrduScript);
+        var engine = CreateEngine(db);
+        _ai.Setup(a => a.TranslateAsync(It.IsAny<IReadOnlyList<string>>(), Lang.UrduScript, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<string> texts, string _, CancellationToken _) => (IReadOnlyList<string>?)texts.Select(t => "UR:" + t).ToList());
+        string? listBody = null;
+        IReadOnlyList<MenuSection>? listSections = null;
+        _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, body, _, sections, _) => { listBody = body; listSections = sections; })
+            .Returns(Task.CompletedTask);
+
+        await engine.HandleIncomingMessageAsync(Phone, "catalog", default);
+        await engine.HandleIncomingMessageAsync(Phone, "naya order", default);
+
+        Assert.Contains(_sentMessages, m => m.StartsWith("UR:"));
+        Assert.StartsWith("UR:", listBody);
+        Assert.All(listSections!.SelectMany(s => s.Rows), r => Assert.NotNull(CommandParser.TryParse(r.Id)));
+    }
+
+    [Fact]
+    public async Task Translation_ThatChangesANumber_IsDiscarded_AndTheOriginalIsSent()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        await SetSellerLanguageAsync(db, Lang.English);
+        var engine = CreateEngine(db);
+        _ai.Setup(a => a.TranslateAsync(It.IsAny<IReadOnlyList<string>>(), Lang.English, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<string> texts, string _, CancellationToken _) => (IReadOnlyList<string>?)texts.Select(t => "EN:" + t + " 777").ToList());
+
+        await engine.HandleIncomingMessageAsync(Phone, "catalog", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Lawn Suit") && m.Contains("3,500"));
+        Assert.DoesNotContain(_sentMessages, m => m.StartsWith("EN:"));
+    }
+
+    [Fact]
+    public async Task RomanUrduSeller_IsNeverTranslated()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "catalog", default);
+
+        _ai.Verify(a => a.TranslateAsync(It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
