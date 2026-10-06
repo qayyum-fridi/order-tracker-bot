@@ -51,6 +51,7 @@ public partial class ConversationEngine
 
         _db.MessageLogs.Add(new MessageLog { Phone = fromPhoneNumber, Direction = "inbound", RawText = message });
         var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
+        message = _translator.RestoreButtonLabel(message);
 
         var session = seller.Session!;
         var ctx = SessionContextData.FromJson(session.ContextJson);

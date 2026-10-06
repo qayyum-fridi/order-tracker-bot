@@ -991,6 +991,30 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task TranslatedButtonLabels_AreShown_AndATapIsMappedBackToTheOriginalLabel()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        await SetSellerLanguageAsync(db, Lang.UrduScript);
+        var engine = CreateEngine(db);
+        _ai.Setup(a => a.TranslateAsync(It.IsAny<IReadOnlyList<string>>(), Lang.UrduScript, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<string> texts, string _, CancellationToken _) => (IReadOnlyList<string>?)texts.Select(t => "UR:" + t).ToList());
+        IReadOnlyList<string>? labels = null;
+        _sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, _, l, _) => labels = l)
+            .Returns(Task.CompletedTask);
+
+        await engine.HandleIncomingMessageAsync(Phone, "cod pending", default);
+
+        Assert.Equal(new[] { "UR:All", "UR:3+ days", "UR:7+ days" }, labels);
+        Assert.Equal(ConversationState.AwaitingRuntimeFilterChoice, (await db.Sessions.FirstAsync()).State);
+
+        await engine.HandleIncomingMessageAsync(Phone, "UR:3+ days", default);
+
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+    }
+
+    [Fact]
     public async Task Translation_ThatChangesANumber_IsDiscarded_AndTheOriginalIsSent()
     {
         using var db = _dbFactory.CreateContext();

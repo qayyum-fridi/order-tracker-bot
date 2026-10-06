@@ -18,6 +18,7 @@ internal sealed class TranslatingSender : IWhatsAppSender
     private const int MaxButtonLabel = 20, MaxRowOrSectionTitle = 24, MaxFlowCta = 30;
     private static readonly ConcurrentDictionary<string, string> Cache = new();
     private static readonly Regex Digits = new("[0-9]+", RegexOptions.Compiled);
+    private static readonly ConcurrentDictionary<string, string> ButtonLabelOrigins = new();
 
     private readonly IWhatsAppSender _inner;
     private readonly IAiOrderAssistant _ai;
@@ -84,9 +85,35 @@ internal sealed class TranslatingSender : IWhatsAppSender
     public async Task SendButtonsMessageAsync(string toPhoneNumber, string bodyText, IReadOnlyList<string> buttonLabels, CancellationToken cancellationToken = default)
     {
         var target = TargetFor(toPhoneNumber);
-        if (target is not null) bodyText = (await TranslateAsync(new[] { bodyText }, target, cancellationToken))[0];
+        if (target is not null)
+        {
+            // The language picker keeps its fixed labels; every other label is translated and remembered so a tap can be mapped back.
+            var translatable = buttonLabels.Where(l => !Lang.ButtonLabels.Contains(l)).ToList();
+            var translated = await TranslateAsync(translatable.Prepend(bodyText).ToList(), target, cancellationToken);
+            bodyText = translated[0];
+
+            var shown = translatable.Select((l, i) => FitOrOriginal(translated[i + 1], l, MaxButtonLabel)).ToList();
+            var collides = shown.GroupBy(s => s).Any(g => g.Count() > 1) || shown.Any(s => Lang.ButtonLabels.Contains(s));
+            if (collides) shown = translatable;
+
+            if (ButtonLabelOrigins.Count > MaxCachedTranslations) ButtonLabelOrigins.Clear();
+            var swap = new Dictionary<string, string>();
+            for (var i = 0; i < translatable.Count; i++)
+            {
+                swap.TryAdd(translatable[i], shown[i]);
+                if (shown[i] != translatable[i]) ButtonLabelOrigins[OriginKey(toPhoneNumber, shown[i])] = translatable[i];
+            }
+            buttonLabels = buttonLabels.Select(l => swap.TryGetValue(l, out var s) ? s : l).ToList();
+        }
+
         await _inner.SendButtonsMessageAsync(toPhoneNumber, bodyText, buttonLabels, cancellationToken);
     }
+
+    /// <summary>A tapped (translated) button arrives as its label; map it back to the original label the engine matches on.</summary>
+    public string RestoreButtonLabel(string message) =>
+        Seller is not null && ButtonLabelOrigins.TryGetValue(OriginKey(Seller.WhatsAppPhoneNumber, message.Trim()), out var original) ? original : message;
+
+    private static string OriginKey(string phone, string label) => $"{phone}\u0001{label}";
 
     public Task<bool> SendTemplateMessageAsync(string toPhoneNumber, IReadOnlyList<string> bodyParameters, CancellationToken cancellationToken = default) =>
         _inner.SendTemplateMessageAsync(toPhoneNumber, bodyParameters, cancellationToken);
