@@ -206,11 +206,12 @@ public partial class ConversationEngine
     }
 
     /// <summary>Screen 3c: something threw while handling a message — tell the seller instead of going silent.</summary>
-    public Task SendSystemErrorAsync(string fromPhoneNumber, CancellationToken ct = default) =>
+    public Task SendSystemErrorAsync(string fromPhoneNumber, string? issueCode = null, CancellationToken ct = default) =>
         _sender.SendTextMessageAsync(fromPhoneNumber,
             "⚠️ Kuch masla ho gaya — aapka kaam save nahi ho saka.\n" +
             "Dobara try karein, ya thodi der baad koshish karein.\n\n" +
-            "Aapka message safe hai — kuch delete nahi hua.", ct);
+            "Aapka message safe hai — kuch delete nahi hua." +
+            (issueCode is null ? "" : $"\n\nSupport ko batana ho to yeh code bataein: {issueCode}"), ct);
 
     private async Task HandleIdleAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {

@@ -33,6 +33,8 @@ public sealed class ScheduledMessagesService : BackgroundService
             catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
             {
                 _logger.LogError(ex, "Scheduled messages run failed");
+                using var reportScope = _scopes.CreateScope();
+                await reportScope.ServiceProvider.GetRequiredService<IIssueReporter>().ReportAsync(IssueCodes.ScheduledJobFailed, null, null, ex, stoppingToken);
             }
         } while (await timer.WaitForNextTickAsync(stoppingToken));
     }

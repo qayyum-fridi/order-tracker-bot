@@ -39,6 +39,7 @@ public static class DependencyInjection
         services.AddHttpClient<IWhatsAppSender, WhatsAppSender>();
         services.AddHttpClient<IAiOrderAssistant, OpenAiOrderAssistant>();
         services.AddHttpClient<IFounderAlertNotifier, FounderAlertNotifier>();
+        services.AddHttpClient<IIssueReporter, IssueReporter>(c => c.Timeout = TimeSpan.FromSeconds(5));
         services.AddHttpClient<IWhatsAppMediaClient, WhatsAppMediaClient>();
         services.AddHttpClient<ICatalogSheetImporter, CatalogSheetImporter>();
         services.AddHttpClient<InstagramClient>();

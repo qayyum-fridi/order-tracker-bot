@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Ai;
 
 namespace OrderTrackerBot.Infrastructure.Ai;
@@ -18,9 +19,11 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
     private readonly HttpClient _httpClient;
     private readonly OpenAiOptions _options;
     private readonly ILogger<OpenAiOrderAssistant> _logger;
+    private readonly IIssueReporter _issues;
 
-    public OpenAiOrderAssistant(HttpClient httpClient, IOptions<OpenAiOptions> options, ILogger<OpenAiOrderAssistant> logger)
+    public OpenAiOrderAssistant(HttpClient httpClient, IOptions<OpenAiOptions> options, ILogger<OpenAiOrderAssistant> logger, IIssueReporter issues)
     {
+        _issues = issues;
         _httpClient = httpClient;
         _options = options.Value;
         _logger = logger;
@@ -117,6 +120,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         catch (Exception ex)
         {
             _logger.LogError(ex, "OpenAI order analysis failed — falling back to unclear.");
+            await _issues.ReportAsync(IssueCodes.OpenAiAnalysisFailed, null, $"Seller: {context.BusinessName}", ex, cancellationToken);
             return new AiMessageAnalysis
             {
                 Intent = "unclear",
