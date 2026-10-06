@@ -36,6 +36,15 @@ public partial class ConversationEngine
 
         var catalog = await LoadCatalogAsync(seller, ct);
         var analysis = await _ai.AnalyzeMessageAsync(AiContext(seller, catalog), message, ct);
+        if (analysis.AiUnavailable && PhoneNumber.IsMatch(message))
+        {
+            // Looks like an order but the AI can't read it right now — say so instead of the misleading format hint.
+            await ReplyAsync(seller,
+                "⚠️ Yeh order lag raha hai, lekin abhi main isay parh nahi pa raha (AI service available nahi). " +
+                "Thori der baad dobara bhejein. Tab tak 'naam - price' se product add kar saktay hain, ya 'done'/'skip' likhein.", ct);
+            return true;
+        }
+
         if (!analysis.IsOrderAttempt || analysis.Order is null) return false;
 
         seller.OnboardingComplete = true;

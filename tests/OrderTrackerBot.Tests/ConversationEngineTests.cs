@@ -961,6 +961,23 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task OrderTextDuringCatalogStep_WhenAiUnavailable_SaysSoInsteadOfFormatHint()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+        await StartCatalogStepAsync(engine);
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "unclear", IsOrderAttempt = false, AiUnavailable = true });
+
+        await engine.HandleIncomingMessageAsync(Phone, "Ayesha 2 lawn suit aur 1 kurti, 0300-1234567, Gulberg Lahore", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("AI service available nahi"));
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("Maazrat, samajh nahi aaya"));
+        Assert.False((await db.Sellers.FirstAsync()).OnboardingComplete);
+        Assert.Equal(ConversationState.OnboardingAddProduct, (await db.Sessions.FirstAsync()).State);
+    }
+
+    [Fact]
     public async Task OrderLineWithPhoneNumber_IsNeverSavedAsCatalogProduct()
     {
         using var db = _dbFactory.CreateContext();
