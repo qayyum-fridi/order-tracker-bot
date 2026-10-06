@@ -161,3 +161,8 @@ shared-state action: confirm with the user and get SSH/host details first.
 - `OrderStatus.Returned` (+ `Order.ReturnedAt`): "mark 3 returned/wapas", "Ayesha ka order wapas aa gaya". Only from Shipped/Delivered (a pending order is
   cancelled instead). Excluded everywhere Cancelled is excluded from sales/loyalty/customer spend; shown as "Returned: N" in today's/weekly summary.
   New columns (`Orders.DeliveryCharge`, `Orders.ReturnedAt`, `Sellers.DefaultDeliveryCharge`) are added on Sqlite by the patcher — **no SQL Server migration**.
+- Inbound WhatsApp messages go through `WebhookMessageGate` (Infrastructure/WhatsApp): a per-sender `SemaphoreSlim` (in-process only — several app
+  instances would need sticky routing or a DB lock) and a DB claim on the message id (`ProcessedWebhookMessages`, PK) made in its own scope before
+  handling, so Meta redeliveries are dropped across restarts. A message whose handling throws stays claimed (the seller got the error reply).
+  The scheduler purges claims older than 7 days, claims weekly/trial sends with an atomic `ExecuteUpdate` (never twice), and isolates per-seller
+  failures (reported as OTB-5001). Ported from PR #9 without its voice-note part.

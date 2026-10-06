@@ -19,22 +19,58 @@ public partial class ConversationEngine
         if (lastSundayNineLocal > local) lastSundayNineLocal = lastSundayNineLocal.AddDays(-7);
         var weeklyDueUtc = lastSundayNineLocal - PakistanOffset;
 
+        // Meta stops redelivering well within a day; a week of message-id claims keeps the dedupe table small.
+        try
+        {
+            var cutoff = utcNow.AddDays(-7);
+            await _db.ProcessedWebhookMessages.Where(m => m.ProcessedAt < cutoff).ExecuteDeleteAsync(ct);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            await ReportScheduledIssueAsync(null, "purge processed webhook ids", ex, ct);
+        }
+
         var sellers = await _db.Sellers.Where(s => s.OnboardingComplete).ToListAsync(ct);
         foreach (var seller in sellers)
         {
-            if ((seller.LastWeeklySummaryAt is null || seller.LastWeeklySummaryAt < weeklyDueUtc) && seller.CreatedAt < weeklyDueUtc)
+            try
             {
-                await SendWeeklySummaryAsync(seller, weeklyDueUtc, ct);
-                seller.LastWeeklySummaryAt = utcNow;
+                if ((seller.LastWeeklySummaryAt is null || seller.LastWeeklySummaryAt < weeklyDueUtc) && seller.CreatedAt < weeklyDueUtc)
+                {
+                    // Atomic claim: only the run whose UPDATE still sees the stale timestamp sends — never twice, even with two instances.
+                    var id = seller.Id;
+                    var claimed = await _db.Sellers
+                        .Where(s => s.Id == id && (s.LastWeeklySummaryAt == null || s.LastWeeklySummaryAt < weeklyDueUtc))
+                        .ExecuteUpdateAsync(u => u.SetProperty(s => s.LastWeeklySummaryAt, utcNow), ct);
+                    if (claimed == 1)
+                    {
+                        seller.LastWeeklySummaryAt = utcNow;
+                        await SendWeeklySummaryAsync(seller, weeklyDueUtc, ct);
+                    }
+                }
+
+                if (_billing.Enabled && seller.SubscriptionActiveUntil is null && seller.TrialReminderSentAt is null
+                    && seller.TrialEndsAt is { } end && end > utcNow && end - utcNow <= TimeSpan.FromDays(2))
+                {
+                    var id = seller.Id;
+                    var claimed = await _db.Sellers
+                        .Where(s => s.Id == id && s.TrialReminderSentAt == null)
+                        .ExecuteUpdateAsync(u => u.SetProperty(s => s.TrialReminderSentAt, utcNow), ct);
+                    if (claimed == 1) await SendTrialEndingReminderAsync(seller, ct);
+                }
+
+                await _db.SaveChangesAsync(ct);
             }
-
-            if (_billing.Enabled && seller.SubscriptionActiveUntil is null && seller.TrialReminderSentAt is null
-                && seller.TrialEndsAt is { } end && end > utcNow && end - utcNow <= TimeSpan.FromDays(2))
-                await SendTrialEndingReminderAsync(seller, ct);
-
-            await _db.SaveChangesAsync(ct);
+            catch (Exception ex) when (!ct.IsCancellationRequested)
+            {
+                // One seller's failure must not stop everyone else's weekly summary.
+                await ReportScheduledIssueAsync(seller.WhatsAppPhoneNumber, $"seller {seller.Id}", ex, ct);
+            }
         }
     }
+
+    private Task ReportScheduledIssueAsync(string? phone, string detail, Exception ex, CancellationToken ct) =>
+        _issues?.ReportAsync(Abstractions.IssueCodes.ScheduledJobFailed, phone, detail, ex, ct) ?? Task.CompletedTask;
 
     private async Task SendWeeklySummaryAsync(Seller seller, DateTime weekEndUtc, CancellationToken ct)
     {

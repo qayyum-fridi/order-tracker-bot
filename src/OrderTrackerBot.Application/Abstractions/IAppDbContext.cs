@@ -21,6 +21,7 @@ public interface IAppDbContext
     DbSet<Campaign> Campaigns { get; }
     DbSet<CampaignSend> CampaignSends { get; }
     DbSet<MessageLog> MessageLogs { get; }
+    DbSet<ProcessedWebhookMessage> ProcessedWebhookMessages { get; }
     DbSet<InstagramConnection> InstagramConnections { get; }
     DbSet<CommentLead> CommentLeads { get; }
     DbSet<SupportQuery> SupportQueries { get; }

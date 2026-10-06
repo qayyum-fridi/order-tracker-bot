@@ -153,6 +153,13 @@ public class MessageLog
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
+/// <summary>Claim row per processed WhatsApp message id (PK) so Meta's redeliveries are dropped across restarts and instances.</summary>
+public class ProcessedWebhookMessage
+{
+    public required string MessageId { get; set; }
+    public DateTime ProcessedAt { get; set; } = DateTime.UtcNow;
+}
+
 /// <summary>A seller's Instagram Business/Creator account connected via OAuth, so comment webhooks can be routed to them (V5, section 6c).</summary>
 public class InstagramConnection
 {

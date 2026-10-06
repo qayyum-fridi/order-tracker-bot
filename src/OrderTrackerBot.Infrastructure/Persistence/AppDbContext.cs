@@ -24,6 +24,7 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<Campaign> Campaigns => Set<Campaign>();
     public DbSet<CampaignSend> CampaignSends => Set<CampaignSend>();
     public DbSet<MessageLog> MessageLogs => Set<MessageLog>();
+    public DbSet<ProcessedWebhookMessage> ProcessedWebhookMessages => Set<ProcessedWebhookMessage>();
     public DbSet<InstagramConnection> InstagramConnections => Set<InstagramConnection>();
     public DbSet<CommentLead> CommentLeads => Set<CommentLead>();
     public DbSet<SupportQuery> SupportQueries => Set<SupportQuery>();
@@ -106,6 +107,12 @@ public class AppDbContext : DbContext, IAppDbContext
         modelBuilder.Entity<CampaignSend>(e =>
             e.HasOne(s => s.Campaign).WithMany(c => c.Sends).HasForeignKey(s => s.CampaignId).OnDelete(DeleteBehavior.Cascade));
         modelBuilder.Entity<MessageLog>(e => e.HasIndex(m => new { m.Phone, m.CreatedAt }));
+        modelBuilder.Entity<ProcessedWebhookMessage>(e =>
+        {
+            e.HasKey(m => m.MessageId);
+            e.Property(m => m.MessageId).HasMaxLength(200);
+            e.HasIndex(m => m.ProcessedAt);
+        });
 
         modelBuilder.Entity<ActionLog>(e => e.HasIndex(a => new { a.SellerId, a.Undone }));
         modelBuilder.Entity<MerchantFeedback>(e => e.HasIndex(m => m.SellerId));

@@ -467,6 +467,45 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task ScheduledJobs_OneSellersFailure_DoesNotStopTheOthers_AndIsReported()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        var first = await db.Sellers.FirstAsync();
+        first.CreatedAt = DateTime.UtcNow.AddDays(-20);
+        const string otherPhone = "923009998888";
+        db.Sellers.Add(new OrderTrackerBot.Domain.Entities.Seller
+        {
+            WhatsAppPhoneNumber = otherPhone, BusinessName = "Second Shop", OnboardingComplete = true, CreatedAt = DateTime.UtcNow.AddDays(-20),
+            Session = new OrderTrackerBot.Domain.Entities.ConversationSession { State = ConversationState.Idle }
+        });
+        await db.SaveChangesAsync();
+        _sender.Setup(s => s.SendTextMessageAsync(Phone, It.Is<string>(t => t.Contains("Weekly Summary")), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("WhatsApp down"));
+        var issues = new Mock<IIssueReporter>();
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, issues: issues.Object);
+
+        await engine.RunScheduledJobsAsync(DateTime.UtcNow);
+
+        _sender.Verify(s => s.SendTextMessageAsync(otherPhone, It.Is<string>(t => t.Contains("Weekly Summary — Second Shop")), It.IsAny<CancellationToken>()), Times.Once);
+        issues.Verify(i => i.ReportAsync(IssueCodes.ScheduledJobFailed, Phone, It.IsAny<string?>(), It.IsAny<HttpRequestException>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ScheduledJobs_PurgeWebhookClaimsOlderThanAWeek()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        db.ProcessedWebhookMessages.Add(new OrderTrackerBot.Domain.Entities.ProcessedWebhookMessage { MessageId = "old", ProcessedAt = DateTime.UtcNow.AddDays(-8) });
+        db.ProcessedWebhookMessages.Add(new OrderTrackerBot.Domain.Entities.ProcessedWebhookMessage { MessageId = "recent", ProcessedAt = DateTime.UtcNow.AddHours(-2) });
+        await db.SaveChangesAsync();
+
+        await engine.RunScheduledJobsAsync(DateTime.UtcNow);
+
+        Assert.Equal(new[] { "recent" }, await db.ProcessedWebhookMessages.AsNoTracking().Select(m => m.MessageId).ToArrayAsync());
+    }
+
+    [Fact]
     public async Task MessageLog_RecordsInboundAndOutbound()
     {
         using var db = _dbFactory.CreateContext();

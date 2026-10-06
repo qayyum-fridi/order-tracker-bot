@@ -48,6 +48,7 @@ public static class DependencyInjection
         services.AddSingleton(configuration.GetSection(FeatureOptions.SectionName).Get<FeatureOptions>() ?? new FeatureOptions());
 
         services.AddSingleton<IReceiptPdfGenerator, Pdf.ReceiptPdfGenerator>();
+        services.AddSingleton<WhatsApp.WebhookMessageGate>();
         services.AddSingleton<IExportFileWriter, Export.ExportXlsxWriter>();
         services.AddScoped<ConversationEngine>();
 

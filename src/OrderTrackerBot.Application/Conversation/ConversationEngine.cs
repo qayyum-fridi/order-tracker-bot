@@ -26,13 +26,15 @@ public partial class ConversationEngine
     private readonly IReceiptPdfGenerator? _receiptPdf;
     private readonly IExportFileWriter? _exportWriter;
     private readonly FeatureOptions _features;
+    private readonly IIssueReporter? _issues;
     private readonly MessageLoggingSender _turn;
     private Seller? _turnSeller;
     private SessionContextData? _turnCtx;
 
     public ConversationEngine(IAppDbContext db, IAiOrderAssistant ai, IWhatsAppSender sender, IFounderAlertNotifier founderAlerts,
         BillingOptions? billing = null, IWhatsAppMediaClient? media = null, IInstagramClient? instagram = null, ICatalogSheetImporter? catalogSheets = null,
-        IReceiptPdfGenerator? receiptPdf = null, IExportFileWriter? exportWriter = null, FeatureOptions? features = null)
+        IReceiptPdfGenerator? receiptPdf = null, IExportFileWriter? exportWriter = null, FeatureOptions? features = null,
+        IIssueReporter? issues = null)
     {
         _db = db;
         _ai = ai;
@@ -45,6 +47,7 @@ public partial class ConversationEngine
         _catalogSheets = catalogSheets;
         _receiptPdf = receiptPdf;
         _exportWriter = exportWriter;
+        _issues = issues;
         // Unconfigured (e.g. unit tests) means off; the app registers FeatureOptions with its real defaults.
         _features = features ?? new FeatureOptions { ShortcutButtons = false };
     }
