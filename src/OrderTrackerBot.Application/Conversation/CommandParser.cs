@@ -69,6 +69,7 @@ public enum CommandKind
     DeliveryCharge,
     EditOrder,
     OrderDetail,
+    Stock,
     OrderPayment,
     OrderDeliveryCharge,
     RemoveBranding,
@@ -180,6 +181,11 @@ public static class CommandParser
     private static readonly Regex DeliveryFree = new(@"^(?:free\s+delivery|delivery\s+free|no\s+delivery(?:\s+charges?)?|delivery\s+(?:charges?\s+)?(?:nahi|none|off)|فری\s+ڈیلیوری)$", Opts);
     private static readonly Regex DeliveryShow = new(@"^(?:my\s+)?" + DeliveryWord + "$", Opts);
     private static readonly Regex OrderDelivery = new(@"^(?:order|آرڈر)?\s*#?(?<id>\d+)\s+" + DeliveryWord + @"\s*[:=-]?\s*(?:rs\.?\s*)?(?<n>\d{1,6}|free|0)$|^(?:order|آرڈر)\s*#?(?<id>\d+)\s+free\s+delivery$", Opts);
+
+    // "stock" lists tracked stock; "stock Kurti 20" sets, "stock Kurti +10" adds, "stock Kurti off" stops tracking. Text = product, Text2 = set|add|off.
+    private static readonly Regex StockList = new(@"^(?:stock|stocks|inventory|stock\s+list|اسٹاک)$", Opts);
+    private static readonly Regex StockOff = new(@"^(?:stock|اسٹاک)\s*:?\s*(?<name>[^\d].*?)\s+(?:off|band|remove|hatao)$", Opts);
+    private static readonly Regex StockSet = new(@"^(?:stock|اسٹاک)\s*:?\s*(?<name>[^\d].*?)\s*[=:]?\s*(?<sign>\+)?\s*(?<n>\d{1,6})$|^(?<name>[^\d].*?)\s+(?:ka\s+|ki\s+)?(?:stock|اسٹاک)\s*[=:]?\s*(?<sign>\+)?\s*(?<n>\d{1,6})$", Opts);
 
     // "order 12" / "#12" shows one order in full.
     private static readonly Regex OrderDetail = new(@"^(?:order|آرڈر)\s*#?(?<n>\d+)$|^#(?<n>\d+)$", Opts);
@@ -585,6 +591,14 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.PriceTiers, Text = m.Groups[1].Value.Trim(), Text2 = m.Groups[2].Value.Trim() };
         if (CampaignStatus.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CampaignStatus };
         if (DiscountPerformance.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DiscountPerformance };
+        if (StockList.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Stock };
+        if ((m = StockOff.Match(message)).Success) return new ParsedCommand { Kind = CommandKind.Stock, Text = m.Groups["name"].Value.Trim(), Text2 = "off" };
+        if ((m = StockSet.Match(message)).Success)
+            return new ParsedCommand
+            {
+                Kind = CommandKind.Stock, Text = m.Groups["name"].Value.Trim(), Text2 = m.Groups["sign"].Success ? "add" : "set",
+                Amount = decimal.Parse(m.Groups["n"].Value)
+            };
         if ((m = OrderDetail.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.OrderDetail, Number = int.Parse(m.Groups["n"].Value) };
         if ((m = OrderPayment.Match(message)).Success)

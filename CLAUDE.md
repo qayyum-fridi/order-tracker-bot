@@ -177,3 +177,8 @@ shared-state action: confirm with the user and get SSH/host details first.
   to Paid at the total; an advance written in a new order ("…, advance 500") or typed while confirming is saved with the order. Every
   "mark paid" path goes through `MarkFullyPaid` (logs previous status + amount for undo). Unpaid/COD lists, payment link, today's summary,
   receipt and export use the balance. "order 12" / "#12" shows one order in full.
+- Stock (`ConversationEngine.Stock.cs`): only products with a `StockQty` are tracked ("stock Kurti 20" / "+10" / "off", "stock" lists).
+  An active order holds its items' quantities, a cancelled/returned one holds none; every lifecycle change (save, cancel, status change incl.
+  returned, edit, undo of any of these) applies `StockFootprint(after) - StockFootprint(before)` — add that call around any new place that
+  changes an order's items or status. Stock can go negative (oversold). Low/out-of-stock warnings (≤3) are collected per turn and sent once
+  after the reply (`FlushStockWarningsAsync`).

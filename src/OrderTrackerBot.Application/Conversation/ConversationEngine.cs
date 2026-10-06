@@ -63,7 +63,9 @@ public partial class ConversationEngine
         _turn.Reset();
         _turnSeller = null;
         _turnCtx = null;
+        _stockWarnings.Clear();
         await HandleIncomingCoreAsync(fromPhoneNumber, rawMessage, ct);
+        await FlushStockWarningsAsync(fromPhoneNumber, ct);
         await TrySendShortcutBarAsync(fromPhoneNumber, ct);
     }
 

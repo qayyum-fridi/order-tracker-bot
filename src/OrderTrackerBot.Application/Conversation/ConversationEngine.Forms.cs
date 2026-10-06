@@ -172,6 +172,7 @@ public partial class ConversationEngine
             $"✅ Order saved (#{order.Id}) — {customerName}, {Formatters.ProductLabel(product)} x{quantity}, {Formatters.Money(order.Total)}" +
             (order.DeliveryCharge > 0 ? $" (delivery {Formatters.Money(order.DeliveryCharge)} shamil)" : "") + $", {payment}" +
             (order.DeliveryDate is { } d ? $", delivery {d:dd MMM}." : "."), ct);
+        await FlushStockWarningsAsync(seller.WhatsAppPhoneNumber, ct);
     }
 
     // Flow date pickers send "yyyy-MM-dd"; calendar pickers send epoch milliseconds.

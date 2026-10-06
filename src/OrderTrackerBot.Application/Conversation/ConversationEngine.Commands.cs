@@ -218,6 +218,9 @@ public partial class ConversationEngine
             case CommandKind.DisconnectInstagram:
                 await HandleDisconnectInstagramAsync(seller, ct);
                 return;
+            case CommandKind.Stock:
+                await HandleStockAsync(seller, cmd, ct);
+                return;
             case CommandKind.OrderDetail:
                 await HandleOrderDetailAsync(seller, ctx, cmd.Number!.Value, ct);
                 return;
@@ -526,7 +529,7 @@ public partial class ConversationEngine
             return;
         }
 
-        var lines = products.Select((p, i) => $"{i + 1} {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}");
+        var lines = products.Select((p, i) => $"{i + 1} {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}" + (p.StockQty is { } q ? $" (stock {q})" : ""));
         await ReplyAsync(seller,
             $"🛍️ Aapka Catalog ({products.Count} products):\n\n{string.Join("\n", lines)}\n\n" +
             "Naya product add karne ke liye bas likhein: Kurti - 1800\n" +
@@ -784,7 +787,9 @@ public partial class ConversationEngine
             return;
         }
 
+        var stockBefore = StockFootprint(order);
         order.Status = newStatus;
+        await ApplyStockChangeAsync(seller, stockBefore, StockFootprint(order), ct);
         order.ShippedAt = newStatus == OrderStatus.Shipped ? DateTime.UtcNow : order.ShippedAt;
         order.DeliveredAt = newStatus == OrderStatus.Delivered ? DateTime.UtcNow : order.DeliveredAt;
         order.ReturnedAt = newStatus == OrderStatus.Returned ? DateTime.UtcNow : order.ReturnedAt;

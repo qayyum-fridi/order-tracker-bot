@@ -644,6 +644,7 @@ public partial class ConversationEngine
 
         _db.Orders.Add(order);
         await _db.SaveChangesAsync(ct);
+        await ApplyStockChangeAsync(seller, new Dictionary<int, int>(), StockFootprint(order), ct);
 
         _db.ActionLogs.Add(new ActionLog
         {

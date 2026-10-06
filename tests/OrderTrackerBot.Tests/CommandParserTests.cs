@@ -541,4 +541,29 @@ public class CommandParserTests
     {
         Assert.False(CommandParser.TryFindAdvanceInOrderText(message, out _));
     }
+
+    [Theory]
+    [InlineData("stock", null, null, null)]
+    [InlineData("inventory", null, null, null)]
+    [InlineData("stock Kurti 20", "Kurti", "set", 20)]
+    [InlineData("stock: Lawn Suit = 5", "Lawn Suit", "set", 5)]
+    [InlineData("Kurti stock 20", "Kurti", "set", 20)]
+    [InlineData("Kurti ka stock 15", "Kurti", "set", 15)]
+    [InlineData("stock Kurti +10", "Kurti", "add", 10)]
+    [InlineData("stock Kurti off", "Kurti", "off", null)]
+    public void ParsesStockCommands(string message, string? product, string? mode, int? amount)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.Equal(CommandKind.Stock, parsed!.Kind);
+        Assert.Equal(product, parsed.Text);
+        Assert.Equal(mode, parsed.Text2);
+        Assert.Equal(amount, parsed.Amount is null ? null : (int?)parsed.Amount);
+    }
+
+    [Fact]
+    public void Stock_DoesNotStealProductLines()
+    {
+        Assert.Equal(CommandKind.AddProduct, CommandParser.TryParse("Kurti - 1800")!.Kind);
+        Assert.Equal(CommandKind.AddProduct, CommandParser.TryParse("Sugar 5 kg - 500")!.Kind);
+    }
 }

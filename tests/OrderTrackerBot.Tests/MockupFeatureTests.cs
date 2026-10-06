@@ -444,6 +444,75 @@ public class MockupFeatureTests : IDisposable
         Assert.Equal(PaymentStatus.Paid, order.PaymentStatus);
     }
 
+    private async Task<int?> StockOf(AppDbContext db, string name) =>
+        (await db.Products.AsNoTracking().FirstAsync(p => p.Name == name)).StockQty;
+
+    [Fact]
+    public async Task Stock_FollowsTheOrderLifecycle_AndWarnsWhenLow()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await engine.HandleIncomingMessageAsync(Phone, "stock Kurti 5", default);
+        Assert.Contains(_sent, m => m.Contains("Kurti — stock: 5"));
+
+        // Save: 2 kurtis held -> 3 left, which is "low".
+        AiReturns(Order("Sara", "Kurti", 2));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 2 kurti, 03001234567", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        Assert.Equal(3, await StockOf(db, "Kurti"));
+        Assert.Contains(_sent, m => m.Contains("Stock alert") && m.Contains("Kurti: sirf 3 bache"));
+        Assert.Null(await StockOf(db, "Lawn Suit")); // untracked stays untracked
+        var order = await db.Orders.FirstAsync();
+
+        // Edit 2 -> 4: two more held; undo gives them back.
+        await engine.HandleIncomingMessageAsync(Phone, $"edit order {order.Id}", default);
+        await engine.HandleIncomingMessageAsync(Phone, "1 = 4", default);
+        await engine.HandleIncomingMessageAsync(Phone, "done", default);
+        Assert.Equal(1, await StockOf(db, "Kurti"));
+        await engine.HandleIncomingMessageAsync(Phone, "undo", default);
+        Assert.Equal(3, await StockOf(db, "Kurti"));
+
+        // Shipped then returned: the goods come back. Undo of the return holds them again.
+        await engine.HandleIncomingMessageAsync(Phone, $"mark {order.Id} shipped", default);
+        Assert.Equal(3, await StockOf(db, "Kurti"));
+        await engine.HandleIncomingMessageAsync(Phone, $"mark {order.Id} returned", default);
+        Assert.Equal(5, await StockOf(db, "Kurti"));
+        await engine.HandleIncomingMessageAsync(Phone, "undo", default);
+        Assert.Equal(3, await StockOf(db, "Kurti"));
+
+        // Cancel releases the stock.
+        await engine.HandleIncomingMessageAsync(Phone, $"cancel order {order.Id}", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        Assert.Equal(5, await StockOf(db, "Kurti"));
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "stock", default);
+        Assert.Contains(_sent, m => m.Contains("Stock (1)") && m.Contains("Kurti: 5"));
+        await engine.HandleIncomingMessageAsync(Phone, "catalog", default);
+        Assert.Contains(_sent, m => m.Contains("Kurti - Rs.1,800 (stock 5)"));
+    }
+
+    [Fact]
+    public async Task Stock_AddAndOff_AndOverselling_IsFlagged()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await engine.HandleIncomingMessageAsync(Phone, "stock Kurti 1", default);
+        await engine.HandleIncomingMessageAsync(Phone, "stock Kurti +1", default);
+        Assert.Equal(2, await StockOf(db, "Kurti"));
+
+        AiReturns(Order("Sara", "Kurti", 3));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 3 kurti, 03001234567", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        Assert.Equal(-1, await StockOf(db, "Kurti"));
+        Assert.Contains(_sent, m => m.Contains("Kurti: stock khatam (-1)"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "stock kurti off", default);
+        Assert.Null(await StockOf(db, "Kurti"));
+        await engine.HandleIncomingMessageAsync(Phone, "stock Shalwar 5", default);
+        Assert.Contains(_sent, m => m.Contains("\"Shalwar\" catalog mein nahi mila"));
+    }
+
     [Fact]
     public async Task NewOrder_DefaultsToCod()
     {

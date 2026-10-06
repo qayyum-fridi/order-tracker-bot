@@ -95,6 +95,7 @@ public partial class ConversationEngine
 
         var before = Snapshot(order);
         var previousTotal = order.Total;
+        var stockBefore = StockFootprint(order);
         var (ok, result) = await ApplyOrderEditAsync(seller, order, change, ct);
         if (!ok)
         {
@@ -113,6 +114,7 @@ public partial class ConversationEngine
         }
 
         await RecalculateOrderTotalsAsync(seller, order, ct);
+        await ApplyStockChangeAsync(seller, stockBefore, StockFootprint(order), ct);
         var paidWarning = order.PaymentStatus == PaymentStatus.Paid && order.Total != previousTotal
             ? $"\n⚠️ Payment PAID thi ({Formatters.Money(previousTotal)}) — farq ka hisaab khud rakhein."
             : "";
@@ -209,6 +211,7 @@ public partial class ConversationEngine
         var snapshot = JsonSerializer.Deserialize<EditSnapshot>(log.PayloadJson);
         if (order is null || snapshot is null) return;
 
+        var stockBefore = StockFootprint(order);
         foreach (var item in order.Items.ToList())
         {
             order.Items.Remove(item);
@@ -221,6 +224,7 @@ public partial class ConversationEngine
         order.DeliveryCharge = snapshot.DeliveryCharge;
         order.Total = snapshot.Total;
         order.PaymentMethod = snapshot.PaymentMethod;
+        await ApplyStockChangeAsync(seller, stockBefore, StockFootprint(order), ct);
         if (order.Customer is { } customer)
         {
             customer.Name = snapshot.CustomerName ?? customer.Name;

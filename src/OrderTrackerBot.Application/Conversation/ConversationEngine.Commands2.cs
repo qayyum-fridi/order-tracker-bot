@@ -35,9 +35,10 @@ public partial class ConversationEngine
             return;
         }
 
-        var order = await _db.Orders.FirstOrDefaultAsync(o => o.Id == ctx.CancelOrderId && o.SellerId == seller.Id, ct);
+        var order = await _db.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == ctx.CancelOrderId && o.SellerId == seller.Id, ct);
         ctx.CancelOrderId = null;
         if (order is null) return;
+        var stockBefore = StockFootprint(order);
 
         _db.ActionLogs.Add(new ActionLog
         {
@@ -48,6 +49,7 @@ public partial class ConversationEngine
         });
         order.Status = OrderStatus.Cancelled;
         order.CancelledAt = DateTime.UtcNow;
+        await ApplyStockChangeAsync(seller, stockBefore, StockFootprint(order), ct);
         await ReplyAsync(seller, $"✅ Order #{order.Id} CANCELLED.", ct);
     }
 
@@ -109,10 +111,12 @@ public partial class ConversationEngine
         {
             case ActionType.OrderCreated when last.OrderId is not null:
             {
-                var order = await _db.Orders.FirstOrDefaultAsync(o => o.Id == last.OrderId && o.SellerId == seller.Id, ct);
+                var order = await _db.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == last.OrderId && o.SellerId == seller.Id, ct);
                 if (order is null) return;
+                var stockBefore = StockFootprint(order);
                 order.Status = OrderStatus.Cancelled;
                 order.CancelledAt = DateTime.UtcNow;
+                await ApplyStockChangeAsync(seller, stockBefore, StockFootprint(order), ct);
                 await ReplyAsync(seller, $"↩️ Reverted — Order #{order.Id} hata diya (CANCELLED).", ct);
                 return;
             }
@@ -125,7 +129,9 @@ public partial class ConversationEngine
                 using var doc = JsonDocument.Parse(last.PayloadJson);
                 if (doc.RootElement.TryGetProperty("PreviousStatus", out var prevStatusEl))
                 {
+                    var stockBefore = StockFootprint(order);
                     order.Status = Enum.Parse<OrderStatus>(prevStatusEl.GetString()!);
+                    await ApplyStockChangeAsync(seller, stockBefore, StockFootprint(order), ct);
                     await ReplyAsync(seller, $"↩️ Reverted — Order #{order.Id} ({order.Customer?.Name} - {Formatters.ItemsSummary(order)}) back to {Formatters.Status(order.Status)}.", ct);
                 }
                 else if (doc.RootElement.TryGetProperty("PreviousPaymentStatus", out var prevPayEl))
