@@ -12,6 +12,32 @@ public partial class ConversationEngine
 {
     private static readonly Regex OrderRef = new(@"#?(\d+)", RegexOptions.Compiled);
 
+    /// <summary>Voice note: transcribe, echo what was heard so the seller can catch mistakes, then handle it exactly like typed text.</summary>
+    public async Task HandleAudioMessageAsync(string fromPhoneNumber, string mediaId, CancellationToken ct = default)
+    {
+        if (_transcriber is not { IsConfigured: true })
+        {
+            await HandleUnsupportedMediaAsync(fromPhoneNumber, "audio", ct);
+            return;
+        }
+
+        var media = _media is null ? null : await _media.DownloadAsync(mediaId, ct);
+        var text = media is null ? null : await _transcriber.TranscribeAsync(media.Value.Bytes, media.Value.MimeType, ct);
+        if (text is null)
+        {
+            if (_issues is not null)
+                await _issues.ReportAsync(Abstractions.IssueCodes.VoiceTranscriptionFailed, fromPhoneNumber,
+                    media is null ? "media download failed" : "transcription returned nothing", null, ct);
+            await _sender.SendTextMessageAsync(fromPhoneNumber,
+                "🎤 Voice message samajh nahi aaya — dobara saaf bol kar bhejein, ya likh kar bhej dein.", ct);
+            await _db.SaveChangesAsync(ct);
+            return;
+        }
+
+        await _sender.SendTextMessageAsync(fromPhoneNumber, $"🎤 Maine suna: \"{text}\"", ct);
+        await HandleIncomingMessageAsync(fromPhoneNumber, text, ct);
+    }
+
     public async Task HandleImageMessageAsync(string fromPhoneNumber, string mediaId, string? caption, CancellationToken ct = default)
     {
         _db.MessageLogs.Add(new MessageLog { Phone = fromPhoneNumber, Direction = "inbound", RawText = $"[image {mediaId}] {caption}" });

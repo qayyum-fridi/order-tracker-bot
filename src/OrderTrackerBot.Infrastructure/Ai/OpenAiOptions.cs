@@ -8,4 +8,9 @@ public class OpenAiOptions
     public string ApiKey { get; set; } = "";
     /// <summary>Cheap, fast model is enough — this is the whole per-message cost driver (see spec's ~$1-2/month target).</summary>
     public string Model { get; set; } = "gpt-4o-mini";
+    /// <summary>Speech-to-text model for voice notes.</summary>
+    public string TranscriptionModel { get; set; } = "whisper-1";
+    /// <summary>Style hint for transcription: the language mix and formats sellers use (names, quantities, phone digits).</summary>
+    public string TranscriptionPrompt { get; set; } =
+        "Pakistani seller order bot. Roman Urdu aur English. Ayesha, 2 lawn suit, 03001234567, Gulberg Lahore, delivery 250, advance 500. mark 3 shipped. orders today.";
 }

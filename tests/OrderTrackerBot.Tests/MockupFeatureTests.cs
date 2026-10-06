@@ -514,6 +514,53 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task VoiceNote_IsTranscribed_Echoed_AndHandledLikeText()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        _media.Setup(m => m.DownloadAsync("voice-1", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
+        var transcriber = new Mock<IAudioTranscriber>();
+        transcriber.SetupGet(t => t.IsConfigured).Returns(true);
+        transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<CancellationToken>())).ReturnsAsync("delivery 200");
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object);
+
+        await engine.HandleAudioMessageAsync(Phone, "voice-1");
+
+        Assert.Contains(_sent, m => m == "🎤 Maine suna: \"delivery 200\"");
+        Assert.Contains(_sent, m => m.Contains("Delivery charge Rs.200 set"));
+        Assert.Equal(200m, (await db.Sellers.FirstAsync()).DefaultDeliveryCharge);
+    }
+
+    [Fact]
+    public async Task VoiceNote_WhenTranscriptionFails_AsksToResend_AndReports()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        _media.Setup(m => m.DownloadAsync("voice-2", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
+        var transcriber = new Mock<IAudioTranscriber>();
+        transcriber.SetupGet(t => t.IsConfigured).Returns(true);
+        var issues = new Mock<IIssueReporter>();
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object,
+            issues: issues.Object, transcriber: transcriber.Object);
+
+        await engine.HandleAudioMessageAsync(Phone, "voice-2");
+
+        Assert.Contains(_sent, m => m.Contains("Voice message samajh nahi aaya"));
+        issues.Verify(i => i.ReportAsync(IssueCodes.VoiceTranscriptionFailed, Phone, It.IsAny<string?>(), null, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task VoiceNote_WithoutTranscription_KeepsTheSendTextReply()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+
+        await engine.HandleAudioMessageAsync(Phone, "voice-3");
+
+        Assert.Contains(_sent, m => m.Contains("Voice message mila") && m.Contains("TEXT"));
+    }
+
+    [Fact]
     public async Task NewOrder_DefaultsToCod()
     {
         using var db = _dbFactory.CreateContext();
