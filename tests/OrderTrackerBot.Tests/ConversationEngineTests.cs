@@ -1120,6 +1120,46 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task Branding_FreeTextWish_ExplainsBothLogoAndBanner()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, receiptPdf: Mock.Of<IReceiptPdfGenerator>());
+
+        await engine.HandleIncomingMessageAsync(Phone, "receipt par apni image lagani hai", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Logo") && m.Contains("Banner") && m.Contains("Photo/Gallery"));
+        _ai.Verify(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Receipt_SuggestsLogoAndBanner_OnFirstTwoReceipts_ThenStops()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var seller = await db.Sellers.FirstAsync();
+        var customer = new OrderTrackerBot.Domain.Entities.Customer { SellerId = seller.Id, Name = "Sara", Phone = "03001112222" };
+        db.Customers.Add(customer);
+        await db.SaveChangesAsync();
+        db.Orders.Add(new OrderTrackerBot.Domain.Entities.Order { SellerId = seller.Id, CustomerId = customer.Id, Total = 100 });
+        await db.SaveChangesAsync();
+        var pdf = new Mock<IReceiptPdfGenerator>();
+        pdf.Setup(p => p.Generate(It.IsAny<ReceiptData>())).Returns(new byte[] { 1 });
+        _sender.Setup(s => s.SendDocumentAsync(Phone, It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, receiptPdf: pdf.Object);
+
+        var hinted = new List<bool>();
+        for (var i = 0; i < 3; i++)
+        {
+            _sentMessages.Clear();
+            await engine.HandleIncomingMessageAsync(Phone, "receipt", default);
+            hinted.Add(_sentMessages.Any(m => m.Contains("logo ya banner lagana chahte hain")));
+        }
+
+        Assert.Equal(new[] { true, true, false }, hinted);
+    }
+
+    [Fact]
     public async Task Branding_HelpAndRemove_ReportCurrentState()
     {
         using var db = _dbFactory.CreateContext();
@@ -1129,7 +1169,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "logo", default);
         await engine.HandleIncomingMessageAsync(Phone, "remove banner", default);
 
-        Assert.Contains(_sentMessages, m => m.Contains("Receipt Logo: abhi set nahi") && m.Contains("caption mein \"logo\""));
+        Assert.Contains(_sentMessages, m => m.Contains("Receipt Logo: abhi set nahi") && m.Contains("Caption mein \"logo\""));
         Assert.Contains(_sentMessages, m => m.Contains("Banner pehle se set nahi hai"));
     }
 

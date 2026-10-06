@@ -74,10 +74,12 @@ public partial class ConversationEngine
             return;
         }
 
+        var suggestBranding = await ShouldSuggestBrandingAsync(seller, branding, ct);
         var chat = ChatLink(order.Customer?.Phone);
         await ReplyAsync(seller,
             "✅ Receipt PDF ready — download ke liye file par tap karein.\n" +
-            "Customer ko bhejne ke liye is PDF ko Forward karein" + (chat is null ? "." : $", ya unki chat yahan kholein:\n{chat}"), ct);
+            "Customer ko bhejne ke liye is PDF ko Forward karein" + (chat is null ? "." : $", ya unki chat yahan kholein:\n{chat}") +
+            (suggestBranding ? "\n\n💡 Receipt par apna logo ya banner lagana chahte hain? \"logo\" ya \"banner\" likhein — main bata dunga kaise." : ""), ct);
         if (fromList)
             await ReplyAsync(seller, $"ℹ️ \"{cmd.Number}\" aapki last list ka number tha (Order #{order.Id}).", ct);
     }

@@ -224,4 +224,38 @@ public class CommandParserTests
         // "receipt logo" is the branding help, not a receipt for a customer called "logo".
         Assert.Equal(CommandKind.BrandingHelp, CommandParser.TryParse("receipt logo")!.Kind);
     }
+
+    [Theory]
+    [InlineData("receipt par apna logo lagana hai", "logo")]
+    [InlineData("bill mein banner kaise lagaon", "banner")]
+    [InlineData("receipt par image lagani hai", null)]
+    [InlineData("invoice mein apni tasveer chahiye", null)]
+    [InlineData("mujhe logo add karna hai", "logo")]
+    [InlineData("رسید پر لوگو لگانا ہے", "logo")]
+    public void ParsesBrandingWishInFreeText(string message, string? kind)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.NotNull(parsed);
+        Assert.Equal(CommandKind.BrandingHelp, parsed!.Kind);
+        Assert.Equal(kind, parsed.Text);
+    }
+
+    [Theory]
+    [InlineData("Logo T-shirt - 1500")]
+    [InlineData("Ayesha ka order logo wala 2 suit")]
+    [InlineData("Banner Stand - 2500")]
+    public void BrandingWish_DoesNotHijackProductsOrOrders(string message)
+    {
+        Assert.NotEqual(CommandKind.BrandingHelp, CommandParser.TryParse(message)?.Kind);
+    }
+
+    [Theory]
+    [InlineData("ye mera logo hai", true, "logo")]
+    [InlineData("receipt ke liye banner", true, "banner")]
+    [InlineData("order screenshot Ayesha 2 suit 03001234567 aaj ke liye", false, "")]
+    public void BrandingCaption_AcceptsShortSentences(string caption, bool expected, string kind)
+    {
+        Assert.Equal(expected, CommandParser.TryParseBrandingCaption(caption, out var parsed));
+        Assert.Equal(kind, parsed);
+    }
 }

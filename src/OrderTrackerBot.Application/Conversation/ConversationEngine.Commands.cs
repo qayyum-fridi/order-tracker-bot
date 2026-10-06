@@ -219,7 +219,7 @@ public partial class ConversationEngine
                 await HandleDisconnectInstagramAsync(seller, ct);
                 return;
             case CommandKind.BrandingHelp:
-                await HandleBrandingHelpAsync(seller, cmd.Text!, ct);
+                await HandleBrandingHelpAsync(seller, cmd.Text, ct);
                 return;
             case CommandKind.RemoveBranding:
                 await HandleRemoveBrandingAsync(seller, cmd.Text!, ct);

@@ -142,13 +142,35 @@ public static class CommandParser
 
     private static string BrandingKind(string word) => word.ToLowerInvariant() is "logo" or "لوگو" ? "logo" : "banner";
 
-    /// <summary>An image caption like "logo" / "receipt banner" / "لوگو" marks the picture as receipt branding.</summary>
+    private static readonly Regex BrandingWordAnywhere = new(@"(?<![\p{L}\p{N}])" + BrandingWord + @"(?![\p{L}\p{N}])", Opts);
+    // A free-text wish to brand receipts, e.g. "receipt mein apna logo lagana hai", "bill par image kaise lagaon". No digits, so product
+    // lines ("Logo T-shirt - 1500") never match: either an image-ish word plus a receipt word, or logo/banner plus a "want to" verb.
+    private static readonly Regex BrandingImageWish = new(@"(?<![\p{L}\p{N}])(?:logo|banner|image|photo|picture|tasveer|tasweer|لوگو|بینر|تصویر)(?![\p{L}\p{N}])", Opts);
+    private static readonly Regex ReceiptWish = new(@"(?<![\p{L}\p{N}])(?:receipt|invoice|bill|rasid|raseed|رسید)(?![\p{L}\p{N}])", Opts);
+    private static readonly Regex WantVerb = new(@"lagan|lagao|lagaon|lagani|lagay|add|set|upload|use|rakh|chahiye|chahta|chahti|change|badal|لگا|چاہی|بدل", Opts);
+
+    /// <summary>
+    /// A caption on a picture marks it as receipt branding: exactly "logo"/"banner"/"لوگو"/"بینر" (optionally "receipt logo"),
+    /// or a short sentence naming one ("ye mera logo hai", "receipt ke liye banner").
+    /// </summary>
     public static bool TryParseBrandingCaption(string? caption, out string kind)
     {
         kind = "";
-        var m = BrandingHelp.Match((caption ?? "").Trim());
+        var text = (caption ?? "").Trim();
+        if (text.Length == 0 || text.Length > 60) return false;
+        var m = BrandingHelp.Match(text);
+        if (!m.Success) m = BrandingWordAnywhere.Match(text);
         if (!m.Success) return false;
         kind = BrandingKind(m.Groups["k"].Value);
+        return true;
+    }
+
+    private static bool TryParseBrandingWish(string message, out string? kind)
+    {
+        kind = null;
+        if (message.Length > 90 || message.Any(char.IsDigit) || !BrandingImageWish.IsMatch(message)) return false;
+        if (!ReceiptWish.IsMatch(message) && !(BrandingWordAnywhere.IsMatch(message) && WantVerb.IsMatch(message))) return false;
+        if (BrandingWordAnywhere.Match(message) is { Success: true } m) kind = BrandingKind(m.Groups["k"].Value);
         return true;
     }
 
@@ -370,6 +392,8 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.RemoveBranding, Text = BrandingKind(m.Groups["k"].Value) };
         if ((m = BrandingHelp.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.BrandingHelp, Text = BrandingKind(m.Groups["k"].Value) };
+        if (TryParseBrandingWish(message, out var wishKind))
+            return new ParsedCommand { Kind = CommandKind.BrandingHelp, Text = wishKind };
         if ((m = Receipt.Match(message)).Success)
             return new ParsedCommand
             {
