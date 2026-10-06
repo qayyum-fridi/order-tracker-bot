@@ -219,4 +219,4 @@ for this first pass:
   `Asia/Karachi`); other "last N days" windows are still UTC.
 - Webhook dedupe is DB-backed; the per-sender processing lock is in-process, so multi-instance
   deployments need sticky routing per sender.
-- Voice notes are not transcribed yet (sellers get a "send text" reply).
+- Voice notes are transcribed via OpenAI (`OpenAi:TranscriptionModel`, default `whisper-1`), echoed back, then routed as text; without an API key they get the "send text" reply.

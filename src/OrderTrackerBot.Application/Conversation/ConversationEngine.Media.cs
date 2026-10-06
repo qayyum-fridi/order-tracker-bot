@@ -12,6 +12,21 @@ public partial class ConversationEngine
 {
     private static readonly Regex OrderRef = new(@"#?(\d+)", RegexOptions.Compiled);
 
+    /// <summary>Voice note: transcribe, echo what was heard so the seller can catch mistakes, then route it like typed text.</summary>
+    public async Task HandleAudioMessageAsync(string fromPhoneNumber, string mediaId, CancellationToken ct = default)
+    {
+        var media = _media is null ? null : await _media.DownloadAsync(mediaId, ct);
+        var text = media is null || _transcriber is null ? null : await _transcriber.TranscribeAsync(media.Value.Bytes, media.Value.MimeType, ct);
+        if (text is null)
+        {
+            await HandleUnsupportedMediaAsync(fromPhoneNumber, "audio", ct);
+            return;
+        }
+
+        await _sender.SendTextMessageAsync(fromPhoneNumber, $"🎤 Maine suna: \"{text}\"", ct);
+        await HandleIncomingMessageAsync(fromPhoneNumber, text, ct);
+    }
+
     public async Task HandleImageMessageAsync(string fromPhoneNumber, string mediaId, string? caption, CancellationToken ct = default)
     {
         _db.MessageLogs.Add(new MessageLog { Phone = fromPhoneNumber, Direction = "inbound", RawText = $"[image {mediaId}] {caption}" });

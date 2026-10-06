@@ -32,6 +32,7 @@ public class WhatsAppWebhookPayload
         [JsonPropertyName("text")] public InboundText? Text { get; set; }
         [JsonPropertyName("interactive")] public InboundInteractive? Interactive { get; set; }
         [JsonPropertyName("image")] public InboundMedia? Image { get; set; }
+        [JsonPropertyName("audio")] public InboundMedia? Audio { get; set; }
     }
 
     public class InboundMedia
@@ -108,7 +109,18 @@ public class WhatsAppWebhookPayload
         }
     }
 
-    private static readonly HashSet<string> UnsupportedMediaTypes = new() { "audio", "video", "document", "sticker" };
+    public IEnumerable<(string From, string MediaId, string? MessageId)> ExtractAudioMessages()
+    {
+        foreach (var entry in Entries)
+        foreach (var change in entry.Changes)
+        foreach (var message in change.Value?.Messages ?? Enumerable.Empty<InboundMessage>())
+        {
+            if (message.Type == "audio" && message.From is not null && message.Audio?.Id is not null)
+                yield return (message.From, message.Audio.Id, message.Id);
+        }
+    }
+
+    private static readonly HashSet<string> UnsupportedMediaTypes = new() { "video", "document", "sticker" };
 
     /// <summary>Voice notes, screenshots and other media the bot can't read yet — the seller still deserves a reply.</summary>
     public IEnumerable<(string From, string Type, string? MessageId)> ExtractUnsupportedMessages()

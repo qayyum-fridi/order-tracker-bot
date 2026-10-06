@@ -120,6 +120,19 @@ public class WhatsAppWebhookController : ControllerBase
             }
         }
 
+        foreach (var (from, mediaId, messageId) in payload.ExtractAudioMessages())
+        {
+            try
+            {
+                await ProcessAsync(from, messageId, () => _engine.HandleAudioMessageAsync(from, mediaId, ct), ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to process voice note from {From}", from);
+                await _engine.SendSystemErrorAsync(from, ct);
+            }
+        }
+
         foreach (var (from, json, messageId) in payload.ExtractFlowSubmissions())
         {
             try

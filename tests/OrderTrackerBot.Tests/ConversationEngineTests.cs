@@ -468,6 +468,34 @@ public class ConversationEngineTests : IDisposable
         Assert.Contains(_sentMessages, m => m.Contains("Lawn Suit - Rs.3,500") && m.Contains("customer ko bhej dein"));
     }
 
+    [Fact]
+    public async Task VoiceNote_IsTranscribedEchoedAndRoutedAsText()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var media = new Mock<IWhatsAppMediaClient>();
+        media.Setup(m => m.DownloadAsync("m1", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg; codecs=opus"));
+        var transcriber = new Mock<IAudioTranscriber>();
+        transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync("orders today");
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: media.Object, transcriber: transcriber.Object);
+
+        await engine.HandleAudioMessageAsync(Phone, "m1", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Maine suna") && m.Contains("orders today"));
+        Assert.True(await db.MessageLogs.AnyAsync(m => m.Direction == "inbound" && m.RawText == "orders today"));
+    }
+
+    [Fact]
+    public async Task VoiceNote_FallsBackToTextOnlyReply_WhenNotTranscribable()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+
+        await engine.HandleAudioMessageAsync(Phone, "m1", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Voice message") && m.Contains("TEXT"));
+    }
+
     [Theory]
     [InlineData("audio", "Voice message")]
     [InlineData("image", "screenshot")]
