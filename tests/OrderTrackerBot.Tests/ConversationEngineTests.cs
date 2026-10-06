@@ -1173,6 +1173,112 @@ public class ConversationEngineTests : IDisposable
         Assert.Contains(_sentMessages, m => m.Contains("Banner pehle se set nahi hai"));
     }
 
+    private (ConversationEngine Engine, List<(string File, byte[] Bytes, string? Caption)> Files) CreateExportEngine(AppDbContext db)
+    {
+        var files = new List<(string, byte[], string?)>();
+        _sender.Setup(s => s.SendDocumentAsync(Phone, It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Callback<string, byte[], string, string, string?, CancellationToken>((_, bytes, name, _, caption, _) => files.Add((name, bytes, caption)))
+            .ReturnsAsync(true);
+        return (new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object,
+            exportWriter: new OrderTrackerBot.Infrastructure.Export.ExportXlsxWriter()), files);
+    }
+
+    private async Task SeedExportDataAsync(AppDbContext db)
+    {
+        var seller = await db.Sellers.FirstAsync();
+        var sara = new OrderTrackerBot.Domain.Entities.Customer { SellerId = seller.Id, Name = "Sara", Phone = "03001112222", City = "Lahore" };
+        var gone = new OrderTrackerBot.Domain.Entities.Customer { SellerId = seller.Id, Name = "Deleted Dan", DeletedAt = DateTime.UtcNow };
+        var injected = new OrderTrackerBot.Domain.Entities.Customer { SellerId = seller.Id, Name = "=HYPERLINK(\"http://x\")", Phone = "03005556666" };
+        db.Customers.AddRange(sara, gone, injected);
+        await db.SaveChangesAsync();
+        var order = new OrderTrackerBot.Domain.Entities.Order { SellerId = seller.Id, CustomerId = sara.Id, Subtotal = 5300, DiscountAmount = 300, Total = 5000, DiscountCode = "EID" };
+        order.Items.Add(new OrderTrackerBot.Domain.Entities.OrderItem { ProductNameSnapshot = "Lawn Suit", UnitPrice = 3500, Quantity = 1 });
+        order.Items.Add(new OrderTrackerBot.Domain.Entities.OrderItem { ProductNameSnapshot = "Kurti", UnitPrice = 1800, Quantity = 1 });
+        var old = new OrderTrackerBot.Domain.Entities.Order { SellerId = seller.Id, CustomerId = sara.Id, Total = 700, CreatedAt = DateTime.UtcNow.AddDays(-90) };
+        old.Items.Add(new OrderTrackerBot.Domain.Entities.OrderItem { ProductNameSnapshot = "Dupatta", UnitPrice = 700, Quantity = 1 });
+        db.Orders.AddRange(order, old);
+        db.Discounts.Add(new OrderTrackerBot.Domain.Entities.Discount { SellerId = seller.Id, Code = "EID10", Type = OrderTrackerBot.Domain.Enums.DiscountType.Percent, Value = 10 });
+        await db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task Export_Orders_SendsWorkbookWithOrdersAndItems_FilteredByPeriod()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        await SeedExportDataAsync(db);
+        var (engine, files) = CreateExportEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "export orders 30 days", default);
+
+        var (name, bytes, caption) = Assert.Single(files);
+        Assert.Matches(@"^Ayesha-Collections-export-\d{4}-\d{2}-\d{2}\.xlsx$", name);
+        Assert.Contains("Orders (30 din) (1)", caption);
+        using var stream = new MemoryStream(bytes);
+        Assert.Equal(new[] { "Orders", "Order Items" }, MiniExcelLibs.MiniExcel.GetSheetNames(stream).ToArray());
+        var orders = MiniExcelLibs.MiniExcel.Query(new MemoryStream(bytes), useHeaderRow: true, sheetName: "Orders").Cast<IDictionary<string, object>>().ToList();
+        var row = Assert.Single(orders);
+        Assert.Equal("Sara", row["Customer"]);
+        Assert.Equal("1 x Lawn Suit; 1 x Kurti", row["Items"]);
+        Assert.Equal("03001112222", row["Phone"]);
+        var items = MiniExcelLibs.MiniExcel.Query(new MemoryStream(bytes), useHeaderRow: true, sheetName: "Order Items").Cast<IDictionary<string, object>>().ToList();
+        Assert.Equal(2, items.Count);
+        Assert.Contains(_sentMessages, m => m.Contains("Excel file ready"));
+    }
+
+    [Fact]
+    public async Task Export_Everything_OneWorkbook_SkipsDeletedCustomers_AndKeepsTextAsText()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        await SeedExportDataAsync(db);
+        var (engine, files) = CreateExportEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "export all", default);
+
+        var (_, bytes, _) = Assert.Single(files);
+        Assert.Equal(new[] { "Orders", "Order Items", "Customers", "Catalog", "Discounts", "Loyalty Rules" },
+            MiniExcelLibs.MiniExcel.GetSheetNames(new MemoryStream(bytes)).ToArray());
+        var customers = MiniExcelLibs.MiniExcel.Query(new MemoryStream(bytes), useHeaderRow: true, sheetName: "Customers").Cast<IDictionary<string, object>>().ToList();
+        Assert.DoesNotContain(customers, c => (string)c["Name"] == "Deleted Dan");
+        Assert.Equal(2, customers.Count);
+        var sara = customers.Single(c => (string)c["Name"] == "Sara");
+        Assert.Equal(2d, Convert.ToDouble(sara["Orders"]));
+        Assert.Equal(5700d, Convert.ToDouble(sara["Total spent"]));
+        // A buyer-supplied "=..." name stays a plain string cell (never a formula).
+        Assert.Contains(customers, c => (string)c["Name"] == "=HYPERLINK(\"http://x\")");
+        var catalog = MiniExcelLibs.MiniExcel.Query(new MemoryStream(bytes), useHeaderRow: true, sheetName: "Catalog").Cast<IDictionary<string, object>>().ToList();
+        Assert.Equal(2, catalog.Count); // the two products from onboarding
+    }
+
+    [Fact]
+    public async Task Export_WithoutChoice_SendsPickerList_AndNoFile()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var (engine, files) = CreateExportEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "export", default);
+
+        Assert.Empty(files);
+        _sender.Verify(s => s.SendListMessageAsync(Phone, It.Is<string>(b => b.Contains("Export")), It.IsAny<string>(),
+            It.Is<IReadOnlyList<MenuSection>>(sec => sec.Single().Rows.Any(r => r.Id == "export all") && sec.Single().Rows.All(r => r.Title.Length <= 24)),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Export_WhenNothingToExport_SaysSo_AndSendsNoFile()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var (engine, files) = CreateExportEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "export orders", default);
+
+        Assert.Empty(files);
+        Assert.Contains(_sentMessages, m => m.Contains("koi data nahi hai"));
+    }
+
     [Fact]
     public async Task Receipt_ForUnknownOrder_RepliesNotFound_AndSendsNothing()
     {

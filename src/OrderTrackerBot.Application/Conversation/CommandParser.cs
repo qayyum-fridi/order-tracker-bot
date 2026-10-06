@@ -64,6 +64,7 @@ public enum CommandKind
     ProductReport,
     Receipt,
     BrandingHelp,
+    Export,
     RemoveBranding,
     DiscountPerformance,
     NewOrderHelp,
@@ -74,6 +75,9 @@ public enum CommandKind
     PaymentMethodPrompt,
     ImportCatalogSheet
 }
+
+/// <summary>What to export: any of "orders", "customers", "catalog", "discounts" (empty = ask), and an optional orders period (today/yesterday/7d/30d/lastmonth).</summary>
+public sealed record ExportRequest(IReadOnlyList<string> Datasets, string? Period);
 
 /// <summary>A catalog line: "Lawn Suit - 3500" or "Sugar 5 kg - 500" (unit type + pack size split off the name).</summary>
 public sealed record ProductLine(string Name, decimal Price, string UnitType, decimal UnitQty);
@@ -91,6 +95,7 @@ public sealed class ParsedCommand
     public int? Number { get; init; }
     public decimal? Amount { get; init; }
     public ProductLine? Product { get; init; }
+    public ExportRequest? Export { get; init; }
 }
 
 public static class CommandParser
@@ -135,6 +140,38 @@ public static class CommandParser
     private static readonly Regex PriceTiers = new(@"^(.+?)\s*[-–:]\s*(?:price\s+tiers?|bulk\s+pric(?:e|ing)|wholesale)\s*:\s*(.+)$", Opts);
     private static readonly Regex CampaignStatus = new(@"^campaign\s+status$", Opts);
     private static readonly Regex ProductReport = new(@"^(.+?)\s+(?:ka|ki)\s+report$|^report:?\s+(.+)$", Opts);
+    // "export" -> asks what; "export orders customers", "export all", "export orders 30 days", "customers export", "excel". One .xlsx comes back.
+    private static readonly Regex ExportLead = new(@"^(?:data\s+)?(?:export|download|ایکسپورٹ|ڈاؤنلوڈ)(?:\s+(?<what>.+))?$|^(?:excel|xlsx)$", Opts);
+    private static readonly Regex ExportTrail = new(@"^(?<what>.+?)\s+(?:export|excel|xlsx|download)$", Opts);
+    private const string NotLetter = @"(?<![\p{L}\p{N}])";
+    private const string NotLetterAfter = @"(?![\p{L}\p{N}])";
+    private static readonly (string Name, Regex Pattern)[] ExportDatasetWords =
+    {
+        ("orders", new(NotLetter + @"(?:orders?|آرڈرز?)" + NotLetterAfter, Opts)),
+        ("customers", new(NotLetter + @"(?:customers?|گاہک|کسٹمرز?)" + NotLetterAfter, Opts)),
+        ("catalog", new(NotLetter + @"(?:catalog(?:ue)?|products?|کیٹلاگ)" + NotLetterAfter, Opts)),
+        ("discounts", new(NotLetter + @"(?:discounts?|loyalty|coupons?|ڈسکاؤنٹس?)" + NotLetterAfter, Opts)),
+    };
+    private static readonly Regex ExportAll = new(NotLetter + @"(?:all|everything|sab(?:\s+kuch)?|poora|full|backup|سب)" + NotLetterAfter, Opts);
+    private static readonly (string Period, Regex Pattern)[] ExportPeriodWords =
+    {
+        ("lastmonth", new(NotLetter + @"(?:last\s+month|pichle\s+mahine?|pichla\s+mah(?:ina)?|پچھلے\s+مہینے)" + NotLetterAfter, Opts)),
+        ("30d", new(NotLetter + @"(?:30\s*(?:days?|din)|month|mahina|mahine|مہینہ)" + NotLetterAfter, Opts)),
+        ("7d", new(NotLetter + @"(?:7\s*(?:days?|din)|week|hafta|ہفتہ)" + NotLetterAfter, Opts)),
+        ("yesterday", new(NotLetter + @"(?:yesterday|kal|کل)" + NotLetterAfter, Opts)),
+        ("today", new(NotLetter + @"(?:today|aaj|آج)" + NotLetterAfter, Opts)),
+    };
+
+    public static ExportRequest ParseExportRequest(string? what)
+    {
+        var text = what ?? "";
+        var datasets = ExportAll.IsMatch(text)
+            ? ExportDatasetWords.Select(d => d.Name).ToList()
+            : ExportDatasetWords.Where(d => d.Pattern.IsMatch(text)).Select(d => d.Name).ToList();
+        var period = ExportPeriodWords.FirstOrDefault(p => p.Pattern.IsMatch(text)).Period;
+        return new ExportRequest(datasets, period);
+    }
+
     // "logo" / "banner" explain how to set one; "remove logo" clears it. Text is "logo" or "banner".
     private const string BrandingWord = @"(?<k>logo|banner|لوگو|بینر)";
     private static readonly Regex BrandingHelp = new(@"^(?:(?:receipt|set|my)\s+)?" + BrandingWord + "$", Opts);
@@ -388,6 +425,10 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.PriceTiers, Text = m.Groups[1].Value.Trim(), Text2 = m.Groups[2].Value.Trim() };
         if (CampaignStatus.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CampaignStatus };
         if (DiscountPerformance.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DiscountPerformance };
+        if ((m = ExportLead.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.Export, Export = ParseExportRequest(m.Groups["what"].Success ? m.Groups["what"].Value : null) };
+        if ((m = ExportTrail.Match(message)).Success && ParseExportRequest(m.Groups["what"].Value) is { Datasets.Count: > 0 } trailing)
+            return new ParsedCommand { Kind = CommandKind.Export, Export = trailing };
         if ((m = RemoveBranding.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.RemoveBranding, Text = BrandingKind(m.Groups["k"].Value) };
         if ((m = BrandingHelp.Match(message)).Success)

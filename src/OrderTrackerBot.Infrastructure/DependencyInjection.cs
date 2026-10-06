@@ -47,6 +47,7 @@ public static class DependencyInjection
         services.AddSingleton(configuration.GetSection(BillingOptions.SectionName).Get<BillingOptions>() ?? new BillingOptions());
 
         services.AddSingleton<IReceiptPdfGenerator, Pdf.ReceiptPdfGenerator>();
+        services.AddSingleton<IExportFileWriter, Export.ExportXlsxWriter>();
         services.AddScoped<ConversationEngine>();
 
         return services;

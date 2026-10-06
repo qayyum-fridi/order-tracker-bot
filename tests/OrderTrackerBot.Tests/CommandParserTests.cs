@@ -258,4 +258,41 @@ public class CommandParserTests
         Assert.Equal(expected, CommandParser.TryParseBrandingCaption(caption, out var parsed));
         Assert.Equal(kind, parsed);
     }
+
+    [Theory]
+    [InlineData("export", "", null)]
+    [InlineData("Export", "", null)]
+    [InlineData("excel", "", null)]
+    [InlineData("export orders", "orders", null)]
+    [InlineData("export orders customers", "orders,customers", null)]
+    [InlineData("export orders, catalog and discounts", "orders,catalog,discounts", null)]
+    [InlineData("export all", "orders,customers,catalog,discounts", null)]
+    [InlineData("export sab kuch", "orders,customers,catalog,discounts", null)]
+    [InlineData("export orders 30 days", "orders", "30d")]
+    [InlineData("export orders last month", "orders", "lastmonth")]
+    [InlineData("export orders pichle mahine", "orders", "lastmonth")]
+    [InlineData("export orders today", "orders", "today")]
+    [InlineData("export orders kal", "orders", "yesterday")]
+    [InlineData("download customers", "customers", null)]
+    [InlineData("customers export", "customers", null)]
+    [InlineData("catalog excel", "catalog", null)]
+    [InlineData("ایکسپورٹ کیٹلاگ", "catalog", null)]
+    [InlineData("📊 export products", "catalog", null)]
+    public void ParsesExport(string message, string datasets, string? period)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.NotNull(parsed);
+        Assert.Equal(CommandKind.Export, parsed!.Kind);
+        Assert.Equal(datasets, string.Join(",", parsed.Export!.Datasets));
+        Assert.Equal(period, parsed.Export.Period);
+    }
+
+    [Theory]
+    [InlineData("Ayesha excel")]
+    [InlineData("customer export now please")]
+    [InlineData("Excel Sheet Set - 1500")]
+    public void Export_DoesNotHijackOtherMessages(string message)
+    {
+        Assert.NotEqual(CommandKind.Export, CommandParser.TryParse(message)?.Kind);
+    }
 }

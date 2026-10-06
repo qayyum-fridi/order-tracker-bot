@@ -143,3 +143,8 @@ shared-state action: confirm with the user and get SSH/host details first.
   `SellerBrandings` (own table; created on Sqlite by `SqliteSchemaPatcher`, **no SQL Server migration yet — generate one**). Images
   are validated with QuestPDF only (no resize/re-encode; QuestPDF downsamples when rendering) and capped at 5 MB; a stored image
   the PDF engine can't draw falls back to a plain receipt. `reset account` deletes them.
+- Export (`export`, `export orders customers`, `export all`, `export orders 30 days|last month|today|yesterday`, `ایکسپورٹ` -> `ConversationEngine.Export.cs`,
+  MiniExcel in `Infrastructure/Export`): one .xlsx (sheets Orders, Order Items, Customers, Catalog, Discounts, Loyalty Rules) sent to the seller's own chat.
+  Excel only, no CSV (CSV loses leading-zero phone numbers and Urdu text unless handled, and can't hold several sheets); strings are written as
+  string cells so buyer-supplied text can't become formulas. Order period filters use the seller's timezone; customers/spend are aggregated in memory
+  (Sqlite can't SUM decimal). Expired-trial sellers are blocked by billing like every other command.

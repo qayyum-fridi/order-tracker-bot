@@ -24,10 +24,11 @@ public partial class ConversationEngine
     private readonly IInstagramClient _instagram;
     private readonly ICatalogSheetImporter? _catalogSheets;
     private readonly IReceiptPdfGenerator? _receiptPdf;
+    private readonly IExportFileWriter? _exportWriter;
 
     public ConversationEngine(IAppDbContext db, IAiOrderAssistant ai, IWhatsAppSender sender, IFounderAlertNotifier founderAlerts,
         BillingOptions? billing = null, IWhatsAppMediaClient? media = null, IInstagramClient? instagram = null, ICatalogSheetImporter? catalogSheets = null,
-        IReceiptPdfGenerator? receiptPdf = null)
+        IReceiptPdfGenerator? receiptPdf = null, IExportFileWriter? exportWriter = null)
     {
         _db = db;
         _ai = ai;
@@ -38,6 +39,7 @@ public partial class ConversationEngine
         _instagram = instagram ?? new NullInstagramClient();
         _catalogSheets = catalogSheets;
         _receiptPdf = receiptPdf;
+        _exportWriter = exportWriter;
     }
 
     private static readonly ConversationState[] OnboardingStates =
