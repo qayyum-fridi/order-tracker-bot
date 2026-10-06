@@ -1291,5 +1291,46 @@ public class ConversationEngineTests : IDisposable
         Assert.Equal(4200m, product.Price);
     }
 
+    [Fact]
+    public async Task TwoUnknownProducts_BothWalkedThrough_AddNewThenMapExisting()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis
+            {
+                IsOrderAttempt = true,
+                Order = new AiOrderDraft
+                {
+                    CustomerName = "Hina",
+                    Phone = "03211234567",
+                    Items =
+                    {
+                        new AiOrderItemDraft { ProductName = "Sharara", MatchedCatalogProductName = null, Quantity = 1 },
+                        new AiOrderItemDraft { ProductName = "Lawn", MatchedCatalogProductName = null, Quantity = 2 }
+                    }
+                }
+            });
+
+        await engine.HandleIncomingMessageAsync(Phone, "Hina, sharara + 2 lawn, 03211234567", default);
+        Assert.Contains(_sentMessages, m => m.Contains("Sharara") && m.Contains("nahi mila"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "1", default);
+        _sentMessages.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "4200", default);
+        Assert.Contains(_sentMessages, m => m.Contains("Lawn") && m.Contains("nahi mila"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "2", default);
+        _sentMessages.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "Lawn Suit", default);
+        Assert.Contains(_sentMessages, m => m.Contains("Confirm order"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        var order = await db.Orders.Include(o => o.Items).SingleAsync();
+        Assert.Equal(4200m + 2 * 3500m, order.Total);
+    }
+
     public void Dispose() => _dbFactory.Dispose();
 }
