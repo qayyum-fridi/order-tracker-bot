@@ -221,6 +221,25 @@ once per 10 minutes. When a seller's message fails, the bot quotes the code back
 
 Codes live in `IssueCodes` (`Application/Abstractions/IIssueReporter.cs`); never renumber a shipped code.
 
+## Shortcuts: quick buttons and "/" commands
+
+Sellers shouldn't have to remember command words:
+
+- **Quick-action buttons** — after a finished reply (nothing pending, and the reply didn't already carry its own buttons/list) the bot
+  adds three tappable buttons: *Menu · Naya order · Orders today* (Urdu-script labels for Urdu sellers). The first time it explains
+  them; `shortcut off` / `shortcut on` turns them off/on per seller. Global switch: `Features:ShortcutButtons` (default `true`).
+  The button labels are real commands — a tapped button arrives as that text.
+- **"/" commands** — WhatsApp lists a business's commands when the user types `/`. Register them once per phone number (they map to
+  the typed commands via `CommandParser.SlashCommands`; keep the two in sync — a test checks that):
+
+```bash
+curl -X POST "https://graph.facebook.com/v20.0/$PHONE_NUMBER_ID/conversational_automation" \
+  -H "Authorization: Bearer $WHATSAPP_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d @deploy/whatsapp-conversational-components.json
+```
+
+  The same file also sets three ice breakers (tappable prompts WhatsApp shows in a chat that has no messages yet).
+
 ## Known limitations / roadmap
 
 These match the spec's own version tags (V2/V3/V4) and are intentionally out of scope

@@ -35,7 +35,8 @@ public enum ConversationState
     AwaitingGuideStep,
     OnboardingStartChoice,
     AwaitingLanguageChoice,
-    AwaitingPaymentMethodInput
+    AwaitingPaymentMethodInput,
+    AwaitingOrderEdit
 }
 
 public enum OrderStatus
@@ -43,7 +44,9 @@ public enum OrderStatus
     Pending,
     Shipped,
     Delivered,
-    Cancelled
+    Cancelled,
+    /// <summary>Came back (refused/returned COD). Like Cancelled, never counted as a sale.</summary>
+    Returned
 }
 
 public enum PaymentStatus
@@ -79,7 +82,8 @@ public enum ActionType
     OrderCreated,
     OrderStatusChanged,
     OrderCancelled,
-    ProductPriceChanged
+    ProductPriceChanged,
+    OrderEdited
 }
 
 public enum SubscriptionPlan

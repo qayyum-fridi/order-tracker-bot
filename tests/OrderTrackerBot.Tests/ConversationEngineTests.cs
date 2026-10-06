@@ -1063,6 +1063,299 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task Branding_LogoCaptionedImage_IsSaved_AppearsOnReceipt_AndCanBeRemoved()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var seller = await db.Sellers.FirstAsync();
+        var customer = new OrderTrackerBot.Domain.Entities.Customer { SellerId = seller.Id, Name = "Sara", Phone = "03001112222" };
+        db.Customers.Add(customer);
+        await db.SaveChangesAsync();
+        var order = new OrderTrackerBot.Domain.Entities.Order { SellerId = seller.Id, CustomerId = customer.Id, Subtotal = 100, Total = 100 };
+        order.Items.Add(new OrderTrackerBot.Domain.Entities.OrderItem { ProductNameSnapshot = "Pen", UnitPrice = 100, Quantity = 1 });
+        db.Orders.Add(order);
+        await db.SaveChangesAsync();
+
+        var logo = new byte[] { 10, 20, 30 };
+        var media = new Mock<IWhatsAppMediaClient>();
+        media.Setup(m => m.DownloadAsync("media-1", It.IsAny<CancellationToken>())).ReturnsAsync((logo, "image/jpeg"));
+        var pdf = new Mock<IReceiptPdfGenerator>();
+        pdf.Setup(p => p.CanEmbedImage(logo)).Returns(true);
+        ReceiptData? captured = null;
+        pdf.Setup(p => p.Generate(It.IsAny<ReceiptData>())).Callback<ReceiptData>(d => captured = d).Returns(new byte[] { 1 });
+        _sender.Setup(s => s.SendDocumentAsync(Phone, It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: media.Object, receiptPdf: pdf.Object);
+
+        await engine.HandleImageMessageAsync(Phone, "media-1", "logo", default);
+        Assert.Contains(_sentMessages, m => m.Contains("Logo save ho gaya"));
+        Assert.Equal(logo, (await db.SellerBrandings.SingleAsync()).Logo);
+        _ai.Verify(a => a.AnalyzeImageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()), Times.Never);
+
+        await engine.HandleIncomingMessageAsync(Phone, "receipt", default);
+        Assert.Equal(logo, captured!.Logo);
+        Assert.Null(captured.Banner);
+
+        await engine.HandleIncomingMessageAsync(Phone, "remove logo", default);
+        Assert.Null((await db.SellerBrandings.SingleAsync()).Logo);
+        await engine.HandleIncomingMessageAsync(Phone, "receipt", default);
+        Assert.Null(captured!.Logo);
+    }
+
+    [Fact]
+    public async Task Branding_UnusableImage_IsRejected_AndNothingSaved()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var junk = new byte[] { 1, 2 };
+        var media = new Mock<IWhatsAppMediaClient>();
+        media.Setup(m => m.DownloadAsync("m", It.IsAny<CancellationToken>())).ReturnsAsync((junk, "image/jpeg"));
+        var pdf = new Mock<IReceiptPdfGenerator>();
+        pdf.Setup(p => p.CanEmbedImage(junk)).Returns(false);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: media.Object, receiptPdf: pdf.Object);
+
+        await engine.HandleImageMessageAsync(Phone, "m", "banner", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Banner ke taur par nahi lag sakti"));
+        Assert.Empty(db.SellerBrandings);
+    }
+
+    [Fact]
+    public async Task Branding_FreeTextWish_ExplainsBothLogoAndBanner()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, receiptPdf: Mock.Of<IReceiptPdfGenerator>());
+
+        await engine.HandleIncomingMessageAsync(Phone, "receipt par apni image lagani hai", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Logo") && m.Contains("Banner") && m.Contains("Photo/Gallery"));
+        _ai.Verify(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Receipt_SuggestsLogoAndBanner_OnFirstTwoReceipts_ThenStops()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var seller = await db.Sellers.FirstAsync();
+        var customer = new OrderTrackerBot.Domain.Entities.Customer { SellerId = seller.Id, Name = "Sara", Phone = "03001112222" };
+        db.Customers.Add(customer);
+        await db.SaveChangesAsync();
+        db.Orders.Add(new OrderTrackerBot.Domain.Entities.Order { SellerId = seller.Id, CustomerId = customer.Id, Total = 100 });
+        await db.SaveChangesAsync();
+        var pdf = new Mock<IReceiptPdfGenerator>();
+        pdf.Setup(p => p.Generate(It.IsAny<ReceiptData>())).Returns(new byte[] { 1 });
+        _sender.Setup(s => s.SendDocumentAsync(Phone, It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, receiptPdf: pdf.Object);
+
+        var hinted = new List<bool>();
+        for (var i = 0; i < 3; i++)
+        {
+            _sentMessages.Clear();
+            await engine.HandleIncomingMessageAsync(Phone, "receipt", default);
+            hinted.Add(_sentMessages.Any(m => m.Contains("logo ya banner lagana chahte hain")));
+        }
+
+        Assert.Equal(new[] { true, true, false }, hinted);
+    }
+
+    [Fact]
+    public async Task Branding_HelpAndRemove_ReportCurrentState()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, receiptPdf: Mock.Of<IReceiptPdfGenerator>());
+
+        await engine.HandleIncomingMessageAsync(Phone, "logo", default);
+        await engine.HandleIncomingMessageAsync(Phone, "remove banner", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Receipt Logo: abhi set nahi") && m.Contains("Caption mein \"logo\""));
+        Assert.Contains(_sentMessages, m => m.Contains("Banner pehle se set nahi hai"));
+    }
+
+    private (ConversationEngine Engine, List<(string File, byte[] Bytes, string? Caption)> Files) CreateExportEngine(AppDbContext db)
+    {
+        var files = new List<(string, byte[], string?)>();
+        _sender.Setup(s => s.SendDocumentAsync(Phone, It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Callback<string, byte[], string, string, string?, CancellationToken>((_, bytes, name, _, caption, _) => files.Add((name, bytes, caption)))
+            .ReturnsAsync(true);
+        return (new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object,
+            exportWriter: new OrderTrackerBot.Infrastructure.Export.ExportXlsxWriter()), files);
+    }
+
+    private async Task SeedExportDataAsync(AppDbContext db)
+    {
+        var seller = await db.Sellers.FirstAsync();
+        var sara = new OrderTrackerBot.Domain.Entities.Customer { SellerId = seller.Id, Name = "Sara", Phone = "03001112222", City = "Lahore" };
+        var gone = new OrderTrackerBot.Domain.Entities.Customer { SellerId = seller.Id, Name = "Deleted Dan", DeletedAt = DateTime.UtcNow };
+        var injected = new OrderTrackerBot.Domain.Entities.Customer { SellerId = seller.Id, Name = "=HYPERLINK(\"http://x\")", Phone = "03005556666" };
+        db.Customers.AddRange(sara, gone, injected);
+        await db.SaveChangesAsync();
+        var order = new OrderTrackerBot.Domain.Entities.Order { SellerId = seller.Id, CustomerId = sara.Id, Subtotal = 5300, DiscountAmount = 300, Total = 5000, DiscountCode = "EID" };
+        order.Items.Add(new OrderTrackerBot.Domain.Entities.OrderItem { ProductNameSnapshot = "Lawn Suit", UnitPrice = 3500, Quantity = 1 });
+        order.Items.Add(new OrderTrackerBot.Domain.Entities.OrderItem { ProductNameSnapshot = "Kurti", UnitPrice = 1800, Quantity = 1 });
+        var old = new OrderTrackerBot.Domain.Entities.Order { SellerId = seller.Id, CustomerId = sara.Id, Total = 700, CreatedAt = DateTime.UtcNow.AddDays(-90) };
+        old.Items.Add(new OrderTrackerBot.Domain.Entities.OrderItem { ProductNameSnapshot = "Dupatta", UnitPrice = 700, Quantity = 1 });
+        db.Orders.AddRange(order, old);
+        db.Discounts.Add(new OrderTrackerBot.Domain.Entities.Discount { SellerId = seller.Id, Code = "EID10", Type = OrderTrackerBot.Domain.Enums.DiscountType.Percent, Value = 10 });
+        await db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task Export_Orders_SendsWorkbookWithOrdersAndItems_FilteredByPeriod()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        await SeedExportDataAsync(db);
+        var (engine, files) = CreateExportEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "export orders 30 days", default);
+
+        var (name, bytes, caption) = Assert.Single(files);
+        Assert.Matches(@"^Ayesha-Collections-export-\d{4}-\d{2}-\d{2}\.xlsx$", name);
+        Assert.Contains("Orders (30 din) (1)", caption);
+        using var stream = new MemoryStream(bytes);
+        Assert.Equal(new[] { "Orders", "Order Items" }, MiniExcelLibs.MiniExcel.GetSheetNames(stream).ToArray());
+        var orders = MiniExcelLibs.MiniExcel.Query(new MemoryStream(bytes), useHeaderRow: true, sheetName: "Orders").Cast<IDictionary<string, object>>().ToList();
+        var row = Assert.Single(orders);
+        Assert.Equal("Sara", row["Customer"]);
+        Assert.Equal("1 x Lawn Suit; 1 x Kurti", row["Items"]);
+        Assert.Equal("03001112222", row["Phone"]);
+        var items = MiniExcelLibs.MiniExcel.Query(new MemoryStream(bytes), useHeaderRow: true, sheetName: "Order Items").Cast<IDictionary<string, object>>().ToList();
+        Assert.Equal(2, items.Count);
+        Assert.Contains(_sentMessages, m => m.Contains("Excel file ready"));
+    }
+
+    [Fact]
+    public async Task Export_Everything_OneWorkbook_SkipsDeletedCustomers_AndKeepsTextAsText()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        await SeedExportDataAsync(db);
+        var (engine, files) = CreateExportEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "export all", default);
+
+        var (_, bytes, _) = Assert.Single(files);
+        Assert.Equal(new[] { "Orders", "Order Items", "Customers", "Catalog", "Discounts", "Loyalty Rules" },
+            MiniExcelLibs.MiniExcel.GetSheetNames(new MemoryStream(bytes)).ToArray());
+        var customers = MiniExcelLibs.MiniExcel.Query(new MemoryStream(bytes), useHeaderRow: true, sheetName: "Customers").Cast<IDictionary<string, object>>().ToList();
+        Assert.DoesNotContain(customers, c => (string)c["Name"] == "Deleted Dan");
+        Assert.Equal(2, customers.Count);
+        var sara = customers.Single(c => (string)c["Name"] == "Sara");
+        Assert.Equal(2d, Convert.ToDouble(sara["Orders"]));
+        Assert.Equal(5700d, Convert.ToDouble(sara["Total spent"]));
+        // A buyer-supplied "=..." name stays a plain string cell (never a formula).
+        Assert.Contains(customers, c => (string)c["Name"] == "=HYPERLINK(\"http://x\")");
+        var catalog = MiniExcelLibs.MiniExcel.Query(new MemoryStream(bytes), useHeaderRow: true, sheetName: "Catalog").Cast<IDictionary<string, object>>().ToList();
+        Assert.Equal(2, catalog.Count); // the two products from onboarding
+    }
+
+    [Fact]
+    public async Task Export_WithoutChoice_SendsPickerList_AndNoFile()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var (engine, files) = CreateExportEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "export", default);
+
+        Assert.Empty(files);
+        _sender.Verify(s => s.SendListMessageAsync(Phone, It.Is<string>(b => b.Contains("Export")), It.IsAny<string>(),
+            It.Is<IReadOnlyList<MenuSection>>(sec => sec.Single().Rows.Any(r => r.Id == "export all") && sec.Single().Rows.All(r => r.Title.Length <= 24)),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Export_WhenNothingToExport_SaysSo_AndSendsNoFile()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var (engine, files) = CreateExportEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "export orders", default);
+
+        Assert.Empty(files);
+        Assert.Contains(_sentMessages, m => m.Contains("koi data nahi hai"));
+    }
+
+    private ConversationEngine CreateShortcutEngine(AppDbContext db) =>
+        new(db, _ai.Object, _sender.Object, _founderAlerts.Object, features: new FeatureOptions());
+
+    private void VerifyBar(string[] labels, Times times) =>
+        _sender.Verify(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(),
+            It.Is<IReadOnlyList<string>>(l => l.SequenceEqual(labels)), It.IsAny<CancellationToken>()), times);
+
+    [Fact]
+    public async Task ShortcutBar_FollowsAFinishedReply_WithIntroOnlyTheFirstTime()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateShortcutEngine(db);
+        var bodies = new List<string>();
+        _sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, body, _, _) => bodies.Add(body)).Returns(Task.CompletedTask);
+        _sender.Invocations.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "orders today", default);
+        await engine.HandleIncomingMessageAsync(Phone, "orders today", default);
+
+        VerifyBar(new[] { "📋 Menu", "➕ Naya order", "📦 Orders today" }, Times.Exactly(2));
+        Assert.Contains("shortcut off", bodies[0]);
+        Assert.Equal("⚡ Quick actions", bodies[1]);
+    }
+
+    [Fact]
+    public async Task ShortcutBar_NotSentAfterMenuOrWhileSomethingIsPending()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateShortcutEngine(db);
+        _sender.Invocations.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "menu", default);          // already an interactive list
+        await engine.HandleIncomingMessageAsync(Phone, "reset account", default); // waiting for yes/no
+
+        VerifyBar(new[] { "📋 Menu", "➕ Naya order", "📦 Orders today" }, Times.Never());
+    }
+
+    [Fact]
+    public async Task ShortcutBar_CanBeSwitchedOffAndOn()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateShortcutEngine(db);
+        var bar = new[] { "📋 Menu", "➕ Naya order", "📦 Orders today" };
+        _sender.Invocations.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "shortcut off", default);
+        await engine.HandleIncomingMessageAsync(Phone, "orders today", default);
+        VerifyBar(bar, Times.Never());
+        Assert.Contains(_sentMessages, m => m.Contains("Shortcut buttons band"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "shortcut on", default);
+        await engine.HandleIncomingMessageAsync(Phone, "orders today", default);
+        VerifyBar(bar, Times.AtLeast(2));
+    }
+
+    [Fact]
+    public async Task ShortcutBar_UsesUrduLabelsForUrduSellers_AndRespectsTheFeatureFlag()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        (await db.Sellers.FirstAsync()).PreferredLanguage = "urdu_script";
+        await db.SaveChangesAsync();
+        _sender.Invocations.Clear();
+
+        await CreateShortcutEngine(db).HandleIncomingMessageAsync(Phone, "orders today", default);
+        VerifyBar(new[] { "📋 مینو", "➕ نیا آرڈر", "📦 آج کے آرڈرز" }, Times.Once());
+
+        _sender.Invocations.Clear();
+        await CreateEngine(db).HandleIncomingMessageAsync(Phone, "orders today", default); // features unset = off
+        VerifyBar(new[] { "📋 مینو", "➕ نیا آرڈر", "📦 آج کے آرڈرز" }, Times.Never());
+    }
+
+    [Fact]
     public async Task Receipt_ForUnknownOrder_RepliesNotFound_AndSendsNothing()
     {
         using var db = _dbFactory.CreateContext();

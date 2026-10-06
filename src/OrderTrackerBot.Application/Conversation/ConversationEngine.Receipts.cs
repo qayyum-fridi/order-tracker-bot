@@ -51,6 +51,7 @@ public partial class ConversationEngine
             : (await _db.PaymentMethods.Where(p => p.SellerId == seller.Id).OrderBy(p => p.Id).ToListAsync(ct))
                 .Select(p => $"{p.Type}: {p.AccountNumberOrId}").ToList();
 
+        var branding = await _db.SellerBrandings.AsNoTracking().FirstOrDefaultAsync(b => b.SellerId == seller.Id, ct);
         var tz = SellerClock.Resolve(seller.TimeZoneId);
         var pdf = _receiptPdf.Generate(new ReceiptData(
             order.Id,
@@ -63,7 +64,7 @@ public partial class ConversationEngine
             order.Subtotal, order.DiscountAmount, order.DiscountCode, order.Total,
             order.PaymentMethod switch { OrderPaymentMethod.Cod => "Cash on delivery", OrderPaymentMethod.Manual => "Bank / wallet transfer", OrderPaymentMethod.Gateway => "Online payment", _ => "Not specified" },
             order.PaymentStatus == PaymentStatus.Paid, Formatters.Status(order.Status),
-            order.TrackingCourier, order.TrackingNumber, payTo));
+            order.TrackingCourier, order.TrackingNumber, payTo, Logo: branding?.Logo, Banner: branding?.Banner, DeliveryCharge: order.DeliveryCharge));
 
         var sent = await _sender.SendDocumentAsync(seller.WhatsAppPhoneNumber, pdf, $"Receipt-{order.Id}.pdf", "application/pdf",
             $"🧾 Receipt #{order.Id} — {order.Customer?.Name}, {Formatters.Money(order.Total)}", ct);
@@ -73,10 +74,12 @@ public partial class ConversationEngine
             return;
         }
 
+        var suggestBranding = await ShouldSuggestBrandingAsync(seller, branding, ct);
         var chat = ChatLink(order.Customer?.Phone);
         await ReplyAsync(seller,
             "✅ Receipt PDF ready — download ke liye file par tap karein.\n" +
-            "Customer ko bhejne ke liye is PDF ko Forward karein" + (chat is null ? "." : $", ya unki chat yahan kholein:\n{chat}"), ct);
+            "Customer ko bhejne ke liye is PDF ko Forward karein" + (chat is null ? "." : $", ya unki chat yahan kholein:\n{chat}") +
+            (suggestBranding ? "\n\n💡 Receipt par apna logo ya banner lagana chahte hain? \"logo\" ya \"banner\" likhein — main bata dunga kaise." : ""), ct);
         if (fromList)
             await ReplyAsync(seller, $"ℹ️ \"{cmd.Number}\" aapki last list ka number tha (Order #{order.Id}).", ct);
     }

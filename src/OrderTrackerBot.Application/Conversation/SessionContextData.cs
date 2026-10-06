@@ -28,6 +28,8 @@ public sealed class PendingOrderData
     public string? OrderSource { get; set; }
     public bool FromScreenshot { get; set; }
     public decimal DiscountAmount { get; set; }
+    /// <summary>Null until set: the seller's default delivery charge is applied when totals are computed.</summary>
+    public decimal? DeliveryCharge { get; set; }
     public decimal Subtotal { get; set; }
     public decimal Total { get; set; }
     public int? DuplicateOfOrderId { get; set; }
@@ -52,6 +54,11 @@ public sealed class SessionContextData
     public string? BroadcastChannel { get; set; }
     public string? PendingDiscountCode { get; set; }
     /// <summary>Order ids in the order of the last numbered list shown, so "mark 1 shipped" means list position 1.</summary>
+    /// <summary>The seller turned the quick-action buttons off ("shortcut off").</summary>
+    public bool ShortcutsOff { get; set; }
+    /// <summary>The one-time explanation of the quick-action buttons has been shown.</summary>
+    public bool ShortcutIntroShown { get; set; }
+
     public List<int>? LastListOrderIds { get; set; }
     public List<int>? LastListCustomerIds { get; set; }
     public int CustomerListPage { get; set; }
@@ -67,6 +74,9 @@ public sealed class SessionContextData
     public string? ReceiptTransactionId { get; set; }
     public int? DeleteCustomerId { get; set; }
     public int? LoyaltyOrderId { get; set; }
+    /// <summary>The saved order being edited ("edit order 12"), and whether its pre-edit snapshot is already in the undo log.</summary>
+    public int? EditOrderId { get; set; }
+    public bool EditSnapshotLogged { get; set; }
     public decimal? LoyaltyDiscountPercent { get; set; }
     public string? SelectedPlan { get; set; }
     /// <summary>Support query whose drafted reply is awaiting YES/EDIT.</summary>

@@ -32,6 +32,9 @@ public sealed class AiOrderDraft
     public string? DiscountCode { get; init; }
     /// <summary>instagram | whatsapp | tiktok | facebook | referral, when the message/screenshot shows where the order came from.</summary>
     public string? OrderSource { get; init; }
+    /// <summary>Delivery charge in rupees when the order states one ("delivery 250", "free delivery" = 0); null = not mentioned.
+    /// Settable so a deterministic match on the seller's own text can override the model.</summary>
+    public decimal? DeliveryCharge { get; set; }
     public List<string> MissingRequiredFields { get; init; } = new();
 }
 

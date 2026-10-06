@@ -58,7 +58,7 @@ public partial class ConversationEngine
         var inactiveSince = DateTime.UtcNow.AddDays(-30);
         return filter switch
         {
-            "repeat_customers" => customers.Where(c => c.Orders.Count(o => o.Status != OrderStatus.Cancelled) > 1).ToList(),
+            "repeat_customers" => customers.Where(c => c.Orders.Count(o => o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned) > 1).ToList(),
             "inactive_30d" => customers.Where(c => !c.Orders.Any(o => o.CreatedAt >= inactiveSince)).ToList(),
             _ => customers
         };
@@ -129,7 +129,7 @@ public partial class ConversationEngine
 
         var customerIds = campaign.Sends.Where(s => s.CustomerId != null).Select(s => s.CustomerId!.Value).Distinct().ToList();
         var responses = await _db.Orders
-            .Where(o => o.SellerId == seller.Id && customerIds.Contains(o.CustomerId) && o.CreatedAt >= campaign.CreatedAt && o.Status != OrderStatus.Cancelled)
+            .Where(o => o.SellerId == seller.Id && customerIds.Contains(o.CustomerId) && o.CreatedAt >= campaign.CreatedAt && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
             .ToListAsync(ct);
 
         var wa = campaign.Sends.Where(s => s.Channel == "whatsapp").ToList();

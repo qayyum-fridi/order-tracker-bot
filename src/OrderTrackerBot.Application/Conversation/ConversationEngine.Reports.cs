@@ -20,7 +20,7 @@ public partial class ConversationEngine
         }
 
         var items = await _db.OrderItems
-            .Where(i => i.ProductId == product.Id && i.Order!.SellerId == seller.Id && i.Order.Status != OrderStatus.Cancelled)
+            .Where(i => i.ProductId == product.Id && i.Order!.SellerId == seller.Id && i.Order.Status != OrderStatus.Cancelled && i.Order.Status != OrderStatus.Returned)
             .Select(i => new { i.Quantity, i.UnitPrice, i.Order!.CreatedAt, i.Order.CustomerId })
             .ToListAsync(ct);
 
@@ -52,7 +52,7 @@ public partial class ConversationEngine
     {
         // Aggregated in memory: Sqlite can't SUM decimal columns server-side.
         var usage = (await _db.Orders
-                .Where(o => o.SellerId == seller.Id && o.DiscountCode != null && o.Status != OrderStatus.Cancelled)
+                .Where(o => o.SellerId == seller.Id && o.DiscountCode != null && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
                 .Select(o => new { Code = o.DiscountCode!, o.DiscountAmount, o.Total })
                 .ToListAsync(ct))
             .GroupBy(o => o.Code.ToUpperInvariant())

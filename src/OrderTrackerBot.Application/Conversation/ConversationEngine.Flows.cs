@@ -151,7 +151,7 @@ public partial class ConversationEngine
 
     private async Task<Dictionary<string, int>> ProductOrderCountsAsync(Seller seller, DateTime from, DateTime to, CancellationToken ct) =>
         await _db.OrderItems
-            .Where(i => i.Order!.SellerId == seller.Id && i.Order.Status != OrderStatus.Cancelled && i.Order.CreatedAt >= from && i.Order.CreatedAt < to)
+            .Where(i => i.Order!.SellerId == seller.Id && i.Order.Status != OrderStatus.Cancelled && i.Order.Status != OrderStatus.Returned && i.Order.CreatedAt >= from && i.Order.CreatedAt < to)
             .GroupBy(i => i.ProductNameSnapshot)
             .Select(g => new { Name = g.Key, Orders = g.Count() })
             .ToDictionaryAsync(g => g.Name, g => g.Orders, ct);

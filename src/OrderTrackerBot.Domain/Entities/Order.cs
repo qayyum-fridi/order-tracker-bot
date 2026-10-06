@@ -18,6 +18,8 @@ public class Order
     public string? DiscountCode { get; set; }
     public decimal Subtotal { get; set; }
     public decimal DiscountAmount { get; set; }
+    /// <summary>Added after the discount: Total = max(0, Subtotal - DiscountAmount) + DeliveryCharge.</summary>
+    public decimal DeliveryCharge { get; set; }
     public decimal Total { get; set; }
 
     public string? TrackingCourier { get; set; }
@@ -31,6 +33,7 @@ public class Order
     public DateTime? ShippedAt { get; set; }
     public DateTime? DeliveredAt { get; set; }
     public DateTime? CancelledAt { get; set; }
+    public DateTime? ReturnedAt { get; set; }
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<OrderItem> Items { get; set; } = new List<OrderItem>();
@@ -148,6 +151,13 @@ public class MessageLog
     public required string Direction { get; set; } // inbound | outbound
     public required string RawText { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>Claim row per processed WhatsApp message id (PK) so Meta's redeliveries are dropped across restarts and instances.</summary>
+public class ProcessedWebhookMessage
+{
+    public required string MessageId { get; set; }
+    public DateTime ProcessedAt { get; set; } = DateTime.UtcNow;
 }
 
 /// <summary>A seller's Instagram Business/Creator account connected via OAuth, so comment webhooks can be routed to them (V5, section 6c).</summary>

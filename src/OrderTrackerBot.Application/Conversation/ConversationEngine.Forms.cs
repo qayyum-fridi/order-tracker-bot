@@ -169,7 +169,8 @@ public partial class ConversationEngine
         session.ContextJson = ctx.ToJson();
 
         await ReplyAsync(seller,
-            $"✅ Order saved (#{order.Id}) — {customerName}, {Formatters.ProductLabel(product)} x{quantity}, {Formatters.Money(total)}, {payment}" +
+            $"✅ Order saved (#{order.Id}) — {customerName}, {Formatters.ProductLabel(product)} x{quantity}, {Formatters.Money(order.Total)}" +
+            (order.DeliveryCharge > 0 ? $" (delivery {Formatters.Money(order.DeliveryCharge)} shamil)" : "") + $", {payment}" +
             (order.DeliveryDate is { } d ? $", delivery {d:dd MMM}." : "."), ct);
     }
 

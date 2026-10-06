@@ -23,9 +23,15 @@ public sealed record ReceiptData(
     string Status,
     string? TrackingCourier,
     string? TrackingNumber,
-    IReadOnlyList<string> PayTo);
+    IReadOnlyList<string> PayTo,
+    byte[]? Logo = null,
+    byte[]? Banner = null,
+    decimal DeliveryCharge = 0);
 
 public interface IReceiptPdfGenerator
 {
     byte[] Generate(ReceiptData receipt);
+
+    /// <summary>True when <paramref name="image"/> is a PNG/JPEG/WebP the PDF can embed (guards the receipt against bad uploads).</summary>
+    bool CanEmbedImage(byte[] image);
 }

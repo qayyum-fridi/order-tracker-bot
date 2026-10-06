@@ -16,8 +16,8 @@ public partial class ConversationEngine
     private IQueryable<Customer> SellerCustomers(Seller seller) =>
         _db.Customers.Include(c => c.Orders).Where(c => c.SellerId == seller.Id && c.DeletedAt == null);
 
-    private static int ActiveOrderCount(Customer c) => c.Orders.Count(o => o.Status != OrderStatus.Cancelled);
-    private static decimal TotalSpent(Customer c) => c.Orders.Where(o => o.Status != OrderStatus.Cancelled).Sum(o => o.Total);
+    private static int ActiveOrderCount(Customer c) => c.Orders.Count(o => o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned);
+    private static decimal TotalSpent(Customer c) => c.Orders.Where(o => o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned).Sum(o => o.Total);
 
     private async Task HandleCustomerListAsync(Seller seller, SessionContextData ctx, CancellationToken ct, int page = 0)
     {
@@ -61,7 +61,7 @@ public partial class ConversationEngine
             return;
         }
 
-        var orders = customer.Orders.Where(o => o.Status != OrderStatus.Cancelled).OrderByDescending(o => o.CreatedAt).ToList();
+        var orders = customer.Orders.Where(o => o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned).OrderByDescending(o => o.CreatedAt).ToList();
         var threshold = (await _db.LoyaltyRules.Where(r => r.SellerId == seller.Id && r.IsActive).Select(r => (int?)r.OrderThreshold).FirstOrDefaultAsync(ct))
                         ?? DefaultLoyalThreshold;
 

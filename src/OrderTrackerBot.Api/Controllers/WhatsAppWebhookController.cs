@@ -14,28 +14,16 @@ public class WhatsAppWebhookController : ControllerBase
     private readonly WhatsAppOptions _options;
     private readonly ILogger<WhatsAppWebhookController> _logger;
     private readonly IIssueReporter _issues;
+    private readonly WebhookMessageGate _gate;
 
-    public WhatsAppWebhookController(ConversationEngine engine, IOptions<WhatsAppOptions> options, ILogger<WhatsAppWebhookController> logger, IIssueReporter issues)
+    public WhatsAppWebhookController(ConversationEngine engine, IOptions<WhatsAppOptions> options, ILogger<WhatsAppWebhookController> logger, IIssueReporter issues,
+        WebhookMessageGate gate)
     {
+        _gate = gate;
         _issues = issues;
         _engine = engine;
         _options = options.Value;
         _logger = logger;
-    }
-
-    // WhatsApp redelivers a webhook when it doesn't get a fast 200; drop repeats so the seller sees one reply, not two.
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> SeenMessageIds = new();
-
-    private static bool IsDuplicateDelivery(string? messageId)
-    {
-        if (string.IsNullOrEmpty(messageId)) return false;
-
-        var now = DateTime.UtcNow;
-        if (SeenMessageIds.Count > 5000)
-            foreach (var old in SeenMessageIds.Where(kv => now - kv.Value > TimeSpan.FromHours(1)).Select(kv => kv.Key).ToList())
-                SeenMessageIds.TryRemove(old, out _);
-
-        return !SeenMessageIds.TryAdd(messageId, now);
     }
 
     /// <summary>Meta's one-time webhook verification handshake (Cloud API setup).</summary>
@@ -72,10 +60,9 @@ public class WhatsAppWebhookController : ControllerBase
 
         foreach (var (from, text, messageId) in payload.ExtractTextMessages())
         {
-            if (IsDuplicateDelivery(messageId)) continue;
             try
             {
-                await _engine.HandleIncomingMessageAsync(from, text, ct);
+                await _gate.RunOnceAsync(from, messageId, () => _engine.HandleIncomingMessageAsync(from, text, ct), ct);
             }
             catch (Exception ex)
             {
@@ -87,10 +74,9 @@ public class WhatsAppWebhookController : ControllerBase
 
         foreach (var (from, mediaId, caption, messageId) in payload.ExtractImageMessages())
         {
-            if (IsDuplicateDelivery(messageId)) continue;
             try
             {
-                await _engine.HandleImageMessageAsync(from, mediaId, caption, ct);
+                await _gate.RunOnceAsync(from, messageId, () => _engine.HandleImageMessageAsync(from, mediaId, caption, ct), ct);
             }
             catch (Exception ex)
             {
@@ -102,10 +88,9 @@ public class WhatsAppWebhookController : ControllerBase
 
         foreach (var (from, json, messageId) in payload.ExtractFlowSubmissions())
         {
-            if (IsDuplicateDelivery(messageId)) continue;
             try
             {
-                await _engine.HandleFlowSubmissionAsync(from, json, ct);
+                await _gate.RunOnceAsync(from, messageId, () => _engine.HandleFlowSubmissionAsync(from, json, ct), ct);
             }
             catch (Exception ex)
             {
@@ -117,10 +102,9 @@ public class WhatsAppWebhookController : ControllerBase
 
         foreach (var (from, type, messageId) in payload.ExtractUnsupportedMessages())
         {
-            if (IsDuplicateDelivery(messageId)) continue;
             try
             {
-                await _engine.HandleUnsupportedMediaAsync(from, type, ct);
+                await _gate.RunOnceAsync(from, messageId, () => _engine.HandleUnsupportedMediaAsync(from, type, ct), ct);
             }
             catch (Exception ex)
             {

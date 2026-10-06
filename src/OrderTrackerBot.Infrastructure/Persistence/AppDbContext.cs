@@ -24,9 +24,11 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<Campaign> Campaigns => Set<Campaign>();
     public DbSet<CampaignSend> CampaignSends => Set<CampaignSend>();
     public DbSet<MessageLog> MessageLogs => Set<MessageLog>();
+    public DbSet<ProcessedWebhookMessage> ProcessedWebhookMessages => Set<ProcessedWebhookMessage>();
     public DbSet<InstagramConnection> InstagramConnections => Set<InstagramConnection>();
     public DbSet<CommentLead> CommentLeads => Set<CommentLead>();
     public DbSet<SupportQuery> SupportQueries => Set<SupportQuery>();
+    public DbSet<SellerBranding> SellerBrandings => Set<SellerBranding>();
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -43,6 +45,7 @@ public class AppDbContext : DbContext, IAppDbContext
         {
             e.HasIndex(s => s.WhatsAppPhoneNumber).IsUnique();
             e.Property(s => s.BusinessName).HasMaxLength(200);
+            e.Property(s => s.DefaultDeliveryCharge).HasColumnType("decimal(18,2)");
             e.HasOne(s => s.Session).WithOne(cs => cs.Seller!)
                 .HasForeignKey<ConversationSession>(cs => cs.SellerId).OnDelete(DeleteBehavior.Cascade);
         });
@@ -64,6 +67,7 @@ public class AppDbContext : DbContext, IAppDbContext
         {
             e.Property(o => o.Subtotal).HasColumnType("decimal(18,2)");
             e.Property(o => o.DiscountAmount).HasColumnType("decimal(18,2)");
+            e.Property(o => o.DeliveryCharge).HasColumnType("decimal(18,2)");
             e.Property(o => o.Total).HasColumnType("decimal(18,2)");
             e.HasOne(o => o.Seller).WithMany(s => s.Orders).HasForeignKey(o => o.SellerId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(o => o.Customer).WithMany(c => c.Orders).HasForeignKey(o => o.CustomerId).OnDelete(DeleteBehavior.Restrict);
@@ -103,6 +107,12 @@ public class AppDbContext : DbContext, IAppDbContext
         modelBuilder.Entity<CampaignSend>(e =>
             e.HasOne(s => s.Campaign).WithMany(c => c.Sends).HasForeignKey(s => s.CampaignId).OnDelete(DeleteBehavior.Cascade));
         modelBuilder.Entity<MessageLog>(e => e.HasIndex(m => new { m.Phone, m.CreatedAt }));
+        modelBuilder.Entity<ProcessedWebhookMessage>(e =>
+        {
+            e.HasKey(m => m.MessageId);
+            e.Property(m => m.MessageId).HasMaxLength(200);
+            e.HasIndex(m => m.ProcessedAt);
+        });
 
         modelBuilder.Entity<ActionLog>(e => e.HasIndex(a => new { a.SellerId, a.Undone }));
         modelBuilder.Entity<MerchantFeedback>(e => e.HasIndex(m => m.SellerId));
@@ -118,5 +128,6 @@ public class AppDbContext : DbContext, IAppDbContext
             e.HasIndex(l => new { l.SellerId, l.Number });
         });
         modelBuilder.Entity<SupportQuery>(e => e.HasIndex(q => new { q.SellerId, q.Number }));
+        modelBuilder.Entity<SellerBranding>(e => e.HasIndex(b => b.SellerId).IsUnique());
     }
 }

@@ -145,6 +145,232 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task DeliveryCharge_DefaultIsAdded_CanBeChangedWhileConfirming_AndOnASavedOrder()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "delivery 200", default);
+        Assert.Equal(200m, (await db.Sellers.FirstAsync()).DefaultDeliveryCharge);
+        Assert.Contains(_sent, m => m.Contains("Delivery charge Rs.200 set"));
+
+        AiReturns(Order("Sara", "Kurti", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
+        Assert.Contains(_sent, m => m.Contains("Delivery: Rs.200") && m.Contains("Total: Rs.2,000"));
+
+        // While confirming, "delivery 300" changes only this order and keeps the draft open.
+        await engine.HandleIncomingMessageAsync(Phone, "delivery 300", default);
+        Assert.Equal(ConversationState.AwaitingOrderConfirmation, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sent, m => m.Contains("Delivery: Rs.300") && m.Contains("Total: Rs.2,100"));
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        var order = await db.Orders.FirstAsync();
+        Assert.Equal(300m, order.DeliveryCharge);
+        Assert.Equal(2100m, order.Total);
+        Assert.Equal(200m, (await db.Sellers.FirstAsync()).DefaultDeliveryCharge);
+
+        await engine.HandleIncomingMessageAsync(Phone, $"order {order.Id} free delivery", default);
+        await db.Entry(order).ReloadAsync();
+        Assert.Equal(0m, order.DeliveryCharge);
+        Assert.Equal(1800m, order.Total);
+    }
+
+    [Fact]
+    public async Task DeliveryCharge_WrittenInTheOrderText_IsUsed_WithoutTypingItAgain()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await engine.HandleIncomingMessageAsync(Phone, "delivery 200", default);
+        AiReturns(Order("Sara", "Kurti", 1)); // the model didn't pick it up
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567, delivery 350", default);
+
+        Assert.Contains(_sent, m => m.Contains("Delivery: Rs.350") && m.Contains("Total: Rs.2,150"));
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        var order = await db.Orders.FirstAsync();
+        Assert.Equal(350m, order.DeliveryCharge);
+        Assert.Equal(200m, (await db.Sellers.FirstAsync()).DefaultDeliveryCharge);
+    }
+
+    [Fact]
+    public async Task DeliveryCharge_FromTheModel_IsUsed_AndTheSellersTextWins()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var fromModel = Order("Sara", "Kurti", 1);
+        fromModel.Order!.DeliveryCharge = 150;
+        AiReturns(fromModel);
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567 (screenshot jaisa)", default);
+        Assert.Contains(_sent, m => m.Contains("Delivery: Rs.150"));
+        await engine.HandleIncomingMessageAsync(Phone, "edit", default);
+
+        var overridden = Order("Sara", "Kurti", 1);
+        overridden.Order!.DeliveryCharge = 150;
+        AiReturns(overridden);
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567, free delivery", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        Assert.Equal(0m, (await db.Orders.FirstAsync()).DeliveryCharge);
+    }
+
+    [Fact]
+    public async Task DeliveryCharge_IsNotDiscounted()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        db.Discounts.Add(new OrderTrackerBot.Domain.Entities.Discount { SellerId = (await db.Sellers.FirstAsync()).Id, Code = "HALF", Type = DiscountType.Percent, Value = 50 });
+        await db.SaveChangesAsync();
+        await engine.HandleIncomingMessageAsync(Phone, "delivery 250", default);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "new_order", IsOrderAttempt = true,
+            Order = new AiOrderDraft { CustomerName = "Sara", Phone = "03001234567", DiscountCode = "HALF",
+                Items = { new AiOrderItemDraft { ProductName = "Kurti", MatchedCatalogProductName = "Kurti", Quantity = 1 } } }
+        });
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567, code HALF", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        var order = await db.Orders.FirstAsync();
+        Assert.Equal(900m, order.DiscountAmount);   // 50% of 1800, delivery excluded
+        Assert.Equal(1150m, order.Total);           // 900 + 250
+    }
+
+    [Fact]
+    public async Task Returned_OnlyForShippedOrDelivered_AndDroppedFromSales()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(Order("Sara", "Kurti", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        var order = await db.Orders.FirstAsync();
+
+        await engine.HandleIncomingMessageAsync(Phone, $"mark {order.Id} returned", default);
+        Assert.Contains(_sent, m => m.Contains("bheja hi nahi gaya") && m.Contains($"cancel order {order.Id}"));
+        await db.Entry(order).ReloadAsync();
+        Assert.Equal(OrderStatus.Pending, order.Status);
+
+        await engine.HandleIncomingMessageAsync(Phone, $"mark {order.Id} shipped", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Sara ka order wapas aa gaya", default);
+        await db.Entry(order).ReloadAsync();
+        Assert.Equal(OrderStatus.Returned, order.Status);
+        Assert.NotNull(order.ReturnedAt);
+        Assert.Contains(_sent, m => m.Contains("RETURNED") && m.Contains("Sales reports se"));
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "today's summary", default);
+        Assert.Contains(_sent, m => m.Contains("Orders: 0") && m.Contains("Returned: 1") && m.Contains("Rs.0"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "undo", default);
+        await db.Entry(order).ReloadAsync();
+        Assert.Equal(OrderStatus.Shipped, order.Status);
+    }
+
+    private async Task<OrderTrackerBot.Domain.Entities.Order> SaveSaraKurtiOrderAsync(ConversationEngine engine, AppDbContext db, string? text = null, AiMessageAnalysis? analysis = null)
+    {
+        AiReturns(analysis ?? Order("Sara", "Kurti", 1));
+        await engine.HandleIncomingMessageAsync(Phone, text ?? "Sara, 1 kurti, 03001234567", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        return await db.Orders.Include(o => o.Items).Include(o => o.Customer).OrderBy(o => o.Id).LastAsync();
+    }
+
+    [Fact]
+    public async Task EditOrder_ChangesItemsCustomerAndDelivery_ThenDone_ThenUndoRestoresEverything()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var order = await SaveSaraKurtiOrderAsync(engine, db);
+        Assert.Contains(_sent, m => m.Contains($"edit order {order.Id}"));
+
+        await engine.HandleIncomingMessageAsync(Phone, $"edit order {order.Id}", default);
+        Assert.Equal(ConversationState.AwaitingOrderEdit, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sent, m => m.Contains("1. Kurti x1") && m.Contains("remove 2"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "1 = 3", default);
+        await engine.HandleIncomingMessageAsync(Phone, "add Lawn Suit 1", default);
+        Assert.Contains(_sent, m => m.Contains("Lawn Suit x1 add") && m.Contains("Total: Rs.8,900"));
+        await engine.HandleIncomingMessageAsync(Phone, "remove 1", default);
+        await engine.HandleIncomingMessageAsync(Phone, "phone 0300-9998888", default);
+        await engine.HandleIncomingMessageAsync(Phone, "address House 5, Gulberg", default);
+        await engine.HandleIncomingMessageAsync(Phone, "delivery 200", default);
+        await engine.HandleIncomingMessageAsync(Phone, "done", default);
+
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sent, m => m.Contains($"Order #{order.Id} save ho gaya"));
+        await db.Entry(order).ReloadAsync();
+        await db.Entry(order.Customer!).ReloadAsync();
+        var items = await db.OrderItems.Where(i => i.OrderId == order.Id).ToListAsync();
+        Assert.Equal("Lawn Suit", Assert.Single(items).ProductNameSnapshot);
+        Assert.Equal(3500m, order.Subtotal);
+        Assert.Equal(200m, order.DeliveryCharge);
+        Assert.Equal(3700m, order.Total);
+        Assert.Equal("03009998888", order.Customer!.Phone);
+        Assert.Equal("House 5, Gulberg", order.Customer.Address);
+
+        // One undo puts the whole edit session back.
+        await engine.HandleIncomingMessageAsync(Phone, "undo", default);
+        await db.Entry(order).ReloadAsync();
+        await db.Entry(order.Customer).ReloadAsync();
+        items = await db.OrderItems.Where(i => i.OrderId == order.Id).ToListAsync();
+        Assert.Equal("Kurti", Assert.Single(items).ProductNameSnapshot);
+        Assert.Equal(1, items[0].Quantity);
+        Assert.Equal(1800m, order.Total);
+        Assert.Equal(0m, order.DeliveryCharge);
+        Assert.Equal("03001234567", order.Customer.Phone);
+        Assert.Null(order.Customer.Address);
+    }
+
+    [Fact]
+    public async Task EditOrder_RecalculatesAPercentDiscount_AndWarnsWhenAlreadyPaid()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        db.Discounts.Add(new OrderTrackerBot.Domain.Entities.Discount { SellerId = (await db.Sellers.FirstAsync()).Id, Code = "HALF", Type = DiscountType.Percent, Value = 50 });
+        await db.SaveChangesAsync();
+        var order = await SaveSaraKurtiOrderAsync(engine, db, "Sara, 1 kurti, 03001234567, code HALF", new AiMessageAnalysis
+        {
+            Intent = "new_order", IsOrderAttempt = true,
+            Order = new AiOrderDraft { CustomerName = "Sara", Phone = "03001234567", DiscountCode = "HALF",
+                Items = { new AiOrderItemDraft { ProductName = "Kurti", MatchedCatalogProductName = "Kurti", Quantity = 1 } } }
+        });
+        await engine.HandleIncomingMessageAsync(Phone, $"mark {order.Id} paid", default);
+
+        await engine.HandleIncomingMessageAsync(Phone, $"order {order.Id} edit", default);
+        await engine.HandleIncomingMessageAsync(Phone, "1 = 2", default);
+
+        await db.Entry(order).ReloadAsync();
+        Assert.Equal(3600m, order.Subtotal);
+        Assert.Equal(1800m, order.DiscountAmount);
+        Assert.Equal(1800m, order.Total);
+        Assert.Contains(_sent, m => m.Contains("Payment PAID thi") && m.Contains("farq"));
+    }
+
+    [Fact]
+    public async Task EditOrder_GuardsAndExits()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var order = await SaveSaraKurtiOrderAsync(engine, db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "edit order", default);            // latest order
+        await engine.HandleIncomingMessageAsync(Phone, "remove 1", default);              // last item can't go
+        Assert.Contains(_sent, m => m.Contains("aakhri item") && m.Contains($"cancel order {order.Id}"));
+        await engine.HandleIncomingMessageAsync(Phone, "add Shalwar 1", default);
+        Assert.Contains(_sent, m => m.Contains("\"Shalwar\" catalog mein nahi mila"));
+        await engine.HandleIncomingMessageAsync(Phone, "kuch bhi", default);
+        Assert.Contains(_sent, m => m.Contains("Samajh nahi aaya") && m.Contains("done"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "orders today", default);           // a real command leaves edit mode
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+
+        await engine.HandleIncomingMessageAsync(Phone, $"cancel order {order.Id}", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        await engine.HandleIncomingMessageAsync(Phone, $"edit order {order.Id}", default);
+        Assert.Contains(_sent, m => m.Contains("CANCELLED hai") && m.Contains("badla nahi"));
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+    }
+
+    [Fact]
     public async Task NewOrder_DefaultsToCod()
     {
         using var db = _dbFactory.CreateContext();
@@ -342,6 +568,45 @@ public class MockupFeatureTests : IDisposable
 
         Assert.Single(_sent, m => m.Contains("Weekly Summary — Ayesha Collections"));
         Assert.Single(_buttons, b => b.Body.Contains("free trial") && b.Body.Contains("khatam ho raha hai"));
+    }
+
+    [Fact]
+    public async Task ScheduledJobs_OneSellersFailure_DoesNotStopTheOthers_AndIsReported()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        var first = await db.Sellers.FirstAsync();
+        first.CreatedAt = DateTime.UtcNow.AddDays(-20);
+        const string otherPhone = "923009998888";
+        db.Sellers.Add(new OrderTrackerBot.Domain.Entities.Seller
+        {
+            WhatsAppPhoneNumber = otherPhone, BusinessName = "Second Shop", OnboardingComplete = true, CreatedAt = DateTime.UtcNow.AddDays(-20),
+            Session = new OrderTrackerBot.Domain.Entities.ConversationSession { State = ConversationState.Idle }
+        });
+        await db.SaveChangesAsync();
+        _sender.Setup(s => s.SendTextMessageAsync(Phone, It.Is<string>(t => t.Contains("Weekly Summary")), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("WhatsApp down"));
+        var issues = new Mock<IIssueReporter>();
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, issues: issues.Object);
+
+        await engine.RunScheduledJobsAsync(DateTime.UtcNow);
+
+        _sender.Verify(s => s.SendTextMessageAsync(otherPhone, It.Is<string>(t => t.Contains("Weekly Summary — Second Shop")), It.IsAny<CancellationToken>()), Times.Once);
+        issues.Verify(i => i.ReportAsync(IssueCodes.ScheduledJobFailed, Phone, It.IsAny<string?>(), It.IsAny<HttpRequestException>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ScheduledJobs_PurgeWebhookClaimsOlderThanAWeek()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        db.ProcessedWebhookMessages.Add(new OrderTrackerBot.Domain.Entities.ProcessedWebhookMessage { MessageId = "old", ProcessedAt = DateTime.UtcNow.AddDays(-8) });
+        db.ProcessedWebhookMessages.Add(new OrderTrackerBot.Domain.Entities.ProcessedWebhookMessage { MessageId = "recent", ProcessedAt = DateTime.UtcNow.AddHours(-2) });
+        await db.SaveChangesAsync();
+
+        await engine.RunScheduledJobsAsync(DateTime.UtcNow);
+
+        Assert.Equal(new[] { "recent" }, await db.ProcessedWebhookMessages.AsNoTracking().Select(m => m.MessageId).ToArrayAsync());
     }
 
     [Fact]

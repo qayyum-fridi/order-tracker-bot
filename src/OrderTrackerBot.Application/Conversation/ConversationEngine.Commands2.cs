@@ -136,6 +136,9 @@ public partial class ConversationEngine
                 }
                 return;
             }
+            case ActionType.OrderEdited:
+                await UndoOrderEditAsync(seller, last, ct);
+                return;
             case ActionType.ProductPriceChanged:
             {
                 using var doc = JsonDocument.Parse(last.PayloadJson);
@@ -157,7 +160,7 @@ public partial class ConversationEngine
     {
         Order? order = cmd.Number is int n
             ? await _db.Orders.FirstOrDefaultAsync(o => o.SellerId == seller.Id && o.Id == n, ct)
-            : await _db.Orders.Where(o => o.SellerId == seller.Id && o.PaymentStatus == PaymentStatus.Unpaid && o.Status != OrderStatus.Cancelled)
+            : await _db.Orders.Where(o => o.SellerId == seller.Id && o.PaymentStatus == PaymentStatus.Unpaid && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
                 .OrderByDescending(o => o.CreatedAt).FirstOrDefaultAsync(ct);
 
         if (order is null)
@@ -287,7 +290,8 @@ public partial class ConversationEngine
             return;
         }
 
-        var keyword = cmd.Text2!.StartsWith("deliver") ? "delivered" : cmd.Text2.StartsWith("ship") ? "shipped" : "pending";
+        var keyword = cmd.Text2!.StartsWith("deliver") ? "delivered" : cmd.Text2.StartsWith("ship") ? "shipped"
+            : cmd.Text2 == "return" ? "returned" : "pending";
         await ApplyStatusChangeAsync(seller, session, ctx, order, keyword, ct);
     }
 
@@ -401,6 +405,7 @@ public partial class ConversationEngine
         _db.ActionLogs.RemoveRange(await _db.ActionLogs.Where(a => a.SellerId == seller.Id).ToListAsync(ct));
         _db.MerchantFeedbacks.RemoveRange(await _db.MerchantFeedbacks.Where(f => f.SellerId == seller.Id).ToListAsync(ct));
         _db.CustomerFeedbacks.RemoveRange(await _db.CustomerFeedbacks.Where(f => f.SellerId == seller.Id).ToListAsync(ct));
+        _db.SellerBrandings.RemoveRange(await _db.SellerBrandings.Where(b => b.SellerId == seller.Id).ToListAsync(ct));
 
         seller.BusinessName = null;
         seller.OnboardingComplete = false;
@@ -468,7 +473,7 @@ public partial class ConversationEngine
     {
         // Aggregated client-side: Sqlite (dev/docker provider) can't SUM a decimal column in SQL.
         var rows = await _db.Orders
-            .Where(o => o.SellerId == seller.Id && o.Status != OrderStatus.Cancelled && o.Customer!.DeletedAt == null)
+            .Where(o => o.SellerId == seller.Id && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned && o.Customer!.DeletedAt == null)
             .Select(o => new { o.CustomerId, o.Customer!.Name, o.Total })
             .ToListAsync(ct);
         var top = rows

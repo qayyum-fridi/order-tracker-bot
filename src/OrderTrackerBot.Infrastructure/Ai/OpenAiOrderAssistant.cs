@@ -81,6 +81,8 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "of catalog units; for weight-sold items like \"15kg kaju\" use the number of kg (15). " +
             "Required order fields are customer_name and phone; if either is missing, still return the order with what you found and list the " +
             "missing ones in missing_required_fields (values: 'CustomerName', 'Phone'). Address, payment_method, discount_code and order_source " +
+            "(and delivery_charge: the delivery/shipping charge in rupees only when the order states one, e.g. \"delivery 250\", \"+200 delivery\"; " +
+            "\"free delivery\" = 0; never fold it into an item price; null when not mentioned) " +
             "(instagram|whatsapp|tiktok|facebook|referral, only when evident) are optional. " +
             "Set is_ambiguous_item_grouping=true only when 2+ distinct items for ONE customer are named in a way that could mean either separate " +
             "orders or one combined order (e.g. \"2 suits, red and blue, for Ayesha\"). " +
@@ -264,7 +266,9 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             Address = GetNullableString(orderEl, "address"),
             PaymentMethod = GetNullableString(orderEl, "payment_method"),
             DiscountCode = GetNullableString(orderEl, "discount_code"),
-            OrderSource = GetNullableString(orderEl, "order_source")
+            OrderSource = GetNullableString(orderEl, "order_source"),
+            DeliveryCharge = orderEl.TryGetProperty("delivery_charge", out var delivery) && delivery.ValueKind == JsonValueKind.Number
+                && delivery.TryGetDecimal(out var amount) && amount >= 0 ? amount : null
         };
 
         if (orderEl.TryGetProperty("missing_required_fields", out var missing) && missing.ValueKind == JsonValueKind.Array)
@@ -316,6 +320,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             ["payment_method"] = NullableString(),
             ["discount_code"] = NullableString(),
             ["order_source"] = NullableString(),
+            ["delivery_charge"] = new JsonObject { ["type"] = new JsonArray { "number", "null" } },
             ["missing_required_fields"] = new JsonObject { ["type"] = "array", ["items"] = new JsonObject { ["type"] = "string" } },
             ["items"] = new JsonObject { ["type"] = "array", ["items"] = itemSchema }
         });

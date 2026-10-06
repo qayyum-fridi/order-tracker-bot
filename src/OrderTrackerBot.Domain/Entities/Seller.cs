@@ -15,6 +15,8 @@ public class Seller
     public string TimeZoneId { get; set; } = "Asia/Karachi";
     public string? BusinessType { get; set; }
     public string? InstagramHandle { get; set; }
+    /// <summary>Delivery charge added to every new order unless changed on that order ("delivery 200" sets it, "free delivery" clears it).</summary>
+    public decimal DefaultDeliveryCharge { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>Free trial end; null until onboarding completes (trial starts then).</summary>
@@ -63,6 +65,16 @@ public class Product
     public int? StockQty { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>The seller's logo/banner for PDF receipts. Its own table so the image bytes aren't loaded with the Seller on every message.</summary>
+public class SellerBranding
+{
+    public int Id { get; set; }
+    public int SellerId { get; set; }
+    public byte[]? Logo { get; set; }
+    public byte[]? Banner { get; set; }
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }
 
 public class Customer

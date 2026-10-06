@@ -114,7 +114,7 @@ public partial class ConversationEngine
     private async Task SendTrialEndingReminderAsync(Seller seller, CancellationToken ct)
     {
         var monthStart = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-        var orders = await _db.Orders.Where(o => o.SellerId == seller.Id && o.CreatedAt >= monthStart && o.Status != OrderStatus.Cancelled).ToListAsync(ct);
+        var orders = await _db.Orders.Where(o => o.SellerId == seller.Id && o.CreatedAt >= monthStart && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned).ToListAsync(ct);
         var customers = await _db.Customers.CountAsync(c => c.SellerId == seller.Id && c.DeletedAt == null, ct);
         var daysLeft = Math.Max(1, (int)Math.Ceiling((seller.TrialEndsAt!.Value - DateTime.UtcNow).TotalDays));
 

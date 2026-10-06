@@ -139,3 +139,36 @@ shared-state action: confirm with the user and get SSH/host details first.
   `Infrastructure/Pdf`) are sent as a WhatsApp document to the *seller's* chat, who forwards them to the buyer (the bot never
   messages buyers). QuestPDF runs under its Community licence (free below US$1M revenue); Linux hosts need `libfontconfig1`
   (in the Dockerfile); the Urdu-script font (Noto Naskh Arabic, OFL) is embedded. The receipt is English-labelled only.
+- Receipt logo/banner: the seller sends a picture captioned `logo` / `banner` (`ConversationEngine.Branding.cs`); stored as bytes in
+  `SellerBrandings` (own table; created on Sqlite by `SqliteSchemaPatcher`, **no SQL Server migration yet — generate one**). Images
+  are validated with QuestPDF only (no resize/re-encode; QuestPDF downsamples when rendering) and capped at 5 MB; a stored image
+  the PDF engine can't draw falls back to a plain receipt. `reset account` deletes them.
+- Export (`export`, `export orders customers`, `export all`, `export orders 30 days|last month|today|yesterday`, `ایکسپورٹ` -> `ConversationEngine.Export.cs`,
+  MiniExcel in `Infrastructure/Export`): one .xlsx (sheets Orders, Order Items, Customers, Catalog, Discounts, Loyalty Rules) sent to the seller's own chat.
+  Excel only, no CSV (CSV loses leading-zero phone numbers and Urdu text unless handled, and can't hold several sheets); strings are written as
+  string cells so buyer-supplied text can't become formulas. Order period filters use the seller's timezone; customers/spend are aggregated in memory
+  (Sqlite can't SUM decimal). Expired-trial sellers are blocked by billing like every other command.
+- Shortcuts (`ConversationEngine.Shortcuts.cs`): after a turn that replied, ended in `Idle` and sent no interactive message, the engine adds a 3-button
+  quick bar (Menu / Naya order / Orders today; labels are parseable commands). Per-seller `shortcut off|on` lives in `SessionContextData`;
+  global flag `Features:ShortcutButtons` (engine built without `FeatureOptions` = off, so unit tests stay quiet). "/" commands: `CommandParser.SlashCommands`,
+  registered with Meta via `deploy/whatsapp-conversational-components.json` (**schema from third-party docs; how Meta delivers a picked command was not
+  verified** — the engine just accepts `/name` as a typed alias).
+- Delivery charges (`ConversationEngine.Delivery.cs`): `Seller.DefaultDeliveryCharge` ("delivery 200" / "free delivery") is applied to new
+  drafts; "delivery 300" while confirming changes only that draft; "order 12 delivery 300" changes a saved order. A charge written inside the order itself ("..., delivery 300", "+250 delivery",
+  "free delivery") is picked up: deterministically by `CommandParser.TryFindDeliveryInOrderText` for text (wins over the model; single-customer
+  messages only; bare numbers under 50 are ignored as likely dates unless "Rs" is written), and via the model's `delivery_charge` field for screenshots. Always
+  `Total = max(0, Subtotal - DiscountAmount) + DeliveryCharge` (`OrderTotal`); discounts (codes and loyalty) never touch delivery. Sales totals include delivery.
+- `OrderStatus.Returned` (+ `Order.ReturnedAt`): "mark 3 returned/wapas", "Ayesha ka order wapas aa gaya". Only from Shipped/Delivered (a pending order is
+  cancelled instead). Excluded everywhere Cancelled is excluded from sales/loyalty/customer spend; shown as "Returned: N" in today's/weekly summary.
+  New columns (`Orders.DeliveryCharge`, `Orders.ReturnedAt`, `Sellers.DefaultDeliveryCharge`) are added on Sqlite by the patcher — **no SQL Server migration**.
+- Inbound WhatsApp messages go through `WebhookMessageGate` (Infrastructure/WhatsApp): a per-sender `SemaphoreSlim` (in-process only — several app
+  instances would need sticky routing or a DB lock) and a DB claim on the message id (`ProcessedWebhookMessages`, PK) made in its own scope before
+  handling, so Meta redeliveries are dropped across restarts. A message whose handling throws stays claimed (the seller got the error reply).
+  The scheduler purges claims older than 7 days, claims weekly/trial sends with an atomic `ExecuteUpdate` (never twice), and isolates per-seller
+  failures (reported as OTB-5001). Ported from PR #9 without its voice-note part.
+- Editing a saved order (`ConversationEngine.OrderEdit.cs`): "edit order 12" / "order 12 edit" / "edit order" (latest) enters
+  `AwaitingOrderEdit`; one instruction per message (`CommandParser.TryParseOrderEdit`: "1 = 3", "price 1 = 1500", "remove 2", "add Kurti 2",
+  "phone …", "address …", "name …", "delivery 250", "payment cod") until "done"; any other real command leaves edit mode and runs.
+  The first change logs an `ActionType.OrderEdited` snapshot so one "undo" restores items, amounts, payment method and the customer's
+  name/phone/address. Totals are recomputed (percent codes re-applied, flat ones capped). Cancelled/Returned orders can't be edited.
+  Phone/address/name edits change the shared Customer record, not just this order.

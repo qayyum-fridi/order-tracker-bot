@@ -63,6 +63,13 @@ public enum CommandKind
     LeadAction,
     ProductReport,
     Receipt,
+    BrandingHelp,
+    Export,
+    Shortcuts,
+    DeliveryCharge,
+    EditOrder,
+    OrderDeliveryCharge,
+    RemoveBranding,
     DiscountPerformance,
     NewOrderHelp,
     Guide,
@@ -72,6 +79,12 @@ public enum CommandKind
     PaymentMethodPrompt,
     ImportCatalogSheet
 }
+
+/// <summary>What to export: any of "orders", "customers", "catalog", "discounts" (empty = ask), and an optional orders period (today/yesterday/7d/30d/lastmonth).</summary>
+public sealed record ExportRequest(IReadOnlyList<string> Datasets, string? Period);
+
+/// <summary>One change inside "edit order" mode. Kind: done | qty | price | remove | add | phone | address | name | delivery | payment.</summary>
+public sealed record OrderEditInstruction(string Kind, int? Item = null, int? Quantity = null, decimal? Amount = null, string? Text = null);
 
 /// <summary>A catalog line: "Lawn Suit - 3500" or "Sugar 5 kg - 500" (unit type + pack size split off the name).</summary>
 public sealed record ProductLine(string Name, decimal Price, string UnitType, decimal UnitQty);
@@ -89,6 +102,7 @@ public sealed class ParsedCommand
     public int? Number { get; init; }
     public decimal? Amount { get; init; }
     public ProductLine? Product { get; init; }
+    public ExportRequest? Export { get; init; }
 }
 
 public static class CommandParser
@@ -133,6 +147,191 @@ public static class CommandParser
     private static readonly Regex PriceTiers = new(@"^(.+?)\s*[-–:]\s*(?:price\s+tiers?|bulk\s+pric(?:e|ing)|wholesale)\s*:\s*(.+)$", Opts);
     private static readonly Regex CampaignStatus = new(@"^campaign\s+status$", Opts);
     private static readonly Regex ProductReport = new(@"^(.+?)\s+(?:ka|ki)\s+report$|^report:?\s+(.+)$", Opts);
+    // WhatsApp "/" commands (registered via deploy/whatsapp-conversational-components.json) arrive as "/orders" etc. and map to the typed command.
+    public static readonly IReadOnlyList<(string Name, string Description, string Text)> SlashCommands = new[]
+    {
+        ("menu", "Main menu kholein", "menu"),
+        ("neworder", "Naya order darj karein", "new order"),
+        ("orders", "Aaj ke orders", "orders today"),
+        ("pending", "Pending orders", "pending orders"),
+        ("unpaid", "Unpaid orders", "unpaid orders"),
+        ("summary", "Aaj ka hisaab", "today's summary"),
+        ("catalog", "Apna catalog", "catalog"),
+        ("customers", "Customers ki list", "customer list"),
+        ("receipt", "Order ki PDF receipt", "receipt"),
+        ("export", "Excel file (orders, customers...)", "export"),
+        ("logo", "Receipt par apna logo/banner", "logo"),
+        ("help", "Madad", "help"),
+    };
+
+    private static string? ExpandSlashCommand(string message)
+    {
+        var name = message.TrimStart('/').Split(' ', 2)[0].Trim().ToLowerInvariant();
+        foreach (var command in SlashCommands) if (command.Name == name) return command.Text;
+        return null;
+    }
+
+    // Delivery charge: "delivery 200" / "delivery charges: Rs 250" sets the seller's default (or, while confirming an order, just that
+    // order's); "free delivery" = 0; "delivery charge" alone shows it. "order 12 delivery 300" changes a saved order.
+    private const string DeliveryWord = @"(?:delivery|deliveri|ڈیلیوری)(?:\s+(?:charges?|fee|fees|kharcha))?";
+    private static readonly Regex DeliveryAmount = new(@"^(?:set\s+)?" + DeliveryWord + @"\s*[:=-]?\s*(?:rs\.?\s*)?(?<n>\d{1,6})(?:\s*(?:rs|rupees?|روپے))?$", Opts);
+    private static readonly Regex DeliveryFree = new(@"^(?:free\s+delivery|delivery\s+free|no\s+delivery(?:\s+charges?)?|delivery\s+(?:charges?\s+)?(?:nahi|none|off)|فری\s+ڈیلیوری)$", Opts);
+    private static readonly Regex DeliveryShow = new(@"^(?:my\s+)?" + DeliveryWord + "$", Opts);
+    private static readonly Regex OrderDelivery = new(@"^(?:order|آرڈر)?\s*#?(?<id>\d+)\s+" + DeliveryWord + @"\s*[:=-]?\s*(?:rs\.?\s*)?(?<n>\d{1,6}|free|0)$|^(?:order|آرڈر)\s*#?(?<id>\d+)\s+free\s+delivery$", Opts);
+
+    // "edit order 12" / "order 12 edit" / "edit order" (latest) / "آرڈر 12 تبدیل" opens edit mode for a saved order.
+    private const string EditVerb = @"(?:edit|change|update|badlo|badlein|badalna|theek\s+karo|tabdeel|tabdeeli)";
+    private static readonly Regex EditOrder = new(@"^" + EditVerb + @"\s+order(?:\s*#?(?<n>\d+))?$|^order\s*#?(?<n>\d+)\s+" + EditVerb +
+        @"$|^(?:edit|ایڈٹ)\s+آرڈر(?:\s*(?<n>\d+))?$|^آرڈر\s*(?<n>\d+)\s+(?:تبدیل|بدلیں|ایڈٹ|درست)(?:\s+کریں)?$", Opts);
+
+    private static readonly Regex EditDone = new(@"^(?:done|bas|save|ok|okay|theek\s+hai|ho\s+gaya|ٹھیک\s+ہے|ہو\s+گیا|بس)[.!]*$", Opts);
+    private static readonly Regex EditQty = new(@"^(?:(?:qty|quantity|tadaad|item)\s*#?(?<i>\d+)\s*(?:=|:|ko|to|->)?\s*|#?(?<i>\d+)\s*(?:=|ko|to|->)\s*)(?<q>\d+)$", Opts);
+    private static readonly Regex EditPrice = new(@"^(?:price|rate|qeemat|قیمت)\s*#?(?<i>\d+)\s*(?:=|:|ko|to|->)?\s*(?:rs\.?\s*)?(?<a>\d+(?:\.\d+)?)$", Opts);
+    private static readonly Regex EditRemove = new(@"^(?:remove|delete|hatao|hata\s+do|nikalo)\s*(?:item\s*)?#?(?<i>\d+)$|^(?:item\s*)?#?(?<i>\d+)\s+(?:hatao|hata\s+do|remove|nikalo)$", Opts);
+    private static readonly Regex EditAddLeadingQty = new(@"^(?:add|aur|jodo|daalo|dalo)\s+(?<q>\d+)\s*x?\s+(?<p>\D.*)$", Opts);
+    private static readonly Regex EditAdd = new(@"^(?:add|aur|jodo|daalo|dalo)\s+(?<p>.+?)(?:\s+x?(?<q>\d+))?$", Opts);
+    private static readonly Regex EditPhone = new(@"^(?:phone|fone|number|mobile|نمبر|فون)\s*:?\s*(?<t>\+?\d[\d\s-]{6,19})$", Opts);
+    private static readonly Regex EditAddress = new(@"^(?:address|pata|patta|پتہ)\s*:?\s*(?<t>.{3,200})$", Opts | RegexOptions.Singleline);
+    private static readonly Regex EditName = new(@"^(?:name|naam|نام)\s*:?\s*(?<t>.{2,60})$", Opts);
+    private static readonly Regex EditPayment = new(@"^(?:payment|paisay|ادائیگی)\s*:?\s*(?<t>cod|cash|jazz\s*cash|easy\s*paisa|bank|advance|prepaid|online|card)$", Opts);
+
+    /// <summary>Parses one change typed while editing a saved order.</summary>
+    public static bool TryParseOrderEdit(string message, out OrderEditInstruction instruction)
+    {
+        var text = NormalizeDigits(LeadingSymbols.Replace(message.Trim(), "").Trim());
+        Match m;
+        instruction = new OrderEditInstruction("done");
+        if (EditDone.IsMatch(text)) return true;
+        if (TryParseDeliveryAmount(text, out var delivery)) { instruction = new("delivery", Amount: delivery); return true; }
+        if ((m = EditPrice.Match(text)).Success) { instruction = new("price", int.Parse(m.Groups["i"].Value), Amount: decimal.Parse(m.Groups["a"].Value, System.Globalization.CultureInfo.InvariantCulture)); return true; }
+        if ((m = EditQty.Match(text)).Success) { instruction = new("qty", int.Parse(m.Groups["i"].Value), int.Parse(m.Groups["q"].Value)); return true; }
+        if ((m = EditRemove.Match(text)).Success) { instruction = new("remove", int.Parse(m.Groups["i"].Value)); return true; }
+        if ((m = EditPhone.Match(text)).Success) { instruction = new("phone", Text: Regex.Replace(m.Groups["t"].Value, @"[\s-]", "")); return true; }
+        if ((m = EditPayment.Match(text)).Success) { instruction = new("payment", Text: m.Groups["t"].Value.ToLowerInvariant()); return true; }
+        if ((m = EditAddress.Match(text)).Success) { instruction = new("address", Text: m.Groups["t"].Value.Trim()); return true; }
+        if ((m = EditName.Match(text)).Success) { instruction = new("name", Text: m.Groups["t"].Value.Trim()); return true; }
+        if ((m = EditAddLeadingQty.Match(text)).Success || (m = EditAdd.Match(text)).Success)
+        {
+            instruction = new("add", Quantity: m.Groups["q"].Success ? int.Parse(m.Groups["q"].Value) : 1, Text: m.Groups["p"].Value.Trim());
+            return true;
+        }
+        return false;
+    }
+
+    // A delivery charge written inside an order ("Sara, 1 kurti, 0300..., delivery 300" / "+250 delivery" / "free delivery").
+    // Small bare numbers are left alone — "delivery 15 tareekh ko" is a date, not Rs.15 — unless "Rs"/"rupay" says it's money.
+    private static readonly Regex DeliveryInTextAfter = new(@"(?<![\p{L}\p{N}])(?:delivery|deliveri|shipping|ڈیلیوری)(?:\s+(?:charges?|fee|fees|kharcha))?\s*[:=-]?\s*(?<rs>rs\.?\s*)?(?<n>\d{1,5})(?!\d)(?<rs2>\s*(?:rs|rupees?|rupay|روپے))?", Opts);
+    private static readonly Regex DeliveryInTextBefore = new(@"(?<![\p{L}\p{N}])\+?\s*(?<rs>rs\.?\s*)?(?<n>\d{1,5})(?<rs2>\s*(?:rs|rupees?|rupay|روپے))?\s+(?:delivery|ڈیلیوری)(?:\s+(?:charges?|fee|kharcha))?(?![\p{L}])", Opts);
+    private static readonly Regex DeliveryFreeInText = new(@"(?<![\p{L}])(?:free\s+delivery|delivery\s+free|فری\s+ڈیلیوری)(?![\p{L}])", Opts);
+
+    /// <summary>Finds a delivery charge the seller wrote inside an order message; false when none is stated.</summary>
+    public static bool TryFindDeliveryInOrderText(string message, out decimal amount)
+    {
+        amount = 0;
+        var text = NormalizeDigits(message);
+        if (DeliveryFreeInText.IsMatch(text)) return true;
+        foreach (var regex in new[] { DeliveryInTextAfter, DeliveryInTextBefore })
+        {
+            foreach (Match m in regex.Matches(text))
+            {
+                var value = decimal.Parse(m.Groups["n"].Value, System.Globalization.CultureInfo.InvariantCulture);
+                var saysRupees = m.Groups["rs"].Success && m.Groups["rs"].Length > 0 || m.Groups["rs2"].Success && m.Groups["rs2"].Length > 0;
+                if (value >= 50 || saysRupees)
+                {
+                    amount = value;
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /// <summary>"delivery 250" / "free delivery" -> the amount; used for the seller default and inside an order confirmation.</summary>
+    public static bool TryParseDeliveryAmount(string message, out decimal amount)
+    {
+        var text = LeadingSymbols.Replace(message.Trim(), "").Trim();
+        amount = 0;
+        if (DeliveryFree.IsMatch(text)) return true;
+        var m = DeliveryAmount.Match(text);
+        if (!m.Success) return false;
+        amount = decimal.Parse(m.Groups["n"].Value, System.Globalization.CultureInfo.InvariantCulture);
+        return true;
+    }
+
+    // "shortcut off" / "shortcut on": the quick-action buttons that follow replies.
+    private static readonly Regex Shortcuts = new(@"^(?:shortcuts?|quick\s+actions?)\s+(?<v>on|off|chalu|band)$", Opts);
+
+    // "export" -> asks what; "export orders customers", "export all", "export orders 30 days", "customers export", "excel". One .xlsx comes back.
+    private static readonly Regex ExportLead = new(@"^(?:data\s+)?(?:export|download|ایکسپورٹ|ڈاؤنلوڈ)(?:\s+(?<what>.+))?$|^(?:excel|xlsx)$", Opts);
+    private static readonly Regex ExportTrail = new(@"^(?<what>.+?)\s+(?:export|excel|xlsx|download)$", Opts);
+    private const string NotLetter = @"(?<![\p{L}\p{N}])";
+    private const string NotLetterAfter = @"(?![\p{L}\p{N}])";
+    private static readonly (string Name, Regex Pattern)[] ExportDatasetWords =
+    {
+        ("orders", new(NotLetter + @"(?:orders?|آرڈرز?)" + NotLetterAfter, Opts)),
+        ("customers", new(NotLetter + @"(?:customers?|گاہک|کسٹمرز?)" + NotLetterAfter, Opts)),
+        ("catalog", new(NotLetter + @"(?:catalog(?:ue)?|products?|کیٹلاگ)" + NotLetterAfter, Opts)),
+        ("discounts", new(NotLetter + @"(?:discounts?|loyalty|coupons?|ڈسکاؤنٹس?)" + NotLetterAfter, Opts)),
+    };
+    private static readonly Regex ExportAll = new(NotLetter + @"(?:all|everything|sab(?:\s+kuch)?|poora|full|backup|سب)" + NotLetterAfter, Opts);
+    private static readonly (string Period, Regex Pattern)[] ExportPeriodWords =
+    {
+        ("lastmonth", new(NotLetter + @"(?:last\s+month|pichle\s+mahine?|pichla\s+mah(?:ina)?|پچھلے\s+مہینے)" + NotLetterAfter, Opts)),
+        ("30d", new(NotLetter + @"(?:30\s*(?:days?|din)|month|mahina|mahine|مہینہ)" + NotLetterAfter, Opts)),
+        ("7d", new(NotLetter + @"(?:7\s*(?:days?|din)|week|hafta|ہفتہ)" + NotLetterAfter, Opts)),
+        ("yesterday", new(NotLetter + @"(?:yesterday|kal|کل)" + NotLetterAfter, Opts)),
+        ("today", new(NotLetter + @"(?:today|aaj|آج)" + NotLetterAfter, Opts)),
+    };
+
+    public static ExportRequest ParseExportRequest(string? what)
+    {
+        var text = what ?? "";
+        var datasets = ExportAll.IsMatch(text)
+            ? ExportDatasetWords.Select(d => d.Name).ToList()
+            : ExportDatasetWords.Where(d => d.Pattern.IsMatch(text)).Select(d => d.Name).ToList();
+        var period = ExportPeriodWords.FirstOrDefault(p => p.Pattern.IsMatch(text)).Period;
+        return new ExportRequest(datasets, period);
+    }
+
+    // "logo" / "banner" explain how to set one; "remove logo" clears it. Text is "logo" or "banner".
+    private const string BrandingWord = @"(?<k>logo|banner|لوگو|بینر)";
+    private static readonly Regex BrandingHelp = new(@"^(?:(?:receipt|set|my)\s+)?" + BrandingWord + "$", Opts);
+    private static readonly Regex RemoveBranding = new(@"^(?:remove|delete|clear)\s+(?:receipt\s+)?" + BrandingWord + @"$|^" + BrandingWord + @"\s+(?:hatao|hata\s+do|remove)$", Opts);
+
+    private static string BrandingKind(string word) => word.ToLowerInvariant() is "logo" or "لوگو" ? "logo" : "banner";
+
+    private static readonly Regex BrandingWordAnywhere = new(@"(?<![\p{L}\p{N}])" + BrandingWord + @"(?![\p{L}\p{N}])", Opts);
+    // A free-text wish to brand receipts, e.g. "receipt mein apna logo lagana hai", "bill par image kaise lagaon". No digits, so product
+    // lines ("Logo T-shirt - 1500") never match: either an image-ish word plus a receipt word, or logo/banner plus a "want to" verb.
+    private static readonly Regex BrandingImageWish = new(@"(?<![\p{L}\p{N}])(?:logo|banner|image|photo|picture|tasveer|tasweer|لوگو|بینر|تصویر)(?![\p{L}\p{N}])", Opts);
+    private static readonly Regex ReceiptWish = new(@"(?<![\p{L}\p{N}])(?:receipt|invoice|bill|rasid|raseed|رسید)(?![\p{L}\p{N}])", Opts);
+    private static readonly Regex WantVerb = new(@"lagan|lagao|lagaon|lagani|lagay|add|set|upload|use|rakh|chahiye|chahta|chahti|change|badal|لگا|چاہی|بدل", Opts);
+
+    /// <summary>
+    /// A caption on a picture marks it as receipt branding: exactly "logo"/"banner"/"لوگو"/"بینر" (optionally "receipt logo"),
+    /// or a short sentence naming one ("ye mera logo hai", "receipt ke liye banner").
+    /// </summary>
+    public static bool TryParseBrandingCaption(string? caption, out string kind)
+    {
+        kind = "";
+        var text = (caption ?? "").Trim();
+        if (text.Length == 0 || text.Length > 60) return false;
+        var m = BrandingHelp.Match(text);
+        if (!m.Success) m = BrandingWordAnywhere.Match(text);
+        if (!m.Success) return false;
+        kind = BrandingKind(m.Groups["k"].Value);
+        return true;
+    }
+
+    private static bool TryParseBrandingWish(string message, out string? kind)
+    {
+        kind = null;
+        if (message.Length > 90 || message.Any(char.IsDigit) || !BrandingImageWish.IsMatch(message)) return false;
+        if (!ReceiptWish.IsMatch(message) && !(BrandingWordAnywhere.IsMatch(message) && WantVerb.IsMatch(message))) return false;
+        if (BrandingWordAnywhere.Match(message) is { Success: true } m) kind = BrandingKind(m.Groups["k"].Value);
+        return true;
+    }
+
     // "receipt" (latest order) / "receipt 12" / "receipt Ayesha" / "Ayesha ki receipt" / "رسید 12". Number or Text is the order reference.
     private const string ReceiptWord = @"(?:receipt|invoice|rasid|raseed|bill|رسید)";
     private static readonly Regex Receipt = new(@"^(?:(?:order|pdf)\s+)?" + ReceiptWord + @"(?:\s*:?\s*#?(?<n>\d+)|\s*:?\s+(?<name>.+))?$|^(?<name>.+?)\s+(?:ki|ka|ke)\s+" + ReceiptWord + "$", Opts);
@@ -151,6 +350,7 @@ public static class CommandParser
     private static readonly Regex DeliveredPhrase = new(@"^(?:deliver(?:ed)?" + DoneWords + @"|(?:pohanch|pahunch|pohnch)\s+gaya|ڈیلیور" + DoneWords + @"|پہنچ\s+گیا)$", Opts);
     private static readonly Regex PaidPhrase = new(@"^(?:paid" + DoneWords + @"|payment\s+(?:aa|mil)\s+(?:gayi|gai)|پیڈ" + DoneWords + @"|ادائیگی\s+ہو\s+گئی)$", Opts);
     private static readonly Regex PendingPhrase = new(@"^(?:pending|پینڈنگ)$", Opts);
+    private static readonly Regex ReturnedPhrase = new(@"^(?:return(?:ed)?" + DoneWords + @"|(?:wapas|wapis|waapas)(?:\s+(?:aa|a|aya|agaya|aa\s*gaya|aa\s*gya|ho\s*gaya|ho\s*gya|kar\s+diya))?|واپس(?:\s+(?:آ\s+گیا|آیا|ہو\s+گیا))?|ریٹرن)$", Opts);
 
     private static string? StatusFromPhrase(string phrase)
     {
@@ -159,6 +359,7 @@ public static class CommandParser
         if (DeliveredPhrase.IsMatch(phrase)) return "delivered";
         if (PaidPhrase.IsMatch(phrase)) return "paid";
         if (PendingPhrase.IsMatch(phrase)) return "pending";
+        if (ReturnedPhrase.IsMatch(phrase)) return "returned";
         return null;
     }
     private static readonly Regex CancelOrder = new(@"^cancel\s+order\s+(\d+)$", Opts);
@@ -170,7 +371,7 @@ public static class CommandParser
     private static readonly Regex AddTracking = new(@"^add\s+tracking:\s*(.+?)\s*,\s*(.+)$", Opts);
     private static readonly Regex TrackingLookup = new(@"^(.+?)\s+(?:ka|کا)\s+(?:tracking|ٹریکنگ)$", Opts);
     private static readonly Regex CustomerOrderLookup = new(@"^(.+?)\s+" + Of + @"\s+(?:order|آرڈر)$", Opts);
-    private static readonly Regex FuzzyStatusUpdate = new(@"^(.+?)\s+" + Of + @"\s+(?:order|آرڈر)\s+.*?(deliver|ship|pending|bhej|ڈیلیور|شپ|پینڈنگ)", Opts);
+    private static readonly Regex FuzzyStatusUpdate = new(@"^(.+?)\s+" + Of + @"\s+(?:order|آرڈر)\s+.*?(deliver|ship|pending|bhej|return|wapas|wapis|waapas|ڈیلیور|شپ|پینڈنگ|واپس|ریٹرن)", Opts);
     private static readonly Regex CreateDiscount = new(@"^create\s+discount:\s*(.+)$", Opts);
     private static readonly Regex DiscountList = new(@"^discount\s+list$", Opts);
     private static readonly Regex CreateLoyalty = new(@"^create\s+loyalty:\s*(\d+)\s+orders?\s*=\s*(\d+(?:\.\d+)?)\s*(?:%|percent|pc)?\s*off$", Opts);
@@ -234,7 +435,7 @@ public static class CommandParser
 
     // "add discount" / "new product" with no details: show the exact format instead of guessing via the AI.
     private static readonly Regex DetailedForm = new(@"^(?:add\s+)?(product|customer|order)\s*\(\s*detailed\s*\)$|^new\s+(order)\s*\(\s*detailed\s*\)$", Opts);
-    private static readonly Regex NewOrderHelp = new(@"^(?:new|naya|nya|add|create|make)\s+orders?$|^(?:naya\s+)?orders?\s+(?:add|darj|likhna|karna|dalna)(?:\s+(?:karna|karni|hai|karein|krna))*$", Opts);
+    private static readonly Regex NewOrderHelp = new(@"^(?:new|naya|nya|add|create|make)\s+orders?$|^نیا\s+آرڈر$|^(?:naya\s+)?orders?\s+(?:add|darj|likhna|karna|dalna)(?:\s+(?:karna|karni|hai|karein|krna))*$", Opts);
     private static readonly Regex HowTo =new(@"^(?:add|new|create|make)\s+(discount|product|payment|loyalty|tracking)s?$", Opts);
 
     private static readonly Regex SafepayId = new(@"^safepay\s+id:\s*(.+)$", Opts);
@@ -279,6 +480,7 @@ public static class CommandParser
     private static string FuzzyStatusKeyword(string word)
     {
         word = word.ToLowerInvariant();
+        if (word.ToLowerInvariant() is "return" or "wapas" or "wapis" or "waapas" or "واپس" or "ریٹرن") return "return";
         return word.StartsWith("deliver") || word == "ڈیلیور" ? "deliver"
             : word.StartsWith("ship") || word.StartsWith("bhej") || word == "شپ" ? "ship"
             : "pending";
@@ -306,6 +508,7 @@ public static class CommandParser
         // A tapped button keeps its emoji ("📋 Menu", "⚙️ Business Setup") — parse the words.
         var stripped = LeadingSymbols.Replace(message, "").Trim();
         if (stripped.Length > 0) message = stripped;
+        if (message.StartsWith('/') && ExpandSlashCommand(message) is { } expanded) message = expanded;
         Match m;
 
         if ((m = CatalogSheetLink.Match(message)).Success)
@@ -347,6 +550,29 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.PriceTiers, Text = m.Groups[1].Value.Trim(), Text2 = m.Groups[2].Value.Trim() };
         if (CampaignStatus.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CampaignStatus };
         if (DiscountPerformance.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DiscountPerformance };
+        if ((m = EditOrder.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.EditOrder, Number = m.Groups["n"].Success ? int.Parse(m.Groups["n"].Value) : null };
+        if ((m = OrderDelivery.Match(message)).Success)
+            return new ParsedCommand
+            {
+                Kind = CommandKind.OrderDeliveryCharge, Number = int.Parse(m.Groups["id"].Value),
+                Amount = m.Groups["n"].Success && m.Groups["n"].Value != "free" ? decimal.Parse(m.Groups["n"].Value) : 0
+            };
+        if (TryParseDeliveryAmount(message, out var deliveryAmount))
+            return new ParsedCommand { Kind = CommandKind.DeliveryCharge, Amount = deliveryAmount };
+        if (DeliveryShow.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DeliveryCharge };
+        if ((m = Shortcuts.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.Shortcuts, Text = m.Groups["v"].Value.ToLowerInvariant() is "on" or "chalu" ? "on" : "off" };
+        if ((m = ExportLead.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.Export, Export = ParseExportRequest(m.Groups["what"].Success ? m.Groups["what"].Value : null) };
+        if ((m = ExportTrail.Match(message)).Success && ParseExportRequest(m.Groups["what"].Value) is { Datasets.Count: > 0 } trailing)
+            return new ParsedCommand { Kind = CommandKind.Export, Export = trailing };
+        if ((m = RemoveBranding.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.RemoveBranding, Text = BrandingKind(m.Groups["k"].Value) };
+        if ((m = BrandingHelp.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.BrandingHelp, Text = BrandingKind(m.Groups["k"].Value) };
+        if (TryParseBrandingWish(message, out var wishKind))
+            return new ParsedCommand { Kind = CommandKind.BrandingHelp, Text = wishKind };
         if ((m = Receipt.Match(message)).Success)
             return new ParsedCommand
             {

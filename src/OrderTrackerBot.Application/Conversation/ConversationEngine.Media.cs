@@ -40,6 +40,14 @@ public partial class ConversationEngine
             return;
         }
 
+        // A picture captioned "logo" / "banner" is receipt branding, not an order screenshot.
+        if (CommandParser.TryParseBrandingCaption(caption, out var brandingKind))
+        {
+            await SaveBrandingAsync(seller, brandingKind, media.Value.Bytes, ct);
+            await PersistAsync(session, ctx, ct);
+            return;
+        }
+
         // A screenshot starts fresh: any half-finished draft/prompt is dropped.
         ResetFlowContext(ctx);
         SetState(session, ConversationState.Idle);
@@ -58,7 +66,7 @@ public partial class ConversationEngine
     private async Task StartReceiptMatchAsync(Seller seller, ConversationSession session, SessionContextData ctx, AiPaymentReceipt receipt, CancellationToken ct)
     {
         var unpaid = await _db.Orders.Include(o => o.Customer)
-            .Where(o => o.SellerId == seller.Id && o.PaymentStatus == PaymentStatus.Unpaid && o.Status != OrderStatus.Cancelled)
+            .Where(o => o.SellerId == seller.Id && o.PaymentStatus == PaymentStatus.Unpaid && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
             .OrderByDescending(o => o.CreatedAt).ToListAsync(ct);
         var exact = unpaid.Where(o => o.Total == receipt.Amount).ToList();
         var candidates = (exact.Count > 0 ? exact : unpaid).Take(3).ToList();
