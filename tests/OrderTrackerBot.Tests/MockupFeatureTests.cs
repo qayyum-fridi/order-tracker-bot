@@ -561,6 +561,45 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task CustomerUpdate_ChangesPhoneAndAddress_AndUndoRestores()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await SaveSaraKurtiOrderAsync(engine, db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara ka phone 0300-999 8888", default);
+        Assert.Contains(_sent, m => m.Contains("Sara ka phone update: 03009998888") && m.Contains("pehle: 03001234567"));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara ka address House 5, Gulberg", default);
+        var customer = await db.Customers.AsNoTracking().FirstAsync();
+        Assert.Equal("03009998888", customer.Phone);
+        Assert.Equal("House 5, Gulberg", customer.Address);
+
+        await engine.HandleIncomingMessageAsync(Phone, "undo", default);
+        customer = await db.Customers.AsNoTracking().FirstAsync();
+        Assert.Null(customer.Address);
+        Assert.Equal("03009998888", customer.Phone);
+    }
+
+    [Fact]
+    public async Task CustomerUpdate_AsksWhichOne_WhenTheNameIsAmbiguous()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var sellerId = (await db.Sellers.FirstAsync()).Id;
+        db.Customers.AddRange(
+            new OrderTrackerBot.Domain.Entities.Customer { SellerId = sellerId, Name = "Sara Khan", Phone = "03001110000" },
+            new OrderTrackerBot.Domain.Entities.Customer { SellerId = sellerId, Name = "Sara Ali", Phone = "03002220000" });
+        await db.SaveChangesAsync();
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara ka phone 03009998888", default);
+        Assert.Contains(_sent, m => m.Contains("naam ke 2 customers") && m.Contains("Sara Khan (03001110000)") && m.Contains("Sara Ali"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara Ali ka phone 03009998888", default);
+        Assert.Equal("03009998888", (await db.Customers.AsNoTracking().FirstAsync(c => c.Name == "Sara Ali")).Phone);
+        Assert.Equal("03001110000", (await db.Customers.AsNoTracking().FirstAsync(c => c.Name == "Sara Khan")).Phone);
+    }
+
+    [Fact]
     public async Task NewOrder_DefaultsToCod()
     {
         using var db = _dbFactory.CreateContext();

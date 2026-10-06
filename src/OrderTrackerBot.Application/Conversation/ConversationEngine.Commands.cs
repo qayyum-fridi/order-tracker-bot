@@ -12,37 +12,25 @@ public partial class ConversationEngine
     // Screen 10: the full command list (the 9 core commands are what a seller memorizes; the rest lives under "menu").
     private const string HelpText =
         "🆘 Yeh commands try karein:\n" +
-        "• \"guide\" — naya hain? step-by-step seekhein\n" +
-        "• \"change language\" — Roman Urdu/English/اردو\n" +
+        "• \"guide\" — step-by-step seekhein\n" +
         "• \"new order: naam, product, phone, address\"\n" +
-        "• \"orders today\"\n" +
-        "• \"today's summary\"\n" +
-        "• \"pending orders\"\n" +
-        "• \"[naam] ka order\"\n" +
-        "• \"mark [number] shipped/delivered\"\n" +
+        "• \"orders today\" / \"pending orders\" / \"today's summary\"\n" +
+        "• \"order 12\" — detail · \"edit order 12\" — badlein\n" +
+        "• \"mark 12 shipped/delivered/returned/paid\"\n" +
+        "• \"order 12 advance 500\" · \"delivery 200\"\n" +
+        "• \"[naam] ka order\" / \"[naam] ka tracking\"\n" +
         "• \"add tracking: courier, number\"\n" +
-        "• \"[naam] ka tracking\"\n" +
-        "• \"cod pending\"\n" +
-        "• \"catalog\"\n" +
-        "• \"share catalog\"\n" +
-        "• \"add product: naam - price\"\n" +
-        "• \"add product (detailed)\" — full form\n" +
-        "• \"add customer (detailed)\" — full form\n" +
-        "• \"new order (detailed)\" — full form\n" +
-        "• \"payment link\"\n" +
-        "• \"unpaid orders\"\n" +
-        "• \"trending products\"\n" +
-        "• \"slow movers\"\n" +
-        "• \"[product] ka report\"\n" +
-        "• \"discount performance\"\n" +
-        "• \"loyal customers\"\n" +
-        "• \"create discount\"\n" +
-        "• \"feedback: [your message]\"\n" +
-        "• \"support queries\"\n" +
-        "• \"mark [n] resolved\"\n" +
+        "• \"unpaid orders\" / \"cod pending\" / \"payment link\"\n" +
+        "• \"catalog\" · \"Kurti - 1800\" · \"stock Kurti 20\"\n" +
+        "• \"add product/customer/order (detailed)\" — form\n" +
+        "• \"trending products\" / \"slow movers\" / \"[product] ka report\"\n" +
+        "• \"loyal customers\" / \"create discount\"\n" +
+        "• \"Sara ka phone 0300...\" — customer update\n" +
+        "• \"receipt 12\" — PDF · \"export\" — Excel\n" +
+        "• \"support queries\" · \"change language\"\n" +
         "• \"undo\"\n" +
         "\n" +
-        "📷 Tip: Order ya payment receipt ki screenshot bhi bhej saktay hain — text zaroori nahi.\n" +
+        "🎤 Voice note ya 📷 screenshot bhi bhej saktay hain.\n" +
         "Ya \"menu\" likh kar categorized list dekhein.";
 
     // Screen 10b: categorized menu.
@@ -123,7 +111,7 @@ public partial class ConversationEngine
     private static readonly IReadOnlyDictionary<string, (string Title, string Body, MenuRow[] Rows)> MenuCategories =
         new Dictionary<string, (string, string, MenuRow[])>
         {
-            ["orders"] = ("📦 Orders", "📦 Orders\n • new order: [details]\n • [customer] ka order\n • mark [n] shipped/delivered\n • receipt [n] — PDF receipt", new[]
+            ["orders"] = ("📦 Orders", "📦 Orders\n • new order: [details]\n • order [n] — poori detail\n • edit order [n]\n • [customer] ka order\n • mark [n] shipped/delivered/returned\n • receipt [n] — PDF receipt", new[]
             {
                 new MenuRow("orders today", "Orders today"), new MenuRow("pending orders", "Pending orders"),
                 new MenuRow("unpaid orders", "Unpaid orders"), new MenuRow("cod pending", "COD pending"), new MenuRow("receipt", "Last order receipt (PDF)"), new MenuRow("edit order", "Last order edit"),
@@ -136,12 +124,12 @@ public partial class ConversationEngine
                 new MenuRow("customer feedback", "Customer feedback"), new MenuRow("weekly summary", "Weekly summary"),
                 new MenuRow("discount performance", "Discount performance"), BackToMenu
             }),
-            ["catalog"] = ("🛍️ Catalog", "🛍️ Catalog\n • naya product: Kurti - 1800\n • weight/pack: Sugar 5 kg - 500\n • edit product: Kurti - 1900\n • delete product: Kurti\n • wholesale: Kaju - price tiers: 1kg=320, 10kg=300\n • ek saath kai products bhi bhej saktay hain", new[]
+            ["catalog"] = ("🛍️ Catalog", "🛍️ Catalog\n • naya product: Kurti - 1800\n • stock: \"stock Kurti 20\" / \"stock\"\n • weight/pack: Sugar 5 kg - 500\n • edit product: Kurti - 1900\n • delete product: Kurti\n • wholesale: Kaju - price tiers: 1kg=320, 10kg=300\n • ek saath kai products bhi bhej saktay hain", new[]
             {
                 new MenuRow("catalog", "View catalog"), new MenuRow("share catalog", "Share catalog"),
                 new MenuRow("add product", "Add product"), new MenuRow("add product (detailed)", "Add product (form)"), BackToMenu
             }),
-            ["payments"] = ("💰 Payments", "💰 Payments\n • mark [order] paid\n • add tracking: courier, number", new[]
+            ["payments"] = ("💰 Payments", "💰 Payments\n • mark [order] paid\n • advance / thori payment: order [n] advance 500\n • delivery charge: delivery 200\n • add tracking: courier, number", new[]
             {
                 new MenuRow("payment link", "Payment link"), new MenuRow("unpaid orders", "Unpaid orders"),
                 new MenuRow("cod pending", "COD pending"), new MenuRow("add payment", "Add payment method"), BackToMenu
@@ -152,7 +140,7 @@ public partial class ConversationEngine
                 new MenuRow("create loyalty", "Add loyalty rule"), new MenuRow("loyal customers", "Loyal customers"),
                 new MenuRow("campaign status", "Campaign status"), BackToMenu
             }),
-            ["customers"] = ("👥 Customers", "👥 Customers\n • \"customer 1\" ya naam likh kar detail\n • \"search customer: naam/phone\"\n • \"delete customer naam\" / \"restore customer naam\"\n • promotion: \"sab customers ko batao: naya stock aaya\"\n • customer ka sawal: \"order kab aayega? — Bilal ne poocha\"\n • \"mark [n] resolved\"", new[]
+            ["customers"] = ("👥 Customers", "👥 Customers\n • \"customer 1\" ya naam likh kar detail\n • update: \"Sara ka phone 0300...\" / \"Sara ka address ...\"\n • \"search customer: naam/phone\"\n • \"delete customer naam\" / \"restore customer naam\"\n • promotion: \"sab customers ko batao: naya stock aaya\"\n • customer ka sawal: \"order kab aayega? — Bilal ne poocha\"\n • \"mark [n] resolved\"", new[]
             {
                 new MenuRow("customer list", "Customer list"), new MenuRow("support queries", "Support queries"),
                 new MenuRow("comment leads", "📷 Comment leads"), new MenuRow("connect instagram", "📷 Connect Instagram"),
@@ -217,6 +205,9 @@ public partial class ConversationEngine
                 return;
             case CommandKind.DisconnectInstagram:
                 await HandleDisconnectInstagramAsync(seller, ct);
+                return;
+            case CommandKind.CustomerUpdate:
+                await HandleCustomerUpdateAsync(seller, cmd, ct);
                 return;
             case CommandKind.Stock:
                 await HandleStockAsync(seller, cmd, ct);

@@ -70,6 +70,7 @@ public enum CommandKind
     EditOrder,
     OrderDetail,
     Stock,
+    CustomerUpdate,
     OrderPayment,
     OrderDeliveryCharge,
     RemoveBranding,
@@ -106,6 +107,7 @@ public sealed class ParsedCommand
     public decimal? Amount { get; init; }
     public ProductLine? Product { get; init; }
     public ExportRequest? Export { get; init; }
+    public string? Text3 { get; init; }
 }
 
 public static class CommandParser
@@ -181,6 +183,37 @@ public static class CommandParser
     private static readonly Regex DeliveryFree = new(@"^(?:free\s+delivery|delivery\s+free|no\s+delivery(?:\s+charges?)?|delivery\s+(?:charges?\s+)?(?:nahi|none|off)|فری\s+ڈیلیوری)$", Opts);
     private static readonly Regex DeliveryShow = new(@"^(?:my\s+)?" + DeliveryWord + "$", Opts);
     private static readonly Regex OrderDelivery = new(@"^(?:order|آرڈر)?\s*#?(?<id>\d+)\s+" + DeliveryWord + @"\s*[:=-]?\s*(?:rs\.?\s*)?(?<n>\d{1,6}|free|0)$|^(?:order|آرڈر)\s*#?(?<id>\d+)\s+free\s+delivery$", Opts);
+
+    // "Sara ka phone 0300..." / "Sara ka address House 5" / "customer Sara city Lahore" / "customer Sara name Sara Khan".
+    // Text = who, Text2 = phone|address|city|name, Text3 = the new value. Questions ("Sara ka phone kya hai") are left alone.
+    private const string CustomerField = @"(?<f>phone|number|fone|mobile|address|pata|patta|city|shehar|naam|name|فون|نمبر|پتہ|شہر|نام)";
+    private static readonly Regex CustomerUpdateOf = new(@"^(?:customer\s+)?(?<name>[^\d,:]{2,40}?)\s+(?:ka|ki|کا|کی)\s+(?:naya\s+|new\s+)?" + CustomerField + @"\s*(?:ab\s+|hai\s+|:|=|-)?\s*(?<v>.+)$", Opts);
+    private static readonly Regex CustomerUpdatePrefix = new(@"^customer\s+(?<name>[^\d,:]{2,40}?)\s+" + CustomerField + @"\s*:?\s*(?<v>.+)$", Opts);
+    private static readonly Regex QuestionWords = new(@"^(?:kya|kia|kiya|batao|bata|dikhao|kaun|kahan|\?)|\?$", Opts);
+
+    private static ParsedCommand? TryParseCustomerUpdate(string message)
+    {
+        var m = CustomerUpdateOf.Match(message);
+        if (!m.Success) m = CustomerUpdatePrefix.Match(message);
+        if (!m.Success) return null;
+        var value = m.Groups["v"].Value.Trim();
+        if (QuestionWords.IsMatch(value)) return null;
+        var field = m.Groups["f"].Value.ToLowerInvariant() switch
+        {
+            "phone" or "number" or "fone" or "mobile" or "فون" or "نمبر" => "phone",
+            "address" or "pata" or "patta" or "پتہ" => "address",
+            "city" or "shehar" or "شہر" => "city",
+            _ => "name"
+        };
+        if (field == "phone")
+        {
+            var digits = Regex.Replace(value, @"[\s-]", "");
+            if (!Regex.IsMatch(digits, @"^\+?\d{7,15}$")) return null;
+            value = digits;
+        }
+        else if (value.Length < 2) return null;
+        return new ParsedCommand { Kind = CommandKind.CustomerUpdate, Text = m.Groups["name"].Value.Trim(), Text2 = field, Text3 = value };
+    }
 
     // "stock" lists tracked stock; "stock Kurti 20" sets, "stock Kurti +10" adds, "stock Kurti off" stops tracking. Text = product, Text2 = set|add|off.
     private static readonly Regex StockList = new(@"^(?:stock|stocks|inventory|stock\s+list|اسٹاک)$", Opts);
@@ -660,6 +693,7 @@ public static class CommandParser
         if (TryParseForwardedQuery(message, out var asker, out var question))
             return new ParsedCommand { Kind = CommandKind.ForwardedQuery, Text = asker, Text2 = question };
 
+        if (TryParseCustomerUpdate(message) is { } customerUpdate) return customerUpdate;
         if ((m = CustomerDetail.Match(message)).Success)
         {
             var arg = m.Groups[1].Value.Trim();

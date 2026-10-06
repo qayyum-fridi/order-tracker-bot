@@ -566,4 +566,39 @@ public class CommandParserTests
         Assert.Equal(CommandKind.AddProduct, CommandParser.TryParse("Kurti - 1800")!.Kind);
         Assert.Equal(CommandKind.AddProduct, CommandParser.TryParse("Sugar 5 kg - 500")!.Kind);
     }
+
+    [Theory]
+    [InlineData("Sara ka phone 0300-111 2222", "Sara", "phone", "03001112222")]
+    [InlineData("Sara ka naya number 03001112222", "Sara", "phone", "03001112222")]
+    [InlineData("Ayesha Khan ka address House 5, Gulberg", "Ayesha Khan", "address", "House 5, Gulberg")]
+    [InlineData("Bilal ki city Karachi", "Bilal", "city", "Karachi")]
+    [InlineData("customer Sara phone 03001112222", "Sara", "phone", "03001112222")]
+    [InlineData("customer Sara name Sara Khan", "Sara", "name", "Sara Khan")]
+    [InlineData("Sara کا پتہ گلبرگ لاہور", "Sara", "address", "گلبرگ لاہور")]
+    public void ParsesCustomerUpdate(string message, string who, string field, string value)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.Equal(CommandKind.CustomerUpdate, parsed!.Kind);
+        Assert.Equal(who, parsed.Text);
+        Assert.Equal(field, parsed.Text2);
+        Assert.Equal(value, parsed.Text3);
+    }
+
+    [Theory]
+    [InlineData("Sara ka phone kya hai")]
+    [InlineData("Sara ka phone abc")]
+    [InlineData("Sara ka address?")]
+    public void CustomerUpdate_IgnoresQuestionsAndBadPhones(string message)
+    {
+        Assert.NotEqual(CommandKind.CustomerUpdate, CommandParser.TryParse(message)?.Kind);
+    }
+
+    [Fact]
+    public void CustomerUpdate_DoesNotStealOtherCustomerCommands()
+    {
+        Assert.Equal(CommandKind.CustomerOrderLookup, CommandParser.TryParse("Sara ka order")!.Kind);
+        Assert.Equal(CommandKind.TrackingLookup, CommandParser.TryParse("Sara ka tracking")!.Kind);
+        Assert.Equal(CommandKind.CustomerDetail, CommandParser.TryParse("customer Sara")!.Kind);
+        Assert.Equal(CommandKind.FuzzyStatusUpdate, CommandParser.TryParse("Sara ka order deliver ho gaya")!.Kind);
+    }
 }

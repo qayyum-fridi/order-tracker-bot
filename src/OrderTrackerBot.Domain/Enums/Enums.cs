@@ -83,7 +83,8 @@ public enum ActionType
     OrderStatusChanged,
     OrderCancelled,
     ProductPriceChanged,
-    OrderEdited
+    OrderEdited,
+    CustomerUpdated
 }
 
 public enum SubscriptionPlan

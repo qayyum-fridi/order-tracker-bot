@@ -186,3 +186,7 @@ shared-state action: confirm with the user and get SSH/host details first.
   default `whisper-1`, plus `TranscriptionPrompt` steering towards Roman Urdu/English and digits) transcribes it, the bot echoes
   "🎤 Maine suna: …" and handles the text exactly like a typed message. No API key -> the old "send it as text" reply; a failed
   transcription asks to resend and reports OTB-3002.
+- Customer corrections: "Sara ka phone 0300…", "Sara ka address …", "Bilal ki city …", "customer Sara name Sara Khan" (`CommandKind.CustomerUpdate`,
+  `ConversationEngine.CustomerUpdate.cs`). Questions ("… kya hai") and non-numeric phones are not treated as updates; an ambiguous name
+  lists the matches instead of guessing; each change is undoable (`ActionType.CustomerUpdated`).
+- The WhatsApp list body (help) must stay ≤ 1024 chars — a test enforces it; keep `HelpText` curated rather than exhaustive.
