@@ -35,6 +35,8 @@ public sealed class AiOrderDraft
     /// <summary>Delivery charge in rupees when the order states one ("delivery 250", "free delivery" = 0); null = not mentioned.
     /// Settable so a deterministic match on the seller's own text can override the model.</summary>
     public decimal? DeliveryCharge { get; set; }
+    /// <summary>Advance the buyer already paid, found in the seller's text (not asked of the model).</summary>
+    public decimal? AdvancePaid { get; set; }
     public List<string> MissingRequiredFields { get; init; } = new();
 }
 

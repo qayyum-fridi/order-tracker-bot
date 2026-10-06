@@ -485,4 +485,60 @@ public class CommandParserTests
         Assert.Equal(CommandKind.CancelOrder, CommandParser.TryParse("cancel order 12")!.Kind);
         Assert.False(CommandParser.TryParseOrderEdit("orders today", out _));
     }
+
+    [Theory]
+    [InlineData("order 12", 12)]
+    [InlineData("Order #5", 5)]
+    [InlineData("#7", 7)]
+    [InlineData("آرڈر 12", 12)]
+    public void ParsesOrderDetail(string message, int number)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.Equal(CommandKind.OrderDetail, parsed!.Kind);
+        Assert.Equal(number, parsed.Number);
+    }
+
+    [Theory]
+    [InlineData("order 12 advance 500", 12, 500)]
+    [InlineData("12 paid 1000", 12, 1000)]
+    [InlineData("order #12 mila 300 rs", 12, 300)]
+    [InlineData("advance 500 order 12", 12, 500)]
+    [InlineData("payment Rs 750 for order 3", 3, 750)]
+    public void ParsesOrderPayment(string message, int id, int amount)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.Equal(CommandKind.OrderPayment, parsed!.Kind);
+        Assert.Equal(id, parsed.Number);
+        Assert.Equal(amount, parsed.Amount);
+    }
+
+    [Fact]
+    public void OrderPaymentAndDetail_DoNotStealOtherCommands()
+    {
+        Assert.Equal("paid", CommandParser.TryParse("mark 12 paid")!.Text);
+        Assert.Equal(CommandKind.MarkStatus, CommandParser.TryParse("order 12 paid")!.Kind);
+        Assert.Equal(CommandKind.OrderDeliveryCharge, CommandParser.TryParse("order 12 delivery 300")!.Kind);
+        Assert.Equal(CommandKind.EditOrder, CommandParser.TryParse("order 12 edit")!.Kind);
+        Assert.Equal(CommandKind.OrdersToday, CommandParser.TryParse("orders today")!.Kind);
+    }
+
+    [Theory]
+    [InlineData("Sara, 1 kurti, 03001234567, advance 500 jazzcash", 500)]
+    [InlineData("Sara 2 suit 0300-1234567, 1000 advance diya", 1000)]
+    [InlineData("Sara 1 kurti advance paid Rs 300", 300)]
+    [InlineData("Sana 1 suit ایڈوانس 400", 400)]
+    public void FindsAdvanceInsideOrderText(string message, int expected)
+    {
+        Assert.True(CommandParser.TryFindAdvanceInOrderText(message, out var amount));
+        Assert.Equal(expected, amount);
+    }
+
+    [Theory]
+    [InlineData("Sara, 1 kurti, 03001234567, advance jazzcash se karegi")]
+    [InlineData("Sara 1 kurti advance 03001234567")]
+    [InlineData("Sara 1 kurti, 0300-1234567")]
+    public void NoAdvance_WhenNoAmountIsStated(string message)
+    {
+        Assert.False(CommandParser.TryFindAdvanceInOrderText(message, out _));
+    }
 }

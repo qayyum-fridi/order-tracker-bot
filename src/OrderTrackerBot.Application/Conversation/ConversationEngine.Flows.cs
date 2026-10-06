@@ -18,11 +18,8 @@ public partial class ConversationEngine
         var order = await _db.Orders.FirstOrDefaultAsync(o => o.Id == orderId && o.SellerId == seller.Id, ct);
         if (order is null) return;
 
-        var previous = order.PaymentStatus;
-        order.PaymentStatus = PaymentStatus.Paid;
-        order.PaidAt = DateTime.UtcNow;
-        LogPaymentChange(seller, order, previous);
-        await ReplyAsync(seller, $"✅ {Formatters.Money(order.Total)} COD collected — payment marked PAID", ct);
+        var collected = MarkFullyPaid(seller, order);
+        await ReplyAsync(seller, $"✅ {Formatters.Money(collected)} COD collected — payment marked PAID", ct);
     }
 
     private async Task HandleRuntimeFilterChoiceAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
@@ -200,9 +197,10 @@ public partial class ConversationEngine
             return;
         }
 
-        var lines = orders.Select((o, i) => $"{i + 1}. {o.Customer?.Name} - {Formatters.ItemsSummary(o)} - {Formatters.Money(o.Total)}" +
+        var lines = orders.Select((o, i) => $"{i + 1}. {o.Customer?.Name} - {Formatters.ItemsSummary(o)} - {Formatters.Money(OrderMoney.Balance(o))}" +
+                                             (o.AmountPaid > 0 ? $" (advance {Formatters.Money(o.AmountPaid)} mila)" : "") +
                                              (o.DeliveredAt is { } d ? $" (delivered {Formatters.DaysAgo(d)})" : ""));
-        var total = Formatters.Money(orders.Sum(o => o.Total));
+        var total = Formatters.Money(orders.Sum(OrderMoney.Balance));
         await ReplyAsync(seller, minDaysOld is int age
             ? $"💵 {age}+ Din Purane Unpaid ({orders.Count}):\n\n{string.Join("\n", lines)}\n\nTotal: {total} — follow-up karein."
             : $"💵 Delivered but Cash Not Collected ({orders.Count}):\n\n{string.Join("\n", lines)}\n\nTotal pending cash: {total}", ct);

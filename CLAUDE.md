@@ -172,3 +172,8 @@ shared-state action: confirm with the user and get SSH/host details first.
   The first change logs an `ActionType.OrderEdited` snapshot so one "undo" restores items, amounts, payment method and the customer's
   name/phone/address. Totals are recomputed (percent codes re-applied, flat ones capped). Cancelled/Returned orders can't be edited.
   Phone/address/name edits change the shared Customer record, not just this order.
+- Part payments: `Order.AmountPaid` (money received so far). `OrderMoney.Received/Balance/State` (Formatting) are the single source — `Paid`
+  status always means fully paid, including older paid orders whose AmountPaid is 0. "order 12 advance 500" / "12 paid 1000" add to it and flip
+  to Paid at the total; an advance written in a new order ("…, advance 500") or typed while confirming is saved with the order. Every
+  "mark paid" path goes through `MarkFullyPaid` (logs previous status + amount for undo). Unpaid/COD lists, payment link, today's summary,
+  receipt and export use the balance. "order 12" / "#12" shows one order in full.

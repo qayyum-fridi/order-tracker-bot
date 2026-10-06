@@ -371,6 +371,80 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task Advance_InOrderText_ThenPartPayments_UntilPaid_AndUndo()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(Order("Sara", "Kurti", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567, advance 500 jazzcash", default);
+        Assert.Contains(_sent, m => m.Contains("Advance: Rs.500 · Baqi: Rs.1,300"));
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        var order = await db.Orders.FirstAsync();
+        Assert.Equal(500m, order.AmountPaid);
+        Assert.Equal(PaymentStatus.Unpaid, order.PaymentStatus);
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "unpaid orders", default);
+        Assert.Contains(_sent, m => m.Contains("baqi Rs.1,300") && m.Contains("Total pending: Rs.1,300"));
+
+        await engine.HandleIncomingMessageAsync(Phone, $"order {order.Id}", default);
+        Assert.Contains(_sent, m => m.Contains($"📦 Order #{order.Id}") && m.Contains("PARTLY PAID — Rs.500 mila, baqi Rs.1,300") && m.Contains($"edit order {order.Id}"));
+
+        await engine.HandleIncomingMessageAsync(Phone, $"order {order.Id} advance 800", default);
+        Assert.Contains(_sent, m => m.Contains("Ab tak Rs.1,300 / Rs.1,800 — baqi Rs.500"));
+        await engine.HandleIncomingMessageAsync(Phone, $"order {order.Id} paid 500", default);
+        await db.Entry(order).ReloadAsync();
+        Assert.Equal(PaymentStatus.Paid, order.PaymentStatus);
+        Assert.Equal(1800m, order.AmountPaid);
+
+        await engine.HandleIncomingMessageAsync(Phone, "undo", default);
+        await db.Entry(order).ReloadAsync();
+        Assert.Equal(PaymentStatus.Unpaid, order.PaymentStatus);
+        Assert.Equal(1300m, order.AmountPaid);
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "today's summary", default);
+        // The order is COD (the model found no payment method) with part paid up front: received money counts, not just fully-paid orders.
+        Assert.Contains(_sent, m => m.Contains("Cash collected (COD): Rs.1,300"));
+    }
+
+    [Fact]
+    public async Task Advance_TypedWhileConfirming_IsApplied_AndFullAdvanceMeansPaid()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(Order("Sara", "Kurti", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
+
+        await engine.HandleIncomingMessageAsync(Phone, "advance 1800", default);
+        Assert.Equal(ConversationState.AwaitingOrderConfirmation, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sent, m => m.Contains("Advance: Rs.1,800 — poora paid"));
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        var order = await db.Orders.FirstAsync();
+        Assert.Equal(PaymentStatus.Paid, order.PaymentStatus);
+        Assert.Equal(1800m, order.AmountPaid);
+    }
+
+    [Fact]
+    public async Task MarkPaid_And_CodCollected_RecordTheFullAmount()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(Order("Sara", "Kurti", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567, advance 300", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        var order = await db.Orders.FirstAsync();
+
+        await engine.HandleIncomingMessageAsync(Phone, $"mark {order.Id} delivered", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default); // cash collected?
+        Assert.Contains(_sent, m => m.Contains("Rs.1,500 COD collected"));
+        await db.Entry(order).ReloadAsync();
+        Assert.Equal(1800m, order.AmountPaid);
+        Assert.Equal(PaymentStatus.Paid, order.PaymentStatus);
+    }
+
+    [Fact]
     public async Task NewOrder_DefaultsToCod()
     {
         using var db = _dbFactory.CreateContext();

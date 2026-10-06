@@ -132,6 +132,7 @@ public partial class ConversationEngine
                 {
                     order.PaymentStatus = Enum.Parse<PaymentStatus>(prevPayEl.GetString()!);
                     if (order.PaymentStatus == PaymentStatus.Unpaid) order.PaidAt = null;
+                    if (doc.RootElement.TryGetProperty("PreviousAmountPaid", out var prevAmountEl)) order.AmountPaid = prevAmountEl.GetDecimal();
                     await ReplyAsync(seller, $"↩️ Reverted — Order #{order.Id} payment status back to {order.PaymentStatus}.", ct);
                 }
                 return;
@@ -187,7 +188,9 @@ public partial class ConversationEngine
         var lines = methods.Select(m => $"{PaymentMethodName(m.Type)}: {m.AccountNumberOrId}");
         await ReplyAsync(seller,
             $"💰 Payment details for Order #{order.Id}:\n\n" +
-            $"Amount: {Formatters.Money(order.Total)}\n{string.Join("\n", lines)}\n({seller.BusinessName})\n\n" +
+            $"Amount: {Formatters.Money(OrderMoney.Balance(order) is > 0 and var due ? due : order.Total)}" +
+            (order.AmountPaid > 0 && order.PaymentStatus != PaymentStatus.Paid ? $" (baqi; {Formatters.Money(order.AmountPaid)} advance mila)" : "") +
+            $"\n{string.Join("\n", lines)}\n({seller.BusinessName})\n\n" +
             $"Customer ko bhej dein. Payment hone par \"mark {order.Id} paid\" likhein.", ct);
     }
 

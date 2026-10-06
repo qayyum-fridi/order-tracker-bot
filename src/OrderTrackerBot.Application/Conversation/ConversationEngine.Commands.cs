@@ -218,6 +218,12 @@ public partial class ConversationEngine
             case CommandKind.DisconnectInstagram:
                 await HandleDisconnectInstagramAsync(seller, ct);
                 return;
+            case CommandKind.OrderDetail:
+                await HandleOrderDetailAsync(seller, ctx, cmd.Number!.Value, ct);
+                return;
+            case CommandKind.OrderPayment:
+                await HandleOrderPaymentAsync(seller, ctx, cmd.Number!.Value, cmd.Amount!.Value, ct);
+                return;
             case CommandKind.EditOrder:
                 await StartOrderEditAsync(seller, session, ctx, cmd.Number, ct);
                 return;
@@ -486,8 +492,8 @@ public partial class ConversationEngine
         var delivered = orders.Count(o => o.Status == OrderStatus.Delivered);
         var shipped = orders.Count(o => o.Status == OrderStatus.Shipped);
         var pending = orders.Count(o => o.Status == OrderStatus.Pending);
-        var cod = orders.Where(o => o.PaymentMethod == OrderPaymentMethod.Cod && o.PaymentStatus == PaymentStatus.Paid).Sum(o => o.Total);
-        var prepaid = orders.Where(o => o.PaymentMethod != OrderPaymentMethod.Cod && o.PaymentStatus == PaymentStatus.Paid).Sum(o => o.Total);
+        var cod = orders.Where(o => o.PaymentMethod == OrderPaymentMethod.Cod).Sum(OrderMoney.Received);
+        var prepaid = orders.Where(o => o.PaymentMethod != OrderPaymentMethod.Cod).Sum(OrderMoney.Received);
         var totalSales = orders.Sum(o => o.Total);
         var returned = await _db.Orders.CountAsync(o => o.SellerId == seller.Id && o.Status == OrderStatus.Returned
             && o.ReturnedAt >= start && o.ReturnedAt < end, ct);
@@ -812,20 +818,29 @@ public partial class ConversationEngine
 
     private async Task MarkOrderPaidAsync(Seller seller, Order order, CancellationToken ct)
     {
-        var previous = order.PaymentStatus;
-        order.PaymentStatus = PaymentStatus.Paid;
-        order.PaidAt = DateTime.UtcNow;
-        LogPaymentChange(seller, order, previous);
+        MarkFullyPaid(seller, order);
         await ReplyAsync(seller, $"✅ Order #{order.Id} marked as PAID.", ct);
     }
 
-    private void LogPaymentChange(Seller seller, Order order, PaymentStatus previous) =>
+    /// <summary>Marks the order fully paid (undoable) and returns what was still owed, i.e. what was just collected.</summary>
+    private decimal MarkFullyPaid(Seller seller, Order order)
+    {
+        var collected = OrderMoney.Balance(order);
+        LogPaymentChange(seller, order);
+        order.PaymentStatus = PaymentStatus.Paid;
+        order.PaidAt = DateTime.UtcNow;
+        order.AmountPaid = order.Total;
+        return collected;
+    }
+
+    /// <summary>Call before changing payment fields: undo restores the status and the amount paid so far.</summary>
+    private void LogPaymentChange(Seller seller, Order order) =>
         _db.ActionLogs.Add(new ActionLog
         {
             SellerId = seller.Id,
             ActionType = ActionType.OrderStatusChanged,
             OrderId = order.Id,
-            PayloadJson = System.Text.Json.JsonSerializer.Serialize(new { PreviousPaymentStatus = previous.ToString() })
+            PayloadJson = System.Text.Json.JsonSerializer.Serialize(new { PreviousPaymentStatus = order.PaymentStatus.ToString(), PreviousAmountPaid = order.AmountPaid })
         });
 
     private async Task HandleUnpaidOrdersAsync(Seller seller, SessionContextData ctx, CancellationToken ct)
@@ -842,10 +857,10 @@ public partial class ConversationEngine
         }
 
         ctx.LastListOrderIds = orders.Select(o => o.Id).ToList();
-        var lines = orders.Select((o, i) => Formatters.OrderLine(i + 1, o) + ", unpaid");
+        var lines = orders.Select((o, i) => Formatters.OrderLine(i + 1, o) + (o.AmountPaid > 0 ? $", baqi {Formatters.Money(OrderMoney.Balance(o))}" : ", unpaid"));
         await ReplyAsync(seller,
             $"💸 Unpaid Orders ({orders.Count}):\n\n{string.Join("\n", lines)}\n\n" +
-            $"Total pending: {Formatters.Money(orders.Sum(o => o.Total))}\n\n" +
+            $"Total pending: {Formatters.Money(orders.Sum(OrderMoney.Balance))}\n\n" +
             "\"payment link 1\" likh kar link bhej saktay hain.", ct);
     }
 }

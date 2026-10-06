@@ -114,7 +114,7 @@ public partial class ConversationEngine
         {
             Col("Order #", typeof(int)), Col("Date", typeof(DateTime)), Col("Customer", typeof(string)), Col("Phone", typeof(string)),
             Col("Address", typeof(string)), Col("Items", typeof(string)), Col("Subtotal", typeof(decimal)), Col("Discount", typeof(decimal)),
-            Col("Discount code", typeof(string)), Col("Delivery", typeof(decimal)), Col("Total", typeof(decimal)), Col("Status", typeof(string)), Col("Payment status", typeof(string)),
+            Col("Discount code", typeof(string)), Col("Delivery", typeof(decimal)), Col("Total", typeof(decimal)), Col("Status", typeof(string)), Col("Payment status", typeof(string)), Col("Amount paid", typeof(decimal)), Col("Balance", typeof(decimal)),
             Col("Payment method", typeof(string)), Col("Paid on", typeof(DateTime)), Col("Courier", typeof(string)), Col("Tracking #", typeof(string)),
             Col("Source", typeof(string)), Col("Delivery date", typeof(DateTime)), Col("Notes", typeof(string))
         }, orders.Select(o => new object?[]
@@ -122,7 +122,7 @@ public partial class ConversationEngine
             o.Id, local(o.CreatedAt), o.Customer?.Name, o.Customer?.Phone,
             string.Join(", ", new[] { o.Customer?.Address, o.Customer?.City }.Where(s => !string.IsNullOrWhiteSpace(s))),
             string.Join("; ", o.Items.Select(i => $"{i.Quantity} x {i.ProductNameSnapshot}")), o.Subtotal, o.DiscountAmount,
-            o.DiscountCode, o.DeliveryCharge, o.Total, Formatters.Status(o.Status), o.PaymentStatus.ToString(),
+            o.DiscountCode, o.DeliveryCharge, o.Total, Formatters.Status(o.Status), o.PaymentStatus.ToString(), OrderMoney.Received(o), OrderMoney.Balance(o),
             o.PaymentMethod switch { OrderPaymentMethod.Cod => "COD", OrderPaymentMethod.Manual => "Transfer", OrderPaymentMethod.Gateway => "Online", _ => "" },
             local(o.PaidAt), o.TrackingCourier, o.TrackingNumber, o.OrderSource, local(o.DeliveryDate), o.Notes
         }).ToList());

@@ -14,6 +14,8 @@ public class Order
     public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Unpaid;
     public OrderPaymentMethod PaymentMethod { get; set; } = OrderPaymentMethod.Cod;
     public DateTime? PaidAt { get; set; }
+    /// <summary>Money received so far (advance / part payments). Equals Total once fully paid; older paid orders may still have 0.</summary>
+    public decimal AmountPaid { get; set; }
 
     public string? DiscountCode { get; set; }
     public decimal Subtotal { get; set; }

@@ -68,6 +68,8 @@ public enum CommandKind
     Shortcuts,
     DeliveryCharge,
     EditOrder,
+    OrderDetail,
+    OrderPayment,
     OrderDeliveryCharge,
     RemoveBranding,
     DiscountPerformance,
@@ -178,6 +180,39 @@ public static class CommandParser
     private static readonly Regex DeliveryFree = new(@"^(?:free\s+delivery|delivery\s+free|no\s+delivery(?:\s+charges?)?|delivery\s+(?:charges?\s+)?(?:nahi|none|off)|فری\s+ڈیلیوری)$", Opts);
     private static readonly Regex DeliveryShow = new(@"^(?:my\s+)?" + DeliveryWord + "$", Opts);
     private static readonly Regex OrderDelivery = new(@"^(?:order|آرڈر)?\s*#?(?<id>\d+)\s+" + DeliveryWord + @"\s*[:=-]?\s*(?:rs\.?\s*)?(?<n>\d{1,6}|free|0)$|^(?:order|آرڈر)\s*#?(?<id>\d+)\s+free\s+delivery$", Opts);
+
+    // "order 12" / "#12" shows one order in full.
+    private static readonly Regex OrderDetail = new(@"^(?:order|آرڈر)\s*#?(?<n>\d+)$|^#(?<n>\d+)$", Opts);
+
+    // Part payments: "order 12 advance 500", "12 paid 1000", "advance 500 order 12" add to what the buyer has paid so far.
+    private const string PaidWord = @"(?:advance|paid|payment|received|mila|mile|ملے|ایڈوانس)";
+    private static readonly Regex OrderPayment = new(@"^(?:order|آرڈر)?\s*#?(?<id>\d+)\s+" + PaidWord + @"\s*:?\s*(?:rs\.?\s*)?(?<a>\d+(?:\.\d+)?)(?:\s*(?:rs|rupees?|روپے))?$" +
+        @"|^(?:advance|payment|paid)\s+(?:rs\.?\s*)?(?<a>\d+(?:\.\d+)?)\s+(?:for\s+|in\s+)?(?:order|آرڈر)\s*#?(?<id>\d+)$", Opts);
+
+    // An advance written inside a new order ("Sara, 1 kurti, 0300..., advance 500 jazzcash" / "1000 advance").
+    private static readonly Regex AdvanceInTextAfter = new(@"(?<![\p{L}\p{N}])(?:advance|adv|ایڈوانس)(?:\s+(?:paid|diya|di|mila|received|bheja))?\s*[:=-]?\s*(?<rs>rs\.?\s*)?(?<n>\d{1,6})(?!\d)(?<rs2>\s*(?:rs|rupees?|rupay|روپے))?", Opts);
+    private static readonly Regex AdvanceInTextBefore = new(@"(?<![\p{L}\p{N}])(?<rs>rs\.?\s*)?(?<n>\d{1,6})(?<rs2>\s*(?:rs|rupees?|rupay|روپے))?\s+(?:advance|ایڈوانس)(?![\p{L}])", Opts);
+
+    /// <summary>Finds an advance amount the seller wrote inside an order (or typed alone while confirming: "advance 500").</summary>
+    public static bool TryFindAdvanceInOrderText(string message, out decimal amount)
+    {
+        amount = 0;
+        var text = NormalizeDigits(message);
+        foreach (var regex in new[] { AdvanceInTextAfter, AdvanceInTextBefore })
+        {
+            foreach (Match m in regex.Matches(text))
+            {
+                var value = decimal.Parse(m.Groups["n"].Value, System.Globalization.CultureInfo.InvariantCulture);
+                var saysRupees = m.Groups["rs"].Success && m.Groups["rs"].Length > 0 || m.Groups["rs2"].Success && m.Groups["rs2"].Length > 0;
+                if (value >= 50 || saysRupees)
+                {
+                    amount = value;
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 
     // "edit order 12" / "order 12 edit" / "edit order" (latest) / "آرڈر 12 تبدیل" opens edit mode for a saved order.
     private const string EditVerb = @"(?:edit|change|update|badlo|badlein|badalna|theek\s+karo|tabdeel|tabdeeli)";
@@ -550,6 +585,11 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.PriceTiers, Text = m.Groups[1].Value.Trim(), Text2 = m.Groups[2].Value.Trim() };
         if (CampaignStatus.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CampaignStatus };
         if (DiscountPerformance.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DiscountPerformance };
+        if ((m = OrderDetail.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.OrderDetail, Number = int.Parse(m.Groups["n"].Value) };
+        if ((m = OrderPayment.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.OrderPayment, Number = int.Parse(m.Groups["id"].Value),
+                Amount = decimal.Parse(m.Groups["a"].Value, System.Globalization.CultureInfo.InvariantCulture) };
         if ((m = EditOrder.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.EditOrder, Number = m.Groups["n"].Success ? int.Parse(m.Groups["n"].Value) : null };
         if ((m = OrderDelivery.Match(message)).Success)

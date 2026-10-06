@@ -114,13 +114,10 @@ public partial class ConversationEngine
         SetState(session, ConversationState.Idle);
         if (order is null) { ClearReceipt(ctx); return; }
 
-        var previous = order.PaymentStatus;
-        order.PaymentStatus = PaymentStatus.Paid;
-        order.PaidAt = DateTime.UtcNow;
+        MarkFullyPaid(seller, order);
         if (order.PaymentMethod != OrderPaymentMethod.Gateway) order.PaymentMethod = OrderPaymentMethod.Manual;
         if (ctx.ReceiptTransactionId is { } tid)
             order.Notes = string.IsNullOrWhiteSpace(order.Notes) ? $"TID: {tid}" : $"{order.Notes} | TID: {tid}";
-        LogPaymentChange(seller, order, previous);
 
         await ReplyAsync(seller,
             $"✅ Order #{order.Id} marked PAID ({Formatters.Money(ctx.ReceiptAmount ?? order.Total)}{(ctx.ReceiptProvider is null ? "" : $", {ctx.ReceiptProvider}")}).", ct);
