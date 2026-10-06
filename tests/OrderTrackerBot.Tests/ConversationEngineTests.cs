@@ -1063,6 +1063,77 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task Branding_LogoCaptionedImage_IsSaved_AppearsOnReceipt_AndCanBeRemoved()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var seller = await db.Sellers.FirstAsync();
+        var customer = new OrderTrackerBot.Domain.Entities.Customer { SellerId = seller.Id, Name = "Sara", Phone = "03001112222" };
+        db.Customers.Add(customer);
+        await db.SaveChangesAsync();
+        var order = new OrderTrackerBot.Domain.Entities.Order { SellerId = seller.Id, CustomerId = customer.Id, Subtotal = 100, Total = 100 };
+        order.Items.Add(new OrderTrackerBot.Domain.Entities.OrderItem { ProductNameSnapshot = "Pen", UnitPrice = 100, Quantity = 1 });
+        db.Orders.Add(order);
+        await db.SaveChangesAsync();
+
+        var logo = new byte[] { 10, 20, 30 };
+        var media = new Mock<IWhatsAppMediaClient>();
+        media.Setup(m => m.DownloadAsync("media-1", It.IsAny<CancellationToken>())).ReturnsAsync((logo, "image/jpeg"));
+        var pdf = new Mock<IReceiptPdfGenerator>();
+        pdf.Setup(p => p.CanEmbedImage(logo)).Returns(true);
+        ReceiptData? captured = null;
+        pdf.Setup(p => p.Generate(It.IsAny<ReceiptData>())).Callback<ReceiptData>(d => captured = d).Returns(new byte[] { 1 });
+        _sender.Setup(s => s.SendDocumentAsync(Phone, It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: media.Object, receiptPdf: pdf.Object);
+
+        await engine.HandleImageMessageAsync(Phone, "media-1", "logo", default);
+        Assert.Contains(_sentMessages, m => m.Contains("Logo save ho gaya"));
+        Assert.Equal(logo, (await db.SellerBrandings.SingleAsync()).Logo);
+        _ai.Verify(a => a.AnalyzeImageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()), Times.Never);
+
+        await engine.HandleIncomingMessageAsync(Phone, "receipt", default);
+        Assert.Equal(logo, captured!.Logo);
+        Assert.Null(captured.Banner);
+
+        await engine.HandleIncomingMessageAsync(Phone, "remove logo", default);
+        Assert.Null((await db.SellerBrandings.SingleAsync()).Logo);
+        await engine.HandleIncomingMessageAsync(Phone, "receipt", default);
+        Assert.Null(captured!.Logo);
+    }
+
+    [Fact]
+    public async Task Branding_UnusableImage_IsRejected_AndNothingSaved()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var junk = new byte[] { 1, 2 };
+        var media = new Mock<IWhatsAppMediaClient>();
+        media.Setup(m => m.DownloadAsync("m", It.IsAny<CancellationToken>())).ReturnsAsync((junk, "image/jpeg"));
+        var pdf = new Mock<IReceiptPdfGenerator>();
+        pdf.Setup(p => p.CanEmbedImage(junk)).Returns(false);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: media.Object, receiptPdf: pdf.Object);
+
+        await engine.HandleImageMessageAsync(Phone, "m", "banner", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Banner ke taur par nahi lag sakti"));
+        Assert.Empty(db.SellerBrandings);
+    }
+
+    [Fact]
+    public async Task Branding_HelpAndRemove_ReportCurrentState()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, receiptPdf: Mock.Of<IReceiptPdfGenerator>());
+
+        await engine.HandleIncomingMessageAsync(Phone, "logo", default);
+        await engine.HandleIncomingMessageAsync(Phone, "remove banner", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Receipt Logo: abhi set nahi") && m.Contains("caption mein \"logo\""));
+        Assert.Contains(_sentMessages, m => m.Contains("Banner pehle se set nahi hai"));
+    }
+
+    [Fact]
     public async Task Receipt_ForUnknownOrder_RepliesNotFound_AndSendsNothing()
     {
         using var db = _dbFactory.CreateContext();

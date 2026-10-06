@@ -27,6 +27,7 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<InstagramConnection> InstagramConnections => Set<InstagramConnection>();
     public DbSet<CommentLead> CommentLeads => Set<CommentLead>();
     public DbSet<SupportQuery> SupportQueries => Set<SupportQuery>();
+    public DbSet<SellerBranding> SellerBrandings => Set<SellerBranding>();
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -118,5 +119,6 @@ public class AppDbContext : DbContext, IAppDbContext
             e.HasIndex(l => new { l.SellerId, l.Number });
         });
         modelBuilder.Entity<SupportQuery>(e => e.HasIndex(q => new { q.SellerId, q.Number }));
+        modelBuilder.Entity<SellerBranding>(e => e.HasIndex(b => b.SellerId).IsUnique());
     }
 }

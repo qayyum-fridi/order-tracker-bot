@@ -24,6 +24,7 @@ public interface IAppDbContext
     DbSet<InstagramConnection> InstagramConnections { get; }
     DbSet<CommentLead> CommentLeads { get; }
     DbSet<SupportQuery> SupportQueries { get; }
+    DbSet<SellerBranding> SellerBrandings { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

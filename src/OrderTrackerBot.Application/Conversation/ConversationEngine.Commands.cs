@@ -161,7 +161,7 @@ public partial class ConversationEngine
             ["settings"] = ("⚙️ Settings", "⚙️ Settings\n • feedback: [aapka message] — hamein bot ke baare mein batayein", new[]
             {
                 new MenuRow("update business info", "Business info"), new MenuRow("add payment", "Payment methods"),
-                new MenuRow("subscribe", "Plan / subscribe"), BackToMenu
+                new MenuRow("subscribe", "Plan / subscribe"), new MenuRow("logo", "Receipt logo / banner"), BackToMenu
             })
         };
 
@@ -217,6 +217,12 @@ public partial class ConversationEngine
                 return;
             case CommandKind.DisconnectInstagram:
                 await HandleDisconnectInstagramAsync(seller, ct);
+                return;
+            case CommandKind.BrandingHelp:
+                await HandleBrandingHelpAsync(seller, cmd.Text!, ct);
+                return;
+            case CommandKind.RemoveBranding:
+                await HandleRemoveBrandingAsync(seller, cmd.Text!, ct);
                 return;
             case CommandKind.Receipt:
                 await HandleReceiptAsync(seller, ctx, cmd, ct);

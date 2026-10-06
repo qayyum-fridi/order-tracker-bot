@@ -189,4 +189,39 @@ public class CommandParserTests
         Assert.Equal(number, parsed.Number);
         Assert.Equal(name, parsed.Text);
     }
+
+    [Theory]
+    [InlineData("logo", CommandKind.BrandingHelp, "logo")]
+    [InlineData("Banner", CommandKind.BrandingHelp, "banner")]
+    [InlineData("receipt logo", CommandKind.BrandingHelp, "logo")]
+    [InlineData("لوگو", CommandKind.BrandingHelp, "logo")]
+    [InlineData("remove logo", CommandKind.RemoveBranding, "logo")]
+    [InlineData("banner hatao", CommandKind.RemoveBranding, "banner")]
+    [InlineData("delete receipt banner", CommandKind.RemoveBranding, "banner")]
+    public void ParsesBrandingCommands(string message, CommandKind kind, string text)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.NotNull(parsed);
+        Assert.Equal(kind, parsed!.Kind);
+        Assert.Equal(text, parsed.Text);
+    }
+
+    [Theory]
+    [InlineData("logo", true, "logo")]
+    [InlineData("Receipt Banner", true, "banner")]
+    [InlineData("بینر", true, "banner")]
+    [InlineData("Ayesha ka order", false, "")]
+    [InlineData(null, false, "")]
+    public void ParsesBrandingCaption(string? caption, bool expected, string kind)
+    {
+        Assert.Equal(expected, CommandParser.TryParseBrandingCaption(caption, out var parsedKind));
+        Assert.Equal(kind, parsedKind);
+    }
+
+    [Fact]
+    public void ReceiptWithCustomerNamedLogo_StillBrandingHelp()
+    {
+        // "receipt logo" is the branding help, not a receipt for a customer called "logo".
+        Assert.Equal(CommandKind.BrandingHelp, CommandParser.TryParse("receipt logo")!.Kind);
+    }
 }

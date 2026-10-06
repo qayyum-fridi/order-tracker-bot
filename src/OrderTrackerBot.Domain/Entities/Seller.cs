@@ -65,6 +65,16 @@ public class Product
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
+/// <summary>The seller's logo/banner for PDF receipts. Its own table so the image bytes aren't loaded with the Seller on every message.</summary>
+public class SellerBranding
+{
+    public int Id { get; set; }
+    public int SellerId { get; set; }
+    public byte[]? Logo { get; set; }
+    public byte[]? Banner { get; set; }
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+
 public class Customer
 {
     public int Id { get; set; }

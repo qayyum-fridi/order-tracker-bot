@@ -139,3 +139,7 @@ shared-state action: confirm with the user and get SSH/host details first.
   `Infrastructure/Pdf`) are sent as a WhatsApp document to the *seller's* chat, who forwards them to the buyer (the bot never
   messages buyers). QuestPDF runs under its Community licence (free below US$1M revenue); Linux hosts need `libfontconfig1`
   (in the Dockerfile); the Urdu-script font (Noto Naskh Arabic, OFL) is embedded. The receipt is English-labelled only.
+- Receipt logo/banner: the seller sends a picture captioned `logo` / `banner` (`ConversationEngine.Branding.cs`); stored as bytes in
+  `SellerBrandings` (own table; created on Sqlite by `SqliteSchemaPatcher`, **no SQL Server migration yet — generate one**). Images
+  are validated with QuestPDF only (no resize/re-encode; QuestPDF downsamples when rendering) and capped at 5 MB; a stored image
+  the PDF engine can't draw falls back to a plain receipt. `reset account` deletes them.

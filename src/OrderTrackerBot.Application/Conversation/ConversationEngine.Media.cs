@@ -40,6 +40,14 @@ public partial class ConversationEngine
             return;
         }
 
+        // A picture captioned "logo" / "banner" is receipt branding, not an order screenshot.
+        if (CommandParser.TryParseBrandingCaption(caption, out var brandingKind))
+        {
+            await SaveBrandingAsync(seller, brandingKind, media.Value.Bytes, ct);
+            await PersistAsync(session, ctx, ct);
+            return;
+        }
+
         // A screenshot starts fresh: any half-finished draft/prompt is dropped.
         ResetFlowContext(ctx);
         SetState(session, ConversationState.Idle);

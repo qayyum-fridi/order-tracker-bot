@@ -37,7 +37,32 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
 
     private static string Money(decimal amount) => "Rs. " + amount.ToString("#,0.##", CultureInfo.InvariantCulture);
 
+    public bool CanEmbedImage(byte[] image)
+    {
+        try
+        {
+            return image.Length is > 0 and <= 5_000_000 && QuestPDF.Infrastructure.Image.FromBinaryData(image) is not null;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public byte[] Generate(ReceiptData r)
+    {
+        try
+        {
+            return Render(r);
+        }
+        catch when (r.Logo is not null || r.Banner is not null)
+        {
+            // A stored image the PDF engine can't draw must never cost the seller their receipt.
+            return Render(r with { Logo = null, Banner = null });
+        }
+    }
+
+    private static byte[] Render(ReceiptData r)
     {
         return Document.Create(doc => doc.Page(page =>
         {
@@ -47,8 +72,12 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
 
             page.Header().Column(col =>
             {
+                if (r.Banner is not null)
+                    col.Item().PaddingBottom(8).AlignCenter().MaxHeight(90).Image(r.Banner).FitArea();
                 col.Item().Row(row =>
                 {
+                    if (r.Logo is not null)
+                        row.ConstantItem(56).PaddingRight(8).Height(48).Image(r.Logo).FitArea();
                     row.RelativeItem().Column(c =>
                     {
                         c.Item().Text(r.BusinessName).FontSize(16).Bold().FontColor(Accent);

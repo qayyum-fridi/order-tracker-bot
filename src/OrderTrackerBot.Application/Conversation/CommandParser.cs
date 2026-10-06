@@ -63,6 +63,8 @@ public enum CommandKind
     LeadAction,
     ProductReport,
     Receipt,
+    BrandingHelp,
+    RemoveBranding,
     DiscountPerformance,
     NewOrderHelp,
     Guide,
@@ -133,6 +135,23 @@ public static class CommandParser
     private static readonly Regex PriceTiers = new(@"^(.+?)\s*[-–:]\s*(?:price\s+tiers?|bulk\s+pric(?:e|ing)|wholesale)\s*:\s*(.+)$", Opts);
     private static readonly Regex CampaignStatus = new(@"^campaign\s+status$", Opts);
     private static readonly Regex ProductReport = new(@"^(.+?)\s+(?:ka|ki)\s+report$|^report:?\s+(.+)$", Opts);
+    // "logo" / "banner" explain how to set one; "remove logo" clears it. Text is "logo" or "banner".
+    private const string BrandingWord = @"(?<k>logo|banner|لوگو|بینر)";
+    private static readonly Regex BrandingHelp = new(@"^(?:(?:receipt|set|my)\s+)?" + BrandingWord + "$", Opts);
+    private static readonly Regex RemoveBranding = new(@"^(?:remove|delete|clear)\s+(?:receipt\s+)?" + BrandingWord + @"$|^" + BrandingWord + @"\s+(?:hatao|hata\s+do|remove)$", Opts);
+
+    private static string BrandingKind(string word) => word.ToLowerInvariant() is "logo" or "لوگو" ? "logo" : "banner";
+
+    /// <summary>An image caption like "logo" / "receipt banner" / "لوگو" marks the picture as receipt branding.</summary>
+    public static bool TryParseBrandingCaption(string? caption, out string kind)
+    {
+        kind = "";
+        var m = BrandingHelp.Match((caption ?? "").Trim());
+        if (!m.Success) return false;
+        kind = BrandingKind(m.Groups["k"].Value);
+        return true;
+    }
+
     // "receipt" (latest order) / "receipt 12" / "receipt Ayesha" / "Ayesha ki receipt" / "رسید 12". Number or Text is the order reference.
     private const string ReceiptWord = @"(?:receipt|invoice|rasid|raseed|bill|رسید)";
     private static readonly Regex Receipt = new(@"^(?:(?:order|pdf)\s+)?" + ReceiptWord + @"(?:\s*:?\s*#?(?<n>\d+)|\s*:?\s+(?<name>.+))?$|^(?<name>.+?)\s+(?:ki|ka|ke)\s+" + ReceiptWord + "$", Opts);
@@ -347,6 +366,10 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.PriceTiers, Text = m.Groups[1].Value.Trim(), Text2 = m.Groups[2].Value.Trim() };
         if (CampaignStatus.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CampaignStatus };
         if (DiscountPerformance.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DiscountPerformance };
+        if ((m = RemoveBranding.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.RemoveBranding, Text = BrandingKind(m.Groups["k"].Value) };
+        if ((m = BrandingHelp.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.BrandingHelp, Text = BrandingKind(m.Groups["k"].Value) };
         if ((m = Receipt.Match(message)).Success)
             return new ParsedCommand
             {

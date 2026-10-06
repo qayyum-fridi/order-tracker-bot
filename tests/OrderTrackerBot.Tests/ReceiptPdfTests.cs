@@ -31,4 +31,28 @@ public class ReceiptPdfTests
 
         Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(pdf, 0, 5));
     }
+
+    // 1x1 PNG
+    internal static readonly byte[] TinyPng = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
+
+    [Fact]
+    public void CanEmbedImage_AcceptsPng_RejectsJunkAndEmpty()
+    {
+        var generator = new ReceiptPdfGenerator();
+        Assert.True(generator.CanEmbedImage(TinyPng));
+        Assert.False(generator.CanEmbedImage(new byte[] { 1, 2, 3 }));
+        Assert.False(generator.CanEmbedImage(Array.Empty<byte>()));
+    }
+
+    [Fact]
+    public void Generate_WithLogoAndBanner_Works_AndBadImageFallsBackToPlainReceipt()
+    {
+        var generator = new ReceiptPdfGenerator();
+
+        var branded = generator.Generate(Sample() with { Logo = TinyPng, Banner = TinyPng });
+        var fallback = generator.Generate(Sample() with { Logo = new byte[] { 1, 2, 3 }, Banner = new byte[] { 9 } });
+
+        Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(branded, 0, 5));
+        Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(fallback, 0, 5));
+    }
 }
