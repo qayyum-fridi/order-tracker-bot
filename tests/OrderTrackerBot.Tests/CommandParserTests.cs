@@ -6,6 +6,29 @@ namespace OrderTrackerBot.Tests;
 public class CommandParserTests
 {
     [Theory]
+    [InlineData("Shirt 200 and pants 800", "Shirt - 200\npants - 800")]
+    [InlineData("Shirt - 300 and pant- 500", "Shirt - 300\npant- 500")]
+    [InlineData("Shirt 300, pant 500", "Shirt - 300\npant - 500")]
+    [InlineData("Shirt 300 aur Pant 500 aur Cap 150", "Shirt - 300\nPant - 500\nCap - 150")]
+    public void ParsesInlineProductsOnOneLine(string message, string expectedLines)
+    {
+        var cmd = CommandParser.TryParse(message);
+
+        Assert.Equal(CommandKind.AddProductsBulk, cmd!.Kind);
+        Assert.Equal(expectedLines, cmd.Text);
+    }
+
+    [Theory]
+    [InlineData("Ayesha 2 lawn suit aur 1 kurti")]
+    [InlineData("Ayesha 200 and Bilal, 0300-1234567")]
+    [InlineData("Ayesha, 2 suit, 0300-1234567")]
+    [InlineData("wo 20 aur 30")]
+    public void InlineProducts_DoesNotSwallowOrders(string message)
+    {
+        Assert.NotEqual(CommandKind.AddProductsBulk, CommandParser.TryParse(message)?.Kind);
+    }
+
+    [Theory]
     [InlineData("orders today", CommandKind.OrdersToday)]
     [InlineData("Orders Today", CommandKind.OrdersToday)]
     [InlineData("pending orders", CommandKind.PendingOrders)]

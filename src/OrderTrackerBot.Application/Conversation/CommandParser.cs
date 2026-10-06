@@ -396,8 +396,32 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.AddProduct, Text = line!.Name, Amount = line.Price, Product = line };
         if (lines.Length > 1 && lines.All(l => TryParseProductLine(l, out ProductLine? _)))
             return new ParsedCommand { Kind = CommandKind.AddProductsBulk, Text = message };
+        if (lines.Length == 1 && TryParseInlineProducts(lines[0]) is { } inlineProducts)
+            return new ParsedCommand { Kind = CommandKind.AddProductsBulk, Text = inlineProducts };
 
         return FuzzyCommand(message);
+    }
+
+    // "Shirt 200 and pants 800" / "Shirt - 300, pant - 500": several products on one line, with or without dashes.
+    private static readonly Regex InlineProductSplit = new(@"\s+(?:and|aur|&)\s+|\s*[,;+&]\s*", Opts);
+    private static readonly Regex SpacedPriceLine = new(@"^([^\d,:\n]{3,50}?)\s+(?:rs\.?\s*|pkr\s*)?(\d{2,7})$", Opts);
+    private static readonly Regex PhoneLike = new(@"(?<!\d)(?:\+?92[-\s]?|0)3\d{2}[-\s]?\d{7}(?!\d)", Opts);
+
+    /// <summary>Returns the products as newline-separated "name - price" lines, or null unless EVERY part is a product (a phone number means it is an order).</summary>
+    private static string? TryParseInlineProducts(string text)
+    {
+        if (PhoneLike.IsMatch(text)) return null;
+        var parts = InlineProductSplit.Split(text).Select(p => p.Trim()).Where(p => p.Length > 0).ToArray();
+        if (parts.Length < 2) return null;
+
+        var normalized = new List<string>();
+        foreach (var part in parts)
+        {
+            if (TryParseProductLine(part, out ProductLine? _)) normalized.Add(part);
+            else if (SpacedPriceLine.Match(part) is { Success: true } m) normalized.Add($"{m.Groups[1].Value.Trim()} - {m.Groups[2].Value}");
+            else return null;
+        }
+        return string.Join("\n", normalized);
     }
 
     // Typo tolerance ("odrers todya" -> orders today). Only fixed phrases; undo is excluded since a typo must never revert work.
