@@ -15,6 +15,8 @@ public class Seller
     public string TimeZoneId { get; set; } = "Asia/Karachi";
     public string? BusinessType { get; set; }
     public string? InstagramHandle { get; set; }
+    /// <summary>Delivery charge added to every new order unless changed on that order ("delivery 200" sets it, "free delivery" clears it).</summary>
+    public decimal DefaultDeliveryCharge { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>Free trial end; null until onboarding completes (trial starts then).</summary>

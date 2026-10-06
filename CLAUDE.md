@@ -153,3 +153,9 @@ shared-state action: confirm with the user and get SSH/host details first.
   global flag `Features:ShortcutButtons` (engine built without `FeatureOptions` = off, so unit tests stay quiet). "/" commands: `CommandParser.SlashCommands`,
   registered with Meta via `deploy/whatsapp-conversational-components.json` (**schema from third-party docs; how Meta delivers a picked command was not
   verified** — the engine just accepts `/name` as a typed alias).
+- Delivery charges (`ConversationEngine.Delivery.cs`): `Seller.DefaultDeliveryCharge` ("delivery 200" / "free delivery") is applied to new
+  drafts; "delivery 300" while confirming changes only that draft; "order 12 delivery 300" changes a saved order. Always
+  `Total = max(0, Subtotal - DiscountAmount) + DeliveryCharge` (`OrderTotal`); discounts (codes and loyalty) never touch delivery. Sales totals include delivery.
+- `OrderStatus.Returned` (+ `Order.ReturnedAt`): "mark 3 returned/wapas", "Ayesha ka order wapas aa gaya". Only from Shipped/Delivered (a pending order is
+  cancelled instead). Excluded everywhere Cancelled is excluded from sales/loyalty/customer spend; shown as "Returned: N" in today's/weekly summary.
+  New columns (`Orders.DeliveryCharge`, `Orders.ReturnedAt`, `Sellers.DefaultDeliveryCharge`) are added on Sqlite by the patcher — **no SQL Server migration**.

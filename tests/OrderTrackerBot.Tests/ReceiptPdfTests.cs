@@ -55,4 +55,11 @@ public class ReceiptPdfTests
         Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(branded, 0, 5));
         Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(fallback, 0, 5));
     }
+
+    [Fact]
+    public void Generate_WithDeliveryCharge_Works()
+    {
+        var pdf = new ReceiptPdfGenerator().Generate(Sample() with { DeliveryCharge = 200, Total = 8120 });
+        Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(pdf, 0, 5));
+    }
 }

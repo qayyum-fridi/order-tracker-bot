@@ -25,7 +25,8 @@ public sealed record ReceiptData(
     string? TrackingNumber,
     IReadOnlyList<string> PayTo,
     byte[]? Logo = null,
-    byte[]? Banner = null);
+    byte[]? Banner = null,
+    decimal DeliveryCharge = 0);
 
 public interface IReceiptPdfGenerator
 {

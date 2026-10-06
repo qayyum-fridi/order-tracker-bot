@@ -218,6 +218,12 @@ public partial class ConversationEngine
             case CommandKind.DisconnectInstagram:
                 await HandleDisconnectInstagramAsync(seller, ct);
                 return;
+            case CommandKind.DeliveryCharge:
+                await HandleDeliveryChargeAsync(seller, cmd.Amount, ct);
+                return;
+            case CommandKind.OrderDeliveryCharge:
+                await HandleOrderDeliveryChargeAsync(seller, ctx, cmd.Number!.Value, cmd.Amount ?? 0, ct);
+                return;
             case CommandKind.Shortcuts:
                 await HandleShortcutsToggleAsync(seller, ctx, cmd.Text!, ct);
                 return;
@@ -413,7 +419,7 @@ public partial class ConversationEngine
     private async Task HandleGreetingAsync(Seller seller, CancellationToken ct)
     {
         var pending = await _db.Orders.CountAsync(o => o.SellerId == seller.Id && o.Status == OrderStatus.Pending, ct);
-        var unpaid = await _db.Orders.CountAsync(o => o.SellerId == seller.Id && o.PaymentStatus == PaymentStatus.Unpaid && o.Status != OrderStatus.Cancelled, ct);
+        var unpaid = await _db.Orders.CountAsync(o => o.SellerId == seller.Id && o.PaymentStatus == PaymentStatus.Unpaid && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned, ct);
         await ReplyAsync(seller, Formatters.ReturningGreeting(seller.PreferredLanguage, seller.BusinessName, pending, unpaid), ct);
     }
 
@@ -440,7 +446,7 @@ public partial class ConversationEngine
     {
         var (start, end) = ReportRange(seller, period);
         var orders = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
-            .Where(o => o.SellerId == seller.Id && o.CreatedAt >= start && o.CreatedAt < end && o.Status != OrderStatus.Cancelled)
+            .Where(o => o.SellerId == seller.Id && o.CreatedAt >= start && o.CreatedAt < end && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
             .OrderBy(o => o.CreatedAt)
             .ToListAsync(ct);
 
@@ -471,7 +477,7 @@ public partial class ConversationEngine
         var (start, end) = ReportRange(seller, period);
         var label = period switch { "yesterday" => "Yesterday's", "lastmonth" => "Last Month's", _ => "Today's" };
         var orders = await _db.Orders
-            .Where(o => o.SellerId == seller.Id && o.CreatedAt >= start && o.CreatedAt < end && o.Status != OrderStatus.Cancelled)
+            .Where(o => o.SellerId == seller.Id && o.CreatedAt >= start && o.CreatedAt < end && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
             .ToListAsync(ct);
 
         var delivered = orders.Count(o => o.Status == OrderStatus.Delivered);
@@ -480,11 +486,14 @@ public partial class ConversationEngine
         var cod = orders.Where(o => o.PaymentMethod == OrderPaymentMethod.Cod && o.PaymentStatus == PaymentStatus.Paid).Sum(o => o.Total);
         var prepaid = orders.Where(o => o.PaymentMethod != OrderPaymentMethod.Cod && o.PaymentStatus == PaymentStatus.Paid).Sum(o => o.Total);
         var totalSales = orders.Sum(o => o.Total);
+        var returned = await _db.Orders.CountAsync(o => o.SellerId == seller.Id && o.Status == OrderStatus.Returned
+            && o.ReturnedAt >= start && o.ReturnedAt < end, ct);
 
         await ReplyAsync(seller,
             $"🧾 {label} Reconciliation — {seller.BusinessName}\n\n" +
             $"Orders: {orders.Count}\n" +
             $"Delivered: {delivered} | Shipped: {shipped} | Pending: {pending}\n" +
+            (returned > 0 ? $"Returned: {returned}\n" : "") +
             $"Cash collected (COD): {Formatters.Money(cod)}\n" +
             $"Prepaid received: {Formatters.Money(prepaid)}\n" +
             $"Total sales {(period is null ? "today" : label.Replace("'s", "").ToLowerInvariant())}: {Formatters.Money(totalSales)}\n\n" +
@@ -753,12 +762,23 @@ public partial class ConversationEngine
             "shipped" => OrderStatus.Shipped,
             "delivered" => OrderStatus.Delivered,
             "pending" => OrderStatus.Pending,
+            "returned" => OrderStatus.Returned,
             _ => order.Status
         };
+
+        // Only something that left the shop can come back; a pending order is cancelled instead.
+        if (newStatus == OrderStatus.Returned && previousStatus is not (OrderStatus.Shipped or OrderStatus.Delivered))
+        {
+            await ReplyAsync(seller, previousStatus == OrderStatus.Returned
+                ? $"Order #{order.Id} pehle se RETURNED hai."
+                : $"Order #{order.Id} abhi {Formatters.Status(previousStatus)} hai — bheja hi nahi gaya to wapas nahi aa sakta. Hatana ho to: \"cancel order {order.Id}\"", ct);
+            return;
+        }
 
         order.Status = newStatus;
         order.ShippedAt = newStatus == OrderStatus.Shipped ? DateTime.UtcNow : order.ShippedAt;
         order.DeliveredAt = newStatus == OrderStatus.Delivered ? DateTime.UtcNow : order.DeliveredAt;
+        order.ReturnedAt = newStatus == OrderStatus.Returned ? DateTime.UtcNow : order.ReturnedAt;
 
         _db.ActionLogs.Add(new ActionLog
         {
@@ -769,6 +789,10 @@ public partial class ConversationEngine
         });
 
         var reply = $"✅ Order #{order.Id} ({order.Customer?.Name} - {Formatters.ItemsSummary(order)}) marked as {Formatters.Status(newStatus)}.";
+        if (newStatus == OrderStatus.Returned)
+            reply += order.PaymentStatus == PaymentStatus.Paid
+                ? "\nIs ki payment PAID thi — paise wapas kiye hon to yaad rakhein. Sales reports se yeh order nikal diya gaya hai."
+                : "\nSales reports se yeh order nikal diya gaya hai.";
         if (newStatus == OrderStatus.Shipped && string.IsNullOrEmpty(order.TrackingNumber))
             reply += "\nTracking number add karna hai? (\"add tracking: courier, number\")";
 
@@ -804,7 +828,7 @@ public partial class ConversationEngine
     private async Task HandleUnpaidOrdersAsync(Seller seller, SessionContextData ctx, CancellationToken ct)
     {
         var orders = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
-            .Where(o => o.SellerId == seller.Id && o.PaymentStatus == PaymentStatus.Unpaid && o.Status != OrderStatus.Cancelled)
+            .Where(o => o.SellerId == seller.Id && o.PaymentStatus == PaymentStatus.Unpaid && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
             .OrderBy(o => o.CreatedAt)
             .ToListAsync(ct);
 

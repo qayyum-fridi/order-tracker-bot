@@ -49,7 +49,7 @@ public partial class ConversationEngine
             return;
         }
 
-        var active = orders.Where(o => o.Status != OrderStatus.Cancelled).ToList();
+        var active = orders.Where(o => o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned).ToList();
         var top = active.SelectMany(o => o.Items).GroupBy(i => i.ProductNameSnapshot)
             .Select(g => new { Name = g.Key, Orders = g.Select(i => i.OrderId).Distinct().Count() })
             .OrderByDescending(g => g.Orders).FirstOrDefault();
@@ -58,7 +58,7 @@ public partial class ConversationEngine
             $"📊 Weekly Summary — {seller.BusinessName}\n\n" +
             $"Total orders: {orders.Count}\n" +
             $"Delivered: {orders.Count(o => o.Status == OrderStatus.Delivered)} | Pending: {orders.Count(o => o.Status == OrderStatus.Pending)} | " +
-            $"Cancelled: {orders.Count(o => o.Status == OrderStatus.Cancelled)}\n" +
+            $"Cancelled: {orders.Count(o => o.Status == OrderStatus.Cancelled)} | Returned: {orders.Count(o => o.Status == OrderStatus.Returned)}\n" +
             (top is null ? "" : $"Top product: {top.Name} ({top.Orders} orders)\n") +
             $"Total sales: {Formatters.Money(active.Sum(o => o.Total))}\n\nKeep it up! 🎉", ct);
     }

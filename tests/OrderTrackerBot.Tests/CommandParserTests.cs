@@ -336,4 +336,74 @@ public class CommandParserTests
         Assert.Equal(CommandKind.Shortcuts, parsed!.Kind);
         Assert.Equal(value, parsed.Text);
     }
+
+    [Theory]
+    [InlineData("mark 3 returned")]
+    [InlineData("mark 3 return ho gaya")]
+    [InlineData("mark 3 wapas aa gaya")]
+    [InlineData("آرڈر 3 واپس آ گیا")]
+    [InlineData("order 3 wapas")]
+    public void ParsesMarkReturned(string message)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.Equal(CommandKind.MarkStatus, parsed!.Kind);
+        Assert.Equal(3, parsed.Number);
+        Assert.Equal("returned", parsed.Text);
+    }
+
+    [Theory]
+    [InlineData("Ayesha ka order wapas aa gaya", "return")]
+    [InlineData("Ayesha کا آرڈر واپس آ گیا", "return")]
+    [InlineData("Ayesha ka order deliver ho gaya", "deliver")]
+    public void FuzzyStatusUpdate_KnowsReturns(string message, string keyword)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.Equal(CommandKind.FuzzyStatusUpdate, parsed!.Kind);
+        Assert.Equal(keyword, parsed.Text2);
+    }
+
+    [Theory]
+    [InlineData("delivery 200", 200)]
+    [InlineData("Delivery charges: Rs 250", 250)]
+    [InlineData("delivery fee 150", 150)]
+    [InlineData("free delivery", 0)]
+    [InlineData("delivery free", 0)]
+    [InlineData("ڈیلیوری 180", 180)]
+    public void ParsesDeliveryChargeDefault(string message, int amount)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.Equal(CommandKind.DeliveryCharge, parsed!.Kind);
+        Assert.Equal(amount, parsed.Amount);
+    }
+
+    [Fact]
+    public void DeliveryChargeAlone_ShowsCurrentSetting()
+    {
+        var parsed = CommandParser.TryParse("delivery charge");
+        Assert.Equal(CommandKind.DeliveryCharge, parsed!.Kind);
+        Assert.Null(parsed.Amount);
+    }
+
+    [Theory]
+    [InlineData("order 12 delivery 300", 12, 300)]
+    [InlineData("12 delivery 0", 12, 0)]
+    [InlineData("order 12 delivery free", 12, 0)]
+    [InlineData("order #12 free delivery", 12, 0)]
+    public void ParsesSavedOrderDeliveryCharge(string message, int id, int amount)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.Equal(CommandKind.OrderDeliveryCharge, parsed!.Kind);
+        Assert.Equal(id, parsed.Number);
+        Assert.Equal(amount, parsed.Amount);
+    }
+
+    [Theory]
+    [InlineData("mark 3 delivered", "delivered")]
+    [InlineData("mark 3 deliver ho gaya", "delivered")]
+    public void Delivery_DoesNotBreakDeliveredStatus(string message, string status)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.Equal(CommandKind.MarkStatus, parsed!.Kind);
+        Assert.Equal(status, parsed.Text);
+    }
 }

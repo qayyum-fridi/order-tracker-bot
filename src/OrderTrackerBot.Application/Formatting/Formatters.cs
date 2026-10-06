@@ -14,6 +14,7 @@ public static class Formatters
         OrderStatus.Shipped => "SHIPPED",
         OrderStatus.Delivered => "DELIVERED",
         OrderStatus.Cancelled => "CANCELLED",
+        OrderStatus.Returned => "RETURNED",
         _ => status.ToString()
     };
 
@@ -72,6 +73,7 @@ public static class Formatters
                 OrderStatus.Shipped => "بھیج دیا گیا",
                 OrderStatus.Delivered => "پہنچا دیا گیا",
                 OrderStatus.Cancelled => "منسوخ",
+                OrderStatus.Returned => "واپس آ گیا",
                 _ => Status(status)
             }
             : Status(status);

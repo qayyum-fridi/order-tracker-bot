@@ -28,6 +28,8 @@ public sealed class PendingOrderData
     public string? OrderSource { get; set; }
     public bool FromScreenshot { get; set; }
     public decimal DiscountAmount { get; set; }
+    /// <summary>Null until set: the seller's default delivery charge is applied when totals are computed.</summary>
+    public decimal? DeliveryCharge { get; set; }
     public decimal Subtotal { get; set; }
     public decimal Total { get; set; }
     public int? DuplicateOfOrderId { get; set; }

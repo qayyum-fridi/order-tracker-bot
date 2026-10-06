@@ -66,6 +66,8 @@ public enum CommandKind
     BrandingHelp,
     Export,
     Shortcuts,
+    DeliveryCharge,
+    OrderDeliveryCharge,
     RemoveBranding,
     DiscountPerformance,
     NewOrderHelp,
@@ -165,6 +167,26 @@ public static class CommandParser
         return null;
     }
 
+    // Delivery charge: "delivery 200" / "delivery charges: Rs 250" sets the seller's default (or, while confirming an order, just that
+    // order's); "free delivery" = 0; "delivery charge" alone shows it. "order 12 delivery 300" changes a saved order.
+    private const string DeliveryWord = @"(?:delivery|deliveri|ڈیلیوری)(?:\s+(?:charges?|fee|fees|kharcha))?";
+    private static readonly Regex DeliveryAmount = new(@"^(?:set\s+)?" + DeliveryWord + @"\s*[:=-]?\s*(?:rs\.?\s*)?(?<n>\d{1,6})(?:\s*(?:rs|rupees?|روپے))?$", Opts);
+    private static readonly Regex DeliveryFree = new(@"^(?:free\s+delivery|delivery\s+free|no\s+delivery(?:\s+charges?)?|delivery\s+(?:charges?\s+)?(?:nahi|none|off)|فری\s+ڈیلیوری)$", Opts);
+    private static readonly Regex DeliveryShow = new(@"^(?:my\s+)?" + DeliveryWord + "$", Opts);
+    private static readonly Regex OrderDelivery = new(@"^(?:order|آرڈر)?\s*#?(?<id>\d+)\s+" + DeliveryWord + @"\s*[:=-]?\s*(?:rs\.?\s*)?(?<n>\d{1,6}|free|0)$|^(?:order|آرڈر)\s*#?(?<id>\d+)\s+free\s+delivery$", Opts);
+
+    /// <summary>"delivery 250" / "free delivery" -> the amount; used for the seller default and inside an order confirmation.</summary>
+    public static bool TryParseDeliveryAmount(string message, out decimal amount)
+    {
+        var text = LeadingSymbols.Replace(message.Trim(), "").Trim();
+        amount = 0;
+        if (DeliveryFree.IsMatch(text)) return true;
+        var m = DeliveryAmount.Match(text);
+        if (!m.Success) return false;
+        amount = decimal.Parse(m.Groups["n"].Value, System.Globalization.CultureInfo.InvariantCulture);
+        return true;
+    }
+
     // "shortcut off" / "shortcut on": the quick-action buttons that follow replies.
     private static readonly Regex Shortcuts = new(@"^(?:shortcuts?|quick\s+actions?)\s+(?<v>on|off|chalu|band)$", Opts);
 
@@ -257,6 +279,7 @@ public static class CommandParser
     private static readonly Regex DeliveredPhrase = new(@"^(?:deliver(?:ed)?" + DoneWords + @"|(?:pohanch|pahunch|pohnch)\s+gaya|ڈیلیور" + DoneWords + @"|پہنچ\s+گیا)$", Opts);
     private static readonly Regex PaidPhrase = new(@"^(?:paid" + DoneWords + @"|payment\s+(?:aa|mil)\s+(?:gayi|gai)|پیڈ" + DoneWords + @"|ادائیگی\s+ہو\s+گئی)$", Opts);
     private static readonly Regex PendingPhrase = new(@"^(?:pending|پینڈنگ)$", Opts);
+    private static readonly Regex ReturnedPhrase = new(@"^(?:return(?:ed)?" + DoneWords + @"|(?:wapas|wapis|waapas)(?:\s+(?:aa|a|aya|agaya|aa\s*gaya|aa\s*gya|ho\s*gaya|ho\s*gya|kar\s+diya))?|واپس(?:\s+(?:آ\s+گیا|آیا|ہو\s+گیا))?|ریٹرن)$", Opts);
 
     private static string? StatusFromPhrase(string phrase)
     {
@@ -265,6 +288,7 @@ public static class CommandParser
         if (DeliveredPhrase.IsMatch(phrase)) return "delivered";
         if (PaidPhrase.IsMatch(phrase)) return "paid";
         if (PendingPhrase.IsMatch(phrase)) return "pending";
+        if (ReturnedPhrase.IsMatch(phrase)) return "returned";
         return null;
     }
     private static readonly Regex CancelOrder = new(@"^cancel\s+order\s+(\d+)$", Opts);
@@ -276,7 +300,7 @@ public static class CommandParser
     private static readonly Regex AddTracking = new(@"^add\s+tracking:\s*(.+?)\s*,\s*(.+)$", Opts);
     private static readonly Regex TrackingLookup = new(@"^(.+?)\s+(?:ka|کا)\s+(?:tracking|ٹریکنگ)$", Opts);
     private static readonly Regex CustomerOrderLookup = new(@"^(.+?)\s+" + Of + @"\s+(?:order|آرڈر)$", Opts);
-    private static readonly Regex FuzzyStatusUpdate = new(@"^(.+?)\s+" + Of + @"\s+(?:order|آرڈر)\s+.*?(deliver|ship|pending|bhej|ڈیلیور|شپ|پینڈنگ)", Opts);
+    private static readonly Regex FuzzyStatusUpdate = new(@"^(.+?)\s+" + Of + @"\s+(?:order|آرڈر)\s+.*?(deliver|ship|pending|bhej|return|wapas|wapis|waapas|ڈیلیور|شپ|پینڈنگ|واپس|ریٹرن)", Opts);
     private static readonly Regex CreateDiscount = new(@"^create\s+discount:\s*(.+)$", Opts);
     private static readonly Regex DiscountList = new(@"^discount\s+list$", Opts);
     private static readonly Regex CreateLoyalty = new(@"^create\s+loyalty:\s*(\d+)\s+orders?\s*=\s*(\d+(?:\.\d+)?)\s*(?:%|percent|pc)?\s*off$", Opts);
@@ -385,6 +409,7 @@ public static class CommandParser
     private static string FuzzyStatusKeyword(string word)
     {
         word = word.ToLowerInvariant();
+        if (word.ToLowerInvariant() is "return" or "wapas" or "wapis" or "waapas" or "واپس" or "ریٹرن") return "return";
         return word.StartsWith("deliver") || word == "ڈیلیور" ? "deliver"
             : word.StartsWith("ship") || word.StartsWith("bhej") || word == "شپ" ? "ship"
             : "pending";
@@ -454,6 +479,15 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.PriceTiers, Text = m.Groups[1].Value.Trim(), Text2 = m.Groups[2].Value.Trim() };
         if (CampaignStatus.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CampaignStatus };
         if (DiscountPerformance.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DiscountPerformance };
+        if ((m = OrderDelivery.Match(message)).Success)
+            return new ParsedCommand
+            {
+                Kind = CommandKind.OrderDeliveryCharge, Number = int.Parse(m.Groups["id"].Value),
+                Amount = m.Groups["n"].Success && m.Groups["n"].Value != "free" ? decimal.Parse(m.Groups["n"].Value) : 0
+            };
+        if (TryParseDeliveryAmount(message, out var deliveryAmount))
+            return new ParsedCommand { Kind = CommandKind.DeliveryCharge, Amount = deliveryAmount };
+        if (DeliveryShow.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DeliveryCharge };
         if ((m = Shortcuts.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.Shortcuts, Text = m.Groups["v"].Value.ToLowerInvariant() is "on" or "chalu" ? "on" : "off" };
         if ((m = ExportLead.Match(message)).Success)

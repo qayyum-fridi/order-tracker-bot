@@ -252,8 +252,12 @@ public partial class ConversationEngine
             }
         }
 
-        pending.Total = Math.Max(0, pending.Subtotal - pending.DiscountAmount);
+        pending.DeliveryCharge ??= seller.DefaultDeliveryCharge;
+        pending.Total = OrderTotal(pending.Subtotal, pending.DiscountAmount, pending.DeliveryCharge.Value);
     }
+
+    /// <summary>Discounts apply to the goods only; delivery is added on top.</summary>
+    private static decimal OrderTotal(decimal subtotal, decimal discount, decimal delivery) => Math.Max(0, subtotal - discount) + delivery;
 
     private Task<Order?> FindPossibleDuplicateAsync(Seller seller, PendingOrderData pending, CancellationToken ct)
     {
@@ -261,7 +265,7 @@ public partial class ConversationEngine
         var firstItemName = pending.Items.FirstOrDefault()?.ProductName;
         return _db.Orders.Include(o => o.Customer).Include(o => o.Items)
             .Where(o => o.SellerId == seller.Id
-                && o.Status != OrderStatus.Cancelled
+                && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned
                 && o.CreatedAt >= window
                 && o.Customer!.Name.ToLower() == pending.CustomerName!.ToLower()
                 && o.Items.Any(i => i.ProductNameSnapshot == firstItemName))
@@ -296,6 +300,7 @@ public partial class ConversationEngine
                 "پروڈکٹ: " + string.Join("، ", pending.Items.Select(i => $"{i.ProductName} — {i.Quantity} عدد")),
                 $"قیمت: {pending.Total:#,0} روپے"
             };
+            if (pending.DeliveryCharge is > 0) urdu.Add($"(ڈیلیوری {pending.DeliveryCharge:#,0} روپے شامل — بدلنے کے لیے لکھیں: delivery 300)");
             if (!string.IsNullOrWhiteSpace(pending.Phone)) urdu.Add($"فون: {pending.Phone}");
             if (!string.IsNullOrWhiteSpace(pending.Address)) urdu.Add($"پتہ: {pending.Address}");
             urdu.Add("");
@@ -334,6 +339,7 @@ public partial class ConversationEngine
         if (pending.CommentLeadNumber is { } leadNumber) lines.Add($"Source: Instagram comment lead #{leadNumber}");
         else if (!string.IsNullOrWhiteSpace(pending.OrderSource)) lines.Add($"Source: {Formatters.SourceLabel(pending.OrderSource)}");
         if (pending.DiscountAmount > 0) lines.Add($"Discount ({pending.DiscountCode?.ToUpperInvariant()}): -{Formatters.Money(pending.DiscountAmount)}");
+        if (pending.DeliveryCharge is > 0) lines.Add($"Delivery: {Formatters.Money(pending.DeliveryCharge.Value)} (badalne ke liye: \"delivery 300\" ya \"free delivery\")");
         lines.Add($"Total: {Formatters.Money(pending.Total)}");
         lines.Add("");
         lines.Add("Reply YES to save, ya EDIT to fix.");
@@ -357,6 +363,8 @@ public partial class ConversationEngine
     private async Task<bool> TryLeaveOrderDraftAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         var trimmed = message.Trim();
+        // "delivery 300" while confirming changes this order's delivery, not the seller default.
+        if (session.State == ConversationState.AwaitingOrderConfirmation && CommandParser.TryParseDeliveryAmount(trimmed, out _)) return false;
         var command = CommandParser.TryParse(trimmed);
         var isCancel = CancelWords.Contains(trimmed);
         var isCommand = command is not null && command.Kind is not (CommandKind.AddProduct or CommandKind.AddProductsBulk or CommandKind.MoreCustomers);
@@ -386,6 +394,14 @@ public partial class ConversationEngine
             var order = await SaveOrderFromDraftAsync(seller, pending, ct);
             await ReplyAsync(seller, SavedText(seller, order, pending), ct);
             await AfterOrderSavedAsync(seller, session, ctx, order, ct);
+            return;
+        }
+
+        if (CommandParser.TryParseDeliveryAmount(message, out var delivery) && ctx.PendingOrder is { } draft)
+        {
+            draft.DeliveryCharge = delivery;
+            draft.Total = OrderTotal(draft.Subtotal, draft.DiscountAmount, delivery);
+            await ReplyAsync(seller, BuildConfirmationText(seller.PreferredLanguage, draft), ct);
             return;
         }
 
@@ -579,7 +595,8 @@ public partial class ConversationEngine
             OrderSource = pending.OrderSource?.ToLowerInvariant(),
             Subtotal = pending.Subtotal,
             DiscountAmount = pending.DiscountAmount,
-            Total = pending.Total
+            DeliveryCharge = pending.DeliveryCharge ?? seller.DefaultDeliveryCharge,
+            Total = OrderTotal(pending.Subtotal, pending.DiscountAmount, pending.DeliveryCharge ?? seller.DefaultDeliveryCharge)
         };
 
         foreach (var item in pending.Items)
@@ -717,7 +734,7 @@ public partial class ConversationEngine
         var rule = await _db.LoyaltyRules.FirstOrDefaultAsync(r => r.SellerId == seller.Id && r.IsActive, ct);
         if (rule is null || rule.OrderThreshold <= 0) return;
 
-        var orderCount = await _db.Orders.CountAsync(o => o.CustomerId == order.CustomerId && o.Status != OrderStatus.Cancelled, ct);
+        var orderCount = await _db.Orders.CountAsync(o => o.CustomerId == order.CustomerId && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned, ct);
         if (orderCount == 0 || orderCount % rule.OrderThreshold != 0) return;
 
         var customer = await _db.Customers.FindAsync(new object?[] { order.CustomerId }, ct);
@@ -756,7 +773,7 @@ public partial class ConversationEngine
         var order = await _db.Orders.Include(o => o.Customer).FirstOrDefaultAsync(o => o.Id == orderId && o.SellerId == seller.Id, ct);
         if (order is null) return;
 
-        var off = Math.Round(order.Total * percent / 100m, 0);
+        var off = Math.Round((order.Total - order.DeliveryCharge) * percent / 100m, 0);
         order.DiscountAmount += off;
         order.Total = Math.Max(0, order.Total - off);
         order.DiscountCode ??= "LOYALTY";
@@ -768,7 +785,7 @@ public partial class ConversationEngine
     {
         var lower = feedback.CustomerName.ToLower();
         var order = await _db.Orders.Include(o => o.Customer)
-            .Where(o => o.SellerId == seller.Id && o.Status != OrderStatus.Cancelled && o.Customer!.Name.ToLower() == lower)
+            .Where(o => o.SellerId == seller.Id && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned && o.Customer!.Name.ToLower() == lower)
             .OrderByDescending(o => o.CreatedAt).FirstOrDefaultAsync(ct);
 
         _db.CustomerFeedbacks.Add(new CustomerFeedback

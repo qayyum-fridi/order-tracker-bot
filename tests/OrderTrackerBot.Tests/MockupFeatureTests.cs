@@ -145,6 +145,91 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task DeliveryCharge_DefaultIsAdded_CanBeChangedWhileConfirming_AndOnASavedOrder()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "delivery 200", default);
+        Assert.Equal(200m, (await db.Sellers.FirstAsync()).DefaultDeliveryCharge);
+        Assert.Contains(_sent, m => m.Contains("Delivery charge Rs.200 set"));
+
+        AiReturns(Order("Sara", "Kurti", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
+        Assert.Contains(_sent, m => m.Contains("Delivery: Rs.200") && m.Contains("Total: Rs.2,000"));
+
+        // While confirming, "delivery 300" changes only this order and keeps the draft open.
+        await engine.HandleIncomingMessageAsync(Phone, "delivery 300", default);
+        Assert.Equal(ConversationState.AwaitingOrderConfirmation, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sent, m => m.Contains("Delivery: Rs.300") && m.Contains("Total: Rs.2,100"));
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        var order = await db.Orders.FirstAsync();
+        Assert.Equal(300m, order.DeliveryCharge);
+        Assert.Equal(2100m, order.Total);
+        Assert.Equal(200m, (await db.Sellers.FirstAsync()).DefaultDeliveryCharge);
+
+        await engine.HandleIncomingMessageAsync(Phone, $"order {order.Id} free delivery", default);
+        await db.Entry(order).ReloadAsync();
+        Assert.Equal(0m, order.DeliveryCharge);
+        Assert.Equal(1800m, order.Total);
+    }
+
+    [Fact]
+    public async Task DeliveryCharge_IsNotDiscounted()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        db.Discounts.Add(new OrderTrackerBot.Domain.Entities.Discount { SellerId = (await db.Sellers.FirstAsync()).Id, Code = "HALF", Type = DiscountType.Percent, Value = 50 });
+        await db.SaveChangesAsync();
+        await engine.HandleIncomingMessageAsync(Phone, "delivery 250", default);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "new_order", IsOrderAttempt = true,
+            Order = new AiOrderDraft { CustomerName = "Sara", Phone = "03001234567", DiscountCode = "HALF",
+                Items = { new AiOrderItemDraft { ProductName = "Kurti", MatchedCatalogProductName = "Kurti", Quantity = 1 } } }
+        });
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567, code HALF", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        var order = await db.Orders.FirstAsync();
+        Assert.Equal(900m, order.DiscountAmount);   // 50% of 1800, delivery excluded
+        Assert.Equal(1150m, order.Total);           // 900 + 250
+    }
+
+    [Fact]
+    public async Task Returned_OnlyForShippedOrDelivered_AndDroppedFromSales()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(Order("Sara", "Kurti", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        var order = await db.Orders.FirstAsync();
+
+        await engine.HandleIncomingMessageAsync(Phone, $"mark {order.Id} returned", default);
+        Assert.Contains(_sent, m => m.Contains("bheja hi nahi gaya") && m.Contains($"cancel order {order.Id}"));
+        await db.Entry(order).ReloadAsync();
+        Assert.Equal(OrderStatus.Pending, order.Status);
+
+        await engine.HandleIncomingMessageAsync(Phone, $"mark {order.Id} shipped", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Sara ka order wapas aa gaya", default);
+        await db.Entry(order).ReloadAsync();
+        Assert.Equal(OrderStatus.Returned, order.Status);
+        Assert.NotNull(order.ReturnedAt);
+        Assert.Contains(_sent, m => m.Contains("RETURNED") && m.Contains("Sales reports se"));
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "today's summary", default);
+        Assert.Contains(_sent, m => m.Contains("Orders: 0") && m.Contains("Returned: 1") && m.Contains("Rs.0"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "undo", default);
+        await db.Entry(order).ReloadAsync();
+        Assert.Equal(OrderStatus.Shipped, order.Status);
+    }
+
+    [Fact]
     public async Task NewOrder_DefaultsToCod()
     {
         using var db = _dbFactory.CreateContext();

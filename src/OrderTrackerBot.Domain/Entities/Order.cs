@@ -18,6 +18,8 @@ public class Order
     public string? DiscountCode { get; set; }
     public decimal Subtotal { get; set; }
     public decimal DiscountAmount { get; set; }
+    /// <summary>Added after the discount: Total = max(0, Subtotal - DiscountAmount) + DeliveryCharge.</summary>
+    public decimal DeliveryCharge { get; set; }
     public decimal Total { get; set; }
 
     public string? TrackingCourier { get; set; }
@@ -31,6 +33,7 @@ public class Order
     public DateTime? ShippedAt { get; set; }
     public DateTime? DeliveredAt { get; set; }
     public DateTime? CancelledAt { get; set; }
+    public DateTime? ReturnedAt { get; set; }
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<OrderItem> Items { get; set; } = new List<OrderItem>();

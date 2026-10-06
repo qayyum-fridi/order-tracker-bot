@@ -144,6 +144,8 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
                     Row("Subtotal", Money(r.Subtotal));
                     if (r.DiscountAmount > 0)
                         Row(string.IsNullOrWhiteSpace(r.DiscountCode) ? "Discount" : $"Discount ({r.DiscountCode})", "- " + Money(r.DiscountAmount));
+                    if (r.DeliveryCharge > 0)
+                        Row("Delivery", Money(r.DeliveryCharge));
                     c.Item().PaddingVertical(3).LineHorizontal(1).LineColor(Line);
                     Row("TOTAL", Money(r.Total), bold: true, color: Accent);
                 });

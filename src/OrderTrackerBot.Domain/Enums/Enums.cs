@@ -43,7 +43,9 @@ public enum OrderStatus
     Pending,
     Shipped,
     Delivered,
-    Cancelled
+    Cancelled,
+    /// <summary>Came back (refused/returned COD). Like Cancelled, never counted as a sale.</summary>
+    Returned
 }
 
 public enum PaymentStatus
