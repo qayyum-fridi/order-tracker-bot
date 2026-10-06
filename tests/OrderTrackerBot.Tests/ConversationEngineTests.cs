@@ -1051,6 +1051,28 @@ public class ConversationEngineTests : IDisposable
         Assert.Equal(ConversationState.AwaitingClarificationChoice, session.State);
     }
 
+    [Theory]
+    [InlineData("Order dena hai", "order ki tafseel")]
+    [InlineData("Kisi order ka status update karna chahte hain", "naya status")]
+    [InlineData("Product ke baare mein poochna hai", "catalog")]
+    [InlineData("Kuch aur", "kya karna hai")]
+    public async Task ClarificationChoice_ReplyMatchesChosenOption(string option, string expectedFragment)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { IsOrderAttempt = false, ClarificationQuestion = "Kya aap:", ClarificationOptions = { option } });
+        await engine.HandleIncomingMessageAsync(Phone, "lon suit", default);
+
+        _sentMessages.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "1", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains(expectedFragment));
+        if (expectedFragment != "order ki tafseel")
+            Assert.DoesNotContain(_sentMessages, m => m.Contains("order ki tafseel"));
+    }
+
     [Fact]
     public async Task ResetAccount_WorksEvenWhenStuckInClarificationMenu()
     {

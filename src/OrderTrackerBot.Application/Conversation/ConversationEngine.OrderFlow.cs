@@ -678,6 +678,20 @@ public partial class ConversationEngine
         await ReplyAsync(seller, "Reply 1 ya 2.", ct);
     }
 
+    /// <summary>The AI writes the options freely, so the reply is picked from the option's wording; unrecognised wording gets a neutral prompt, never an order prompt.</summary>
+    private static string ClarificationChoiceReply(string option)
+    {
+        static bool Has(string text, params string[] words) => words.Any(w => text.Contains(w, StringComparison.OrdinalIgnoreCase));
+
+        if (Has(option, "status", "order update"))
+            return "Kaunsa order aur naya status? (e.g. \"mark 3 shipped\")";
+        if (Has(option, "order dena", "naya order", "order add", "new order"))
+            return "Theek — order ki tafseel bhej dein: naam, product, phone, address";
+        if (Has(option, "product", "poochna", "puchna", "sawal"))
+            return "Products dekhne ke liye \"catalog\" likhein, ya apna sawal likh dein.";
+        return "Theek hai — bata dein kya karna hai, ya \"menu\" likhein.";
+    }
+
     private async Task HandleClarificationChoiceAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         var options = ctx.ClarificationOptions ?? DefaultClarificationOptions.ToList();
@@ -695,10 +709,7 @@ public partial class ConversationEngine
             ctx.ClarificationOptions = null;
             SetState(session, ConversationState.Idle);
             var chosen = options[idx - 1];
-            var reply = chosen.Contains("order update", StringComparison.OrdinalIgnoreCase) || chosen.Contains("status", StringComparison.OrdinalIgnoreCase)
-                ? "Kaunsa order aur naya status? (e.g. \"mark 3 shipped\")"
-                : "Theek — order ki tafseel bhej dein: naam, product, phone, address";
-            await ReplyAsync(seller, reply, ct);
+            await ReplyAsync(seller, ClarificationChoiceReply(chosen), ct);
             return;
         }
 
