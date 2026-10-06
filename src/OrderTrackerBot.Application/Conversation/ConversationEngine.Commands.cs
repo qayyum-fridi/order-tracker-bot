@@ -123,10 +123,10 @@ public partial class ConversationEngine
     private static readonly IReadOnlyDictionary<string, (string Title, string Body, MenuRow[] Rows)> MenuCategories =
         new Dictionary<string, (string, string, MenuRow[])>
         {
-            ["orders"] = ("📦 Orders", "📦 Orders\n • new order: [details]\n • [customer] ka order\n • mark [n] shipped/delivered", new[]
+            ["orders"] = ("📦 Orders", "📦 Orders\n • new order: [details]\n • [customer] ka order\n • mark [n] shipped/delivered\n • receipt [n] — PDF receipt", new[]
             {
                 new MenuRow("orders today", "Orders today"), new MenuRow("pending orders", "Pending orders"),
-                new MenuRow("unpaid orders", "Unpaid orders"), new MenuRow("cod pending", "COD pending"),
+                new MenuRow("unpaid orders", "Unpaid orders"), new MenuRow("cod pending", "COD pending"), new MenuRow("receipt", "Last order receipt (PDF)"),
                 new MenuRow("new order (detailed)", "New order (form)"), BackToMenu
             }),
             ["reports"] = ("📊 Reports", "📊 Reports\n Sales aur trends ek tap par.\n • [product] ka report — e.g. \"Lawn Suit ka report\"", new[]
@@ -217,6 +217,9 @@ public partial class ConversationEngine
                 return;
             case CommandKind.DisconnectInstagram:
                 await HandleDisconnectInstagramAsync(seller, ct);
+                return;
+            case CommandKind.Receipt:
+                await HandleReceiptAsync(seller, ctx, cmd, ct);
                 return;
             case CommandKind.ProductReport:
                 await HandleProductReportAsync(seller, cmd.Text!, ct);

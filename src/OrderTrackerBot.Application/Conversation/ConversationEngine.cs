@@ -23,9 +23,11 @@ public partial class ConversationEngine
     private readonly IWhatsAppMediaClient? _media;
     private readonly IInstagramClient _instagram;
     private readonly ICatalogSheetImporter? _catalogSheets;
+    private readonly IReceiptPdfGenerator? _receiptPdf;
 
     public ConversationEngine(IAppDbContext db, IAiOrderAssistant ai, IWhatsAppSender sender, IFounderAlertNotifier founderAlerts,
-        BillingOptions? billing = null, IWhatsAppMediaClient? media = null, IInstagramClient? instagram = null, ICatalogSheetImporter? catalogSheets = null)
+        BillingOptions? billing = null, IWhatsAppMediaClient? media = null, IInstagramClient? instagram = null, ICatalogSheetImporter? catalogSheets = null,
+        IReceiptPdfGenerator? receiptPdf = null)
     {
         _db = db;
         _ai = ai;
@@ -35,6 +37,7 @@ public partial class ConversationEngine
         _media = media;
         _instagram = instagram ?? new NullInstagramClient();
         _catalogSheets = catalogSheets;
+        _receiptPdf = receiptPdf;
     }
 
     private static readonly ConversationState[] OnboardingStates =
@@ -280,6 +283,12 @@ public partial class ConversationEngine
         {
             Log(toPhoneNumber, $"[template] {string.Join(" | ", bodyParameters)}");
             return _inner.SendTemplateMessageAsync(toPhoneNumber, bodyParameters, cancellationToken);
+        }
+
+        public Task<bool> SendDocumentAsync(string toPhoneNumber, byte[] content, string fileName, string mimeType, string? caption, CancellationToken cancellationToken = default)
+        {
+            Log(toPhoneNumber, $"[document {fileName}] {caption}");
+            return _inner.SendDocumentAsync(toPhoneNumber, content, fileName, mimeType, caption, cancellationToken);
         }
     }
 }

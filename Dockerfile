@@ -14,6 +14,9 @@ RUN dotnet publish src/OrderTrackerBot.Api/OrderTrackerBot.Api.csproj -c Release
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
+# PDF receipts (QuestPDF/SkiaSharp) need fontconfig at runtime; the Urdu-script font is embedded in the app.
+RUN apt-get update && apt-get install -y --no-install-recommends libfontconfig1 \
+    && rm -rf /var/lib/apt/lists/*
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 

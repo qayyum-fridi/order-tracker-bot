@@ -170,4 +170,23 @@ public class CommandParserTests
         Assert.Equal("Ayesha", parsed.Text, ignoreCase: true);
         Assert.Equal(keyword, parsed.Text2);
     }
+
+    [Theory]
+    [InlineData("receipt", null, null)]
+    [InlineData("Receipt 12", 12, null)]
+    [InlineData("receipt #12", 12, null)]
+    [InlineData("rasid 3", 3, null)]
+    [InlineData("invoice 7", 7, null)]
+    [InlineData("رسید 5", 5, null)]
+    [InlineData("receipt Ayesha", null, "Ayesha")]
+    [InlineData("Ayesha ki receipt", null, "Ayesha")]
+    [InlineData("📄 order receipt 4", 4, null)]
+    public void ParsesReceiptCommand(string message, int? number, string? name)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.NotNull(parsed);
+        Assert.Equal(CommandKind.Receipt, parsed!.Kind);
+        Assert.Equal(number, parsed.Number);
+        Assert.Equal(name, parsed.Text);
+    }
 }

@@ -109,9 +109,41 @@ public class IssueReporterTests : IDisposable
         issues.Verify(i => i.ReportAsync(IssueCodes.WhatsAppSendRejected, "923001110004", It.IsAny<string>(), null, It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Fact]
+    public async Task WhatsAppSender_SendDocument_UploadsMediaThenSendsDocumentMessage()
+    {
+        var handler = new CapturingHandler { Response = "{\"id\":\"MEDIA42\"}" };
+        var sender = new WhatsAppSender(new HttpClient(handler), Options.Create(new WhatsAppOptions { AccessToken = "t", PhoneNumberId = "99" }),
+            Mock.Of<IOptionsMonitor<WhatsAppTemplatesOptions>>(), NullLogger<WhatsAppSender>.Instance, Mock.Of<IIssueReporter>());
+
+        var ok = await sender.SendDocumentAsync("923001110005", new byte[] { 37, 80, 68, 70 }, "Receipt-1.pdf", "application/pdf", "caption");
+
+        Assert.True(ok);
+        Assert.Equal(2, handler.Urls.Count);
+        Assert.EndsWith("/99/media", handler.Urls[0]);
+        Assert.Contains("Receipt-1.pdf", handler.Bodies[0]);
+        Assert.EndsWith("/99/messages", handler.Urls[1]);
+        using var json = JsonDocument.Parse(handler.Bodies[1]);
+        Assert.Equal("document", json.RootElement.GetProperty("type").GetString());
+        Assert.Equal("MEDIA42", json.RootElement.GetProperty("document").GetProperty("id").GetString());
+        Assert.Equal("Receipt-1.pdf", json.RootElement.GetProperty("document").GetProperty("filename").GetString());
+    }
+
+    [Fact]
+    public async Task WhatsAppSender_SendDocument_WhenUploadRejected_ReturnsFalse()
+    {
+        var handler = new CapturingHandler { Status = HttpStatusCode.BadRequest, Response = "{\"error\":\"bad\"}" };
+        var sender = new WhatsAppSender(new HttpClient(handler), Options.Create(new WhatsAppOptions { AccessToken = "t", PhoneNumberId = "99" }),
+            Mock.Of<IOptionsMonitor<WhatsAppTemplatesOptions>>(), NullLogger<WhatsAppSender>.Instance, Mock.Of<IIssueReporter>());
+
+        Assert.False(await sender.SendDocumentAsync("923001110005", new byte[] { 1 }, "r.pdf", "application/pdf", null));
+        Assert.Single(handler.Urls);
+    }
+
     private sealed class CapturingHandler : HttpMessageHandler
     {
         public List<string> Bodies { get; } = new();
+        public List<string> Urls { get; } = new();
         public bool Throw { get; set; }
         public HttpStatusCode Status { get; set; } = HttpStatusCode.OK;
         public string Response { get; set; } = "{}";
@@ -119,6 +151,7 @@ public class IssueReporterTests : IDisposable
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             if (Throw) throw new HttpRequestException("down");
+            Urls.Add(request.RequestUri!.ToString());
             Bodies.Add(request.Content is null ? "" : await request.Content.ReadAsStringAsync(cancellationToken));
             return new HttpResponseMessage(Status) { Content = new StringContent(Response) };
         }

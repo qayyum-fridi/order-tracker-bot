@@ -62,6 +62,7 @@ public enum CommandKind
     CommentLeads,
     LeadAction,
     ProductReport,
+    Receipt,
     DiscountPerformance,
     NewOrderHelp,
     Guide,
@@ -132,6 +133,9 @@ public static class CommandParser
     private static readonly Regex PriceTiers = new(@"^(.+?)\s*[-–:]\s*(?:price\s+tiers?|bulk\s+pric(?:e|ing)|wholesale)\s*:\s*(.+)$", Opts);
     private static readonly Regex CampaignStatus = new(@"^campaign\s+status$", Opts);
     private static readonly Regex ProductReport = new(@"^(.+?)\s+(?:ka|ki)\s+report$|^report:?\s+(.+)$", Opts);
+    // "receipt" (latest order) / "receipt 12" / "receipt Ayesha" / "Ayesha ki receipt" / "رسید 12". Number or Text is the order reference.
+    private const string ReceiptWord = @"(?:receipt|invoice|rasid|raseed|bill|رسید)";
+    private static readonly Regex Receipt = new(@"^(?:(?:order|pdf)\s+)?" + ReceiptWord + @"(?:\s*:?\s*#?(?<n>\d+)|\s*:?\s+(?<name>.+))?$|^(?<name>.+?)\s+(?:ki|ka|ke)\s+" + ReceiptWord + "$", Opts);
     private static readonly Regex DiscountPerformance = new(@"^discount\s+(?:performance|report)$", Opts);
     private static readonly Regex WeeklySummary = new(@"^(weekly\s+summary|week\s+ka\s+summary|ہفتہ\s+وار\s+خلاصہ|ہفتے\s+کا\s+خلاصہ)$", Opts);
     private static readonly Regex UpdateBusinessInfo = new(@"^(update\s+)?business\s+(info|details)$", Opts);
@@ -343,6 +347,13 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.PriceTiers, Text = m.Groups[1].Value.Trim(), Text2 = m.Groups[2].Value.Trim() };
         if (CampaignStatus.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CampaignStatus };
         if (DiscountPerformance.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DiscountPerformance };
+        if ((m = Receipt.Match(message)).Success)
+            return new ParsedCommand
+            {
+                Kind = CommandKind.Receipt,
+                Number = m.Groups["n"].Success ? int.Parse(m.Groups["n"].Value) : null,
+                Text = m.Groups["name"].Success ? m.Groups["name"].Value.Trim() : null
+            };
         if ((m = ProductReport.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.ProductReport, Text = (m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value).Trim() };
         if (WeeklySummary.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.WeeklySummary };

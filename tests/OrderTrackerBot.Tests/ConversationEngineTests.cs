@@ -1032,6 +1032,59 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task Receipt_SendsPdfDocumentToSeller_WithOrderDetails()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var seller = await db.Sellers.FirstAsync();
+        var customer = new OrderTrackerBot.Domain.Entities.Customer { SellerId = seller.Id, Name = "Sara", Phone = "03001112222" };
+        db.Customers.Add(customer);
+        await db.SaveChangesAsync();
+        var order = new OrderTrackerBot.Domain.Entities.Order { SellerId = seller.Id, CustomerId = customer.Id, Subtotal = 3500, Total = 3500 };
+        order.Items.Add(new OrderTrackerBot.Domain.Entities.OrderItem { ProductNameSnapshot = "Lawn Suit", UnitPrice = 3500, Quantity = 1 });
+        db.Orders.Add(order);
+        await db.SaveChangesAsync();
+
+        var pdf = new Mock<IReceiptPdfGenerator>();
+        ReceiptData? captured = null;
+        pdf.Setup(p => p.Generate(It.IsAny<ReceiptData>())).Callback<ReceiptData>(d => captured = d).Returns(new byte[] { 1, 2, 3 });
+        _sender.Setup(s => s.SendDocumentAsync(Phone, It.IsAny<byte[]>(), It.IsAny<string>(), "application/pdf", It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, receiptPdf: pdf.Object);
+
+        await engine.HandleIncomingMessageAsync(Phone, $"receipt {order.Id}", default);
+
+        _sender.Verify(s => s.SendDocumentAsync(Phone, It.IsAny<byte[]>(), $"Receipt-{order.Id}.pdf", "application/pdf",
+            It.Is<string?>(c => c!.Contains("Sara") && c.Contains("3,500")), It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal("Sara", captured!.CustomerName);
+        Assert.Equal("Ayesha Collections", captured.BusinessName);
+        Assert.Single(captured.Lines);
+        Assert.Contains(_sentMessages, m => m.Contains("Forward") && m.Contains("https://wa.me/923001112222"));
+    }
+
+    [Fact]
+    public async Task Receipt_ForUnknownOrder_RepliesNotFound_AndSendsNothing()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, receiptPdf: Mock.Of<IReceiptPdfGenerator>());
+
+        await engine.HandleIncomingMessageAsync(Phone, "receipt 999", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Order #999 nahi mila"));
+        _sender.Verify(s => s.SendDocumentAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData("03001112222", "https://wa.me/923001112222")]
+    [InlineData("923001112222", "https://wa.me/923001112222")]
+    [InlineData("+92 300 1112222", "https://wa.me/923001112222")]
+    [InlineData("12345", null)]
+    [InlineData(null, null)]
+    public void ChatLink_NormalisesPakistaniNumbers(string? phone, string? expected) =>
+        Assert.Equal(expected, ConversationEngine.ChatLink(phone));
+
+    [Fact]
     public async Task FreeformMessage_WhenAiFindsNoOrder_AsksClarification()
     {
         using var db = _dbFactory.CreateContext();

@@ -46,6 +46,7 @@ public static class DependencyInjection
         services.AddScoped<IInstagramClient>(sp => sp.GetRequiredService<InstagramClient>());
         services.AddSingleton(configuration.GetSection(BillingOptions.SectionName).Get<BillingOptions>() ?? new BillingOptions());
 
+        services.AddSingleton<IReceiptPdfGenerator, Pdf.ReceiptPdfGenerator>();
         services.AddScoped<ConversationEngine>();
 
         return services;

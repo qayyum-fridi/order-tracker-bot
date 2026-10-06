@@ -135,3 +135,7 @@ shared-state action: confirm with the user and get SSH/host details first.
   messages buyers on WhatsApp — support replies are drafted for the seller to forward; only public IG comment
   replies are posted directly. Comment notifications are free-form WhatsApp text, so they share the 24h-window
   limitation above.
+- PDF receipts (`receipt`, `receipt 12`, `Ayesha ki receipt`, `رسید 12` -> `ConversationEngine.Receipts.cs`, QuestPDF in
+  `Infrastructure/Pdf`) are sent as a WhatsApp document to the *seller's* chat, who forwards them to the buyer (the bot never
+  messages buyers). QuestPDF runs under its Community licence (free below US$1M revenue); Linux hosts need `libfontconfig1`
+  (in the Dockerfile); the Urdu-script font (Noto Naskh Arabic, OFL) is embedded. The receipt is English-labelled only.

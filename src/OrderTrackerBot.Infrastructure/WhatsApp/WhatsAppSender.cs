@@ -139,6 +139,57 @@ public class WhatsAppSender : IWhatsAppSender
         }, cancellationToken);
     }
 
+    public async Task<bool> SendDocumentAsync(string toPhoneNumber, byte[] content, string fileName, string mimeType, string? caption, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(_options.AccessToken))
+        {
+            _logger.LogWarning("WhatsApp access token not configured — skipping document {File} to {Phone}", fileName, toPhoneNumber);
+            return true;
+        }
+
+        string? mediaId;
+        try
+        {
+            using var form = new MultipartFormDataContent
+            {
+                { new StringContent("whatsapp"), "messaging_product" },
+                { new StringContent(mimeType), "type" }
+            };
+            var file = new ByteArrayContent(content);
+            file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(mimeType);
+            form.Add(file, "file", fileName);
+
+            using var upload = new HttpRequestMessage(HttpMethod.Post, $"{_options.GraphApiBaseUrl.TrimEnd('/')}/{_options.PhoneNumberId}/media") { Content = form };
+            upload.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.AccessToken);
+            var response = await _httpClient.SendAsync(upload, cancellationToken);
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("WhatsApp media upload failed ({Status}) for {Phone}: {Body}", response.StatusCode, toPhoneNumber, body);
+                var tokenRejected = response.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden;
+                await _issues.ReportAsync(tokenRejected ? IssueCodes.WhatsAppTokenRejected : IssueCodes.WhatsAppSendRejected,
+                    toPhoneNumber, $"media upload HTTP {(int)response.StatusCode}: {body}", null, cancellationToken);
+                return false;
+            }
+            mediaId = System.Text.Json.Nodes.JsonNode.Parse(body)?["id"]?.GetValue<string>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "WhatsApp media upload threw for {Phone}", toPhoneNumber);
+            await _issues.ReportAsync(IssueCodes.WhatsAppSendThrew, toPhoneNumber, "media upload", ex, cancellationToken);
+            return false;
+        }
+        if (string.IsNullOrEmpty(mediaId)) return false;
+
+        return await PostAsync(toPhoneNumber, $"[document {fileName}] {caption}", new
+        {
+            messaging_product = "whatsapp",
+            to = toPhoneNumber,
+            type = "document",
+            document = new { id = mediaId, filename = fileName, caption }
+        }, cancellationToken);
+    }
+
     private async Task<bool> PostAsync(string toPhoneNumber, string logText, object payload, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(_options.AccessToken))
