@@ -431,4 +431,58 @@ public class CommandParserTests
     {
         Assert.False(CommandParser.TryFindDeliveryInOrderText(message, out _));
     }
+
+    [Theory]
+    [InlineData("edit order 12", 12)]
+    [InlineData("Edit Order #12", 12)]
+    [InlineData("order 12 edit", 12)]
+    [InlineData("order 12 badlo", 12)]
+    [InlineData("change order 7", 7)]
+    [InlineData("edit order", null)]
+    [InlineData("آرڈر 12 تبدیل", 12)]
+    [InlineData("✏️ edit order 3", 3)]
+    public void ParsesEditOrder(string message, int? number)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.Equal(CommandKind.EditOrder, parsed!.Kind);
+        Assert.Equal(number, parsed.Number);
+    }
+
+    [Theory]
+    [InlineData("1 = 3", "qty", 1, 3, null, null)]
+    [InlineData("qty 2 = 5", "qty", 2, 5, null, null)]
+    [InlineData("item 1 ko 4", "qty", 1, 4, null, null)]
+    [InlineData("price 1 = 1500", "price", 1, null, 1500, null)]
+    [InlineData("rate 2 1200", "price", 2, null, 1200, null)]
+    [InlineData("remove 2", "remove", 2, null, null, null)]
+    [InlineData("2 hatao", "remove", 2, null, null, null)]
+    [InlineData("add Kurti 2", "add", null, 2, null, "Kurti")]
+    [InlineData("add 2 Kurti", "add", null, 2, null, "Kurti")]
+    [InlineData("add Sugar 5 kg", "add", null, 1, null, "Sugar 5 kg")]
+    [InlineData("phone 0300-111 2222", "phone", null, null, null, "03001112222")]
+    [InlineData("address House 5, Gulberg", "address", null, null, null, "House 5, Gulberg")]
+    [InlineData("name Sara Khan", "name", null, null, null, "Sara Khan")]
+    [InlineData("delivery 250", "delivery", null, null, 250, null)]
+    [InlineData("free delivery", "delivery", null, null, 0, null)]
+    [InlineData("payment jazzcash", "payment", null, null, null, "jazzcash")]
+    [InlineData("done", "done", null, null, null, null)]
+    [InlineData("bas", "done", null, null, null, null)]
+    public void ParsesOrderEditInstructions(string message, string kind, int? item, int? qty, int? amount, string? text)
+    {
+        Assert.True(CommandParser.TryParseOrderEdit(message, out var change));
+        Assert.Equal(kind, change.Kind);
+        Assert.Equal(item, change.Item);
+        Assert.Equal(qty, change.Quantity);
+        Assert.Equal(amount, change.Amount is null ? null : (int?)change.Amount);
+        Assert.Equal(text, change.Text);
+    }
+
+    [Fact]
+    public void EditOrder_DoesNotStealOtherOrderCommands()
+    {
+        Assert.Equal(CommandKind.MarkStatus, CommandParser.TryParse("mark 12 shipped")!.Kind);
+        Assert.Equal(CommandKind.OrderDeliveryCharge, CommandParser.TryParse("order 12 delivery 300")!.Kind);
+        Assert.Equal(CommandKind.CancelOrder, CommandParser.TryParse("cancel order 12")!.Kind);
+        Assert.False(CommandParser.TryParseOrderEdit("orders today", out _));
+    }
 }

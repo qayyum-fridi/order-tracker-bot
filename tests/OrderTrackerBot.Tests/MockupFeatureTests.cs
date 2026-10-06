@@ -266,6 +266,110 @@ public class MockupFeatureTests : IDisposable
         Assert.Equal(OrderStatus.Shipped, order.Status);
     }
 
+    private async Task<OrderTrackerBot.Domain.Entities.Order> SaveSaraKurtiOrderAsync(ConversationEngine engine, AppDbContext db, string? text = null, AiMessageAnalysis? analysis = null)
+    {
+        AiReturns(analysis ?? Order("Sara", "Kurti", 1));
+        await engine.HandleIncomingMessageAsync(Phone, text ?? "Sara, 1 kurti, 03001234567", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        return await db.Orders.Include(o => o.Items).Include(o => o.Customer).OrderBy(o => o.Id).LastAsync();
+    }
+
+    [Fact]
+    public async Task EditOrder_ChangesItemsCustomerAndDelivery_ThenDone_ThenUndoRestoresEverything()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var order = await SaveSaraKurtiOrderAsync(engine, db);
+        Assert.Contains(_sent, m => m.Contains($"edit order {order.Id}"));
+
+        await engine.HandleIncomingMessageAsync(Phone, $"edit order {order.Id}", default);
+        Assert.Equal(ConversationState.AwaitingOrderEdit, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sent, m => m.Contains("1. Kurti x1") && m.Contains("remove 2"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "1 = 3", default);
+        await engine.HandleIncomingMessageAsync(Phone, "add Lawn Suit 1", default);
+        Assert.Contains(_sent, m => m.Contains("Lawn Suit x1 add") && m.Contains("Total: Rs.8,900"));
+        await engine.HandleIncomingMessageAsync(Phone, "remove 1", default);
+        await engine.HandleIncomingMessageAsync(Phone, "phone 0300-9998888", default);
+        await engine.HandleIncomingMessageAsync(Phone, "address House 5, Gulberg", default);
+        await engine.HandleIncomingMessageAsync(Phone, "delivery 200", default);
+        await engine.HandleIncomingMessageAsync(Phone, "done", default);
+
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sent, m => m.Contains($"Order #{order.Id} save ho gaya"));
+        await db.Entry(order).ReloadAsync();
+        await db.Entry(order.Customer!).ReloadAsync();
+        var items = await db.OrderItems.Where(i => i.OrderId == order.Id).ToListAsync();
+        Assert.Equal("Lawn Suit", Assert.Single(items).ProductNameSnapshot);
+        Assert.Equal(3500m, order.Subtotal);
+        Assert.Equal(200m, order.DeliveryCharge);
+        Assert.Equal(3700m, order.Total);
+        Assert.Equal("03009998888", order.Customer!.Phone);
+        Assert.Equal("House 5, Gulberg", order.Customer.Address);
+
+        // One undo puts the whole edit session back.
+        await engine.HandleIncomingMessageAsync(Phone, "undo", default);
+        await db.Entry(order).ReloadAsync();
+        await db.Entry(order.Customer).ReloadAsync();
+        items = await db.OrderItems.Where(i => i.OrderId == order.Id).ToListAsync();
+        Assert.Equal("Kurti", Assert.Single(items).ProductNameSnapshot);
+        Assert.Equal(1, items[0].Quantity);
+        Assert.Equal(1800m, order.Total);
+        Assert.Equal(0m, order.DeliveryCharge);
+        Assert.Equal("03001234567", order.Customer.Phone);
+        Assert.Null(order.Customer.Address);
+    }
+
+    [Fact]
+    public async Task EditOrder_RecalculatesAPercentDiscount_AndWarnsWhenAlreadyPaid()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        db.Discounts.Add(new OrderTrackerBot.Domain.Entities.Discount { SellerId = (await db.Sellers.FirstAsync()).Id, Code = "HALF", Type = DiscountType.Percent, Value = 50 });
+        await db.SaveChangesAsync();
+        var order = await SaveSaraKurtiOrderAsync(engine, db, "Sara, 1 kurti, 03001234567, code HALF", new AiMessageAnalysis
+        {
+            Intent = "new_order", IsOrderAttempt = true,
+            Order = new AiOrderDraft { CustomerName = "Sara", Phone = "03001234567", DiscountCode = "HALF",
+                Items = { new AiOrderItemDraft { ProductName = "Kurti", MatchedCatalogProductName = "Kurti", Quantity = 1 } } }
+        });
+        await engine.HandleIncomingMessageAsync(Phone, $"mark {order.Id} paid", default);
+
+        await engine.HandleIncomingMessageAsync(Phone, $"order {order.Id} edit", default);
+        await engine.HandleIncomingMessageAsync(Phone, "1 = 2", default);
+
+        await db.Entry(order).ReloadAsync();
+        Assert.Equal(3600m, order.Subtotal);
+        Assert.Equal(1800m, order.DiscountAmount);
+        Assert.Equal(1800m, order.Total);
+        Assert.Contains(_sent, m => m.Contains("Payment PAID thi") && m.Contains("farq"));
+    }
+
+    [Fact]
+    public async Task EditOrder_GuardsAndExits()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var order = await SaveSaraKurtiOrderAsync(engine, db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "edit order", default);            // latest order
+        await engine.HandleIncomingMessageAsync(Phone, "remove 1", default);              // last item can't go
+        Assert.Contains(_sent, m => m.Contains("aakhri item") && m.Contains($"cancel order {order.Id}"));
+        await engine.HandleIncomingMessageAsync(Phone, "add Shalwar 1", default);
+        Assert.Contains(_sent, m => m.Contains("\"Shalwar\" catalog mein nahi mila"));
+        await engine.HandleIncomingMessageAsync(Phone, "kuch bhi", default);
+        Assert.Contains(_sent, m => m.Contains("Samajh nahi aaya") && m.Contains("done"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "orders today", default);           // a real command leaves edit mode
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+
+        await engine.HandleIncomingMessageAsync(Phone, $"cancel order {order.Id}", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        await engine.HandleIncomingMessageAsync(Phone, $"edit order {order.Id}", default);
+        Assert.Contains(_sent, m => m.Contains("CANCELLED hai") && m.Contains("badla nahi"));
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+    }
+
     [Fact]
     public async Task NewOrder_DefaultsToCod()
     {

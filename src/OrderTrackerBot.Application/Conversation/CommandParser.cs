@@ -67,6 +67,7 @@ public enum CommandKind
     Export,
     Shortcuts,
     DeliveryCharge,
+    EditOrder,
     OrderDeliveryCharge,
     RemoveBranding,
     DiscountPerformance,
@@ -81,6 +82,9 @@ public enum CommandKind
 
 /// <summary>What to export: any of "orders", "customers", "catalog", "discounts" (empty = ask), and an optional orders period (today/yesterday/7d/30d/lastmonth).</summary>
 public sealed record ExportRequest(IReadOnlyList<string> Datasets, string? Period);
+
+/// <summary>One change inside "edit order" mode. Kind: done | qty | price | remove | add | phone | address | name | delivery | payment.</summary>
+public sealed record OrderEditInstruction(string Kind, int? Item = null, int? Quantity = null, decimal? Amount = null, string? Text = null);
 
 /// <summary>A catalog line: "Lawn Suit - 3500" or "Sugar 5 kg - 500" (unit type + pack size split off the name).</summary>
 public sealed record ProductLine(string Name, decimal Price, string UnitType, decimal UnitQty);
@@ -174,6 +178,45 @@ public static class CommandParser
     private static readonly Regex DeliveryFree = new(@"^(?:free\s+delivery|delivery\s+free|no\s+delivery(?:\s+charges?)?|delivery\s+(?:charges?\s+)?(?:nahi|none|off)|فری\s+ڈیلیوری)$", Opts);
     private static readonly Regex DeliveryShow = new(@"^(?:my\s+)?" + DeliveryWord + "$", Opts);
     private static readonly Regex OrderDelivery = new(@"^(?:order|آرڈر)?\s*#?(?<id>\d+)\s+" + DeliveryWord + @"\s*[:=-]?\s*(?:rs\.?\s*)?(?<n>\d{1,6}|free|0)$|^(?:order|آرڈر)\s*#?(?<id>\d+)\s+free\s+delivery$", Opts);
+
+    // "edit order 12" / "order 12 edit" / "edit order" (latest) / "آرڈر 12 تبدیل" opens edit mode for a saved order.
+    private const string EditVerb = @"(?:edit|change|update|badlo|badlein|badalna|theek\s+karo|tabdeel|tabdeeli)";
+    private static readonly Regex EditOrder = new(@"^" + EditVerb + @"\s+order(?:\s*#?(?<n>\d+))?$|^order\s*#?(?<n>\d+)\s+" + EditVerb +
+        @"$|^(?:edit|ایڈٹ)\s+آرڈر(?:\s*(?<n>\d+))?$|^آرڈر\s*(?<n>\d+)\s+(?:تبدیل|بدلیں|ایڈٹ|درست)(?:\s+کریں)?$", Opts);
+
+    private static readonly Regex EditDone = new(@"^(?:done|bas|save|ok|okay|theek\s+hai|ho\s+gaya|ٹھیک\s+ہے|ہو\s+گیا|بس)[.!]*$", Opts);
+    private static readonly Regex EditQty = new(@"^(?:(?:qty|quantity|tadaad|item)\s*#?(?<i>\d+)\s*(?:=|:|ko|to|->)?\s*|#?(?<i>\d+)\s*(?:=|ko|to|->)\s*)(?<q>\d+)$", Opts);
+    private static readonly Regex EditPrice = new(@"^(?:price|rate|qeemat|قیمت)\s*#?(?<i>\d+)\s*(?:=|:|ko|to|->)?\s*(?:rs\.?\s*)?(?<a>\d+(?:\.\d+)?)$", Opts);
+    private static readonly Regex EditRemove = new(@"^(?:remove|delete|hatao|hata\s+do|nikalo)\s*(?:item\s*)?#?(?<i>\d+)$|^(?:item\s*)?#?(?<i>\d+)\s+(?:hatao|hata\s+do|remove|nikalo)$", Opts);
+    private static readonly Regex EditAddLeadingQty = new(@"^(?:add|aur|jodo|daalo|dalo)\s+(?<q>\d+)\s*x?\s+(?<p>\D.*)$", Opts);
+    private static readonly Regex EditAdd = new(@"^(?:add|aur|jodo|daalo|dalo)\s+(?<p>.+?)(?:\s+x?(?<q>\d+))?$", Opts);
+    private static readonly Regex EditPhone = new(@"^(?:phone|fone|number|mobile|نمبر|فون)\s*:?\s*(?<t>\+?\d[\d\s-]{6,19})$", Opts);
+    private static readonly Regex EditAddress = new(@"^(?:address|pata|patta|پتہ)\s*:?\s*(?<t>.{3,200})$", Opts | RegexOptions.Singleline);
+    private static readonly Regex EditName = new(@"^(?:name|naam|نام)\s*:?\s*(?<t>.{2,60})$", Opts);
+    private static readonly Regex EditPayment = new(@"^(?:payment|paisay|ادائیگی)\s*:?\s*(?<t>cod|cash|jazz\s*cash|easy\s*paisa|bank|advance|prepaid|online|card)$", Opts);
+
+    /// <summary>Parses one change typed while editing a saved order.</summary>
+    public static bool TryParseOrderEdit(string message, out OrderEditInstruction instruction)
+    {
+        var text = NormalizeDigits(LeadingSymbols.Replace(message.Trim(), "").Trim());
+        Match m;
+        instruction = new OrderEditInstruction("done");
+        if (EditDone.IsMatch(text)) return true;
+        if (TryParseDeliveryAmount(text, out var delivery)) { instruction = new("delivery", Amount: delivery); return true; }
+        if ((m = EditPrice.Match(text)).Success) { instruction = new("price", int.Parse(m.Groups["i"].Value), Amount: decimal.Parse(m.Groups["a"].Value, System.Globalization.CultureInfo.InvariantCulture)); return true; }
+        if ((m = EditQty.Match(text)).Success) { instruction = new("qty", int.Parse(m.Groups["i"].Value), int.Parse(m.Groups["q"].Value)); return true; }
+        if ((m = EditRemove.Match(text)).Success) { instruction = new("remove", int.Parse(m.Groups["i"].Value)); return true; }
+        if ((m = EditPhone.Match(text)).Success) { instruction = new("phone", Text: Regex.Replace(m.Groups["t"].Value, @"[\s-]", "")); return true; }
+        if ((m = EditPayment.Match(text)).Success) { instruction = new("payment", Text: m.Groups["t"].Value.ToLowerInvariant()); return true; }
+        if ((m = EditAddress.Match(text)).Success) { instruction = new("address", Text: m.Groups["t"].Value.Trim()); return true; }
+        if ((m = EditName.Match(text)).Success) { instruction = new("name", Text: m.Groups["t"].Value.Trim()); return true; }
+        if ((m = EditAddLeadingQty.Match(text)).Success || (m = EditAdd.Match(text)).Success)
+        {
+            instruction = new("add", Quantity: m.Groups["q"].Success ? int.Parse(m.Groups["q"].Value) : 1, Text: m.Groups["p"].Value.Trim());
+            return true;
+        }
+        return false;
+    }
 
     // A delivery charge written inside an order ("Sara, 1 kurti, 0300..., delivery 300" / "+250 delivery" / "free delivery").
     // Small bare numbers are left alone — "delivery 15 tareekh ko" is a date, not Rs.15 — unless "Rs"/"rupay" says it's money.
@@ -507,6 +550,8 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.PriceTiers, Text = m.Groups[1].Value.Trim(), Text2 = m.Groups[2].Value.Trim() };
         if (CampaignStatus.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CampaignStatus };
         if (DiscountPerformance.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DiscountPerformance };
+        if ((m = EditOrder.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.EditOrder, Number = m.Groups["n"].Success ? int.Parse(m.Groups["n"].Value) : null };
         if ((m = OrderDelivery.Match(message)).Success)
             return new ParsedCommand
             {

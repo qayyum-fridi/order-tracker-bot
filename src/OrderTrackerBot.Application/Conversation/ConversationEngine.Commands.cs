@@ -126,7 +126,7 @@ public partial class ConversationEngine
             ["orders"] = ("📦 Orders", "📦 Orders\n • new order: [details]\n • [customer] ka order\n • mark [n] shipped/delivered\n • receipt [n] — PDF receipt", new[]
             {
                 new MenuRow("orders today", "Orders today"), new MenuRow("pending orders", "Pending orders"),
-                new MenuRow("unpaid orders", "Unpaid orders"), new MenuRow("cod pending", "COD pending"), new MenuRow("receipt", "Last order receipt (PDF)"),
+                new MenuRow("unpaid orders", "Unpaid orders"), new MenuRow("cod pending", "COD pending"), new MenuRow("receipt", "Last order receipt (PDF)"), new MenuRow("edit order", "Last order edit"),
                 new MenuRow("new order (detailed)", "New order (form)"), BackToMenu
             }),
             ["reports"] = ("📊 Reports", "📊 Reports\n Sales aur trends ek tap par.\n • [product] ka report — e.g. \"Lawn Suit ka report\"", new[]
@@ -217,6 +217,9 @@ public partial class ConversationEngine
                 return;
             case CommandKind.DisconnectInstagram:
                 await HandleDisconnectInstagramAsync(seller, ct);
+                return;
+            case CommandKind.EditOrder:
+                await StartOrderEditAsync(seller, session, ctx, cmd.Number, ct);
                 return;
             case CommandKind.DeliveryCharge:
                 await HandleDeliveryChargeAsync(seller, cmd.Amount, ct);

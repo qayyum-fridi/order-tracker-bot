@@ -74,6 +74,9 @@ public sealed class SessionContextData
     public string? ReceiptTransactionId { get; set; }
     public int? DeleteCustomerId { get; set; }
     public int? LoyaltyOrderId { get; set; }
+    /// <summary>The saved order being edited ("edit order 12"), and whether its pre-edit snapshot is already in the undo log.</summary>
+    public int? EditOrderId { get; set; }
+    public bool EditSnapshotLogged { get; set; }
     public decimal? LoyaltyDiscountPercent { get; set; }
     public string? SelectedPlan { get; set; }
     /// <summary>Support query whose drafted reply is awaiting YES/EDIT.</summary>

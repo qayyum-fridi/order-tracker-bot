@@ -425,10 +425,11 @@ public partial class ConversationEngine
 
     private static string SavedText(Seller seller, Order order) =>
         Lang.Normalize(seller.PreferredLanguage) == Lang.UrduScript
-            ? $"✅ آرڈر محفوظ ہو گیا (#{order.Id})"
-            : order.PaymentMethod == OrderPaymentMethod.Cod
+            ? $"✅ آرڈر محفوظ ہو گیا (#{order.Id})\nتبدیلی کے لیے: edit order {order.Id}"
+            : (order.PaymentMethod == OrderPaymentMethod.Cod
                 ? $"✅ Order saved as {Formatters.Status(order.Status)} (#{order.Id}) — COD."
-                : $"✅ Order saved as {Formatters.Status(order.Status)} (#{order.Id}).";
+                : $"✅ Order saved as {Formatters.Status(order.Status)} (#{order.Id}).") +
+              $"\n✏️ Kuch badalna ho to: \"edit order {order.Id}\"";
 
     private async Task HandleMultiOrderConfirmationAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {

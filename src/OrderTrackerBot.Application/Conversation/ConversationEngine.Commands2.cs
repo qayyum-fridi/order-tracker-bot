@@ -136,6 +136,9 @@ public partial class ConversationEngine
                 }
                 return;
             }
+            case ActionType.OrderEdited:
+                await UndoOrderEditAsync(seller, last, ct);
+                return;
             case ActionType.ProductPriceChanged:
             {
                 using var doc = JsonDocument.Parse(last.PayloadJson);

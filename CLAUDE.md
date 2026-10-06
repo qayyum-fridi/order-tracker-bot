@@ -166,3 +166,9 @@ shared-state action: confirm with the user and get SSH/host details first.
   handling, so Meta redeliveries are dropped across restarts. A message whose handling throws stays claimed (the seller got the error reply).
   The scheduler purges claims older than 7 days, claims weekly/trial sends with an atomic `ExecuteUpdate` (never twice), and isolates per-seller
   failures (reported as OTB-5001). Ported from PR #9 without its voice-note part.
+- Editing a saved order (`ConversationEngine.OrderEdit.cs`): "edit order 12" / "order 12 edit" / "edit order" (latest) enters
+  `AwaitingOrderEdit`; one instruction per message (`CommandParser.TryParseOrderEdit`: "1 = 3", "price 1 = 1500", "remove 2", "add Kurti 2",
+  "phone …", "address …", "name …", "delivery 250", "payment cod") until "done"; any other real command leaves edit mode and runs.
+  The first change logs an `ActionType.OrderEdited` snapshot so one "undo" restores items, amounts, payment method and the customer's
+  name/phone/address. Totals are recomputed (percent codes re-applied, flat ones capped). Cancelled/Returned orders can't be edited.
+  Phone/address/name edits change the shared Customer record, not just this order.
