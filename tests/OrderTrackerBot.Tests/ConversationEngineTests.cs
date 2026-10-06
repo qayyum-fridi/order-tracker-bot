@@ -1279,6 +1279,82 @@ public class ConversationEngineTests : IDisposable
         Assert.Contains(_sentMessages, m => m.Contains("koi data nahi hai"));
     }
 
+    private ConversationEngine CreateShortcutEngine(AppDbContext db) =>
+        new(db, _ai.Object, _sender.Object, _founderAlerts.Object, features: new FeatureOptions());
+
+    private void VerifyBar(string[] labels, Times times) =>
+        _sender.Verify(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(),
+            It.Is<IReadOnlyList<string>>(l => l.SequenceEqual(labels)), It.IsAny<CancellationToken>()), times);
+
+    [Fact]
+    public async Task ShortcutBar_FollowsAFinishedReply_WithIntroOnlyTheFirstTime()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateShortcutEngine(db);
+        var bodies = new List<string>();
+        _sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, body, _, _) => bodies.Add(body)).Returns(Task.CompletedTask);
+        _sender.Invocations.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "orders today", default);
+        await engine.HandleIncomingMessageAsync(Phone, "orders today", default);
+
+        VerifyBar(new[] { "📋 Menu", "➕ Naya order", "📦 Orders today" }, Times.Exactly(2));
+        Assert.Contains("shortcut off", bodies[0]);
+        Assert.Equal("⚡ Quick actions", bodies[1]);
+    }
+
+    [Fact]
+    public async Task ShortcutBar_NotSentAfterMenuOrWhileSomethingIsPending()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateShortcutEngine(db);
+        _sender.Invocations.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "menu", default);          // already an interactive list
+        await engine.HandleIncomingMessageAsync(Phone, "reset account", default); // waiting for yes/no
+
+        VerifyBar(new[] { "📋 Menu", "➕ Naya order", "📦 Orders today" }, Times.Never());
+    }
+
+    [Fact]
+    public async Task ShortcutBar_CanBeSwitchedOffAndOn()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateShortcutEngine(db);
+        var bar = new[] { "📋 Menu", "➕ Naya order", "📦 Orders today" };
+        _sender.Invocations.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "shortcut off", default);
+        await engine.HandleIncomingMessageAsync(Phone, "orders today", default);
+        VerifyBar(bar, Times.Never());
+        Assert.Contains(_sentMessages, m => m.Contains("Shortcut buttons band"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "shortcut on", default);
+        await engine.HandleIncomingMessageAsync(Phone, "orders today", default);
+        VerifyBar(bar, Times.AtLeast(2));
+    }
+
+    [Fact]
+    public async Task ShortcutBar_UsesUrduLabelsForUrduSellers_AndRespectsTheFeatureFlag()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        (await db.Sellers.FirstAsync()).PreferredLanguage = "urdu_script";
+        await db.SaveChangesAsync();
+        _sender.Invocations.Clear();
+
+        await CreateShortcutEngine(db).HandleIncomingMessageAsync(Phone, "orders today", default);
+        VerifyBar(new[] { "📋 مینو", "➕ نیا آرڈر", "📦 آج کے آرڈرز" }, Times.Once());
+
+        _sender.Invocations.Clear();
+        await CreateEngine(db).HandleIncomingMessageAsync(Phone, "orders today", default); // features unset = off
+        VerifyBar(new[] { "📋 مینو", "➕ نیا آرڈر", "📦 آج کے آرڈرز" }, Times.Never());
+    }
+
     [Fact]
     public async Task Receipt_ForUnknownOrder_RepliesNotFound_AndSendsNothing()
     {

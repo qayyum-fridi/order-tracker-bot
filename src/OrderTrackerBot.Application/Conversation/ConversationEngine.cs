@@ -25,14 +25,19 @@ public partial class ConversationEngine
     private readonly ICatalogSheetImporter? _catalogSheets;
     private readonly IReceiptPdfGenerator? _receiptPdf;
     private readonly IExportFileWriter? _exportWriter;
+    private readonly FeatureOptions _features;
+    private readonly MessageLoggingSender _turn;
+    private Seller? _turnSeller;
+    private SessionContextData? _turnCtx;
 
     public ConversationEngine(IAppDbContext db, IAiOrderAssistant ai, IWhatsAppSender sender, IFounderAlertNotifier founderAlerts,
         BillingOptions? billing = null, IWhatsAppMediaClient? media = null, IInstagramClient? instagram = null, ICatalogSheetImporter? catalogSheets = null,
-        IReceiptPdfGenerator? receiptPdf = null, IExportFileWriter? exportWriter = null)
+        IReceiptPdfGenerator? receiptPdf = null, IExportFileWriter? exportWriter = null, FeatureOptions? features = null)
     {
         _db = db;
         _ai = ai;
-        _sender = new MessageLoggingSender(sender, db);
+        _turn = new MessageLoggingSender(sender, db);
+        _sender = _turn;
         _founderAlerts = founderAlerts;
         _billing = billing ?? new BillingOptions();
         _media = media;
@@ -40,6 +45,8 @@ public partial class ConversationEngine
         _catalogSheets = catalogSheets;
         _receiptPdf = receiptPdf;
         _exportWriter = exportWriter;
+        // Unconfigured (e.g. unit tests) means off; the app registers FeatureOptions with its real defaults.
+        _features = features ?? new FeatureOptions { ShortcutButtons = false };
     }
 
     private static readonly ConversationState[] OnboardingStates =
@@ -50,6 +57,15 @@ public partial class ConversationEngine
 
     public async Task HandleIncomingMessageAsync(string fromPhoneNumber, string rawMessage, CancellationToken ct = default)
     {
+        _turn.Reset();
+        _turnSeller = null;
+        _turnCtx = null;
+        await HandleIncomingCoreAsync(fromPhoneNumber, rawMessage, ct);
+        await TrySendShortcutBarAsync(fromPhoneNumber, ct);
+    }
+
+    private async Task HandleIncomingCoreAsync(string fromPhoneNumber, string rawMessage, CancellationToken ct)
+    {
         var message = (rawMessage ?? string.Empty).Trim();
         if (message.Length == 0) return;
 
@@ -58,6 +74,8 @@ public partial class ConversationEngine
 
         var session = seller.Session!;
         var ctx = SessionContextData.FromJson(session.ContextJson);
+        _turnSeller = seller;
+        _turnCtx = ctx;
 
         if (session.State != ConversationState.AwaitingResetConfirmation
             && CommandParser.TryParse(message)?.Kind == CommandKind.ResetAccount)
@@ -254,8 +272,17 @@ public partial class ConversationEngine
             _db = db;
         }
 
-        private void Log(string phone, string text) =>
+        /// <summary>What this turn sent: any message at all, and whether one already carried tappable options.</summary>
+        public int Sent { get; private set; }
+        public bool Interactive { get; private set; }
+        public void Reset() { Sent = 0; Interactive = false; }
+
+        private void Log(string phone, string text, bool interactive = false)
+        {
+            Sent++;
+            Interactive |= interactive;
             _db.MessageLogs.Add(new MessageLog { Phone = phone, Direction = "outbound", RawText = text });
+        }
 
         public Task SendTextMessageAsync(string toPhoneNumber, string text, CancellationToken cancellationToken = default)
         {
@@ -265,19 +292,19 @@ public partial class ConversationEngine
 
         public Task SendListMessageAsync(string toPhoneNumber, string bodyText, string buttonLabel, IReadOnlyList<MenuSection> sections, CancellationToken cancellationToken = default)
         {
-            Log(toPhoneNumber, bodyText);
+            Log(toPhoneNumber, bodyText, interactive: true);
             return _inner.SendListMessageAsync(toPhoneNumber, bodyText, buttonLabel, sections, cancellationToken);
         }
 
         public Task<bool> SendFlowMessageAsync(string toPhoneNumber, string flowKind, string bodyText, string ctaLabel, CancellationToken cancellationToken = default)
         {
-            Log(toPhoneNumber, $"[form {flowKind}] {bodyText}");
+            Log(toPhoneNumber, $"[form {flowKind}] {bodyText}", interactive: true);
             return _inner.SendFlowMessageAsync(toPhoneNumber, flowKind, bodyText, ctaLabel, cancellationToken);
         }
 
         public Task SendButtonsMessageAsync(string toPhoneNumber, string bodyText, IReadOnlyList<string> buttonLabels, CancellationToken cancellationToken = default)
         {
-            Log(toPhoneNumber, $"{bodyText} [{string.Join(" | ", buttonLabels)}]");
+            Log(toPhoneNumber, $"{bodyText} [{string.Join(" | ", buttonLabels)}]", interactive: true);
             return _inner.SendButtonsMessageAsync(toPhoneNumber, bodyText, buttonLabels, cancellationToken);
         }
 
@@ -296,6 +323,15 @@ public partial class ConversationEngine
 }
 
 /// <summary>SaaS billing for the bot itself: free trial, then Basic/Pro paid to the founder's wallet (confirmed manually).</summary>
+/// <summary>Feature flags (config section "Features").</summary>
+public sealed class FeatureOptions
+{
+    public const string SectionName = "Features";
+
+    /// <summary>Quick-action buttons (Menu / New order / Orders today) after finished replies.</summary>
+    public bool ShortcutButtons { get; set; } = true;
+}
+
 public sealed class BillingOptions
 {
     public const string SectionName = "Billing";

@@ -295,4 +295,45 @@ public class CommandParserTests
     {
         Assert.NotEqual(CommandKind.Export, CommandParser.TryParse(message)?.Kind);
     }
+
+    [Theory]
+    [InlineData("📋 Menu", CommandKind.Menu)]
+    [InlineData("➕ Naya order", CommandKind.NewOrderHelp)]
+    [InlineData("➕ New order", CommandKind.NewOrderHelp)]
+    [InlineData("📦 Orders today", CommandKind.OrdersToday)]
+    [InlineData("📋 مینو", CommandKind.Menu)]
+    [InlineData("➕ نیا آرڈر", CommandKind.NewOrderHelp)]
+    [InlineData("📦 آج کے آرڈرز", CommandKind.OrdersToday)]
+    public void ShortcutButtonLabels_AreRealCommands(string label, CommandKind kind)
+    {
+        Assert.Equal(kind, CommandParser.TryParse(label)?.Kind);
+    }
+
+    [Fact]
+    public void SlashCommands_AllResolveToRealCommands_WithWhatsAppSafeNames()
+    {
+        Assert.InRange(CommandParser.SlashCommands.Count, 1, 30);
+        foreach (var (name, description, text) in CommandParser.SlashCommands)
+        {
+            Assert.Matches("^[a-z0-9]{1,20}$", name);
+            Assert.InRange(description.Length, 1, 100);
+            Assert.NotNull(CommandParser.TryParse("/" + name));
+            Assert.Equal(CommandParser.TryParse(text)!.Kind, CommandParser.TryParse("/" + name)!.Kind);
+        }
+        Assert.Equal(CommandKind.OrdersToday, CommandParser.TryParse("/orders")!.Kind);
+        Assert.Equal(CommandKind.NewOrderHelp, CommandParser.TryParse("/NewOrder")!.Kind);
+        Assert.Null(CommandParser.TryParse("/doesnotexist"));
+    }
+
+    [Theory]
+    [InlineData("shortcut off", "off")]
+    [InlineData("shortcuts on", "on")]
+    [InlineData("shortcut band", "off")]
+    [InlineData("quick actions chalu", "on")]
+    public void ParsesShortcutToggle(string message, string value)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.Equal(CommandKind.Shortcuts, parsed!.Kind);
+        Assert.Equal(value, parsed.Text);
+    }
 }

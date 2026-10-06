@@ -218,6 +218,9 @@ public partial class ConversationEngine
             case CommandKind.DisconnectInstagram:
                 await HandleDisconnectInstagramAsync(seller, ct);
                 return;
+            case CommandKind.Shortcuts:
+                await HandleShortcutsToggleAsync(seller, ctx, cmd.Text!, ct);
+                return;
             case CommandKind.Export:
                 await HandleExportAsync(seller, cmd.Export!, ct);
                 return;

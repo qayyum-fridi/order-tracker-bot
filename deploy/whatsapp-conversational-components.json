@@ -1,0 +1,58 @@
+{
+  "enable_welcome_message": false,
+  "commands": [
+    {
+      "command_name": "menu",
+      "command_description": "Main menu kholein"
+    },
+    {
+      "command_name": "neworder",
+      "command_description": "Naya order darj karein"
+    },
+    {
+      "command_name": "orders",
+      "command_description": "Aaj ke orders"
+    },
+    {
+      "command_name": "pending",
+      "command_description": "Pending orders"
+    },
+    {
+      "command_name": "unpaid",
+      "command_description": "Unpaid orders"
+    },
+    {
+      "command_name": "summary",
+      "command_description": "Aaj ka hisaab"
+    },
+    {
+      "command_name": "catalog",
+      "command_description": "Apna catalog"
+    },
+    {
+      "command_name": "customers",
+      "command_description": "Customers ki list"
+    },
+    {
+      "command_name": "receipt",
+      "command_description": "Order ki PDF receipt"
+    },
+    {
+      "command_name": "export",
+      "command_description": "Excel file (orders, customers...)"
+    },
+    {
+      "command_name": "logo",
+      "command_description": "Receipt par apna logo/banner"
+    },
+    {
+      "command_name": "help",
+      "command_description": "Madad"
+    }
+  ],
+  "prompts": [
+    "📋 Menu",
+    "➕ Naya order",
+    "📦 Orders today"
+  ]
+}

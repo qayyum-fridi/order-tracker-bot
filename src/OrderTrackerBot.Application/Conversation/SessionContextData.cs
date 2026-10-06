@@ -52,6 +52,11 @@ public sealed class SessionContextData
     public string? BroadcastChannel { get; set; }
     public string? PendingDiscountCode { get; set; }
     /// <summary>Order ids in the order of the last numbered list shown, so "mark 1 shipped" means list position 1.</summary>
+    /// <summary>The seller turned the quick-action buttons off ("shortcut off").</summary>
+    public bool ShortcutsOff { get; set; }
+    /// <summary>The one-time explanation of the quick-action buttons has been shown.</summary>
+    public bool ShortcutIntroShown { get; set; }
+
     public List<int>? LastListOrderIds { get; set; }
     public List<int>? LastListCustomerIds { get; set; }
     public int CustomerListPage { get; set; }

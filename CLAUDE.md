@@ -148,3 +148,8 @@ shared-state action: confirm with the user and get SSH/host details first.
   Excel only, no CSV (CSV loses leading-zero phone numbers and Urdu text unless handled, and can't hold several sheets); strings are written as
   string cells so buyer-supplied text can't become formulas. Order period filters use the seller's timezone; customers/spend are aggregated in memory
   (Sqlite can't SUM decimal). Expired-trial sellers are blocked by billing like every other command.
+- Shortcuts (`ConversationEngine.Shortcuts.cs`): after a turn that replied, ended in `Idle` and sent no interactive message, the engine adds a 3-button
+  quick bar (Menu / Naya order / Orders today; labels are parseable commands). Per-seller `shortcut off|on` lives in `SessionContextData`;
+  global flag `Features:ShortcutButtons` (engine built without `FeatureOptions` = off, so unit tests stay quiet). "/" commands: `CommandParser.SlashCommands`,
+  registered with Meta via `deploy/whatsapp-conversational-components.json` (**schema from third-party docs; how Meta delivers a picked command was not
+  verified** — the engine just accepts `/name` as a typed alias).

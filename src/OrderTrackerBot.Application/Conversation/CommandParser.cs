@@ -65,6 +65,7 @@ public enum CommandKind
     Receipt,
     BrandingHelp,
     Export,
+    Shortcuts,
     RemoveBranding,
     DiscountPerformance,
     NewOrderHelp,
@@ -140,6 +141,33 @@ public static class CommandParser
     private static readonly Regex PriceTiers = new(@"^(.+?)\s*[-–:]\s*(?:price\s+tiers?|bulk\s+pric(?:e|ing)|wholesale)\s*:\s*(.+)$", Opts);
     private static readonly Regex CampaignStatus = new(@"^campaign\s+status$", Opts);
     private static readonly Regex ProductReport = new(@"^(.+?)\s+(?:ka|ki)\s+report$|^report:?\s+(.+)$", Opts);
+    // WhatsApp "/" commands (registered via deploy/whatsapp-conversational-components.json) arrive as "/orders" etc. and map to the typed command.
+    public static readonly IReadOnlyList<(string Name, string Description, string Text)> SlashCommands = new[]
+    {
+        ("menu", "Main menu kholein", "menu"),
+        ("neworder", "Naya order darj karein", "new order"),
+        ("orders", "Aaj ke orders", "orders today"),
+        ("pending", "Pending orders", "pending orders"),
+        ("unpaid", "Unpaid orders", "unpaid orders"),
+        ("summary", "Aaj ka hisaab", "today's summary"),
+        ("catalog", "Apna catalog", "catalog"),
+        ("customers", "Customers ki list", "customer list"),
+        ("receipt", "Order ki PDF receipt", "receipt"),
+        ("export", "Excel file (orders, customers...)", "export"),
+        ("logo", "Receipt par apna logo/banner", "logo"),
+        ("help", "Madad", "help"),
+    };
+
+    private static string? ExpandSlashCommand(string message)
+    {
+        var name = message.TrimStart('/').Split(' ', 2)[0].Trim().ToLowerInvariant();
+        foreach (var command in SlashCommands) if (command.Name == name) return command.Text;
+        return null;
+    }
+
+    // "shortcut off" / "shortcut on": the quick-action buttons that follow replies.
+    private static readonly Regex Shortcuts = new(@"^(?:shortcuts?|quick\s+actions?)\s+(?<v>on|off|chalu|band)$", Opts);
+
     // "export" -> asks what; "export orders customers", "export all", "export orders 30 days", "customers export", "excel". One .xlsx comes back.
     private static readonly Regex ExportLead = new(@"^(?:data\s+)?(?:export|download|ایکسپورٹ|ڈاؤنلوڈ)(?:\s+(?<what>.+))?$|^(?:excel|xlsx)$", Opts);
     private static readonly Regex ExportTrail = new(@"^(?<what>.+?)\s+(?:export|excel|xlsx|download)$", Opts);
@@ -312,7 +340,7 @@ public static class CommandParser
 
     // "add discount" / "new product" with no details: show the exact format instead of guessing via the AI.
     private static readonly Regex DetailedForm = new(@"^(?:add\s+)?(product|customer|order)\s*\(\s*detailed\s*\)$|^new\s+(order)\s*\(\s*detailed\s*\)$", Opts);
-    private static readonly Regex NewOrderHelp = new(@"^(?:new|naya|nya|add|create|make)\s+orders?$|^(?:naya\s+)?orders?\s+(?:add|darj|likhna|karna|dalna)(?:\s+(?:karna|karni|hai|karein|krna))*$", Opts);
+    private static readonly Regex NewOrderHelp = new(@"^(?:new|naya|nya|add|create|make)\s+orders?$|^نیا\s+آرڈر$|^(?:naya\s+)?orders?\s+(?:add|darj|likhna|karna|dalna)(?:\s+(?:karna|karni|hai|karein|krna))*$", Opts);
     private static readonly Regex HowTo =new(@"^(?:add|new|create|make)\s+(discount|product|payment|loyalty|tracking)s?$", Opts);
 
     private static readonly Regex SafepayId = new(@"^safepay\s+id:\s*(.+)$", Opts);
@@ -384,6 +412,7 @@ public static class CommandParser
         // A tapped button keeps its emoji ("📋 Menu", "⚙️ Business Setup") — parse the words.
         var stripped = LeadingSymbols.Replace(message, "").Trim();
         if (stripped.Length > 0) message = stripped;
+        if (message.StartsWith('/') && ExpandSlashCommand(message) is { } expanded) message = expanded;
         Match m;
 
         if ((m = CatalogSheetLink.Match(message)).Success)
@@ -425,6 +454,8 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.PriceTiers, Text = m.Groups[1].Value.Trim(), Text2 = m.Groups[2].Value.Trim() };
         if (CampaignStatus.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CampaignStatus };
         if (DiscountPerformance.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DiscountPerformance };
+        if ((m = Shortcuts.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.Shortcuts, Text = m.Groups["v"].Value.ToLowerInvariant() is "on" or "chalu" ? "on" : "off" };
         if ((m = ExportLead.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.Export, Export = ParseExportRequest(m.Groups["what"].Success ? m.Groups["what"].Value : null) };
         if ((m = ExportTrail.Match(message)).Success && ParseExportRequest(m.Groups["what"].Value) is { Datasets.Count: > 0 } trailing)
