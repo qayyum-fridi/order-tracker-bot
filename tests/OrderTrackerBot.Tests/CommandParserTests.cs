@@ -406,4 +406,29 @@ public class CommandParserTests
         Assert.Equal(CommandKind.MarkStatus, parsed!.Kind);
         Assert.Equal(status, parsed.Text);
     }
+
+    [Theory]
+    [InlineData("Sara, 1 kurti, 03001234567, delivery 300", 300)]
+    [InlineData("Sara 2 suit 0300-1234567 Gulberg, delivery charges 250", 250)]
+    [InlineData("Ayesha 1 lawn suit +200 delivery", 200)]
+    [InlineData("Bilal, 1 kurti, 03001234567, free delivery", 0)]
+    [InlineData("Bilal 1 kurti delivery Rs 40", 40)]
+    [InlineData("Sana, 1 suit, 03001234567, ڈیلیوری 180", 180)]
+    [InlineData("Sana 1 suit delivery: ۲۵۰", 250)]
+    public void FindsDeliveryChargeInsideOrderText(string message, int expected)
+    {
+        Assert.True(CommandParser.TryFindDeliveryInOrderText(message, out var amount));
+        Assert.Equal(expected, amount);
+    }
+
+    [Theory]
+    [InlineData("Sara, 1 kurti, 03001234567")]
+    [InlineData("Sara 1 kurti, delivery 15 tareekh ko, 03001234567")]
+    [InlineData("Sara 1 kurti, delivery date 20 oct")]
+    [InlineData("Sara 1 kurti 03001234567 delivery jaldi chahiye")]
+    [InlineData("Sara, 2 suit deliver kar dena, 03001234567")]
+    public void IgnoresDatesPhonesAndPlainMentionsOfDelivery(string message)
+    {
+        Assert.False(CommandParser.TryFindDeliveryInOrderText(message, out _));
+    }
 }

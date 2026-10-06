@@ -41,6 +41,9 @@ public partial class ConversationEngine
     {
         var catalog = await LoadCatalogAsync(seller, ct);
         var analysis = await _ai.AnalyzeMessageAsync(AiContext(seller, catalog), message, ct);
+        // The seller's own words beat the model: "delivery 300" in a single order is that order's delivery charge.
+        if (analysis.Order is { } single && analysis.AdditionalOrders.Count == 0 && CommandParser.TryFindDeliveryInOrderText(message, out var delivery))
+            single.DeliveryCharge = delivery;
         await HandleAnalysisAsync(seller, session, ctx, analysis, catalog, fromScreenshot: false, ct);
     }
 
@@ -140,6 +143,7 @@ public partial class ConversationEngine
             PaymentMethodText = draft.PaymentMethod,
             DiscountCode = draft.DiscountCode,
             OrderSource = draft.OrderSource,
+            DeliveryCharge = draft.DeliveryCharge,
             FromScreenshot = fromScreenshot
         };
 
@@ -565,6 +569,7 @@ public partial class ConversationEngine
         PaymentMethodText = source.PaymentMethodText,
         DiscountCode = source.DiscountCode,
         OrderSource = source.OrderSource,
+        DeliveryCharge = source.DeliveryCharge,
         FromScreenshot = source.FromScreenshot
     };
 

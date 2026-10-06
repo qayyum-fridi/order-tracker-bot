@@ -176,6 +176,43 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task DeliveryCharge_WrittenInTheOrderText_IsUsed_WithoutTypingItAgain()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await engine.HandleIncomingMessageAsync(Phone, "delivery 200", default);
+        AiReturns(Order("Sara", "Kurti", 1)); // the model didn't pick it up
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567, delivery 350", default);
+
+        Assert.Contains(_sent, m => m.Contains("Delivery: Rs.350") && m.Contains("Total: Rs.2,150"));
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        var order = await db.Orders.FirstAsync();
+        Assert.Equal(350m, order.DeliveryCharge);
+        Assert.Equal(200m, (await db.Sellers.FirstAsync()).DefaultDeliveryCharge);
+    }
+
+    [Fact]
+    public async Task DeliveryCharge_FromTheModel_IsUsed_AndTheSellersTextWins()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var fromModel = Order("Sara", "Kurti", 1);
+        fromModel.Order!.DeliveryCharge = 150;
+        AiReturns(fromModel);
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567 (screenshot jaisa)", default);
+        Assert.Contains(_sent, m => m.Contains("Delivery: Rs.150"));
+        await engine.HandleIncomingMessageAsync(Phone, "edit", default);
+
+        var overridden = Order("Sara", "Kurti", 1);
+        overridden.Order!.DeliveryCharge = 150;
+        AiReturns(overridden);
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567, free delivery", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        Assert.Equal(0m, (await db.Orders.FirstAsync()).DeliveryCharge);
+    }
+
+    [Fact]
     public async Task DeliveryCharge_IsNotDiscounted()
     {
         using var db = _dbFactory.CreateContext();

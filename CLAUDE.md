@@ -154,7 +154,9 @@ shared-state action: confirm with the user and get SSH/host details first.
   registered with Meta via `deploy/whatsapp-conversational-components.json` (**schema from third-party docs; how Meta delivers a picked command was not
   verified** — the engine just accepts `/name` as a typed alias).
 - Delivery charges (`ConversationEngine.Delivery.cs`): `Seller.DefaultDeliveryCharge` ("delivery 200" / "free delivery") is applied to new
-  drafts; "delivery 300" while confirming changes only that draft; "order 12 delivery 300" changes a saved order. Always
+  drafts; "delivery 300" while confirming changes only that draft; "order 12 delivery 300" changes a saved order. A charge written inside the order itself ("..., delivery 300", "+250 delivery",
+  "free delivery") is picked up: deterministically by `CommandParser.TryFindDeliveryInOrderText` for text (wins over the model; single-customer
+  messages only; bare numbers under 50 are ignored as likely dates unless "Rs" is written), and via the model's `delivery_charge` field for screenshots. Always
   `Total = max(0, Subtotal - DiscountAmount) + DeliveryCharge` (`OrderTotal`); discounts (codes and loyalty) never touch delivery. Sales totals include delivery.
 - `OrderStatus.Returned` (+ `Order.ReturnedAt`): "mark 3 returned/wapas", "Ayesha ka order wapas aa gaya". Only from Shipped/Delivered (a pending order is
   cancelled instead). Excluded everywhere Cancelled is excluded from sales/loyalty/customer spend; shown as "Returned: N" in today's/weekly summary.

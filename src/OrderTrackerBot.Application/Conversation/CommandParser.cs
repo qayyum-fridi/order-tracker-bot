@@ -175,6 +175,34 @@ public static class CommandParser
     private static readonly Regex DeliveryShow = new(@"^(?:my\s+)?" + DeliveryWord + "$", Opts);
     private static readonly Regex OrderDelivery = new(@"^(?:order|آرڈر)?\s*#?(?<id>\d+)\s+" + DeliveryWord + @"\s*[:=-]?\s*(?:rs\.?\s*)?(?<n>\d{1,6}|free|0)$|^(?:order|آرڈر)\s*#?(?<id>\d+)\s+free\s+delivery$", Opts);
 
+    // A delivery charge written inside an order ("Sara, 1 kurti, 0300..., delivery 300" / "+250 delivery" / "free delivery").
+    // Small bare numbers are left alone — "delivery 15 tareekh ko" is a date, not Rs.15 — unless "Rs"/"rupay" says it's money.
+    private static readonly Regex DeliveryInTextAfter = new(@"(?<![\p{L}\p{N}])(?:delivery|deliveri|shipping|ڈیلیوری)(?:\s+(?:charges?|fee|fees|kharcha))?\s*[:=-]?\s*(?<rs>rs\.?\s*)?(?<n>\d{1,5})(?!\d)(?<rs2>\s*(?:rs|rupees?|rupay|روپے))?", Opts);
+    private static readonly Regex DeliveryInTextBefore = new(@"(?<![\p{L}\p{N}])\+?\s*(?<rs>rs\.?\s*)?(?<n>\d{1,5})(?<rs2>\s*(?:rs|rupees?|rupay|روپے))?\s+(?:delivery|ڈیلیوری)(?:\s+(?:charges?|fee|kharcha))?(?![\p{L}])", Opts);
+    private static readonly Regex DeliveryFreeInText = new(@"(?<![\p{L}])(?:free\s+delivery|delivery\s+free|فری\s+ڈیلیوری)(?![\p{L}])", Opts);
+
+    /// <summary>Finds a delivery charge the seller wrote inside an order message; false when none is stated.</summary>
+    public static bool TryFindDeliveryInOrderText(string message, out decimal amount)
+    {
+        amount = 0;
+        var text = NormalizeDigits(message);
+        if (DeliveryFreeInText.IsMatch(text)) return true;
+        foreach (var regex in new[] { DeliveryInTextAfter, DeliveryInTextBefore })
+        {
+            foreach (Match m in regex.Matches(text))
+            {
+                var value = decimal.Parse(m.Groups["n"].Value, System.Globalization.CultureInfo.InvariantCulture);
+                var saysRupees = m.Groups["rs"].Success && m.Groups["rs"].Length > 0 || m.Groups["rs2"].Success && m.Groups["rs2"].Length > 0;
+                if (value >= 50 || saysRupees)
+                {
+                    amount = value;
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     /// <summary>"delivery 250" / "free delivery" -> the amount; used for the seller default and inside an order confirmation.</summary>
     public static bool TryParseDeliveryAmount(string message, out decimal amount)
     {
