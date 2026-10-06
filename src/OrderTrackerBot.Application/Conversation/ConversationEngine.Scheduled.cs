@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
@@ -19,20 +20,53 @@ public partial class ConversationEngine
         if (lastSundayNineLocal > local) lastSundayNineLocal = lastSundayNineLocal.AddDays(-7);
         var weeklyDueUtc = lastSundayNineLocal - PakistanOffset;
 
+        // Meta stops redelivering well within a day; keep claims a week so the dedupe table stays small.
+        try
+        {
+            var cutoff = utcNow.AddDays(-7);
+            await _db.ProcessedWebhookMessages.Where(m => m.ProcessedAt < cutoff).ExecuteDeleteAsync(ct);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            _logger?.LogError(ex, "Purging processed webhook ids failed");
+        }
+
         var sellers = await _db.Sellers.Where(s => s.OnboardingComplete).ToListAsync(ct);
         foreach (var seller in sellers)
         {
-            if ((seller.LastWeeklySummaryAt is null || seller.LastWeeklySummaryAt < weeklyDueUtc) && seller.CreatedAt < weeklyDueUtc)
+            try
             {
-                await SendWeeklySummaryAsync(seller, weeklyDueUtc, ct);
-                seller.LastWeeklySummaryAt = utcNow;
+                if ((seller.LastWeeklySummaryAt is null || seller.LastWeeklySummaryAt < weeklyDueUtc) && seller.CreatedAt < weeklyDueUtc)
+                {
+                    // Atomic claim: only the instance whose UPDATE matches the still-stale timestamp sends (no distributed lock needed).
+                    var id = seller.Id;
+                    var claimed = await _db.Sellers
+                        .Where(s => s.Id == id && (s.LastWeeklySummaryAt == null || s.LastWeeklySummaryAt < weeklyDueUtc))
+                        .ExecuteUpdateAsync(u => u.SetProperty(s => s.LastWeeklySummaryAt, utcNow), ct);
+                    if (claimed == 1)
+                    {
+                        seller.LastWeeklySummaryAt = utcNow;
+                        await SendWeeklySummaryAsync(seller, weeklyDueUtc, ct);
+                    }
+                }
+
+                if (_billing.Enabled && seller.SubscriptionActiveUntil is null && seller.TrialReminderSentAt is null
+                    && seller.TrialEndsAt is { } end && end > utcNow && end - utcNow <= TimeSpan.FromDays(2))
+                {
+                    var id = seller.Id;
+                    var claimed = await _db.Sellers
+                        .Where(s => s.Id == id && s.TrialReminderSentAt == null)
+                        .ExecuteUpdateAsync(u => u.SetProperty(s => s.TrialReminderSentAt, utcNow), ct);
+                    if (claimed == 1) await SendTrialEndingReminderAsync(seller, ct);
+                }
+
+                await _db.SaveChangesAsync(ct);
             }
-
-            if (_billing.Enabled && seller.SubscriptionActiveUntil is null && seller.TrialReminderSentAt is null
-                && seller.TrialEndsAt is { } end && end > utcNow && end - utcNow <= TimeSpan.FromDays(2))
-                await SendTrialEndingReminderAsync(seller, ct);
-
-            await _db.SaveChangesAsync(ct);
+            catch (Exception ex) when (!ct.IsCancellationRequested)
+            {
+                // One seller's failed send (e.g. outside the 24h window) must not abort the rest of the run.
+                _logger?.LogError(ex, "Scheduled job failed for seller {SellerId}", seller.Id);
+            }
         }
     }
 

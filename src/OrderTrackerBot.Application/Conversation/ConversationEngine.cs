@@ -23,10 +23,15 @@ public partial class ConversationEngine
     private readonly IWhatsAppMediaClient? _media;
     private readonly IInstagramClient _instagram;
     private readonly ICatalogSheetImporter? _catalogSheets;
+    private readonly Microsoft.Extensions.Logging.ILogger<ConversationEngine>? _logger;
+    private readonly IAudioTranscriber? _transcriber;
 
     public ConversationEngine(IAppDbContext db, IAiOrderAssistant ai, IWhatsAppSender sender, IFounderAlertNotifier founderAlerts,
-        BillingOptions? billing = null, IWhatsAppMediaClient? media = null, IInstagramClient? instagram = null, ICatalogSheetImporter? catalogSheets = null)
+        BillingOptions? billing = null, IWhatsAppMediaClient? media = null, IInstagramClient? instagram = null, ICatalogSheetImporter? catalogSheets = null,
+        Microsoft.Extensions.Logging.ILogger<ConversationEngine>? logger = null, IAudioTranscriber? transcriber = null)
     {
+        _transcriber = transcriber;
+        _logger = logger;
         _db = db;
         _ai = ai;
         _sender = new MessageLoggingSender(sender, db);

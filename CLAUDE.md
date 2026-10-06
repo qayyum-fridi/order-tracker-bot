@@ -88,7 +88,8 @@ no dots = instant" distinction from the original UX spec, checked in this priori
    unavailable.
 
 This mirrors the spec's "Where AI Actually Lives" rule: AI is used only for order-text
-parsing, intent classification, clarification, catalog fuzzy-matching, and report insight
+parsing, intent classification, clarification, catalog fuzzy-matching, voice-note transcription
+(`IAudioTranscriber`, then routed like typed text), and report insight
 lines. Status tracking, loyalty math, discount math, undo, and all report SQL are plain
 deterministic code — never route these through the AI assistant.
 

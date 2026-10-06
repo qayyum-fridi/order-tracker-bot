@@ -328,6 +328,20 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task ScheduledJobs_PurgeOldProcessedWebhookIds()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        db.ProcessedWebhookMessages.Add(new OrderTrackerBot.Domain.Entities.ProcessedWebhookMessage { MessageId = "old", ProcessedAt = DateTime.UtcNow.AddDays(-8) });
+        db.ProcessedWebhookMessages.Add(new OrderTrackerBot.Domain.Entities.ProcessedWebhookMessage { MessageId = "new" });
+        await db.SaveChangesAsync();
+
+        await engine.RunScheduledJobsAsync(DateTime.UtcNow);
+
+        Assert.Equal(new[] { "new" }, await db.ProcessedWebhookMessages.Select(m => m.MessageId).ToArrayAsync());
+    }
+
+    [Fact]
     public async Task ScheduledJobs_SendWeeklySummaryOnce_AndTrialReminder()
     {
         using var db = _dbFactory.CreateContext();
