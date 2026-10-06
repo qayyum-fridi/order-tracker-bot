@@ -62,6 +62,7 @@ public enum CommandKind
     CommentLeads,
     LeadAction,
     ProductReport,
+    Receipt,
     DiscountPerformance,
     NewOrderHelp,
     Guide,
@@ -104,9 +105,21 @@ public static class CommandParser
     private static readonly Regex PaymentMethodPrompt = new(@"^payment\s+method$", Opts);
     private static readonly Regex LeadingSymbols = new(@"^[\p{So}\p{Cs}\uFE0F\u200D\s]+", RegexOptions.Compiled);
     private static readonly Regex Menu = new(@"^(menu|مینو)$", Opts);
-    private static readonly Regex OrdersToday = new(@"^(orders?\s+today|آج\s+کے\s+آرڈرز)$", Opts);
-    private static readonly Regex PendingOrders = new(@"^(pending\s+orders?|پینڈنگ\s+آرڈرز)$", Opts);
-    private static readonly Regex TodaysSummary = new(@"^(today'?s\s+summary|آج\s+کا\s+خلاصہ)$", Opts);
+    // Report periods: today (default) / "yesterday" / "lastmonth" -> ParsedCommand.Text. Roman Urdu "aaj ke orders",
+    // "kal ka summary", "pichle mahine ke orders" and the Urdu-script equivalents are accepted alongside English.
+    private const string Of = @"(?:ka|ke|ki|کا|کے|کی)";
+    private const string OrdersWord = @"(?:orders?|آرڈرز?)";
+    private const string SummaryWord = @"(?:summary|خلاصہ)";
+    private const string Today = @"(?:aaj|آج)";
+    private const string Yesterday = @"(?:kal|کل)";
+    private const string LastMonth = @"(?:(?:pichle|pichhle|pichlay|پچھلے)\s+(?:mahine|mahinay|maheene|mahiny|مہینے))";
+    private static readonly Regex OrdersToday = new(@"^(?:orders?\s+today|today'?s\s+orders?|" + Today + @"\s+" + Of + @"\s+" + OrdersWord + @")$", Opts);
+    private static readonly Regex OrdersYesterday = new(@"^(?:orders?\s+yesterday|yesterday'?s\s+orders?|" + Yesterday + @"\s+" + Of + @"\s+" + OrdersWord + @")$", Opts);
+    private static readonly Regex OrdersLastMonth = new(@"^(?:orders?\s+last\s+month|last\s+month'?s?\s+orders?|" + LastMonth + @"\s+" + Of + @"\s+" + OrdersWord + @")$", Opts);
+    private static readonly Regex PendingOrders = new(@"^(pending\s+orders?|پینڈنگ\s+آرڈرز?)$", Opts);
+    private static readonly Regex TodaysSummary = new(@"^(?:today'?s\s+summary|today\s+summary|" + Today + @"\s+" + Of + @"\s+" + SummaryWord + @")$", Opts);
+    private static readonly Regex YesterdaysSummary = new(@"^(?:yesterday'?s\s+summary|summary\s+yesterday|" + Yesterday + @"\s+" + Of + @"\s+" + SummaryWord + @")$", Opts);
+    private static readonly Regex LastMonthSummary = new(@"^(?:last\s+month'?s?\s+summary|summary\s+last\s+month|" + LastMonth + @"\s+" + Of + @"\s+" + SummaryWord + @")$", Opts);
     private static readonly Regex Catalog = new(@"^(catalog|کیٹلاگ)$", Opts);
     private static readonly Regex ShareCatalog = new(@"^share\s+catalog$", Opts);
     private static readonly Regex MenuCategory = new(@"^menu\s+(orders|reports|catalog|payments|discounts|customers|settings)$", Opts);
@@ -120,15 +133,34 @@ public static class CommandParser
     private static readonly Regex PriceTiers = new(@"^(.+?)\s*[-–:]\s*(?:price\s+tiers?|bulk\s+pric(?:e|ing)|wholesale)\s*:\s*(.+)$", Opts);
     private static readonly Regex CampaignStatus = new(@"^campaign\s+status$", Opts);
     private static readonly Regex ProductReport = new(@"^(.+?)\s+(?:ka|ki)\s+report$|^report:?\s+(.+)$", Opts);
+    // "receipt" (latest order) / "receipt 12" / "receipt Ayesha" / "Ayesha ki receipt" / "رسید 12". Number or Text is the order reference.
+    private const string ReceiptWord = @"(?:receipt|invoice|rasid|raseed|bill|رسید)";
+    private static readonly Regex Receipt = new(@"^(?:(?:order|pdf)\s+)?" + ReceiptWord + @"(?:\s*:?\s*#?(?<n>\d+)|\s*:?\s+(?<name>.+))?$|^(?<name>.+?)\s+(?:ki|ka|ke)\s+" + ReceiptWord + "$", Opts);
     private static readonly Regex DiscountPerformance = new(@"^discount\s+(?:performance|report)$", Opts);
-    private static readonly Regex WeeklySummary = new(@"^(weekly\s+summary|week\s+ka\s+summary)$", Opts);
+    private static readonly Regex WeeklySummary = new(@"^(weekly\s+summary|week\s+ka\s+summary|ہفتہ\s+وار\s+خلاصہ|ہفتے\s+کا\s+خلاصہ)$", Opts);
     private static readonly Regex UpdateBusinessInfo = new(@"^(update\s+)?business\s+(info|details)$", Opts);
     private static readonly Regex Subscribe = new(@"^(subscribe|subscription|upgrade|plans?)$", Opts);
     private static readonly Regex BroadcastNatural = new(@"\b(?:sab|saare|sare|all)\s+customers?\s+ko\s+(?:batao|bata\s+do|bhejo|bhej\s+do|message\s+karo)\s*:\s*(.+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Singleline);
     private static readonly Regex AddProduct = new(@"^add\s+product:\s*(.+?)\s*-\s*(\d+(?:\.\d+)?)$", Opts);
     private static readonly Regex EditProduct = new(@"^edit\s+product:\s*(.+?)\s*-\s*(\d+(?:\.\d+)?)$", Opts);
     private static readonly Regex MarkAllPendingShipped = new(@"^mark\s+all\s+pending\s+as\s+shipped$", Opts);
-    private static readonly Regex MarkStatus = new(@"^mark\s+(\d+)\s+(shipped|delivered|paid|pending)$", Opts);
+    // "mark 3 shipped" / "mark 3 bhej diya" / "آرڈر 3 شپ ہو گیا": the verb phrase is mapped by StatusFromPhrase.
+    private static readonly Regex MarkStatus = new(@"^(?:mark|order|آرڈر)\s+(\d+)\s+(.+)$", Opts);
+    private const string DoneWords = @"(?:\s+(?:ho\s*(?:gaya|gya|gaye|gai|gayi)|kar\s+(?:diya|dia|do)|ہو\s+گیا(?:\s+ہے)?|کر\s+(?:دیا|دو)))?";
+    private static readonly Regex ShippedPhrase = new(@"^(?:shipped?" + DoneWords + @"|bhej\s*(?:diya|dia|di|do)|شپ" + DoneWords + @"|بھیج\s+(?:دیا|دو))$", Opts);
+    private static readonly Regex DeliveredPhrase = new(@"^(?:deliver(?:ed)?" + DoneWords + @"|(?:pohanch|pahunch|pohnch)\s+gaya|ڈیلیور" + DoneWords + @"|پہنچ\s+گیا)$", Opts);
+    private static readonly Regex PaidPhrase = new(@"^(?:paid" + DoneWords + @"|payment\s+(?:aa|mil)\s+(?:gayi|gai)|پیڈ" + DoneWords + @"|ادائیگی\s+ہو\s+گئی)$", Opts);
+    private static readonly Regex PendingPhrase = new(@"^(?:pending|پینڈنگ)$", Opts);
+
+    private static string? StatusFromPhrase(string phrase)
+    {
+        phrase = phrase.Trim();
+        if (ShippedPhrase.IsMatch(phrase)) return "shipped";
+        if (DeliveredPhrase.IsMatch(phrase)) return "delivered";
+        if (PaidPhrase.IsMatch(phrase)) return "paid";
+        if (PendingPhrase.IsMatch(phrase)) return "pending";
+        return null;
+    }
     private static readonly Regex CancelOrder = new(@"^cancel\s+order\s+(\d+)$", Opts);
     private static readonly Regex Undo = new(@"^undo$", Opts);
     private static readonly Regex PaymentLink = new(@"^payment\s+link(?:\s+(\d+))?$", Opts);
@@ -136,9 +168,9 @@ public static class CommandParser
     private static readonly Regex UnpaidOrders = new(@"^unpaid\s+orders?$", Opts);
     private static readonly Regex CodPending = new(@"^cod\s+pending$", Opts);
     private static readonly Regex AddTracking = new(@"^add\s+tracking:\s*(.+?)\s*,\s*(.+)$", Opts);
-    private static readonly Regex TrackingLookup = new(@"^(.+?)\s+ka\s+tracking$", Opts);
-    private static readonly Regex CustomerOrderLookup = new(@"^(.+?)\s+ka\s+order$", Opts);
-    private static readonly Regex FuzzyStatusUpdate = new(@"^(.+?)\s+ka\s+order\s+.*\b(deliver|ship|pending)\w*\b", Opts);
+    private static readonly Regex TrackingLookup = new(@"^(.+?)\s+(?:ka|کا)\s+(?:tracking|ٹریکنگ)$", Opts);
+    private static readonly Regex CustomerOrderLookup = new(@"^(.+?)\s+" + Of + @"\s+(?:order|آرڈر)$", Opts);
+    private static readonly Regex FuzzyStatusUpdate = new(@"^(.+?)\s+" + Of + @"\s+(?:order|آرڈر)\s+.*?(deliver|ship|pending|bhej|ڈیلیور|شپ|پینڈنگ)", Opts);
     private static readonly Regex CreateDiscount = new(@"^create\s+discount:\s*(.+)$", Opts);
     private static readonly Regex DiscountList = new(@"^discount\s+list$", Opts);
     private static readonly Regex CreateLoyalty = new(@"^create\s+loyalty:\s*(\d+)\s+orders?\s*=\s*(\d+(?:\.\d+)?)\s*(?:%|percent|pc)?\s*off$", Opts);
@@ -243,9 +275,34 @@ public static class CommandParser
         return false;
     }
 
+    // Handler contract: Text2 starts with "deliver" / "ship" / "pending".
+    private static string FuzzyStatusKeyword(string word)
+    {
+        word = word.ToLowerInvariant();
+        return word.StartsWith("deliver") || word == "ڈیلیور" ? "deliver"
+            : word.StartsWith("ship") || word.StartsWith("bhej") || word == "شپ" ? "ship"
+            : "pending";
+    }
+
+    // Eastern Arabic-Indic (٠-٩) and Extended (۰-۹) digits that Urdu keyboards produce -> ASCII, so "آرڈر ۳ شپ ہو گیا" parses.
+    private static string NormalizeDigits(string text)
+    {
+        if (!text.Any(c => c is >= '\u0660' and <= '\u0669' or >= '\u06F0' and <= '\u06F9')) return text;
+        return string.Create(text.Length, text, (span, src) =>
+        {
+            for (var i = 0; i < src.Length; i++)
+            {
+                var c = src[i];
+                span[i] = c is >= '\u0660' and <= '\u0669' ? (char)('0' + (c - '\u0660'))
+                    : c is >= '\u06F0' and <= '\u06F9' ? (char)('0' + (c - '\u06F0'))
+                    : c;
+            }
+        });
+    }
+
     public static ParsedCommand? TryParse(string rawMessage)
     {
-        var message = rawMessage.Trim();
+        var message = NormalizeDigits(rawMessage.Trim());
         // A tapped button keeps its emoji ("📋 Menu", "⚙️ Business Setup") — parse the words.
         var stripped = LeadingSymbols.Replace(message, "").Trim();
         if (stripped.Length > 0) message = stripped;
@@ -263,8 +320,12 @@ public static class CommandParser
         if (GuideLater.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.GuideLater };
         if (Menu.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Menu };
         if (OrdersToday.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.OrdersToday };
+        if (OrdersYesterday.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.OrdersToday, Text = "yesterday" };
+        if (OrdersLastMonth.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.OrdersToday, Text = "lastmonth" };
         if (PendingOrders.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.PendingOrders };
         if (TodaysSummary.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.TodaysSummary };
+        if (YesterdaysSummary.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.TodaysSummary, Text = "yesterday" };
+        if (LastMonthSummary.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.TodaysSummary, Text = "lastmonth" };
         if (Catalog.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Catalog };
         if (ShareCatalog.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ShareCatalog };
         if ((m = MenuCategory.Match(message)).Success)
@@ -286,6 +347,13 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.PriceTiers, Text = m.Groups[1].Value.Trim(), Text2 = m.Groups[2].Value.Trim() };
         if (CampaignStatus.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CampaignStatus };
         if (DiscountPerformance.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DiscountPerformance };
+        if ((m = Receipt.Match(message)).Success)
+            return new ParsedCommand
+            {
+                Kind = CommandKind.Receipt,
+                Number = m.Groups["n"].Success ? int.Parse(m.Groups["n"].Value) : null,
+                Text = m.Groups["name"].Success ? m.Groups["name"].Value.Trim() : null
+            };
         if ((m = ProductReport.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.ProductReport, Text = (m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value).Trim() };
         if (WeeklySummary.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.WeeklySummary };
@@ -329,8 +397,8 @@ public static class CommandParser
 
         if (MarkAllPendingShipped.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.MarkAllPendingShipped };
 
-        if ((m = MarkStatus.Match(message)).Success)
-            return new ParsedCommand { Kind = CommandKind.MarkStatus, Number = int.Parse(m.Groups[1].Value), Text = m.Groups[2].Value.ToLowerInvariant() };
+        if ((m = MarkStatus.Match(message)).Success && StatusFromPhrase(m.Groups[2].Value) is { } markStatus)
+            return new ParsedCommand { Kind = CommandKind.MarkStatus, Number = int.Parse(m.Groups[1].Value), Text = markStatus };
 
         if ((m = CancelOrder.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.CancelOrder, Number = int.Parse(m.Groups[1].Value) };
@@ -353,7 +421,7 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.TrackingLookup, Text = m.Groups[1].Value.Trim() };
 
         if ((m = FuzzyStatusUpdate.Match(message)).Success)
-            return new ParsedCommand { Kind = CommandKind.FuzzyStatusUpdate, Text = m.Groups[1].Value.Trim(), Text2 = m.Groups[2].Value.ToLowerInvariant() };
+            return new ParsedCommand { Kind = CommandKind.FuzzyStatusUpdate, Text = m.Groups[1].Value.Trim(), Text2 = FuzzyStatusKeyword(m.Groups[2].Value) };
 
         if ((m = CustomerOrderLookup.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.CustomerOrderLookup, Text = m.Groups[1].Value.Trim() };

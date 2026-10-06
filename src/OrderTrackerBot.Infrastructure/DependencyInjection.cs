@@ -39,12 +39,14 @@ public static class DependencyInjection
         services.AddHttpClient<IWhatsAppSender, WhatsAppSender>();
         services.AddHttpClient<IAiOrderAssistant, OpenAiOrderAssistant>();
         services.AddHttpClient<IFounderAlertNotifier, FounderAlertNotifier>();
+        services.AddHttpClient<IIssueReporter, IssueReporter>(c => c.Timeout = TimeSpan.FromSeconds(5));
         services.AddHttpClient<IWhatsAppMediaClient, WhatsAppMediaClient>();
         services.AddHttpClient<ICatalogSheetImporter, CatalogSheetImporter>();
         services.AddHttpClient<InstagramClient>();
         services.AddScoped<IInstagramClient>(sp => sp.GetRequiredService<InstagramClient>());
         services.AddSingleton(configuration.GetSection(BillingOptions.SectionName).Get<BillingOptions>() ?? new BillingOptions());
 
+        services.AddSingleton<IReceiptPdfGenerator, Pdf.ReceiptPdfGenerator>();
         services.AddScoped<ConversationEngine>();
 
         return services;

@@ -2,6 +2,7 @@ using System.Net;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Conversation;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Infrastructure.Instagram;
@@ -20,10 +21,12 @@ public class InstagramController : ControllerBase
     private readonly AppDbContext _db;
     private readonly ConversationEngine _engine;
     private readonly ILogger<InstagramController> _logger;
+    private readonly IIssueReporter _issues;
 
     public InstagramController(InstagramClient instagram, IOptions<InstagramOptions> options, IOptions<WhatsAppOptions> whatsApp,
-        AppDbContext db, ConversationEngine engine, ILogger<InstagramController> logger)
+        AppDbContext db, ConversationEngine engine, ILogger<InstagramController> logger, IIssueReporter issues)
     {
+        _issues = issues;
         _instagram = instagram;
         _options = options.Value;
         _whatsApp = whatsApp.Value;
@@ -124,6 +127,7 @@ public class InstagramController : ControllerBase
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to process Instagram comment {CommentId}", comment.CommentId);
+                await _issues.ReportAsync(IssueCodes.InstagramCommentFailed, null, $"IG account {comment.IgAccountId}, comment {comment.CommentId}", ex, ct);
             }
         }
 

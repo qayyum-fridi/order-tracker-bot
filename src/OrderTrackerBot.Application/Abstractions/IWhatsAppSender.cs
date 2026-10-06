@@ -26,6 +26,9 @@ public interface IWhatsAppSender
     /// Returns false when no template is configured or Meta rejected it.
     /// </summary>
     Task<bool> SendTemplateMessageAsync(string toPhoneNumber, IReadOnlyList<string> bodyParameters, CancellationToken cancellationToken = default);
+
+    /// <summary>Uploads and sends a file (e.g. a PDF receipt) as a WhatsApp document. Returns false when Meta rejected it.</summary>
+    Task<bool> SendDocumentAsync(string toPhoneNumber, byte[] content, string fileName, string mimeType, string? caption, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Downloads media (screenshots) a seller sent, by the media id in the webhook.</summary>

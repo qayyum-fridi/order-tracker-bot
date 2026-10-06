@@ -198,6 +198,29 @@ dotnet ef migrations add <Name> \
   --output-dir Persistence/Migrations
 ```
 
+## Alerts and issue codes
+
+Every failure is logged as `[OTB-xxxx] ...` and, when `FounderAlerts:WebhookUrl` is set (e.g. an n8n webhook that
+forwards to Telegram/WhatsApp/email), posted as JSON: `code`, `title`, `severity`, `seller_phone`, `business_name`,
+`seller_id`, `detail`, `error`, `occurred_at` and a human-readable `message`. The same code + seller is posted at most
+once per 10 minutes. When a seller's message fails, the bot quotes the code back to them. Trace with
+`SELECT * FROM MessageLogs WHERE Phone = '<seller_phone>' ORDER BY CreatedAt DESC`.
+
+| Code | Meaning | Severity |
+|---|---|---|
+| OTB-1001 | Inbound text message processing failed | error |
+| OTB-1002 | Screenshot processing failed | error |
+| OTB-1003 | WhatsApp Flow submission failed | error |
+| OTB-1004 | Reply to unsupported media (voice/file) failed | warning |
+| OTB-2001 | WhatsApp rejected an outbound message (e.g. outside the 24h window) | warning |
+| OTB-2002 | WhatsApp send threw (network/exception) | error |
+| OTB-2003 | WhatsApp access token rejected (401/403) — renew the token | error |
+| OTB-3001 | OpenAI order analysis failed (bot fell back to a clarification prompt) | error |
+| OTB-4001 | Instagram comment processing failed | error |
+| OTB-5001 | Scheduled job (weekly summary / trial reminder / token refresh) failed | error |
+
+Codes live in `IssueCodes` (`Application/Abstractions/IIssueReporter.cs`); never renumber a shipped code.
+
 ## Known limitations / roadmap
 
 These match the spec's own version tags (V2/V3/V4) and are intentionally out of scope

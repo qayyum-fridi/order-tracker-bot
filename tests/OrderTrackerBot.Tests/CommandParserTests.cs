@@ -99,4 +99,94 @@ public class CommandParserTests
     {
         Assert.Equal(expected, CommandParser.IsAffirmative(message));
     }
+
+    [Theory]
+    [InlineData("aaj ke orders", CommandKind.OrdersToday, null)]
+    [InlineData("آج کے آرڈرز", CommandKind.OrdersToday, null)]
+    [InlineData("kal ke orders", CommandKind.OrdersToday, "yesterday")]
+    [InlineData("orders yesterday", CommandKind.OrdersToday, "yesterday")]
+    [InlineData("کل کے آرڈرز", CommandKind.OrdersToday, "yesterday")]
+    [InlineData("pichle mahine ke orders", CommandKind.OrdersToday, "lastmonth")]
+    [InlineData("orders last month", CommandKind.OrdersToday, "lastmonth")]
+    [InlineData("kal ka summary", CommandKind.TodaysSummary, "yesterday")]
+    [InlineData("آج کا خلاصہ", CommandKind.TodaysSummary, null)]
+    [InlineData("کل کا خلاصہ", CommandKind.TodaysSummary, "yesterday")]
+    [InlineData("last month summary", CommandKind.TodaysSummary, "lastmonth")]
+    [InlineData("پچھلے مہینے کا خلاصہ", CommandKind.TodaysSummary, "lastmonth")]
+    [InlineData("پینڈنگ آرڈر", CommandKind.PendingOrders, null)]
+    [InlineData("ہفتہ وار خلاصہ", CommandKind.WeeklySummary, null)]
+    public void ParsesReportPeriods_RomanUrduAndUrduScript(string message, CommandKind kind, string? period)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.NotNull(parsed);
+        Assert.Equal(kind, parsed!.Kind);
+        Assert.Equal(period, parsed.Text);
+    }
+
+    [Theory]
+    [InlineData("mark 3 bhej diya", 3, "shipped")]
+    [InlineData("mark 3 deliver ho gaya", 3, "delivered")]
+    [InlineData("آرڈر 3 شپ ہو گیا", 3, "shipped")]
+    [InlineData("آرڈر ۳ ڈیلیور ہو گیا", 3, "delivered")]
+    [InlineData("آرڈر 12 پیڈ", 12, "paid")]
+    [InlineData("order 4 shipped", 4, "shipped")]
+    [InlineData("mark 3 shipped", 3, "shipped")]
+    public void ParsesMarkStatus_Synonyms(string message, int number, string status)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.NotNull(parsed);
+        Assert.Equal(CommandKind.MarkStatus, parsed!.Kind);
+        Assert.Equal(number, parsed.Number);
+        Assert.Equal(status, parsed.Text);
+    }
+
+    [Fact]
+    public void MarkStatus_WithUnknownVerb_FallsThrough()
+    {
+        Assert.NotEqual(CommandKind.MarkStatus, CommandParser.TryParse("order 3 kurti 2500")?.Kind);
+    }
+
+    [Theory]
+    [InlineData("Ayesha کا آرڈر", CommandKind.CustomerOrderLookup, "Ayesha")]
+    [InlineData("عائشہ کی آرڈر", CommandKind.CustomerOrderLookup, "عائشہ")]
+    [InlineData("Ayesha کا ٹریکنگ", CommandKind.TrackingLookup, "Ayesha")]
+    public void ParsesUrduScriptCustomerLookups(string message, CommandKind kind, string name)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.NotNull(parsed);
+        Assert.Equal(kind, parsed!.Kind);
+        Assert.Equal(name, parsed.Text);
+    }
+
+    [Theory]
+    [InlineData("Ayesha کا آرڈر ڈیلیور ہو گیا", "deliver")]
+    [InlineData("Ayesha کا آرڈر شپ ہو گیا", "ship")]
+    [InlineData("ayesha ka order bhej diya", "ship")]
+    public void ParsesFuzzyStatusUpdate_UrduWords(string message, string keyword)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.NotNull(parsed);
+        Assert.Equal(CommandKind.FuzzyStatusUpdate, parsed!.Kind);
+        Assert.Equal("Ayesha", parsed.Text, ignoreCase: true);
+        Assert.Equal(keyword, parsed.Text2);
+    }
+
+    [Theory]
+    [InlineData("receipt", null, null)]
+    [InlineData("Receipt 12", 12, null)]
+    [InlineData("receipt #12", 12, null)]
+    [InlineData("rasid 3", 3, null)]
+    [InlineData("invoice 7", 7, null)]
+    [InlineData("رسید 5", 5, null)]
+    [InlineData("receipt Ayesha", null, "Ayesha")]
+    [InlineData("Ayesha ki receipt", null, "Ayesha")]
+    [InlineData("📄 order receipt 4", 4, null)]
+    public void ParsesReceiptCommand(string message, int? number, string? name)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.NotNull(parsed);
+        Assert.Equal(CommandKind.Receipt, parsed!.Kind);
+        Assert.Equal(number, parsed.Number);
+        Assert.Equal(name, parsed.Text);
+    }
 }

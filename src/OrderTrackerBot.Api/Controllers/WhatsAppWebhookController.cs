@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Conversation;
 using OrderTrackerBot.Infrastructure.WhatsApp;
 
@@ -12,9 +13,11 @@ public class WhatsAppWebhookController : ControllerBase
     private readonly ConversationEngine _engine;
     private readonly WhatsAppOptions _options;
     private readonly ILogger<WhatsAppWebhookController> _logger;
+    private readonly IIssueReporter _issues;
 
-    public WhatsAppWebhookController(ConversationEngine engine, IOptions<WhatsAppOptions> options, ILogger<WhatsAppWebhookController> logger)
+    public WhatsAppWebhookController(ConversationEngine engine, IOptions<WhatsAppOptions> options, ILogger<WhatsAppWebhookController> logger, IIssueReporter issues)
     {
+        _issues = issues;
         _engine = engine;
         _options = options.Value;
         _logger = logger;
@@ -77,7 +80,8 @@ public class WhatsAppWebhookController : ControllerBase
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to process inbound WhatsApp message from {From}", from);
-                await _engine.SendSystemErrorAsync(from, ct);
+                await _issues.ReportAsync(IssueCodes.InboundMessageFailed, from, null, ex, ct);
+                await _engine.SendSystemErrorAsync(from, IssueCodes.InboundMessageFailed.Code, ct);
             }
         }
 
@@ -91,7 +95,8 @@ public class WhatsAppWebhookController : ControllerBase
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to process screenshot from {From}", from);
-                await _engine.SendSystemErrorAsync(from, ct);
+                await _issues.ReportAsync(IssueCodes.ScreenshotFailed, from, null, ex, ct);
+                await _engine.SendSystemErrorAsync(from, IssueCodes.ScreenshotFailed.Code, ct);
             }
         }
 
@@ -105,7 +110,8 @@ public class WhatsAppWebhookController : ControllerBase
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to process WhatsApp Flow submission from {From}", from);
-                await _engine.SendSystemErrorAsync(from, ct);
+                await _issues.ReportAsync(IssueCodes.FlowSubmissionFailed, from, null, ex, ct);
+                await _engine.SendSystemErrorAsync(from, IssueCodes.FlowSubmissionFailed.Code, ct);
             }
         }
 
@@ -119,6 +125,7 @@ public class WhatsAppWebhookController : ControllerBase
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to reply to unsupported {Type} message from {From}", type, from);
+                await _issues.ReportAsync(IssueCodes.UnsupportedMediaReplyFailed, from, $"media type: {type}", ex, ct);
             }
         }
 
