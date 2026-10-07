@@ -104,7 +104,10 @@ public partial class ConversationEngine
             return;
         }
 
-        if (await TryHandleBillingAsync(seller, session, ctx, message, ct))
+        // "reset account" itself is allowed past billing (above), so its YES/NO must be too — otherwise an
+        // expired-trial seller sees the paywall instead of the reset.
+        if (session.State != ConversationState.AwaitingResetConfirmation
+            && await TryHandleBillingAsync(seller, session, ctx, message, ct))
         {
             await PersistAsync(session, ctx, ct);
             return;

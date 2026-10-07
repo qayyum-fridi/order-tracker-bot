@@ -111,6 +111,24 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task ExpiredTrial_ResetAccountConfirmation_IsNotSwallowedByBilling()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db, new BillingOptions { PaymentNumber = "0300-0000000" }, "Kurti");
+        var seller = await db.Sellers.FirstAsync();
+        seller.TrialEndsAt = DateTime.UtcNow.AddDays(-1);
+        await db.SaveChangesAsync();
+
+        await engine.HandleIncomingMessageAsync(Phone, "reset account", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        seller = await db.Sellers.FirstAsync();
+        Assert.False(seller.OnboardingComplete);
+        Assert.Equal(0, await db.Products.CountAsync());
+        Assert.Contains(_sent, m => m.Contains("Account reset ho gaya"));
+    }
+
+    [Fact]
     public async Task WeightProducts_QuickAdd_AndOrderShowsPackTotal()
     {
         using var db = _dbFactory.CreateContext();
