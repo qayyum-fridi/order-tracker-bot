@@ -44,6 +44,9 @@ public interface IAudioTranscriber
     /// <summary>False when no transcription service is configured (voice notes then get the "send text" reply).</summary>
     bool IsConfigured { get; }
 
-    /// <summary>Returns null when transcription failed or produced no text.</summary>
-    Task<string?> TranscribeAsync(byte[] audio, string mimeType, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Returns null when transcription failed or produced no text. <paramref name="vocabulary"/> (the seller's customer, product and shop names)
+    /// is passed to the speech model as a hint so names are heard correctly; null/empty = no hint.
+    /// </summary>
+    Task<string?> TranscribeAsync(byte[] audio, string mimeType, IReadOnlyList<string>? vocabulary, CancellationToken cancellationToken = default);
 }

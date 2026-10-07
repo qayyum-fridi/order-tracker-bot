@@ -25,7 +25,26 @@ public class OpenAiAudioTranscriber : IAudioTranscriber
 
     public bool IsConfigured => !string.IsNullOrWhiteSpace(_options.ApiKey);
 
-    public async Task<string?> TranscribeAsync(byte[] audio, string mimeType, CancellationToken cancellationToken = default)
+    // The speech model reads at most ~224 tokens of prompt; the style hint comes first, names fill what is left.
+    private const int MaxPromptChars = 600;
+
+    internal static string BuildPrompt(string stylePrompt, IReadOnlyList<string>? vocabulary)
+    {
+        var prompt = stylePrompt ?? "";
+        if (vocabulary is null || vocabulary.Count == 0) return prompt;
+
+        var names = new List<string>();
+        var length = prompt.Length + " Names: ".Length;
+        foreach (var name in vocabulary.Select(v => v?.Trim()).Where(v => !string.IsNullOrEmpty(v)).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (length + name!.Length + 2 > MaxPromptChars) break;
+            names.Add(name);
+            length += name.Length + 2;
+        }
+        return names.Count == 0 ? prompt : $"{prompt} Names: {string.Join(", ", names)}.";
+    }
+
+    public async Task<string?> TranscribeAsync(byte[] audio, string mimeType, IReadOnlyList<string>? vocabulary, CancellationToken cancellationToken = default)
     {
         if (!IsConfigured) return null;
 
@@ -38,7 +57,8 @@ public class OpenAiAudioTranscriber : IAudioTranscriber
                 { new StringContent(_options.TranscriptionModel), "model" },
                 { new ByteArrayContent(audio), "file", $"voice.{extension}" }
             };
-            if (!string.IsNullOrWhiteSpace(_options.TranscriptionPrompt)) form.Add(new StringContent(_options.TranscriptionPrompt), "prompt");
+            var prompt = BuildPrompt(_options.TranscriptionPrompt, vocabulary);
+            if (!string.IsNullOrWhiteSpace(prompt)) form.Add(new StringContent(prompt), "prompt");
 
             using var request = new HttpRequestMessage(HttpMethod.Post, $"{_options.BaseUrl.TrimEnd('/')}/audio/transcriptions") { Content = form };
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.ApiKey);

@@ -157,6 +157,6 @@ public sealed class AiVoiceContext
     public List<string> RecentOrders { get; init; } = new();
     /// <summary>The seller's saved customers with their order history ("Hassan, 0300…, Lahore: 3 orders, last Order #12 Pending"), so a spoken name can be matched or recognised as new.</summary>
     public List<string> KnownCustomers { get; init; } = new();
-    /// <summary>The last message the bot sent, so a short spoken answer ("1500") can be tied to the question it answers.</summary>
-    public string? LastBotMessage { get; init; }
+    /// <summary>The last few messages in the chat, oldest first ("Bot: …" / "Seller: …"), so a short spoken answer ("1500") can be tied to the question it answers.</summary>
+    public List<string> RecentExchanges { get; init; } = new();
 }

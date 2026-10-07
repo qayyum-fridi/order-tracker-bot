@@ -557,7 +557,7 @@ public class MockupFeatureTests : IDisposable
         _media.Setup(m => m.DownloadAsync("voice-1", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
         var transcriber = new Mock<IAudioTranscriber>();
         transcriber.SetupGet(t => t.IsConfigured).Returns(true);
-        transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<CancellationToken>())).ReturnsAsync("delivery 200");
+        transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>())).ReturnsAsync("delivery 200");
         var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object);
 
         await engine.HandleAudioMessageAsync(Phone, "voice-1");
@@ -605,7 +605,7 @@ public class MockupFeatureTests : IDisposable
         _media.Setup(m => m.DownloadAsync("voice-ctx", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
         var transcriber = new Mock<IAudioTranscriber>();
         transcriber.SetupGet(t => t.IsConfigured).Returns(true);
-        transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<CancellationToken>())).ReturnsAsync(transcript);
+        transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>())).ReturnsAsync(transcript);
         return new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object);
     }
 
@@ -694,7 +694,7 @@ public class MockupFeatureTests : IDisposable
         _media.Setup(m => m.DownloadAsync("voice-ctx", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
         var transcriber = new Mock<IAudioTranscriber>();
         transcriber.SetupGet(t => t.IsConfigured).Returns(true);
-        transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<CancellationToken>())).ReturnsAsync(transcript);
+        transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>())).ReturnsAsync(transcript);
         return new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object);
     }
 
@@ -712,12 +712,69 @@ public class MockupFeatureTests : IDisposable
 
         await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
 
+        // A price change waits for YES: nothing is touched yet.
+        Assert.Equal(ConversationState.AwaitingVoiceConfirmation, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sent, m => m.Contains("Yeh karoon? Reply YES ya NO."));
+        Assert.Equal(1800m, (await db.OrderItems.AsNoTracking().FirstAsync(i => i.OrderId == order.Id)).UnitPrice);
+        await voice.HandleIncomingMessageAsync(Phone, "yes", default);
+
         Assert.Contains(seen!.RecentOrders, o => o.Contains($"Order #{order.Id}") && o.Contains("Sara") && o.Contains("1) Kurti x1"));
         Assert.Contains(seen.KnownCustomers, c => c.StartsWith("Sara,") && c.Contains("1 order") && c.Contains($"last Order #{order.Id}"));
         Assert.Equal(1500m, (await db.OrderItems.AsNoTracking().FirstAsync(i => i.OrderId == order.Id)).UnitPrice);
         Assert.Equal(1800m, (await db.Products.AsNoTracking().FirstAsync(p => p.Name == "Kurti")).Price); // the catalog price is only a default
         Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
         Assert.Contains(_sent, m => m.Contains("Samjha:") && m.Contains("price 1 = 1500"));
+    }
+
+    [Fact]
+    public async Task VoiceNote_RiskyActions_SayNo_ChangesNothing()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var order = await SaveSaraKurtiOrderAsync(engine, db);
+        var voice = VoiceEngine(db, "sara ke kurti ki price pandrah sau lagao");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { $"edit order {order.Id}", "price 1 = 1500", "done" } });
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+        await voice.HandleIncomingMessageAsync(Phone, "no", default);
+
+        Assert.Contains(_sent, m => m.Contains("kuch nahi badla"));
+        Assert.Equal(1800m, (await db.OrderItems.AsNoTracking().FirstAsync(i => i.OrderId == order.Id)).UnitPrice);
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+    }
+
+    [Fact]
+    public async Task VoiceNote_SequenceStops_WhenEditModeDidNotOpen()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var order = await SaveSaraKurtiOrderAsync(engine, db);
+        var voice = VoiceEngine(db, "order nau nau nau ki price pandrah sau lagao");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "edit order 9999", "price 1 = 1500", "done" } });
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+        await voice.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        Assert.Contains(_sent, m => m.Contains("baqi steps nahi chalaye"));
+        Assert.Equal(1800m, (await db.OrderItems.AsNoTracking().FirstAsync(i => i.OrderId == order.Id)).UnitPrice);
+        Assert.NotEqual(ConversationState.AwaitingOrderEdit, (await db.Sessions.FirstAsync()).State);
+    }
+
+    [Fact]
+    public async Task VoiceNote_SafeReads_RunWithoutConfirmation()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var voice = VoiceEngine(db, "aaj ke orders dikhao");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "orders today" } });
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        Assert.DoesNotContain(_sent, m => m.Contains("Yeh karoon?"));
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
     }
 
     [Fact]

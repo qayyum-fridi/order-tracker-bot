@@ -21,8 +21,10 @@ public partial class ConversationEngine
             return;
         }
 
+        var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
         var media = _media is null ? null : await _media.DownloadAsync(mediaId, ct);
-        var text = media is null ? null : await _transcriber.TranscribeAsync(media.Value.Bytes, media.Value.MimeType, ct);
+        var vocabulary = media is null ? null : await BuildVoiceVocabularyAsync(seller, ct);
+        var text = media is null ? null : await _transcriber.TranscribeAsync(media.Value.Bytes, media.Value.MimeType, vocabulary, ct);
         if (text is null)
         {
             if (_issues is not null)
@@ -34,7 +36,7 @@ public partial class ConversationEngine
             return;
         }
 
-        var (steps, question) = await InterpretVoiceAsync(fromPhoneNumber, text, ct);
+        var (steps, question) = await InterpretVoiceAsync(seller, text, ct);
         var heard = $"🎤 Maine suna: \"{text}\"";
         if (question is not null)
         {
@@ -46,8 +48,32 @@ public partial class ConversationEngine
 
         if (steps.Count != 1 || !string.Equals(steps[0], text, StringComparison.OrdinalIgnoreCase))
             heard += $"\n➡️ Samjha: {string.Join("  →  ", steps.Select(s => $"\"{s}\""))}";
+
+        // Money-changing or hard-to-reverse actions (price edit, cancel, status change...) wait for a YES before anything runs.
+        if (ShouldConfirmVoiceSteps(seller, steps))
+        {
+            var session = seller.Session!;
+            var ctx = SessionContextData.FromJson(session.ContextJson);
+            ctx.PendingVoiceSteps = steps.ToList();
+            SetState(session, ConversationState.AwaitingVoiceConfirmation);
+            await _sender.SendTextMessageAsync(fromPhoneNumber, $"{heard}\n\n⚠️ Yeh karoon? Reply YES ya NO.", ct);
+            await PersistAsync(session, ctx, ct);
+            return;
+        }
+
         await _sender.SendTextMessageAsync(fromPhoneNumber, heard, ct);
-        foreach (var step in steps) await HandleIncomingMessageAsync(fromPhoneNumber, step, ct);
+        await RunVoiceStepsAsync(fromPhoneNumber, steps, ct);
+    }
+
+    /// <summary>The seller's own words (shop, customers, products) given to the speech model so names are heard correctly.</summary>
+    private async Task<List<string>> BuildVoiceVocabularyAsync(Seller seller, CancellationToken ct)
+    {
+        var names = new List<string>();
+        if (!string.IsNullOrWhiteSpace(seller.BusinessName)) names.Add(seller.BusinessName);
+        names.AddRange(await _db.Customers.Where(c => c.SellerId == seller.Id && c.DeletedAt == null)
+            .OrderByDescending(c => c.Id).Select(c => c.Name).Take(40).ToListAsync(ct));
+        names.AddRange((await LoadCatalogAsync(seller, ct)).Take(30).Select(c => c.Label));
+        return names;
     }
 
     /// <summary>
@@ -55,9 +81,8 @@ public partial class ConversationEngine
     /// ("pehla wala" -> "1", "haan kar do" -> "yes", "mere paas 4 lawn suit 3500" -> "Lawn Suit - 3500"). The rewrite still goes through the
     /// normal deterministic engine; the transcript itself is used when the AI is unavailable or the rewrite drops a number.
     /// </summary>
-    private async Task<(IReadOnlyList<string> Steps, string? Question)> InterpretVoiceAsync(string fromPhoneNumber, string transcript, CancellationToken ct)
+    private async Task<(IReadOnlyList<string> Steps, string? Question)> InterpretVoiceAsync(Seller seller, string transcript, CancellationToken ct)
     {
-        var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
         var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
         var catalog = await LoadCatalogAsync(seller, ct);
         var recent = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
@@ -67,9 +92,10 @@ public partial class ConversationEngine
         var knownCustomers = customers
             .OrderByDescending(c => c.Orders.Select(o => o.Id).DefaultIfEmpty(0).Max()).ThenByDescending(c => c.Id).Take(40)
             .Select(DescribeCustomerForVoice).ToList();
-        var lastBotMessage = await _db.MessageLogs
-            .Where(m => m.Phone == fromPhoneNumber && m.Direction == "outbound").OrderByDescending(m => m.Id)
-            .Select(m => m.RawText).FirstOrDefaultAsync(ct);
+        var lastMessages = await _db.MessageLogs.Where(m => m.Phone == seller.WhatsAppPhoneNumber)
+            .OrderByDescending(m => m.Id).Take(6).ToListAsync(ct);
+        var exchanges = lastMessages.AsEnumerable().Reverse()
+            .Select(m => $"{(m.Direction == "outbound" ? "Bot" : "Seller")}: {(m.RawText.Length > 300 ? m.RawText[..300] : m.RawText)}").ToList();
 
         var result = await _ai.InterpretVoiceAsync(new AiVoiceContext
         {
@@ -78,7 +104,7 @@ public partial class ConversationEngine
             CatalogNames = catalog.Select(c => c.Label).ToList(),
             RecentOrders = recent.Select(DescribeOrderForVoice).ToList(),
             KnownCustomers = knownCustomers,
-            LastBotMessage = lastBotMessage is { Length: > 600 } ? lastBotMessage[..600] : lastBotMessage
+            RecentExchanges = exchanges
         }, transcript, ct);
 
         if (result?.Question is { } question && result.Steps.Count == 0) return (Array.Empty<string>(), question);
@@ -136,6 +162,7 @@ public partial class ConversationEngine
                 or ConversationState.AwaitingCodCollectedConfirmation or ConversationState.AwaitingResetConfirmation or ConversationState.AwaitingDeleteCustomerConfirmation
                 or ConversationState.AwaitingLoyaltyDiscountConfirmation or ConversationState.AwaitingMultiOrderConfirmation
                 or ConversationState.AwaitingSupportReplyConfirmation => "Waiting for a yes or no confirmation.",
+            ConversationState.AwaitingVoiceConfirmation => "Waiting for yes or no on the actions the bot just listed from the seller's previous voice note.",
             ConversationState.AwaitingClarificationChoice or ConversationState.AwaitingOrderGroupingChoice or ConversationState.AwaitingRuntimeFilterChoice
                 or ConversationState.AwaitingBroadcastAudienceChoice or ConversationState.AwaitingBroadcastChannelChoice or ConversationState.AwaitingReceiptOrderChoice
                 or ConversationState.AwaitingSupportQueryPick => "Waiting for a numbered choice.",

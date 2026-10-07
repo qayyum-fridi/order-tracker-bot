@@ -184,7 +184,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "Then rewrite it into the exact text the seller would have TYPED to the bot, in Latin script (Roman Urdu / English), for this situation: " +
             $"{context.Situation}\nSeller's catalog: {catalog}\nSeller's latest orders (use these to resolve \"Hassan ka order\", \"last order\", \"suit ki price\"):\n{orders}\n" +
             $"Seller's saved customers (name, phone, order history):\n{customers}\n" +
-            (string.IsNullOrWhiteSpace(context.LastBotMessage) ? "" : $"The bot's last message to the seller (a short spoken answer usually replies to it):\n{context.LastBotMessage}\n") + "\n" +
+            (context.RecentExchanges.Count == 0 ? "" : $"The last messages in this chat, oldest first (a short spoken answer usually replies to the last bot message):\n{string.Join("\n", context.RecentExchanges)}\n") + "\n" +
             "Rules: (1) Keep every digit of every number, price and phone; turn spoken number words into digits (char = 4, ek = 1, teen hazaar paanch sau = 3500). " +
             "(2) If a yes/no answer is expected and the transcript clearly agrees (haan, ji, theek hai, kar do) answer exactly \"yes\"; if it clearly refuses " +
             "(nahi, ruko, mat karo) answer exactly \"no\". (3) If a numbered choice is expected, answer only the option number — from a number word " +

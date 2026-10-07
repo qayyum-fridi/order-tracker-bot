@@ -192,6 +192,11 @@ shared-state action: confirm with the user and get SSH/host details first.
   understand meaning rather than transliterate sounds. The order analysis also has an `add_products` intent (`AiMessageAnalysis.NewProducts`): a seller naming
   products they sell ("teen chadar aur do dupatte naye products hain") is not an order — priced ones are saved, the rest get a "send the price" prompt
   (`HandleNewProductsAsync`; also reached from the onboarding add-product step when the text has no buyer phone).
+  The voice step sees the seller's last 5 orders, saved customers with order history and the last 6 chat messages, and returns typed *steps* (e.g.
+  `edit order 12`, `price 1 = 1500`, `done`) or one follow-up *question* when a detail wasn't said. The transcription call gets the seller's customer/product/shop
+  names as a hint (`BuildVoiceVocabularyAsync`). For an idle seller, risky steps (`RiskyVoiceCommands`, or edits inside `edit order`) are parked in
+  `PendingVoiceSteps` / `AwaitingVoiceConfirmation` until YES (`ConversationEngine.VoiceConfirm.cs`, checked at the top of `HandleIncomingMessageAsync`);
+  a sequence stops if `edit order N` did not open edit mode.
 - Customer corrections: "Sara ka phone 0300…", "Sara ka address …", "Bilal ki city …", "customer Sara name Sara Khan" (`CommandKind.CustomerUpdate`,
   `ConversationEngine.CustomerUpdate.cs`). Questions ("… kya hai") and non-numeric phones are not treated as updates; an ambiguous name
   lists the matches instead of guessing; each change is undoable (`ActionType.CustomerUpdated`).

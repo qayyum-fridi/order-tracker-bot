@@ -67,6 +67,7 @@ public partial class ConversationEngine
         _turnSeller = null;
         _turnCtx = null;
         _stockWarnings.Clear();
+        if (await TryHandleVoiceConfirmationAsync(fromPhoneNumber, rawMessage, ct)) return;
         await HandleIncomingCoreAsync(fromPhoneNumber, rawMessage, ct);
         await FlushStockWarningsAsync(fromPhoneNumber, ct);
         await TrySendShortcutBarAsync(fromPhoneNumber, ct);

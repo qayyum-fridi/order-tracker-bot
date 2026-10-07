@@ -49,19 +49,20 @@ public class VoiceNoteTests
     {
         var api = new FakeTranscriptionApi(HttpStatusCode.OK, "{\"text\":\"  Ayesha 2 lawn suit 03001234567  \"}");
 
-        var text = await Transcriber(api).TranscribeAsync(new byte[] { 1, 2, 3 }, "audio/ogg; codecs=opus");
+        var text = await Transcriber(api).TranscribeAsync(new byte[] { 1, 2, 3 }, "audio/ogg; codecs=opus", new[] { "Hassan Ali", "Khaddar Chadar" });
 
         Assert.Equal("Ayesha 2 lawn suit 03001234567", text);
         Assert.EndsWith("/audio/transcriptions", api.Url);
         Assert.Contains("whisper-1", api.RequestBody);
         Assert.Contains("voice.ogg", api.RequestBody);
         Assert.Contains("Roman Urdu", api.RequestBody); // the style prompt
+        Assert.Contains("Names: Hassan Ali, Khaddar Chadar.", api.RequestBody); // the seller's own names as a hint
     }
 
     [Fact]
     public async Task Transcriber_WithoutKeyOrOnError_ReturnsNull()
     {
         Assert.False(Transcriber(new FakeTranscriptionApi(HttpStatusCode.OK, "{}"), apiKey: "").IsConfigured);
-        Assert.Null(await Transcriber(new FakeTranscriptionApi(HttpStatusCode.InternalServerError, "oops")).TranscribeAsync(new byte[] { 1 }, "audio/ogg"));
+        Assert.Null(await Transcriber(new FakeTranscriptionApi(HttpStatusCode.InternalServerError, "oops")).TranscribeAsync(new byte[] { 1 }, "audio/ogg", null));
     }
 }

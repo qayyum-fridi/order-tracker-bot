@@ -36,7 +36,9 @@ public enum ConversationState
     OnboardingStartChoice,
     AwaitingLanguageChoice,
     AwaitingPaymentMethodInput,
-    AwaitingOrderEdit
+    AwaitingOrderEdit,
+    /// <summary>Voice note read as risky actions (price edit, cancel, status change...); waiting for YES/NO before running them.</summary>
+    AwaitingVoiceConfirmation
 }
 
 public enum OrderStatus

@@ -79,6 +79,8 @@ public sealed class SessionContextData
     public int? EditOrderId { get; set; }
     public bool EditSnapshotLogged { get; set; }
     public decimal? LoyaltyDiscountPercent { get; set; }
+    /// <summary>Typed steps read from a voice note that are waiting for YES (risky actions), in the order they will run.</summary>
+    public List<string>? PendingVoiceSteps { get; set; }
     public string? SelectedPlan { get; set; }
     /// <summary>Support query whose drafted reply is awaiting YES/EDIT.</summary>
     public int? SupportQueryId { get; set; }
