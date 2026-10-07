@@ -755,12 +755,14 @@ public class MockupFeatureTests : IDisposable
         var voice = VoiceEngine(db, "haan kar do");
         _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiVoiceInterpretation { Steps = { "yes" }, Actions = { "yes" } }); // nothing is waiting for a yes
+        AiReturns(new AiMessageAnalysis { Intent = "unclear" });
         _sent.Clear();
 
         await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
 
+        // The invented "yes" is not run: the plain transcript went through the normal engine instead (it was not understood there either).
         Assert.DoesNotContain(_sent, m => m.Contains("Samjha"));
-        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sent, m => m.Contains("Maine suna: \"haan kar do\""));
     }
 
     [Fact]
