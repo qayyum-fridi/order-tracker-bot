@@ -199,6 +199,9 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "(nahi, ruko, mat karo) answer exactly \"no\". (3) If a numbered choice is expected, answer only the option number — from a number word " +
             "(pehla/first/ek = 1, dusra/second/do = 2) or from the meaning of the option the seller refers to. (4) When a product mentioned clearly is a catalog " +
             "product, use its exact catalog name. (5) When products are being added to the catalog, write each as \"Name - price\" (e.g. \"Lawn Suit - 3500\"); " +
+            "if the seller also gave the cost they paid, the quantity they have, a colour/size or another attribute, append each as a comma-separated part: " +
+            "in the form \"<Name> - <sale price>, cost <n>, stock <n>, color <c>, size <s>, <attribute>: <value>\" using only the parts the seller said " +
+            "(the number after the dash is the SALE price; \"cost\"/\"kharid\" is what it cost them; never put a number or attribute the seller did not say); " +
             "a seller saying what they stock is adding a product, never placing an order; when they gave no prices, write one clean sentence in Roman Urdu " +
             "built ONLY from the product names and quantities the seller actually said, in the form \"<qty> <name>, <qty> <name> naye products hain\" " +
             "(the shape is a pattern: never output product names or numbers that are not in the transcript or the last chat messages — if the seller only " +

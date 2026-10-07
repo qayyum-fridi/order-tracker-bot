@@ -723,6 +723,40 @@ public class MockupFeatureTests : IDisposable
         Assert.Contains(_sent, m => m.Contains("Cotton Suit") && m.Contains("price bhejein"));
     }
 
+    [Fact]
+    public async Task ProductWithCostStockAndAttributes_SavesAllOfThem_AndEchoesWhatWasSaved()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Polo Shirt - 500, cost 300, stock 10, color white, fabric: cotton", default);
+
+        var product = await db.Products.AsNoTracking().SingleAsync(p => p.Name == "Polo Shirt");
+        Assert.Equal(500, product.Price);
+        Assert.Equal(300, product.CostPrice);
+        Assert.Equal(10, product.StockQty);
+        Assert.Equal("white", product.Color);
+        Assert.Contains("cotton", product.AttributesJson);
+        Assert.Contains(_sent, m => m.Contains("cost Rs.300") && m.Contains("stock 10") && m.Contains("fabric: cotton"));
+
+        // Sending it again only changes what was written.
+        await engine.HandleIncomingMessageAsync(Phone, "Polo Shirt - 520, cost 310", default);
+        product = await db.Products.AsNoTracking().SingleAsync(p => p.Name == "Polo Shirt");
+        Assert.Equal(520, product.Price);
+        Assert.Equal(310, product.CostPrice);
+        Assert.Equal(10, product.StockQty);
+        Assert.Equal("white", product.Color);
+    }
+
+    [Theory]
+    [InlineData("Polo Shirt - 500, cost 300", true)]
+    [InlineData("Polo Shirt - 500, cost price 300, qty 10", true)]
+    [InlineData("Polo Shirt - 500, delivery 250", false)]
+    [InlineData("Ayesha - 500, lahore", false)]
+    [InlineData("Polo Shirt - 500, cost lots", false)]
+    public void ProductLine_DetailsAreOnlyAcceptedWhenEveryPartIsKnown(string line, bool isProduct) =>
+        Assert.Equal(isProduct, CommandParser.TryParseProductLine(line, out ProductLine? _));
+
     [Theory]
     [InlineData("suit 5000", false)]
     [InlineData("suit 5000 bas ho gaya", true)]

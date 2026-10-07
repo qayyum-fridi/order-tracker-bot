@@ -166,10 +166,10 @@ public partial class ConversationEngine
         var products = await _db.Products.AsNoTracking().Where(p => p.SellerId == seller.Id).OrderBy(p => p.Id).ToListAsync(ct);
         var sheet = new ExportSheet("Catalog", new[]
         {
-            Col("Product", typeof(string)), Col("Price", typeof(decimal)), Col("Unit", typeof(string)), Col("Pack size", typeof(decimal)),
+            Col("Product", typeof(string)), Col("Price", typeof(decimal)), Col("Cost price", typeof(decimal)), Col("Unit", typeof(string)), Col("Pack size", typeof(decimal)),
             Col("Category", typeof(string)), Col("Size", typeof(string)), Col("Color", typeof(string)), Col("SKU", typeof(string)),
             Col("Stock", typeof(int)), Col("Active", typeof(string)), Col("Added on", typeof(DateTime))
-        }, products.Select(p => new object?[] { p.Name, p.Price, p.UnitType, p.UnitQty, p.Category, p.Size, p.Color, p.Sku,
+        }, products.Select(p => new object?[] { p.Name, p.Price, p.CostPrice, p.UnitType, p.UnitQty, p.Category, p.Size, p.Color, p.Sku,
             p.StockQty, p.IsActive ? "Yes" : "No", local(p.CreatedAt) }).ToList());
         return ("Catalog", new List<ExportSheet> { sheet });
     }

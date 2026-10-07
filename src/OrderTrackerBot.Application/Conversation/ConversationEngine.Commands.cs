@@ -588,9 +588,9 @@ public partial class ConversationEngine
         var (product, updated) = await UpsertProductAsync(seller, line, ct);
         var label = Formatters.ProductLabel(product);
         await ReplyAsync(seller,
-            updated ? $"✅ {label} price updated: {Formatters.Money(product.Price)}"
-            : line.UnitType != "piece" || line.UnitQty != 1 ? $"✅ Added: {label} - {Formatters.Money(product.Price)}"
-            : $"✅ {label} - {Formatters.Money(product.Price)} catalog mein add ho gaya.\n\nAur add karein (Naam - price), ya \"catalog\" likhein.", ct);
+            updated ? $"✅ {label} price updated: {Formatters.Money(product.Price)}{ProductDetailsText(product)}"
+            : line.UnitType != "piece" || line.UnitQty != 1 ? $"✅ Added: {label} - {Formatters.Money(product.Price)}{ProductDetailsText(product)}"
+            : $"✅ {label} - {Formatters.Money(product.Price)}{ProductDetailsText(product)} catalog mein add ho gaya.\n\nAur add karein (Naam - price), ya \"catalog\" likhein.", ct);
     }
 
     /// <summary>
@@ -636,7 +636,7 @@ public partial class ConversationEngine
         {
             if (!CommandParser.TryParseProductLine(line, out ProductLine? parsed)) continue;
             var (product, updated) = await UpsertProductAsync(seller, parsed!, ct);
-            results.Add($"{results.Count + 1} {Formatters.ProductLabel(product)} - {Formatters.Money(product.Price)}{(updated ? " (updated)" : "")}");
+            results.Add($"{results.Count + 1} {Formatters.ProductLabel(product)} - {Formatters.Money(product.Price)}{ProductDetailsText(product)}{(updated ? " (updated)" : "")}");
         }
         await ReplyAsync(seller, $"✅ {results.Count} products save ho gaye:\n\n{string.Join("\n", results)}\n\n\"catalog\" likh kar poori list dekhein.", ct);
     }
@@ -656,7 +656,7 @@ public partial class ConversationEngine
         {
             if (!CommandParser.TryParseProductLine(line, out ProductLine? parsed)) continue;
             var (product, updated) = await UpsertProductAsync(seller, parsed!, ct);
-            results.Add($"{results.Count + 1} {Formatters.ProductLabel(product)} - {Formatters.Money(product.Price)}{(updated ? " (updated)" : "")}");
+            results.Add($"{results.Count + 1} {Formatters.ProductLabel(product)} - {Formatters.Money(product.Price)}{ProductDetailsText(product)}{(updated ? " (updated)" : "")}");
         }
 
         if (results.Count == 0)
@@ -679,13 +679,57 @@ public partial class ConversationEngine
         {
             existing.Price = line.Price;
             existing.IsActive = true;
+            ApplyProductExtras(existing, line.Extras);
             return (existing, true);
         }
 
         var product = new Product { SellerId = seller.Id, Name = line.Name, Price = line.Price, UnitType = line.UnitType, UnitQty = line.UnitQty };
+        ApplyProductExtras(product, line.Extras);
         _db.Products.Add(product);
         await _db.SaveChangesAsync(ct);
         return (product, false);
+    }
+
+    /// <summary>Cost, stock and attributes the seller wrote after the price; only what was written is changed.</summary>
+    private static void ApplyProductExtras(Product product, ProductExtras? extras)
+    {
+        if (extras is null) return;
+        if (extras.Cost is { } cost) product.CostPrice = cost;
+        if (extras.Stock is { } stock) product.StockQty = stock;
+        if (extras.Category is not null) product.Category = extras.Category;
+        if (extras.Size is not null) product.Size = extras.Size;
+        if (extras.Color is not null) product.Color = extras.Color;
+        if (extras.Sku is not null) product.Sku = extras.Sku;
+        if (extras.Attributes is { Count: > 0 } added)
+        {
+            var merged = ProductAttributes(product);
+            foreach (var (name, value) in added) merged[name] = value;
+            product.AttributesJson = System.Text.Json.JsonSerializer.Serialize(merged);
+        }
+    }
+
+    private static Dictionary<string, string> ProductAttributes(Product product)
+    {
+        try
+        {
+            return string.IsNullOrWhiteSpace(product.AttributesJson)
+                ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(product.AttributesJson) ?? new(), StringComparer.OrdinalIgnoreCase);
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    /// <summary>" (cost Rs.300, stock 10, fabric: cotton)" for the seller's confirmation; color/size are already in the product label. Seller-only text.</summary>
+    private static string ProductDetailsText(Product product)
+    {
+        var parts = new List<string>();
+        if (product.CostPrice is { } cost) parts.Add($"cost {Formatters.Money(cost)}");
+        if (product.StockQty is { } stock) parts.Add($"stock {stock}");
+        parts.AddRange(ProductAttributes(product).Select(a => $"{a.Key}: {a.Value}"));
+        return parts.Count == 0 ? "" : $" ({string.Join(", ", parts)})";
     }
 
     private async Task HandleDeleteProductAsync(Seller seller, string name, CancellationToken ct)

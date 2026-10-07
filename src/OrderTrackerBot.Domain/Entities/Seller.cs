@@ -63,6 +63,10 @@ public class Product
     public string? Color { get; set; }
     public string? Sku { get; set; }
     public int? StockQty { get; set; }
+    /// <summary>What the seller paid for one listing (seller-only: never shown to buyers or on receipts).</summary>
+    public decimal? CostPrice { get; set; }
+    /// <summary>Seller-defined extra attributes ("fabric": "cotton") as a JSON object of name -> value; Color/Size/Category/Sku have their own columns.</summary>
+    public string? AttributesJson { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

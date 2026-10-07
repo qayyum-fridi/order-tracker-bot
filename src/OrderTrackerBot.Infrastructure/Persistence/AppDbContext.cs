@@ -53,6 +53,7 @@ public class AppDbContext : DbContext, IAppDbContext
         modelBuilder.Entity<Product>(e =>
         {
             e.Property(p => p.Price).HasColumnType("decimal(18,2)");
+            e.Property(p => p.CostPrice).HasColumnType("decimal(18,2)");
             e.Property(p => p.UnitQty).HasColumnType("decimal(18,3)");
             e.Property(p => p.UnitType).HasMaxLength(20);
             e.HasOne(p => p.Seller).WithMany(s => s.Products).HasForeignKey(p => p.SellerId).OnDelete(DeleteBehavior.Cascade);

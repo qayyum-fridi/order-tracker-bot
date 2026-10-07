@@ -91,7 +91,11 @@ public sealed record ExportRequest(IReadOnlyList<string> Datasets, string? Perio
 public sealed record OrderEditInstruction(string Kind, int? Item = null, int? Quantity = null, decimal? Amount = null, string? Text = null);
 
 /// <summary>A catalog line: "Lawn Suit - 3500" or "Sugar 5 kg - 500" (unit type + pack size split off the name).</summary>
-public sealed record ProductLine(string Name, decimal Price, string UnitType, decimal UnitQty);
+public sealed record ProductLine(string Name, decimal Price, string UnitType, decimal UnitQty, ProductExtras? Extras = null);
+
+/// <summary>Extra facts written after the price: "Polo Shirt - 500, cost 300, stock 10, color white, fabric: cotton".</summary>
+public sealed record ProductExtras(decimal? Cost, int? Stock, string? Category, string? Size, string? Color, string? Sku,
+    IReadOnlyDictionary<string, string>? Attributes);
 
 /// <summary>
 /// A deterministic command: fixed/near-fixed syntax that is answered by a plain DB
@@ -481,10 +485,68 @@ public static class CommandParser
         return ok;
     }
 
+    // "Polo Shirt - 500, cost 300, stock 10": the first number is the sale price, the rest are comma/semicolon/pipe separated details.
+    private static readonly Regex ProductWithDetails = new(@"^([^\d,;:|\n]{2,50}?)\s*[-–=]\s*(?:rs\.?\s*)?(\d{1,7}(?:\.\d+)?)\s*[,;|]\s*(.+)$", Opts);
+    private static readonly Regex KnownDetail = new(
+        @"^(?<key>cost price|purchase price|kharid price|buying price|cost|purchase|kharid|khareed|stock|quantity|qty|tadad|maal|colour|color|rang|size|category|sku)\b\s*[:=]?\s*(?<val>.+)$", Opts);
+    private static readonly Regex AttributeDetail = new(@"^(?<key>[^\d:=]{2,30}?)\s*:\s*(?<val>.+)$", Opts);
+
+    private static bool TryParseProductDetails(string rest, out ProductExtras? extras)
+    {
+        extras = null;
+        decimal? cost = null; int? stock = null;
+        string? category = null, size = null, color = null, sku = null;
+        Dictionary<string, string>? attributes = null;
+        var any = false;
+
+        foreach (var part in rest.Split(new[] { ',', ';', '|' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (KnownDetail.Match(part) is { Success: true } known)
+            {
+                var key = known.Groups["key"].Value.ToLowerInvariant();
+                var value = known.Groups["val"].Value.Trim();
+                var number = Regex.Match(value.Replace(",", ""), @"^(?:rs\.?\s*)?(\d{1,7})(?:\.\d+)?$", RegexOptions.IgnoreCase);
+                switch (key)
+                {
+                    case "cost" or "cost price" or "purchase" or "purchase price" or "kharid" or "khareed" or "kharid price" or "buying price":
+                        if (!number.Success) return false;
+                        cost = decimal.Parse(Regex.Match(value.Replace(",", ""), @"\d+(?:\.\d+)?").Value, System.Globalization.CultureInfo.InvariantCulture);
+                        break;
+                    case "stock" or "qty" or "quantity" or "tadad" or "maal":
+                        if (!number.Success) return false;
+                        stock = int.Parse(number.Groups[1].Value);
+                        break;
+                    case "color" or "colour" or "rang": color = value; break;
+                    case "size": size = value; break;
+                    case "category": category = value; break;
+                    default: sku = value; break;
+                }
+            }
+            else if (AttributeDetail.Match(part) is { Success: true } attribute)
+            {
+                // Any other detail must be written "name: value" so ordinary words are never mistaken for an attribute.
+                (attributes ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))[attribute.Groups["key"].Value.Trim()] = attribute.Groups["val"].Value.Trim();
+            }
+            else return false;
+            any = true;
+        }
+
+        if (!any) return false;
+        extras = new ProductExtras(cost, stock, category, size, color, sku, attributes);
+        return true;
+    }
+
     public static bool TryParseProductLine(string line, out ProductLine? product)
     {
         product = null;
         var text = line.Trim();
+
+        var detailed = ProductWithDetails.Match(text);
+        if (detailed.Success && TryParseProductDetails(detailed.Groups[3].Value, out var extras))
+        {
+            product = new ProductLine(detailed.Groups[1].Value.Trim(), decimal.Parse(detailed.Groups[2].Value), "piece", 1, extras);
+            return true;
+        }
         var m = UnitProductLine.Match(text);
         if (m.Success && NormalizeUnit(m.Groups[3].Value) is { } unit)
         {

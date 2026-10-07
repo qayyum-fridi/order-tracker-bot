@@ -234,8 +234,8 @@ public partial class ConversationEngine
                     await _db.SaveChangesAsync(ct);
                     var total = await _db.Products.CountAsync(p => p.SellerId == seller.Id && p.IsActive, ct);
                     var summary = added.Count == 1
-                        ? $"✅ Add ho gaya: {Formatters.ProductLabel(added[0])} - {Formatters.Money(added[0].Price)}"
-                        : $"✅ {added.Count} products add ho gaye:\n" + string.Join("\n", added.Select(p => $"• {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}"));
+                        ? $"✅ Add ho gaya: {Formatters.ProductLabel(added[0])} - {Formatters.Money(added[0].Price)}{ProductDetailsText(added[0])}"
+                        : $"✅ {added.Count} products add ho gaye:\n" + string.Join("\n", added.Select(p => $"• {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}{ProductDetailsText(p)}"));
                     await SendAddProductChoicesAsync(seller, $"{summary}\n\nCatalog mein ab {total} product{(total == 1 ? "" : "s")} hain.", ct);
                     return;
                 }

@@ -203,4 +203,9 @@ shared-state action: confirm with the user and get SSH/host details first.
 - Customer corrections: "Sara ka phone 0300…", "Sara ka address …", "Bilal ki city …", "customer Sara name Sara Khan" (`CommandKind.CustomerUpdate`,
   `ConversationEngine.CustomerUpdate.cs`). Questions ("… kya hai") and non-numeric phones are not treated as updates; an ambiguous name
   lists the matches instead of guessing; each change is undoable (`ActionType.CustomerUpdated`).
+- Product details: `Polo Shirt - 500, cost 300, stock 10, color white, fabric: cotton` (`CommandParser.TryParseProductLine`; the first number is the sale price, parts are
+  comma/`;`/`|` separated; only cost/stock/color/size/category/sku keywords and `name: value` attributes are accepted, anything else is not a product line).
+  Saved on `Product.CostPrice` (seller-only: never on receipts or the shared catalog), `StockQty` (starts the stock tracking), and `AttributesJson` (custom attributes);
+  the confirmation echoes what was saved. The catalog export has a "Cost price" column. New columns (`Products.CostPrice`, `Products.AttributesJson`) are added on Sqlite by the
+  patcher — **no SQL Server migration yet, generate one**. No profit report yet (it would need the cost copied onto `OrderItem` at order time).
 - The WhatsApp list body (help) must stay ≤ 1024 chars — a test enforces it; keep `HelpText` curated rather than exhaustive.
