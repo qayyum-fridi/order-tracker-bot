@@ -1,6 +1,9 @@
 namespace OrderTrackerBot.Application.Abstractions;
 
-public sealed record ReceiptLine(string Name, int Quantity, decimal UnitPrice, decimal LineTotal);
+public sealed record ReceiptLine(string Name, int Quantity, decimal UnitPrice, decimal LineTotal, string? Details = null);
+
+/// <summary>A seller-defined (public) custom field of the order, shown under the order details.</summary>
+public sealed record ReceiptField(string Name, string Value);
 
 /// <summary>Everything a printed order receipt shows. Dates are already in the seller's local time.</summary>
 public sealed record ReceiptData(
@@ -27,7 +30,8 @@ public sealed record ReceiptData(
     byte[]? Logo = null,
     byte[]? Banner = null,
     decimal DeliveryCharge = 0,
-    decimal AmountPaid = 0);
+    decimal AmountPaid = 0,
+    IReadOnlyList<ReceiptField>? Fields = null);
 
 public interface IReceiptPdfGenerator
 {

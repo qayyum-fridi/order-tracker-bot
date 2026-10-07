@@ -1,3 +1,4 @@
+using OrderTrackerBot.Application.Time;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
@@ -149,6 +150,12 @@ public partial class ConversationEngine
             case ActionType.CustomerUpdated:
                 await UndoCustomerUpdateAsync(seller, last, ct);
                 return;
+            case ActionType.CustomFieldChanged:
+                await UndoCustomFieldChangeAsync(seller, last, ct);
+                return;
+            case ActionType.CustomFieldRemoved:
+                await UndoCustomFieldRemovedAsync(seller, last, ct);
+                return;
             case ActionType.ProductPriceChanged:
             {
                 using var doc = JsonDocument.Parse(last.PayloadJson);
@@ -288,7 +295,7 @@ public partial class ConversationEngine
             $"🔍 {order.Customer?.Name}'s latest order:\n\n" +
             $"{Formatters.ItemsSummary(order)} - {Formatters.Money(order.Total)}\n" +
             $"Status: {Formatters.Status(order.Status)}\n" +
-            $"Ordered: {order.CreatedAt:ddd, hh:mm tt}\n" +
+            $"Ordered: {SellerClock.ToLocal(seller.TimeZoneId, order.CreatedAt):dd MMM yyyy, hh:mm tt}\n" +
             $"Phone: {order.Customer?.Phone}\n" +
             $"Address: {order.Customer?.Address}", ct);
     }
@@ -418,6 +425,8 @@ public partial class ConversationEngine
         _db.MerchantFeedbacks.RemoveRange(await _db.MerchantFeedbacks.Where(f => f.SellerId == seller.Id).ToListAsync(ct));
         _db.CustomerFeedbacks.RemoveRange(await _db.CustomerFeedbacks.Where(f => f.SellerId == seller.Id).ToListAsync(ct));
         _db.SellerBrandings.RemoveRange(await _db.SellerBrandings.Where(b => b.SellerId == seller.Id).ToListAsync(ct));
+        _db.CustomFieldValues.RemoveRange(await _db.CustomFieldValues.IgnoreQueryFilters().Where(v => v.SellerId == seller.Id).ToListAsync(ct));
+        _db.CustomFields.RemoveRange(await _db.CustomFields.IgnoreQueryFilters().Where(f => f.SellerId == seller.Id).ToListAsync(ct));
 
         seller.BusinessName = null;
         seller.OnboardingComplete = false;

@@ -32,6 +32,20 @@ public class ReceiptPdfTests
         Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(pdf, 0, 5));
     }
 
+    [Fact]
+    public void Generate_WithCustomFieldDetailsAndOrderFields_Works()
+    {
+        var data = Sample(paid: true) with
+        {
+            Lines = new[] { new ReceiptLine("Kurti", 1, 1800, 1800, "Fabric: Cotton · Season: Winter"), new ReceiptLine("Lawn Suit", 1, 3500, 3500) },
+            Fields = new[] { new ReceiptField("Gift Note", "Eid card"), new ReceiptField("تحفہ", "ہاں") }
+        };
+
+        var pdf = new ReceiptPdfGenerator().Generate(data);
+
+        Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(pdf, 0, 5));
+    }
+
     // 1x1 PNG
     internal static readonly byte[] TinyPng = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
 

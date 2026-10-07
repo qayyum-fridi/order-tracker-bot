@@ -36,7 +36,8 @@ public enum ConversationState
     OnboardingStartChoice,
     AwaitingLanguageChoice,
     AwaitingPaymentMethodInput,
-    AwaitingOrderEdit
+    AwaitingOrderEdit,
+    AwaitingCustomFieldChoice
 }
 
 public enum OrderStatus
@@ -84,7 +85,9 @@ public enum ActionType
     OrderCancelled,
     ProductPriceChanged,
     OrderEdited,
-    CustomerUpdated
+    CustomerUpdated,
+    CustomFieldChanged,
+    CustomFieldRemoved
 }
 
 public enum SubscriptionPlan

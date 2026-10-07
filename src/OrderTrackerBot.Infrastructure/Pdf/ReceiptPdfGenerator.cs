@@ -127,7 +127,11 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
                     foreach (var item in r.Lines)
                     {
                         static IContainer Body(IContainer c) => c.BorderBottom(0.5f).BorderColor(Line).PaddingVertical(4);
-                        table.Cell().Element(Body).Text(item.Name);
+                        table.Cell().Element(Body).Column(nameCol =>
+                        {
+                            nameCol.Item().Text(item.Name);
+                            if (!string.IsNullOrWhiteSpace(item.Details)) nameCol.Item().Text(item.Details).FontSize(8).FontColor(Muted);
+                        });
                         table.Cell().Element(Body).AlignRight().Text(item.Quantity.ToString(CultureInfo.InvariantCulture));
                         table.Cell().Element(Body).AlignRight().Text(Money(item.UnitPrice));
                         table.Cell().Element(Body).AlignRight().Text(Money(item.LineTotal));
@@ -149,6 +153,13 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
                     c.Item().PaddingVertical(3).LineHorizontal(1).LineColor(Line);
                     Row("TOTAL", Money(r.Total), bold: true, color: Accent);
                 });
+
+                if (r.Fields is { Count: > 0 })
+                    col.Item().PaddingTop(8).Column(c =>
+                    {
+                        foreach (var field in r.Fields)
+                            c.Item().Text(t => { t.Span($"{field.Name}: ").Bold(); t.Span(field.Value); });
+                    });
 
                 col.Item().Background(Colors.Grey.Lighten4).Padding(8).Column(c =>
                 {

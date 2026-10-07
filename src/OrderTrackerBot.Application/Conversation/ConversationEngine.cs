@@ -92,6 +92,15 @@ public partial class ConversationEngine
             return;
         }
 
+        // The yes/no to a reset must not be swallowed by onboarding or by the expired-trial billing gate.
+        // Reset keeps TrialEndsAt/SubscriptionActiveUntil, so this does not hand out a fresh trial.
+        if (session.State == ConversationState.AwaitingResetConfirmation)
+        {
+            await HandleResetConfirmationAsync(seller, session, message, ct);
+            await PersistAsync(session, ctx, ct);
+            return;
+        }
+
         // An incomplete seller normally always routes to the onboarding handler — except a state that
         // has its own handler elsewhere (currently just the guide, reachable as a mid-onboarding escape
         // hatch): otherwise the very next message after opening it would fall to HandleOnboardingAsync's
@@ -161,6 +170,9 @@ public partial class ConversationEngine
                 break;
             case ConversationState.AwaitingDiscountDetails:
                 await HandleDiscountDetailsAsync(seller, session, ctx, message, ct);
+                break;
+            case ConversationState.AwaitingCustomFieldChoice:
+                await HandleCustomFieldChoiceAsync(seller, session, ctx, message, ct);
                 break;
             case ConversationState.AwaitingResetConfirmation:
                 await HandleResetConfirmationAsync(seller, session, message, ct);

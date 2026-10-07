@@ -29,6 +29,8 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<CommentLead> CommentLeads => Set<CommentLead>();
     public DbSet<SupportQuery> SupportQueries => Set<SupportQuery>();
     public DbSet<SellerBranding> SellerBrandings => Set<SellerBranding>();
+    public DbSet<CustomField> CustomFields => Set<CustomField>();
+    public DbSet<CustomFieldValue> CustomFieldValues => Set<CustomFieldValue>();
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -130,5 +132,17 @@ public class AppDbContext : DbContext, IAppDbContext
         });
         modelBuilder.Entity<SupportQuery>(e => e.HasIndex(q => new { q.SellerId, q.Number }));
         modelBuilder.Entity<SellerBranding>(e => e.HasIndex(b => b.SellerId).IsUnique());
+        modelBuilder.Entity<CustomField>(e =>
+        {
+            e.HasIndex(f => new { f.SellerId, f.Entity, f.Name }).IsUnique();
+            e.HasQueryFilter(f => f.DeletedAt == null); // "remove field" is a soft delete (undoable)
+        });
+        modelBuilder.Entity<CustomFieldValue>(e =>
+        {
+            e.HasQueryFilter(v => v.CustomField!.DeletedAt == null); // same filter on the required end, so a hidden field hides its values
+
+            e.HasIndex(v => new { v.CustomFieldId, v.EntityId }).IsUnique();
+            e.HasIndex(v => new { v.SellerId, v.EntityId });
+        });
     }
 }

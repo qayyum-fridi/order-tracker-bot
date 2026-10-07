@@ -35,10 +35,12 @@ public partial class ConversationEngine
         if (!string.IsNullOrWhiteSpace(order.TrackingNumber)) lines.Add($"🚚 {order.TrackingCourier} {order.TrackingNumber}".TrimEnd());
         lines.Add($"🗓️ {placed:dd MMM yyyy, hh:mm tt}" + (string.IsNullOrWhiteSpace(order.OrderSource) ? "" : $" · {Formatters.SourceLabel(order.OrderSource)}"));
         if (!string.IsNullOrWhiteSpace(order.Notes)) lines.Add($"📝 {order.Notes}");
+        lines.AddRange(await CustomFieldLinesAsync(seller, CustomFieldEntity.Order, order.Id, ct));
         lines.Add("");
         lines.Add($"👉 \"edit order {order.Id}\" · \"receipt {order.Id}\" · \"mark {order.Id} shipped\"" +
                   (order.PaymentStatus == PaymentStatus.Paid ? "" : $" · \"order {order.Id} advance 500\""));
         await ReplyAsync(seller, string.Join("\n", lines), ct);
+        await OfferFieldsButtonAsync(seller, ctx, CustomFieldEntity.Order, order.Id, $"Order #{order.Id}", ct);
     }
 
     private async Task HandleOrderPaymentAsync(Seller seller, SessionContextData ctx, int number, decimal amount, CancellationToken ct)
