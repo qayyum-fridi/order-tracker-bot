@@ -133,7 +133,17 @@ public interface IAiOrderAssistant
     /// Rewrites a voice-note transcript (often Urdu script, misheard words, spoken numbers) into the exact text the seller would have typed,
     /// given what the bot is currently waiting for. Null when AI is unavailable or the result is unusable — callers use the transcript as is.
     /// </summary>
-    Task<string?> InterpretVoiceAsync(AiVoiceContext context, string transcript, CancellationToken cancellationToken = default);
+    Task<AiVoiceInterpretation?> InterpretVoiceAsync(AiVoiceContext context, string transcript, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// What the seller's voice note means: the typed messages to run in order (e.g. "edit order 12", "price 1 = 1500", "done"), or a short
+/// question to ask first when the intent is clear but a needed detail (which order, the new price) was not said.
+/// </summary>
+public sealed class AiVoiceInterpretation
+{
+    public List<string> Steps { get; init; } = new();
+    public string? Question { get; init; }
 }
 
 /// <summary>What the bot is waiting for right now, so a voice transcript can be understood in context.</summary>
@@ -143,4 +153,10 @@ public sealed class AiVoiceContext
     /// <summary>English description of the bot's last question and the input it expects (including any numbered options).</summary>
     public string Situation { get; init; } = "";
     public List<string> CatalogNames { get; init; } = new();
+    /// <summary>The seller's latest orders, one line each ("Order #12 Hassan, Pending: 1) Lawn Suit x1 @ Rs.1800 ...") so "Hassan ka order" can be resolved.</summary>
+    public List<string> RecentOrders { get; init; } = new();
+    /// <summary>The seller's saved customers with their order history ("Hassan, 0300…, Lahore: 3 orders, last Order #12 Pending"), so a spoken name can be matched or recognised as new.</summary>
+    public List<string> KnownCustomers { get; init; } = new();
+    /// <summary>The last message the bot sent, so a short spoken answer ("1500") can be tied to the question it answers.</summary>
+    public string? LastBotMessage { get; init; }
 }

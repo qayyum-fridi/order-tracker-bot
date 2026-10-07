@@ -618,7 +618,7 @@ public class MockupFeatureTests : IDisposable
         AiVoiceContext? seen = null;
         _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), spoken, It.IsAny<CancellationToken>()))
             .Callback<AiVoiceContext, string, CancellationToken>((c, _, _) => seen = c)
-            .ReturnsAsync("Lawn Suit - 3500");
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "Lawn Suit - 3500" } });
 
         await engine.HandleAudioMessageAsync(Phone, "voice-ctx");
 
@@ -689,13 +689,62 @@ public class MockupFeatureTests : IDisposable
             p => { Assert.Equal("Wool Dupatta", p.Name); Assert.Equal(800m, p.Price); });
     }
 
+    private ConversationEngine VoiceEngine(AppDbContext db, string transcript)
+    {
+        _media.Setup(m => m.DownloadAsync("voice-ctx", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
+        var transcriber = new Mock<IAudioTranscriber>();
+        transcriber.SetupGet(t => t.IsConfigured).Returns(true);
+        transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<CancellationToken>())).ReturnsAsync(transcript);
+        return new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object);
+    }
+
+    [Fact]
+    public async Task VoiceNote_ChangesWhatOneCustomerWasCharged_UsingRecentOrdersAsContext()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var order = await SaveSaraKurtiOrderAsync(engine, db);
+        var voice = VoiceEngine(db, "sara ke kurti ki price pandrah sau lagao");
+        AiVoiceContext? seen = null;
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<AiVoiceContext, string, CancellationToken>((c, _, _) => seen = c)
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { $"edit order {order.Id}", "price 1 = 1500", "done" } });
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        Assert.Contains(seen!.RecentOrders, o => o.Contains($"Order #{order.Id}") && o.Contains("Sara") && o.Contains("1) Kurti x1"));
+        Assert.Contains(seen.KnownCustomers, c => c.StartsWith("Sara,") && c.Contains("1 order") && c.Contains($"last Order #{order.Id}"));
+        Assert.Equal(1500m, (await db.OrderItems.AsNoTracking().FirstAsync(i => i.OrderId == order.Id)).UnitPrice);
+        Assert.Equal(1800m, (await db.Products.AsNoTracking().FirstAsync(p => p.Name == "Kurti")).Price); // the catalog price is only a default
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sent, m => m.Contains("Samjha:") && m.Contains("price 1 = 1500"));
+    }
+
+    [Fact]
+    public async Task VoiceNote_WithMissingDetail_AsksAQuestion_AndRunsNothing()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var order = await SaveSaraKurtiOrderAsync(engine, db);
+        var voice = VoiceEngine(db, "sara ke order mein jo price lagayi woh theek nahi");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Question = "Sara ke order mein Kurti ki price kitni rakhni hai?" });
+        var priceBefore = (await db.OrderItems.AsNoTracking().FirstAsync(i => i.OrderId == order.Id)).UnitPrice;
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        Assert.Contains(_sent, m => m.Contains("❓ Sara ke order mein Kurti ki price kitni rakhni hai?"));
+        Assert.Equal(priceBefore, (await db.OrderItems.AsNoTracking().FirstAsync(i => i.OrderId == order.Id)).UnitPrice);
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+    }
+
     [Fact]
     public async Task VoiceNote_RewriteThatDropsANumber_IsIgnored()
     {
         using var db = _dbFactory.CreateContext();
         const string spoken = "kurti 1800";
         var engine = await VoiceEngineAtAddProductAsync(db, spoken);
-        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), spoken, It.IsAny<CancellationToken>())).ReturnsAsync("Kurti");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), spoken, It.IsAny<CancellationToken>())).ReturnsAsync(new AiVoiceInterpretation { Steps = { "Kurti" } });
 
         await engine.HandleAudioMessageAsync(Phone, "voice-ctx");
 

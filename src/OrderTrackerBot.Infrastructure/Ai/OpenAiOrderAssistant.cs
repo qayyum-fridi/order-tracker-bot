@@ -171,16 +171,20 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         }
     }
 
-    public async Task<string?> InterpretVoiceAsync(AiVoiceContext context, string transcript, CancellationToken cancellationToken = default)
+    public async Task<AiVoiceInterpretation?> InterpretVoiceAsync(AiVoiceContext context, string transcript, CancellationToken cancellationToken = default)
     {
         var catalog = context.CatalogNames.Count == 0 ? "(empty)" : string.Join("; ", context.CatalogNames);
+        var orders = context.RecentOrders.Count == 0 ? "(no orders yet)" : string.Join("\n", context.RecentOrders);
+        var customers = context.KnownCustomers.Count == 0 ? "(no customers yet)" : string.Join("\n", context.KnownCustomers);
         var json = await CompleteTextAsync(
             $"You clean up voice notes that the owner of the small Pakistani shop '{context.BusinessName}' sends to their WhatsApp order-tracking bot. " +
             "The input is a speech-to-text transcript; it may be Urdu script, Roman Urdu or English, with misheard words and spoken numbers. " +
             "FIRST understand what the seller means (the transcript's words are often phonetically wrong: \"kaan\" may be cotton, \"soor\" suit, " +
             "\"paroshak\" products); never transliterate sounds word for word — write the intended words with their normal spellings (khaddar, chadar, dupatta, wool, cotton, suit, product). " +
             "Then rewrite it into the exact text the seller would have TYPED to the bot, in Latin script (Roman Urdu / English), for this situation: " +
-            $"{context.Situation}\nSeller's catalog: {catalog}\n\n" +
+            $"{context.Situation}\nSeller's catalog: {catalog}\nSeller's latest orders (use these to resolve \"Hassan ka order\", \"last order\", \"suit ki price\"):\n{orders}\n" +
+            $"Seller's saved customers (name, phone, order history):\n{customers}\n" +
+            (string.IsNullOrWhiteSpace(context.LastBotMessage) ? "" : $"The bot's last message to the seller (a short spoken answer usually replies to it):\n{context.LastBotMessage}\n") + "\n" +
             "Rules: (1) Keep every digit of every number, price and phone; turn spoken number words into digits (char = 4, ek = 1, teen hazaar paanch sau = 3500). " +
             "(2) If a yes/no answer is expected and the transcript clearly agrees (haan, ji, theek hai, kar do) answer exactly \"yes\"; if it clearly refuses " +
             "(nahi, ruko, mat karo) answer exactly \"no\". (3) If a numbered choice is expected, answer only the option number — from a number word " +
@@ -189,8 +193,19 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "a seller saying what they stock is adding a product, never placing an order; when they gave no prices, write one clean sentence in Roman Urdu " +
             "(\"teen khaddar chadar, do wool dupatte aur teen cotton suit naye products hain\"). (6) A dictated customer order is written like " +
             "\"Ayesha, 2 lawn suit, 03001234567, Gulberg Lahore\". Commands keep their typed form (\"orders today\", \"mark 3 shipped\", \"stock Kurti 20\", " +
-            "\"delivery 250\"). (7) Never invent anything the seller did not say. If you are not sure, return the transcript unchanged apart from writing it " +
-            "in Latin script. Return ONLY JSON: {\"text\": \"...\"}.",
+            "\"delivery 250\"). (7) A product's catalog price is only a default: the seller often sells one order at a different price. To change what ONE " +
+            "customer was charged use three steps: \"edit order <order id>\", \"price <item number> = <amount>\", \"done\" (item numbers are the 1) 2) numbers " +
+            "in the order list above; \"qty <item number> = <n>\", \"remove <item number>\", \"delivery <amount>\", \"phone <digits>\" and \"address <text>\" are the other edits you can put between edit order and done). " +
+            "Never touch the catalog price for this. (8) NAMES: when the seller names a person, match it against the saved customers (spelling, Urdu script and phonetic " +
+            "variants all count). One clear match = an existing customer: use the saved spelling, and use their order history (an order command for them needs the right order id; " +
+            "\"Hassan ka order\" with several orders = ask which). Two or more plausible matches = return a question listing them (\"Hassan Ali (0300…) ya Hassan Raza (0321…)?\"). " +
+            "No match = a NEW customer: for a new order keep the spoken name, but for an edit/status/receipt on an existing order ask which customer or order they mean, " +
+            "because that customer has no orders. Same for PRODUCTS against the catalog: a clear match uses the catalog spelling; an unknown name that is not a plain " +
+            "misspelling is a new product (a new order may keep it — the bot then asks whether to add it); two close matches = ask which. (9) Never invent anything the seller did not say. If the seller clearly wants a change but a needed value was " +
+            "not said (the new price, or which of several matching orders/items), return no steps and a short Roman Urdu question asking exactly that, naming the " +
+            "customer and item (\"Hassan ke order #12 mein Lawn Suit ki price kitni rakhni hai?\"). If you are not sure what they want, return one step: the transcript " +
+            "written in Latin script. Return ONLY JSON: {\"steps\": [\"...\"], \"question\": null}; steps are run one after another as separate typed messages " +
+            "(normally just one; at most 4); question is a string only when asking.",
             new JsonObject { ["transcript"] = transcript }.ToJsonString(),
             0.1, "voice interpretation", cancellationToken, jsonMode: true, model: _options.VoiceModel);
         if (json is null) return null;
@@ -198,8 +213,13 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         try
         {
             using var doc = JsonDocument.Parse(json);
-            var text = GetNullableString(doc.RootElement, "text")?.Trim();
-            return string.IsNullOrWhiteSpace(text) ? null : text;
+            var steps = new List<string>();
+            if (doc.RootElement.TryGetProperty("steps", out var stepsEl) && stepsEl.ValueKind == JsonValueKind.Array)
+                steps.AddRange(stepsEl.EnumerateArray().Where(s => s.ValueKind == JsonValueKind.String).Select(s => s.GetString()!.Trim())
+                    .Where(s => s.Length > 0).Take(4));
+            var question = GetNullableString(doc.RootElement, "question")?.Trim();
+            if (string.IsNullOrWhiteSpace(question)) question = null;
+            return steps.Count == 0 && question is null ? null : new AiVoiceInterpretation { Steps = steps, Question = question };
         }
         catch (JsonException ex)
         {

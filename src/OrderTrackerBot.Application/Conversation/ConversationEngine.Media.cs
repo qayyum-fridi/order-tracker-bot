@@ -34,11 +34,20 @@ public partial class ConversationEngine
             return;
         }
 
-        var understood = await InterpretVoiceAsync(fromPhoneNumber, text, ct);
+        var (steps, question) = await InterpretVoiceAsync(fromPhoneNumber, text, ct);
         var heard = $"🎤 Maine suna: \"{text}\"";
-        if (!string.Equals(understood, text, StringComparison.OrdinalIgnoreCase)) heard += $"\n➡️ Samjha: \"{understood}\"";
+        if (question is not null)
+        {
+            // Clear intent but a detail is missing (which order, the new price): ask for it instead of guessing or failing.
+            await _sender.SendTextMessageAsync(fromPhoneNumber, $"{heard}\n\n❓ {question}", ct);
+            await _db.SaveChangesAsync(ct);
+            return;
+        }
+
+        if (steps.Count != 1 || !string.Equals(steps[0], text, StringComparison.OrdinalIgnoreCase))
+            heard += $"\n➡️ Samjha: {string.Join("  →  ", steps.Select(s => $"\"{s}\""))}";
         await _sender.SendTextMessageAsync(fromPhoneNumber, heard, ct);
-        await HandleIncomingMessageAsync(fromPhoneNumber, understood, ct);
+        foreach (var step in steps) await HandleIncomingMessageAsync(fromPhoneNumber, step, ct);
     }
 
     /// <summary>
@@ -46,19 +55,48 @@ public partial class ConversationEngine
     /// ("pehla wala" -> "1", "haan kar do" -> "yes", "mere paas 4 lawn suit 3500" -> "Lawn Suit - 3500"). The rewrite still goes through the
     /// normal deterministic engine; the transcript itself is used when the AI is unavailable or the rewrite drops a number.
     /// </summary>
-    private async Task<string> InterpretVoiceAsync(string fromPhoneNumber, string transcript, CancellationToken ct)
+    private async Task<(IReadOnlyList<string> Steps, string? Question)> InterpretVoiceAsync(string fromPhoneNumber, string transcript, CancellationToken ct)
     {
         var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
         var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
         var catalog = await LoadCatalogAsync(seller, ct);
-        var rewritten = await _ai.InterpretVoiceAsync(new AiVoiceContext
+        var recent = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
+            .Where(o => o.SellerId == seller.Id).OrderByDescending(o => o.Id).Take(5).ToListAsync(ct);
+        var customers = await _db.Customers.Include(c => c.Orders)
+            .Where(c => c.SellerId == seller.Id && c.DeletedAt == null).ToListAsync(ct);
+        var knownCustomers = customers
+            .OrderByDescending(c => c.Orders.Select(o => o.Id).DefaultIfEmpty(0).Max()).ThenByDescending(c => c.Id).Take(40)
+            .Select(DescribeCustomerForVoice).ToList();
+        var lastBotMessage = await _db.MessageLogs
+            .Where(m => m.Phone == fromPhoneNumber && m.Direction == "outbound").OrderByDescending(m => m.Id)
+            .Select(m => m.RawText).FirstOrDefaultAsync(ct);
+
+        var result = await _ai.InterpretVoiceAsync(new AiVoiceContext
         {
             BusinessName = seller.BusinessName ?? "",
             Situation = DescribeVoiceSituation(seller, ctx),
-            CatalogNames = catalog.Select(c => c.Label).ToList()
+            CatalogNames = catalog.Select(c => c.Label).ToList(),
+            RecentOrders = recent.Select(DescribeOrderForVoice).ToList(),
+            KnownCustomers = knownCustomers,
+            LastBotMessage = lastBotMessage is { Length: > 600 } ? lastBotMessage[..600] : lastBotMessage
         }, transcript, ct);
-        return IsFaithfulRewrite(transcript, rewritten) ? rewritten!.Trim() : transcript;
+
+        if (result?.Question is { } question && result.Steps.Count == 0) return (Array.Empty<string>(), question);
+        return result is { Steps.Count: > 0 } && IsFaithfulRewrite(transcript, string.Join("\n", result.Steps))
+            ? (result.Steps.Select(s => s.Trim()).ToList(), null)
+            : (new[] { transcript }, null);
     }
+
+    private static string DescribeCustomerForVoice(Customer c)
+    {
+        var active = c.Orders.Where(o => o.Status is not (OrderStatus.Cancelled or OrderStatus.Returned)).OrderByDescending(o => o.Id).ToList();
+        var history = active.Count == 0 ? "no orders yet" : $"{active.Count} order{(active.Count == 1 ? "" : "s")}, last Order #{active[0].Id} {active[0].Status}";
+        return $"{c.Name}, {c.Phone ?? "no phone"}{(string.IsNullOrWhiteSpace(c.City) ? "" : ", " + c.City)}: {history}";
+    }
+
+    private static string DescribeOrderForVoice(Order o) =>
+        $"Order #{o.Id} {o.Customer?.Name}, {o.Status}: " +
+        string.Join("; ", o.Items.Select((i, n) => $"{n + 1}) {i.ProductNameSnapshot} x{i.Quantity} @ Rs.{i.UnitPrice:0.##}")) + $" — total Rs.{o.Total:0.##}";
 
     /// <summary>
     /// A rewrite is only trusted if it is not absurdly long and keeps every price/phone-sized number the seller said (runs of 3+ digits).
