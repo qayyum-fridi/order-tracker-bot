@@ -34,8 +34,81 @@ public partial class ConversationEngine
             return;
         }
 
-        await _sender.SendTextMessageAsync(fromPhoneNumber, $"🎤 Maine suna: \"{text}\"", ct);
-        await HandleIncomingMessageAsync(fromPhoneNumber, text, ct);
+        var understood = await InterpretVoiceAsync(fromPhoneNumber, text, ct);
+        var heard = $"🎤 Maine suna: \"{text}\"";
+        if (!string.Equals(understood, text, StringComparison.OrdinalIgnoreCase)) heard += $"\n➡️ Samjha: \"{understood}\"";
+        await _sender.SendTextMessageAsync(fromPhoneNumber, heard, ct);
+        await HandleIncomingMessageAsync(fromPhoneNumber, understood, ct);
+    }
+
+    /// <summary>
+    /// One AI call that rewrites the transcript into what the seller would have typed for the bot's current question
+    /// ("pehla wala" -> "1", "haan kar do" -> "yes", "mere paas 4 lawn suit 3500" -> "Lawn Suit - 3500"). The rewrite still goes through the
+    /// normal deterministic engine; the transcript itself is used when the AI is unavailable or the rewrite drops a number.
+    /// </summary>
+    private async Task<string> InterpretVoiceAsync(string fromPhoneNumber, string transcript, CancellationToken ct)
+    {
+        var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
+        var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
+        var catalog = await LoadCatalogAsync(seller, ct);
+        var rewritten = await _ai.InterpretVoiceAsync(new AiVoiceContext
+        {
+            BusinessName = seller.BusinessName ?? "",
+            Situation = DescribeVoiceSituation(seller, ctx),
+            CatalogNames = catalog.Select(c => c.Label).ToList()
+        }, transcript, ct);
+        return IsFaithfulRewrite(transcript, rewritten) ? rewritten!.Trim() : transcript;
+    }
+
+    /// <summary>
+    /// A rewrite is only trusted if it is not absurdly long and keeps every price/phone-sized number the seller said (runs of 3+ digits).
+    /// Small numbers may change on purpose ("4 lawn suits at 3500" -> "Lawn Suit - 3500", "pehla" -> "1"); the "Samjha" echo shows the result.
+    /// </summary>
+    internal static bool IsFaithfulRewrite(string transcript, string? rewritten)
+    {
+        if (string.IsNullOrWhiteSpace(rewritten) || rewritten.Length > Math.Max(200, transcript.Length * 3)) return false;
+        var kept = LongNumberDigits(rewritten);
+        return LongNumberDigits(transcript).All(d => kept.GetValueOrDefault(d.Key) >= d.Value);
+    }
+
+    private static Dictionary<int, int> LongNumberDigits(string text) =>
+        Regex.Matches(text, @"\d{3,}").SelectMany(m => m.Value).GroupBy(c => (int)char.GetNumericValue(c)).ToDictionary(g => g.Key, g => g.Count());
+
+    /// <summary>English description of what the bot is waiting for, given to the AI so a spoken answer is read in context.</summary>
+    private static string DescribeVoiceSituation(Seller seller, SessionContextData ctx)
+    {
+        var state = seller.Session!.State;
+        var core = state switch
+        {
+            ConversationState.Idle when seller.OnboardingComplete =>
+                "The bot is idle: the seller can type a command (orders today, mark 3 shipped, stock Kurti 20, catalog, delivery 250, receipt) or dictate a customer order.",
+            ConversationState.Idle => "The bot is at the start of setup; the seller can say start, pick a language or say \"Setup shuru karein\".",
+            ConversationState.OnboardingLanguage or ConversationState.AwaitingLanguageChoice => "Waiting for the seller to choose a language: Roman Urdu, Urdu or English.",
+            ConversationState.OnboardingStartChoice => "Waiting for a choice: \"Setup shuru karein\", \"Guide dekhein\" or \"Baad mein karunga\".",
+            ConversationState.OnboardingBusinessName => "Waiting for the name of the seller's shop/business.",
+            ConversationState.OnboardingOptionalDetails => "Waiting for the shop's city, business type and Instagram handle, or \"skip\".",
+            ConversationState.OnboardingCatalogSize => "Waiting for how many products the seller has: a number, \"Chhota (20 se kam)\" or \"Bara (20+)\".",
+            ConversationState.OnboardingAddProduct =>
+                "Waiting for products to add to the catalog, each as \"Name - price\" (e.g. \"Lawn Suit - 3500\"), or \"done\" when finished. " +
+                "A seller saying what they stock (\"4 lawn suits at 3500\") is adding a product, not placing an order.",
+            ConversationState.AwaitingOrderConfirmation =>
+                "Waiting for yes or no on the order draft just shown; a change such as \"delivery 300\" or \"advance 500\" is also valid.",
+            ConversationState.AwaitingOrderMissingFields => $"Waiting for a missing order detail ({ctx.PendingMissingField ?? "customer name or phone"}).",
+            ConversationState.AwaitingCancelConfirmation or ConversationState.AwaitingBulkStatusConfirmation or ConversationState.AwaitingDuplicateOrderConfirmation
+                or ConversationState.AwaitingCodCollectedConfirmation or ConversationState.AwaitingResetConfirmation or ConversationState.AwaitingDeleteCustomerConfirmation
+                or ConversationState.AwaitingLoyaltyDiscountConfirmation or ConversationState.AwaitingMultiOrderConfirmation
+                or ConversationState.AwaitingSupportReplyConfirmation => "Waiting for a yes or no confirmation.",
+            ConversationState.AwaitingClarificationChoice or ConversationState.AwaitingOrderGroupingChoice or ConversationState.AwaitingRuntimeFilterChoice
+                or ConversationState.AwaitingBroadcastAudienceChoice or ConversationState.AwaitingBroadcastChannelChoice or ConversationState.AwaitingReceiptOrderChoice
+                or ConversationState.AwaitingSupportQueryPick => "Waiting for a numbered choice.",
+            _ => $"The bot is in the step \"{state}\" and expects a short typed answer."
+        };
+
+        if (ctx.ClarificationOptions is { Count: > 0 } options)
+            core += " Options offered: " + string.Join(" | ", options.Select((o, i) => $"{i + 1}) {o}")) + ".";
+        if (ctx.PendingNewProductName is { } unknown)
+            core += $" The bot asked about the product \"{unknown}\" which is not in the catalog: 1 = add it as a new product, 2 = it is another name for an existing catalog product (then the seller names which one).";
+        return core;
     }
 
     public async Task HandleImageMessageAsync(string fromPhoneNumber, string mediaId, string? caption, CancellationToken ct = default)

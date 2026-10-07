@@ -185,7 +185,10 @@ shared-state action: confirm with the user and get SSH/host details first.
 - Voice notes (ported from PR #9): `HandleAudioMessageAsync` downloads the audio, `OpenAiAudioTranscriber` (`OpenAi:TranscriptionModel`,
   default `whisper-1`, plus `TranscriptionPrompt` steering towards Roman Urdu/English and digits) transcribes it, the bot echoes
   "🎤 Maine suna: …" and handles the text exactly like a typed message. No API key -> the old "send it as text" reply; a failed
-  transcription asks to resend and reports OTB-3002.
+  transcription asks to resend and reports OTB-3002. Before handling, `IAiOrderAssistant.InterpretVoiceAsync` rewrites the transcript into what the
+  seller would have typed for the bot's current question (`DescribeVoiceSituation`: state, offered options, catalog) — "pehla wala" -> `1`, "haan kar do" -> `yes`,
+  "mere paas 4 lawn suit 3500" -> `Lawn Suit - 3500` — and the bot echoes "➡️ Samjha: …". The rewrite is discarded (transcript used) when the AI is
+  unavailable or it drops a 3+ digit number (`IsFaithfulRewrite`); the rewritten text then goes through the normal deterministic engine.
 - Customer corrections: "Sara ka phone 0300…", "Sara ka address …", "Bilal ki city …", "customer Sara name Sara Khan" (`CommandKind.CustomerUpdate`,
   `ConversationEngine.CustomerUpdate.cs`). Questions ("… kya hai") and non-numeric phones are not treated as updates; an ambiguous name
   lists the matches instead of guessing; each change is undoable (`ActionType.CustomerUpdated`).

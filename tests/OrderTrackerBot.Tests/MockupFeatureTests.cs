@@ -596,6 +596,52 @@ public class MockupFeatureTests : IDisposable
         Assert.Contains(_sent, m => m.Contains("Voice message mila") && m.Contains("TEXT"));
     }
 
+    private async Task<ConversationEngine> VoiceEngineAtAddProductAsync(AppDbContext db, string transcript)
+    {
+        var setup = Engine(db);
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "10 ke qareeb" })
+            await setup.HandleIncomingMessageAsync(Phone, m, default);
+        _sent.Clear();
+        _media.Setup(m => m.DownloadAsync("voice-ctx", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
+        var transcriber = new Mock<IAudioTranscriber>();
+        transcriber.SetupGet(t => t.IsConfigured).Returns(true);
+        transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<CancellationToken>())).ReturnsAsync(transcript);
+        return new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object);
+    }
+
+    [Fact]
+    public async Task VoiceNote_IsRewrittenInContext_ThenHandledByTheNormalEngine()
+    {
+        using var db = _dbFactory.CreateContext();
+        const string spoken = "mere paas 4 lawn ke suit hain, 3500 rupay";
+        var engine = await VoiceEngineAtAddProductAsync(db, spoken);
+        AiVoiceContext? seen = null;
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), spoken, It.IsAny<CancellationToken>()))
+            .Callback<AiVoiceContext, string, CancellationToken>((c, _, _) => seen = c)
+            .ReturnsAsync("Lawn Suit - 3500");
+
+        await engine.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        Assert.Contains("Waiting for products to add", seen!.Situation);
+        Assert.Contains(_sent, m => m.Contains($"Maine suna: \"{spoken}\"") && m.Contains("Samjha: \"Lawn Suit - 3500\""));
+        Assert.True(await db.Products.AnyAsync(p => p.Name == "Lawn Suit"));
+        Assert.False((await db.Sellers.FirstAsync()).OnboardingComplete);
+    }
+
+    [Fact]
+    public async Task VoiceNote_RewriteThatDropsANumber_IsIgnored()
+    {
+        using var db = _dbFactory.CreateContext();
+        const string spoken = "kurti 1800";
+        var engine = await VoiceEngineAtAddProductAsync(db, spoken);
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), spoken, It.IsAny<CancellationToken>())).ReturnsAsync("Kurti");
+
+        await engine.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        Assert.DoesNotContain(_sent, m => m.Contains("Samjha"));
+        Assert.Contains(_sent, m => m == $"🎤 Maine suna: \"{spoken}\"");
+    }
+
     [Fact]
     public async Task CustomerUpdate_ChangesPhoneAndAddress_AndUndoRestores()
     {

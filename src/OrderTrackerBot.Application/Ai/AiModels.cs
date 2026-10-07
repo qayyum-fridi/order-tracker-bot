@@ -119,4 +119,19 @@ public interface IAiOrderAssistant
     /// same order. Null when AI is unavailable or the result is unusable — callers send the original text instead.
     /// </summary>
     Task<IReadOnlyList<string>?> TranslateAsync(IReadOnlyList<string> texts, string targetLanguage, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Rewrites a voice-note transcript (often Urdu script, misheard words, spoken numbers) into the exact text the seller would have typed,
+    /// given what the bot is currently waiting for. Null when AI is unavailable or the result is unusable — callers use the transcript as is.
+    /// </summary>
+    Task<string?> InterpretVoiceAsync(AiVoiceContext context, string transcript, CancellationToken cancellationToken = default);
+}
+
+/// <summary>What the bot is waiting for right now, so a voice transcript can be understood in context.</summary>
+public sealed class AiVoiceContext
+{
+    public string BusinessName { get; init; } = "";
+    /// <summary>English description of the bot's last question and the input it expects (including any numbered options).</summary>
+    public string Situation { get; init; } = "";
+    public List<string> CatalogNames { get; init; } = new();
 }
