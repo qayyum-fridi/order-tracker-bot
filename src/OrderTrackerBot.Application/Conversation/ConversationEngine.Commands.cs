@@ -127,7 +127,8 @@ public partial class ConversationEngine
             ["catalog"] = ("🛍️ Catalog", "🛍️ Catalog\n • naya product: Kurti - 1800\n • stock: \"stock Kurti 20\" / \"stock\"\n • weight/pack: Sugar 5 kg - 500\n • edit product: Kurti - 1900\n • delete product: Kurti\n • wholesale: Kaju - price tiers: 1kg=320, 10kg=300\n • ek saath kai products bhi bhej saktay hain", new[]
             {
                 new MenuRow("catalog", "View catalog"), new MenuRow("share catalog", "Share catalog"),
-                new MenuRow("add product", "Add product"), new MenuRow("add product (detailed)", "Add product (form)"), BackToMenu
+                new MenuRow("add product", "Add product"), new MenuRow("add product (detailed)", "Add product (form)"),
+                new MenuRow("fields", "🏷️ Custom fields"), BackToMenu
             }),
             ["payments"] = ("💰 Payments", "💰 Payments\n • mark [order] paid\n • advance / thori payment: order [n] advance 500\n • delivery charge: delivery 200\n • add tracking: courier, number", new[]
             {
@@ -149,7 +150,8 @@ public partial class ConversationEngine
             ["settings"] = ("⚙️ Settings", "⚙️ Settings\n • feedback: [aapka message] — hamein bot ke baare mein batayein", new[]
             {
                 new MenuRow("update business info", "Business info"), new MenuRow("add payment", "Payment methods"),
-                new MenuRow("subscribe", "Plan / subscribe"), new MenuRow("logo", "Receipt logo / banner"), new MenuRow("export", "Export (Excel)"), BackToMenu
+                new MenuRow("subscribe", "Plan / subscribe"), new MenuRow("logo", "Receipt logo / banner"), new MenuRow("export", "Export (Excel)"),
+                new MenuRow("fields", "🏷️ Custom fields"), BackToMenu
             })
         };
 
@@ -306,13 +308,22 @@ public partial class ConversationEngine
                 await HandleCustomFieldRemoveAsync(seller, cmd, ct);
                 return;
             case CommandKind.CustomFieldList:
-                await HandleCustomFieldListAsync(seller, ctx, cmd, ct);
+                await HandleCustomFieldListAsync(seller, session, ctx, cmd, ct);
                 return;
             case CommandKind.CustomFieldSet:
                 await HandleCustomFieldSetAsync(seller, session, ctx, cmd, ct);
                 return;
             case CommandKind.CustomFieldOption:
                 await HandleCustomFieldOptionAsync(seller, cmd, ct);
+                return;
+            case CommandKind.CustomFieldOptionRemove:
+                await HandleCustomFieldOptionRemoveAsync(seller, cmd, ct);
+                return;
+            case CommandKind.CustomFieldVisibility:
+                await HandleCustomFieldVisibilityAsync(seller, cmd, ct);
+                return;
+            case CommandKind.CustomFieldPickLast:
+                await HandleCustomFieldPickLastAsync(seller, session, ctx, ct);
                 return;
             case CommandKind.CustomerSearch:
                 await HandleCustomerSearchAsync(seller, cmd.Text!, ct);
@@ -535,7 +546,11 @@ public partial class ConversationEngine
             return;
         }
 
-        var lines = products.Select((p, i) => $"{i + 1} {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}" + (p.StockQty is { } q ? $" (stock {q})" : ""));
+        var extras = await ProductFieldTextAsync(seller, products.Select(p => p.Id).ToList(), publicOnly: false, ct);
+        var lines = products.Select((p, i) => $"{i + 1} {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}" + (p.StockQty is { } q ? $" (stock {q})" : "")
+            + (extras.TryGetValue(p.Id, out var f) ? $"\n   🏷️ {string.Join(" · ", f)}" : "")).ToList();
+        if (string.Join("\n", lines).Length > 3200)
+            lines = products.Select((p, i) => $"{i + 1} {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}" + (p.StockQty is { } q ? $" (stock {q})" : "")).ToList(); // too long with extras
         await ReplyAsync(seller,
             $"🛍️ Aapka Catalog ({products.Count} products):\n\n{string.Join("\n", lines)}\n\n" +
             "Naya product add karne ke liye bas likhein: Kurti - 1800\n" +
@@ -551,7 +566,11 @@ public partial class ConversationEngine
             return;
         }
 
-        var lines = products.Select((p, i) => $"{i + 1}. {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}");
+        var extras = await ProductFieldTextAsync(seller, products.Select(p => p.Id).ToList(), publicOnly: true, ct); // customer-facing: private fields stay out
+        var lines = products.Select((p, i) => $"{i + 1}. {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}"
+            + (extras.TryGetValue(p.Id, out var f) ? $"\n   {string.Join(" · ", f)}" : "")).ToList();
+        if (string.Join("\n", lines).Length > 3200)
+            lines = products.Select((p, i) => $"{i + 1}. {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}").ToList();
         await ReplyAsync(seller,
             $"📋 {seller.BusinessName} — Catalog\n\n{string.Join("\n", lines)}\n\n" +
             "Yeh copy kar ke customer ko bhej dein, ya screenshot le kar forward karein.", ct);

@@ -101,8 +101,14 @@ public partial class ConversationEngine
         var taken = new HashSet<string>(sheet.Columns.Select(c => c.Header), StringComparer.OrdinalIgnoreCase);
         var headers = fields.Select(f => taken.Add(f.Name) ? f.Name : $"{f.Name} (custom)").ToList();
 
-        var columns = sheet.Columns.Concat(headers.Select(h => Col(h, typeof(string)))).ToList();
-        var rows = sheet.Rows.Select((row, i) => row.Concat(fields.Select(f => (object?)(values.TryGetValue((f.Id, ids[i]), out var v) ? v : null))).ToArray()).ToList();
+        // Number fields are real Excel numbers; everything else (incl. year-less dates like "12 May") stays text.
+        bool IsNumber(CustomField f) => f.Options is null && f.Type == CustomFieldType.Number;
+        var columns = sheet.Columns.Concat(fields.Select((f, i) => Col(headers[i], IsNumber(f) ? typeof(decimal) : typeof(string)))).ToList();
+        object? Cell(CustomField f, int id) =>
+            !values.TryGetValue((f.Id, id), out var v) ? null
+            : IsNumber(f) ? (decimal.TryParse(v, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var n) ? n : null)
+            : v;
+        var rows = sheet.Rows.Select((row, i) => row.Concat(fields.Select(f => Cell(f, ids[i]))).ToArray()).ToList();
         return sheet with { Columns = columns, Rows = rows };
     }
 

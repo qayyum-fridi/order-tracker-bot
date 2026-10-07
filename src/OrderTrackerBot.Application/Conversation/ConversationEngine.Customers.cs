@@ -94,6 +94,7 @@ public partial class ConversationEngine
         var listIndex = ctx.LastListCustomerIds?.IndexOf(customer.Id) ?? -1;
         lines.Add($"\"delete customer {(listIndex >= 0 ? (listIndex + 1).ToString() : customer.Name.ToLower())}\" se remove kar saktay hain.");
         await ReplyAsync(seller, string.Join("\n", lines), ct);
+        await OfferFieldsButtonAsync(seller, ctx, CustomFieldEntity.Customer, customer.Id, customer.Name, ct);
     }
 
     private async Task<Customer?> FindCustomerAsync(Seller seller, SessionContextData ctx, string text, int? number, CancellationToken ct)

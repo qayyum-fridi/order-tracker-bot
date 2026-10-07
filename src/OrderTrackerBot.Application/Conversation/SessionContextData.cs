@@ -40,7 +40,15 @@ public sealed class PendingOrderData
 }
 
 /// <summary>Everything an in-flight multi-turn flow needs, serialized to ConversationSession.ContextJson.</summary>
-/// <summary>Where a seller is in tapping through "set product Kurti": Stage = field | value | text.</summary>
+/// <summary>The record the seller last looked at ("Set fields" button target).</summary>
+public sealed class FieldsTargetData
+{
+    public string Entity { get; set; } = "";
+    public int EntityId { get; set; }
+    public string RecordName { get; set; } = "";
+}
+
+/// <summary>Where a seller is in tapping through custom fields: Stage = entity | record | field | value | text.</summary>
 public sealed class CustomFieldPickData
 {
     public string Stage { get; set; } = "value";
@@ -87,6 +95,7 @@ public sealed class SessionContextData
     public int? LoyaltyOrderId { get; set; }
     /// <summary>The saved order being edited ("edit order 12"), and whether its pre-edit snapshot is already in the undo log.</summary>
     public CustomFieldPickData? CustomFieldPick { get; set; }
+    public FieldsTargetData? FieldsTarget { get; set; }
     public int? EditOrderId { get; set; }
     public bool EditSnapshotLogged { get; set; }
     public decimal? LoyaltyDiscountPercent { get; set; }

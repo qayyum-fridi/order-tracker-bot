@@ -190,16 +190,18 @@ shared-state action: confirm with the user and get SSH/host details first.
   `ConversationEngine.CustomerUpdate.cs`). Questions ("… kya hai") and non-numeric phones are not treated as updates; an ambiguous name
   lists the matches instead of guessing; each change is undoable (`ActionType.CustomerUpdated`).
 - The WhatsApp list body (help) must stay ≤ 1024 chars — a test enforces it; keep `HelpText` curated rather than exhaustive.
-- Custom fields (`ConversationEngine.CustomFields.cs`, WordPress-style attributes): the seller defines a field per entity ("add field product Fabric",
-  "add field customer Birthday", "add field order Gift Note"; `CustomField`: Seller+Entity+Name, max 10 per entity, name <= 30 chars). A field is free
-  text, or a **choice field** when options follow a colon ("add field product Fabric: Cotton, Lawn, Silk"; 2-10 options, each <= 20 chars so they fit a
-  WhatsApp button; "add option product Fabric: Chiffon" extends it; stored in `CustomField.Options`, '|'-joined). Values are set by typing
-  ("set product Kurti Fabric = Cotton" / "set customer Sara Birthday = 12 May" / "set order 12 Gift Note = yes"; `= -` clears; a choice field only
-  accepts one of its options, matched case-insensitively) or by **tapping**: "set product Kurti Fabric" shows the options (<=3 short ones as buttons, else a
-  list) and "set product Kurti" first lists the fields; both use `ConversationState.AwaitingCustomFieldChoice` (`CustomFieldPickData` in the session
-  context; "cancel" ends it, any other real command leaves it and runs, a free-text field asks for the value as the next message). "fields" lists
-  definitions, "fields product Kurti" shows one record; values also appear in the customer profile and order detail, and as extra columns on the
-  Orders/Customers/Catalog export sheets. Values max 200 chars, no number/date types, **not undoable**; no "remove option" (remove and re-create the
-  field, which drops its values); "remove field" deletes its values; `reset account` deletes both tables. Not shown in the catalog list, receipts or
-  order confirmation; no Urdu-script command words. New tables `CustomFields`/`CustomFieldValues` are created on Sqlite by the patcher — **no SQL
-  Server migration yet — generate one**.
+- Custom fields (`ConversationEngine.CustomFields.cs`, WordPress-style attributes): the seller defines a field per entity (product / customer / order;
+  max 10 per entity, name <= 30 chars): free text ("add field product Fabric"), **choice** ("…Fabric: Cotton, Lawn, Silk"; 2-10 options <= 20 chars so
+  they fit a WhatsApp button; "add/remove option product Fabric: Silk" — removing keeps values already saved), **number** ("…Weight: number", stored
+  normalised, exported as an Excel number) or **date** ("…Birthday: date"; "12 May" keeps day+month, "12/05/1995" the full date). A trailing "private"
+  ("…Cost: number private", "hide/show field product Cost") keeps a field off the PDF receipt and "share catalog". Values are set by typing
+  ("set product Kurti Fabric = Cotton"; `= -` clears; validated per type, choice fields accept only an option) or by **tapping**: "set product Kurti
+  Fabric" (options as buttons <=3 / list), "set product Kurti" (fields first), "fields" (entity -> record -> field -> value, records as a list of the
+  latest 10), the "🏷️ Set fields" button sent after an order is saved / the order detail / the customer profile / "fields product Kurti"
+  (`ctx.FieldsTarget`), and the menu rows under Catalog and Settings. The tap flow is `ConversationState.AwaitingCustomFieldChoice`
+  (`CustomFieldPickData.Stage` = entity|record|field|value|text; "cancel" ends it, any other real command leaves it and runs). Commands also accept
+  Urdu-script words in the same word order ("نئی فیلڈ پروڈکٹ فیبرک", "سیٹ پروڈکٹ …", "فیلڈز"). Values show in the customer profile, order detail, catalog list,
+  shareable catalog (public fields), PDF receipt (public product fields under the item + public order fields) and as extra Excel columns on the
+  Orders/Customers/Catalog sheets. Values max 200 chars, **not undoable**; "remove field" deletes its values; `reset account` deletes both tables. The
+  draft order confirmation (before "yes") does not show them. New tables `CustomFields`/`CustomFieldValues` are created on Sqlite by the patcher —
+  **no SQL Server migration yet — generate one**.

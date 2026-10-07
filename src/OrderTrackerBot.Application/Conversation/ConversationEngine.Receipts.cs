@@ -51,6 +51,12 @@ public partial class ConversationEngine
             : (await _db.PaymentMethods.Where(p => p.SellerId == seller.Id).OrderBy(p => p.Id).ToListAsync(ct))
                 .Select(p => $"{p.Type}: {p.AccountNumberOrId}").ToList();
 
+        // Only public custom fields go on the buyer's receipt (private ones, e.g. cost, stay seller-only).
+        var productFields = await ProductFieldTextAsync(seller, order.Items.Where(i => i.ProductId != null).Select(i => i.ProductId!.Value).Distinct().ToList(), publicOnly: true, ct);
+        var orderFields = await _db.CustomFieldValues.AsNoTracking()
+            .Where(v => v.SellerId == seller.Id && v.EntityId == order.Id && v.CustomField!.Entity == CustomFieldEntity.Order && !v.CustomField.IsPrivate)
+            .OrderBy(v => v.CustomFieldId).Select(v => new ReceiptField(v.CustomField!.Name, v.Value)).ToListAsync(ct);
+
         var branding = await _db.SellerBrandings.AsNoTracking().FirstOrDefaultAsync(b => b.SellerId == seller.Id, ct);
         var tz = SellerClock.Resolve(seller.TimeZoneId);
         var pdf = _receiptPdf.Generate(new ReceiptData(
@@ -60,11 +66,12 @@ public partial class ConversationEngine
             seller.WhatsAppPhoneNumber, seller.City, seller.InstagramHandle,
             order.Customer?.Name ?? "Customer", order.Customer?.Phone,
             string.Join(", ", new[] { order.Customer?.Address, order.Customer?.City }.Where(s => !string.IsNullOrWhiteSpace(s))),
-            order.Items.Select(i => new ReceiptLine(i.ProductNameSnapshot, i.Quantity, i.UnitPrice, i.LineTotal)).ToList(),
+            order.Items.Select(i => new ReceiptLine(i.ProductNameSnapshot, i.Quantity, i.UnitPrice, i.LineTotal,
+                i.ProductId is { } pid && productFields.TryGetValue(pid, out var details) ? string.Join(" · ", details) : null)).ToList(),
             order.Subtotal, order.DiscountAmount, order.DiscountCode, order.Total,
             order.PaymentMethod switch { OrderPaymentMethod.Cod => "Cash on delivery", OrderPaymentMethod.Manual => "Bank / wallet transfer", OrderPaymentMethod.Gateway => "Online payment", _ => "Not specified" },
             order.PaymentStatus == PaymentStatus.Paid, Formatters.Status(order.Status),
-            order.TrackingCourier, order.TrackingNumber, payTo, Logo: branding?.Logo, Banner: branding?.Banner, DeliveryCharge: order.DeliveryCharge, AmountPaid: OrderMoney.Received(order)));
+            order.TrackingCourier, order.TrackingNumber, payTo, Logo: branding?.Logo, Banner: branding?.Banner, DeliveryCharge: order.DeliveryCharge, AmountPaid: OrderMoney.Received(order), Fields: orderFields));
 
         var sent = await _sender.SendDocumentAsync(seller.WhatsAppPhoneNumber, pdf, $"Receipt-{order.Id}.pdf", "application/pdf",
             $"🧾 Receipt #{order.Id} — {order.Customer?.Name}, {Formatters.Money(order.Total)}", ct);

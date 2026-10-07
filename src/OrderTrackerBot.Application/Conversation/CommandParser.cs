@@ -76,6 +76,9 @@ public enum CommandKind
     CustomFieldList,
     CustomFieldSet,
     CustomFieldOption,
+    CustomFieldOptionRemove,
+    CustomFieldVisibility,
+    CustomFieldPickLast,
     OrderPayment,
     OrderDeliveryCharge,
     RemoveBranding,
@@ -581,25 +584,39 @@ public static class CommandParser
         });
     }
 
-    // Seller-defined attributes: "add field product Fabric", "remove field customer Birthday", "fields", "fields product Kurti",
-    // "set product Kurti Fabric = Cotton". Text = product|customer|order, Text2 = field name / record, Text3 = value.
-    private const string FieldEntity = @"(?<e>products?|customers?|orders?)";
-    private const string FieldWord = @"(?:custom\s+)?(?:fields?|attributes?)";
-    private static readonly Regex CustomFieldAddA = new(@"^(?:add|new|create|naya)\s+" + FieldWord + @"\s+(?:for\s+|to\s+)?" + FieldEntity + @"\s*[:\-]?\s*(?<n>.+)$", Opts);
-    private static readonly Regex CustomFieldAddB = new(@"^(?:add|new|create|naya)\s+" + FieldEntity + @"\s+" + FieldWord + @"\s*[:\-]?\s*(?<n>.+)$", Opts);
-    private static readonly Regex CustomFieldRemoveA = new(@"^(?:remove|delete|del|hatao)\s+" + FieldWord + @"\s+(?:for\s+|from\s+)?" + FieldEntity + @"\s*[:\-]?\s*(?<n>.+)$", Opts);
-    private static readonly Regex CustomFieldRemoveB = new(@"^(?:remove|delete|del|hatao)\s+" + FieldEntity + @"\s+" + FieldWord + @"\s*[:\-]?\s*(?<n>.+)$", Opts);
-    private static readonly Regex CustomFieldList = new(@"^(?:my\s+|show\s+)?(?:custom\s+)?(?:fields|attributes)$", Opts);
-    private static readonly Regex CustomFieldShow = new(@"^(?:custom\s+)?(?:fields|attributes)\s+(?:of\s+|for\s+)?" + FieldEntity + @"\s+(?<r>.+)$", Opts);
-    private static readonly Regex CustomFieldSet = new(@"^set\s+" + FieldEntity + @"\s+(?<l>[^=:]+?)\s*[=:]\s*(?<v>.+)$", Opts);
+    // Seller-defined attributes (English / Roman Urdu / Urdu-script words, same word order): "add field product Fabric",
+    // "remove field customer Birthday", "fields", "fields product Kurti", "set product Kurti Fabric = Cotton", "set product Kurti".
+    // Text = product|customer|order, Text2 = field name / record, Text3 = value.
+    private const string FieldEntity = @"(?<e>products?|customers?|orders?|پروڈکٹ|پراڈکٹ|مصنوعات|کسٹمر|گاہک|آرڈر)";
+    private const string FieldWord = @"(?:custom\s+)?(?:fields?|attributes?|فیلڈز?|خصوصیت|خصوصیات)";
+    private const string OptionWord = @"(?:options?|choices?|آپشنز?|انتخاب)";
+    private const string AddVerb = @"(?:add|new|create|naya|nayi|نیا|نئی|شامل(?:\s+کریں)?|بنائیں)";
+    private const string RemoveVerb = @"(?:remove|delete|del|hatao|ہٹائیں|ہٹاؤ|حذف(?:\s+کریں)?)";
+    private static readonly Regex CustomFieldAddA = new(@"^(?:(?:add|new|create|naya|nayi|نیا|نئی|شامل)\s+" + FieldWord + @"|" + FieldWord + @"\s+" + AddVerb + @")\s+(?:for\s+|to\s+)?" + FieldEntity + @"\s*[:\-]?\s*(?<n>.+)$", Opts);
+    private static readonly Regex CustomFieldAddB = new(@"^(?:add|new|create|naya|nayi|نیا|نئی|شامل)\s+" + FieldEntity + @"\s+" + FieldWord + @"\s*[:\-]?\s*(?<n>.+)$", Opts);
+    private static readonly Regex CustomFieldRemoveA = new(@"^(?:" + RemoveVerb + @"\s+" + FieldWord + @"|" + FieldWord + @"\s+" + RemoveVerb + @")\s+(?:for\s+|from\s+)?" + FieldEntity + @"\s*[:\-]?\s*(?<n>.+)$", Opts);
+    private static readonly Regex CustomFieldRemoveB = new(@"^" + RemoveVerb + @"\s+" + FieldEntity + @"\s+" + FieldWord + @"\s*[:\-]?\s*(?<n>.+)$", Opts);
+    private static readonly Regex CustomFieldList = new(@"^(?:my\s+|show\s+)?(?:custom\s+)?(?:fields|attributes|فیلڈز|خصوصیات)$", Opts);
+    private static readonly Regex CustomFieldShow = new(@"^(?:custom\s+)?(?:fields|attributes|فیلڈز|خصوصیات)\s+(?:of\s+|for\s+)?" + FieldEntity + @"\s+(?<r>.+)$", Opts);
+    private static readonly Regex CustomFieldSet = new(@"^(?:set|سیٹ)\s+" + FieldEntity + @"\s+(?<l>[^=:]+?)\s*[=:]\s*(?<v>.+)$", Opts);
+    private static readonly Regex CustomFieldPick = new(@"^(?:set|سیٹ)\s+" + FieldEntity + @"\s+(?<l>[^=:]+)$", Opts);
+    private static readonly Regex CustomFieldPickLast = new(@"^(?:set\s+fields?|فیلڈ\s+سیٹ\s+کریں|فیلڈز\s+سیٹ\s+کریں)$", Opts);
+    private static readonly Regex CustomFieldOptionAdd = new(@"^" + AddVerb + @"\s+" + OptionWord + @"\s+(?:for\s+|to\s+)?" + FieldEntity + @"\s+(?<l>[^=:]+?)\s*[=:]\s*(?<v>.+)$", Opts);
+    private static readonly Regex CustomFieldOptionRemove = new(@"^" + RemoveVerb + @"\s+" + OptionWord + @"\s+(?:for\s+|from\s+)?" + FieldEntity + @"\s+(?<l>[^=:]+?)\s*[=:]\s*(?<v>.+)$", Opts);
+    private static readonly Regex CustomFieldVisibility = new(@"^(?<w>hide|private|چھپائیں|نجی|show|public|دکھائیں|عوامی)\s+" + FieldWord + @"\s+" + FieldEntity + @"\s+(?<n>.+)$", Opts);
 
-    private static readonly Regex CustomFieldPick = new(@"^set\s+" + FieldEntity + @"\s+(?<l>[^=:]+)$", Opts);
-    private static readonly Regex CustomFieldOptionAdd = new(@"^(?:add|new)\s+(?:option|options|choice|choices)\s+(?:for\s+|to\s+)?" + FieldEntity + @"\s+(?<l>[^=:]+?)\s*[=:]\s*(?<v>.+)$", Opts);
-
-    private static string FieldEntityOf(Match m) => m.Groups["e"].Value.ToLowerInvariant().TrimEnd('s');
+    private static string FieldEntityOf(Match m)
+    {
+        var word = m.Groups["e"].Value.ToLowerInvariant();
+        if (word.StartsWith("product") || word is "پروڈکٹ" or "پراڈکٹ" or "مصنوعات") return "product";
+        if (word.StartsWith("customer") || word is "کسٹمر" or "گاہک") return "customer";
+        return "order";
+    }
 
     private static ParsedCommand? TryParseCustomField(string message)
     {
+        if (CustomFieldPickLast.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CustomFieldPickLast };
+
         var m = CustomFieldAddA.Match(message);
         if (!m.Success) m = CustomFieldAddB.Match(message);
         if (m.Success) return new ParsedCommand { Kind = CommandKind.CustomFieldAdd, Text = FieldEntityOf(m), Text2 = m.Groups["n"].Value.Trim() };
@@ -607,6 +624,12 @@ public static class CommandParser
         m = CustomFieldRemoveA.Match(message);
         if (!m.Success) m = CustomFieldRemoveB.Match(message);
         if (m.Success) return new ParsedCommand { Kind = CommandKind.CustomFieldRemove, Text = FieldEntityOf(m), Text2 = m.Groups["n"].Value.Trim() };
+
+        if ((m = CustomFieldVisibility.Match(message)).Success)
+        {
+            var hide = m.Groups["w"].Value.ToLowerInvariant() is "hide" or "private" or "چھپائیں" or "نجی";
+            return new ParsedCommand { Kind = CommandKind.CustomFieldVisibility, Text = FieldEntityOf(m), Text2 = m.Groups["n"].Value.Trim(), Text3 = hide ? "private" : "public" };
+        }
 
         if (CustomFieldList.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CustomFieldList };
         if ((m = CustomFieldShow.Match(message)).Success)
@@ -618,6 +641,8 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.CustomFieldSet, Text = FieldEntityOf(m), Text2 = m.Groups["l"].Value.Trim() };
         if ((m = CustomFieldOptionAdd.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.CustomFieldOption, Text = FieldEntityOf(m), Text2 = m.Groups["l"].Value.Trim(), Text3 = m.Groups["v"].Value.Trim() };
+        if ((m = CustomFieldOptionRemove.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.CustomFieldOptionRemove, Text = FieldEntityOf(m), Text2 = m.Groups["l"].Value.Trim(), Text3 = m.Groups["v"].Value.Trim() };
         return null;
     }
 

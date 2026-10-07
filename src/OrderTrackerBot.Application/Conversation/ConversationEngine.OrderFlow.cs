@@ -693,6 +693,8 @@ public partial class ConversationEngine
         }
 
         await CheckLoyaltyThresholdAsync(seller, session, ctx, order, ct);
+        if (session.State == ConversationState.Idle)
+            await OfferFieldsButtonAsync(seller, ctx, CustomFieldEntity.Order, order.Id, $"Order #{order.Id}", ct);
     }
 
     private async Task HandleDuplicateOrderConfirmationAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)

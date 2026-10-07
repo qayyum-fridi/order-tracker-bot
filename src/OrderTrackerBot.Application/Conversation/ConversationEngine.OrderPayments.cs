@@ -40,6 +40,7 @@ public partial class ConversationEngine
         lines.Add($"👉 \"edit order {order.Id}\" · \"receipt {order.Id}\" · \"mark {order.Id} shipped\"" +
                   (order.PaymentStatus == PaymentStatus.Paid ? "" : $" · \"order {order.Id} advance 500\""));
         await ReplyAsync(seller, string.Join("\n", lines), ct);
+        await OfferFieldsButtonAsync(seller, ctx, CustomFieldEntity.Order, order.Id, $"Order #{order.Id}", ct);
     }
 
     private async Task HandleOrderPaymentAsync(Seller seller, SessionContextData ctx, int number, decimal amount, CancellationToken ct)
