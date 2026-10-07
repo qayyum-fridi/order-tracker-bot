@@ -183,7 +183,7 @@ shared-state action: confirm with the user and get SSH/host details first.
   changes an order's items or status. Stock can go negative (oversold). Low/out-of-stock warnings (≤3) are collected per turn and sent once
   after the reply (`FlushStockWarningsAsync`).
 - Voice notes (ported from PR #9): `HandleAudioMessageAsync` downloads the audio, `OpenAiAudioTranscriber` (`OpenAi:TranscriptionModel`,
-  default `whisper-1`, plus `TranscriptionPrompt` steering towards Roman Urdu/English and digits) transcribes it, the bot echoes
+  default `gpt-transcribe`, which gets the seller's names as `keywords[]` and `OpenAi:TranscriptionLanguages` (`ur`,`en`) as `languages[]`, retrying without them if the API answers 400; `whisper-1` is shut down by OpenAI on 2027-02-26 and still works via config with the names appended to the prompt, plus `TranscriptionPrompt` steering towards Roman Urdu/English and digits) transcribes it, the bot echoes
   "🎤 Maine suna: …" and handles the text exactly like a typed message. No API key -> the old "send it as text" reply; a failed
   transcription asks to resend and reports OTB-3002. Before handling, `IAiOrderAssistant.InterpretVoiceAsync` rewrites the transcript into what the
   seller would have typed for the bot's current question (`DescribeVoiceSituation`: state, offered options, catalog) — "pehla wala" -> `1`, "haan kar do" -> `yes`,

@@ -15,7 +15,7 @@ services:
       WhatsApp__AppSecret: "${WHATSAPP_APP_SECRET}"
       OpenAi__ApiKey: "${OPENAI_API_KEY}"
       OpenAi__Model: "${OPENAI_MODEL:-gpt-4o-mini}"
-      OpenAi__TranscriptionModel: "${OPENAI_TRANSCRIPTION_MODEL:-whisper-1}"
+      OpenAi__TranscriptionModel: "${OPENAI_TRANSCRIPTION_MODEL:-gpt-transcribe}"
       FounderAlerts__WebhookUrl: "${FOUNDER_ALERTS_WEBHOOK_URL:-}"
       WhatsApp__ProductFlowId: "${WHATSAPP_PRODUCT_FLOW_ID:-}"
       WhatsApp__CustomerFlowId: "${WHATSAPP_CUSTOMER_FLOW_ID:-}"
