@@ -260,8 +260,9 @@ public partial class ConversationEngine
                     return;
                 }
 
-                // Not a product line or command: if it's really a customer order, take it instead of rejecting it.
-                if (await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: false, ct)) return;
+                // Not a product line or command: if it's really a customer order (it names a buyer phone), take it instead of rejecting it.
+                // Without a phone, free text here is the seller describing their own stock ("mere paas 4 lawn suit hain, 3500"), never an order.
+                if (await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: true, ct)) return;
 
                 await ReplyAsync(seller,
                     "Maazrat, samajh nahi aaya.\n• Product add karna ho to: 'naam - price' (misaal: 'Kurti - 1800')\n" +

@@ -129,6 +129,24 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task Onboarding_SellerDescribingOwnStock_IsNotTreatedAsAnOrder()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = Engine(db);
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "10 ke qareeb" })
+            await engine.HandleIncomingMessageAsync(Phone, m, default);
+        // Even if the model wrongly calls this an order, there is no buyer phone, so it must not end setup or start the trial.
+        AiReturns(Order("Mere", "lawn suit", 4, phone: null));
+
+        await engine.HandleIncomingMessageAsync(Phone, "mere paas 4 lawn ke suit hain, 3500 rupay", default);
+
+        var seller = await db.Sellers.FirstAsync();
+        Assert.False(seller.OnboardingComplete);
+        Assert.Equal(0, await db.Orders.CountAsync());
+        Assert.DoesNotContain(_sent, m => m.Contains("Yeh to order lag raha hai"));
+    }
+
+    [Fact]
     public async Task WeightProducts_QuickAdd_AndOrderShowsPackTotal()
     {
         using var db = _dbFactory.CreateContext();
