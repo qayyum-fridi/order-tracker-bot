@@ -172,3 +172,21 @@ shared-state action: confirm with the user and get SSH/host details first.
   The first change logs an `ActionType.OrderEdited` snapshot so one "undo" restores items, amounts, payment method and the customer's
   name/phone/address. Totals are recomputed (percent codes re-applied, flat ones capped). Cancelled/Returned orders can't be edited.
   Phone/address/name edits change the shared Customer record, not just this order.
+- Part payments: `Order.AmountPaid` (money received so far). `OrderMoney.Received/Balance/State` (Formatting) are the single source — `Paid`
+  status always means fully paid, including older paid orders whose AmountPaid is 0. "order 12 advance 500" / "12 paid 1000" add to it and flip
+  to Paid at the total; an advance written in a new order ("…, advance 500") or typed while confirming is saved with the order. Every
+  "mark paid" path goes through `MarkFullyPaid` (logs previous status + amount for undo). Unpaid/COD lists, payment link, today's summary,
+  receipt and export use the balance. "order 12" / "#12" shows one order in full.
+- Stock (`ConversationEngine.Stock.cs`): only products with a `StockQty` are tracked ("stock Kurti 20" / "+10" / "off", "stock" lists).
+  An active order holds its items' quantities, a cancelled/returned one holds none; every lifecycle change (save, cancel, status change incl.
+  returned, edit, undo of any of these) applies `StockFootprint(after) - StockFootprint(before)` — add that call around any new place that
+  changes an order's items or status. Stock can go negative (oversold). Low/out-of-stock warnings (≤3) are collected per turn and sent once
+  after the reply (`FlushStockWarningsAsync`).
+- Voice notes (ported from PR #9): `HandleAudioMessageAsync` downloads the audio, `OpenAiAudioTranscriber` (`OpenAi:TranscriptionModel`,
+  default `whisper-1`, plus `TranscriptionPrompt` steering towards Roman Urdu/English and digits) transcribes it, the bot echoes
+  "🎤 Maine suna: …" and handles the text exactly like a typed message. No API key -> the old "send it as text" reply; a failed
+  transcription asks to resend and reports OTB-3002.
+- Customer corrections: "Sara ka phone 0300…", "Sara ka address …", "Bilal ki city …", "customer Sara name Sara Khan" (`CommandKind.CustomerUpdate`,
+  `ConversationEngine.CustomerUpdate.cs`). Questions ("… kya hai") and non-numeric phones are not treated as updates; an ambiguous name
+  lists the matches instead of guessing; each change is undoable (`ActionType.CustomerUpdated`).
+- The WhatsApp list body (help) must stay ≤ 1024 chars — a test enforces it; keep `HelpText` curated rather than exhaustive.

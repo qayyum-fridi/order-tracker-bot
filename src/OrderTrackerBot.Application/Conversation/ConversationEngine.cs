@@ -27,6 +27,7 @@ public partial class ConversationEngine
     private readonly IExportFileWriter? _exportWriter;
     private readonly FeatureOptions _features;
     private readonly IIssueReporter? _issues;
+    private readonly IAudioTranscriber? _transcriber;
     private readonly MessageLoggingSender _turn;
     private Seller? _turnSeller;
     private SessionContextData? _turnCtx;
@@ -34,7 +35,7 @@ public partial class ConversationEngine
     public ConversationEngine(IAppDbContext db, IAiOrderAssistant ai, IWhatsAppSender sender, IFounderAlertNotifier founderAlerts,
         BillingOptions? billing = null, IWhatsAppMediaClient? media = null, IInstagramClient? instagram = null, ICatalogSheetImporter? catalogSheets = null,
         IReceiptPdfGenerator? receiptPdf = null, IExportFileWriter? exportWriter = null, FeatureOptions? features = null,
-        IIssueReporter? issues = null)
+        IIssueReporter? issues = null, IAudioTranscriber? transcriber = null)
     {
         _db = db;
         _ai = ai;
@@ -48,6 +49,7 @@ public partial class ConversationEngine
         _receiptPdf = receiptPdf;
         _exportWriter = exportWriter;
         _issues = issues;
+        _transcriber = transcriber;
         // Unconfigured (e.g. unit tests) means off; the app registers FeatureOptions with its real defaults.
         _features = features ?? new FeatureOptions { ShortcutButtons = false };
     }
@@ -63,7 +65,9 @@ public partial class ConversationEngine
         _turn.Reset();
         _turnSeller = null;
         _turnCtx = null;
+        _stockWarnings.Clear();
         await HandleIncomingCoreAsync(fromPhoneNumber, rawMessage, ct);
+        await FlushStockWarningsAsync(fromPhoneNumber, ct);
         await TrySendShortcutBarAsync(fromPhoneNumber, ct);
     }
 

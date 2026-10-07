@@ -37,3 +37,13 @@ public interface IWhatsAppMediaClient
     /// <summary>Returns null when media download isn't configured or failed.</summary>
     Task<(byte[] Bytes, string MimeType)?> DownloadAsync(string mediaId, CancellationToken cancellationToken = default);
 }
+
+/// <summary>Speech-to-text for seller voice notes.</summary>
+public interface IAudioTranscriber
+{
+    /// <summary>False when no transcription service is configured (voice notes then get the "send text" reply).</summary>
+    bool IsConfigured { get; }
+
+    /// <summary>Returns null when transcription failed or produced no text.</summary>
+    Task<string?> TranscribeAsync(byte[] audio, string mimeType, CancellationToken cancellationToken = default);
+}

@@ -68,6 +68,7 @@ public class AppDbContext : DbContext, IAppDbContext
             e.Property(o => o.Subtotal).HasColumnType("decimal(18,2)");
             e.Property(o => o.DiscountAmount).HasColumnType("decimal(18,2)");
             e.Property(o => o.DeliveryCharge).HasColumnType("decimal(18,2)");
+            e.Property(o => o.AmountPaid).HasColumnType("decimal(18,2)");
             e.Property(o => o.Total).HasColumnType("decimal(18,2)");
             e.HasOne(o => o.Seller).WithMany(s => s.Orders).HasForeignKey(o => o.SellerId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(o => o.Customer).WithMany(c => c.Orders).HasForeignKey(o => o.CustomerId).OnDelete(DeleteBehavior.Restrict);

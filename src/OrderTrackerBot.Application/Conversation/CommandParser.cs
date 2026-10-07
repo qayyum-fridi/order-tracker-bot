@@ -68,6 +68,10 @@ public enum CommandKind
     Shortcuts,
     DeliveryCharge,
     EditOrder,
+    OrderDetail,
+    Stock,
+    CustomerUpdate,
+    OrderPayment,
     OrderDeliveryCharge,
     RemoveBranding,
     DiscountPerformance,
@@ -103,6 +107,7 @@ public sealed class ParsedCommand
     public decimal? Amount { get; init; }
     public ProductLine? Product { get; init; }
     public ExportRequest? Export { get; init; }
+    public string? Text3 { get; init; }
 }
 
 public static class CommandParser
@@ -178,6 +183,75 @@ public static class CommandParser
     private static readonly Regex DeliveryFree = new(@"^(?:free\s+delivery|delivery\s+free|no\s+delivery(?:\s+charges?)?|delivery\s+(?:charges?\s+)?(?:nahi|none|off)|فری\s+ڈیلیوری)$", Opts);
     private static readonly Regex DeliveryShow = new(@"^(?:my\s+)?" + DeliveryWord + "$", Opts);
     private static readonly Regex OrderDelivery = new(@"^(?:order|آرڈر)?\s*#?(?<id>\d+)\s+" + DeliveryWord + @"\s*[:=-]?\s*(?:rs\.?\s*)?(?<n>\d{1,6}|free|0)$|^(?:order|آرڈر)\s*#?(?<id>\d+)\s+free\s+delivery$", Opts);
+
+    // "Sara ka phone 0300..." / "Sara ka address House 5" / "customer Sara city Lahore" / "customer Sara name Sara Khan".
+    // Text = who, Text2 = phone|address|city|name, Text3 = the new value. Questions ("Sara ka phone kya hai") are left alone.
+    private const string CustomerField = @"(?<f>phone|number|fone|mobile|address|pata|patta|city|shehar|naam|name|فون|نمبر|پتہ|شہر|نام)";
+    private static readonly Regex CustomerUpdateOf = new(@"^(?:customer\s+)?(?<name>[^\d,:]{2,40}?)\s+(?:ka|ki|کا|کی)\s+(?:naya\s+|new\s+)?" + CustomerField + @"\s*(?:ab\s+|hai\s+|:|=|-)?\s*(?<v>.+)$", Opts);
+    private static readonly Regex CustomerUpdatePrefix = new(@"^customer\s+(?<name>[^\d,:]{2,40}?)\s+" + CustomerField + @"\s*:?\s*(?<v>.+)$", Opts);
+    private static readonly Regex QuestionWords = new(@"^(?:kya|kia|kiya|batao|bata|dikhao|kaun|kahan|\?)|\?$", Opts);
+
+    private static ParsedCommand? TryParseCustomerUpdate(string message)
+    {
+        var m = CustomerUpdateOf.Match(message);
+        if (!m.Success) m = CustomerUpdatePrefix.Match(message);
+        if (!m.Success) return null;
+        var value = m.Groups["v"].Value.Trim();
+        if (QuestionWords.IsMatch(value)) return null;
+        var field = m.Groups["f"].Value.ToLowerInvariant() switch
+        {
+            "phone" or "number" or "fone" or "mobile" or "فون" or "نمبر" => "phone",
+            "address" or "pata" or "patta" or "پتہ" => "address",
+            "city" or "shehar" or "شہر" => "city",
+            _ => "name"
+        };
+        if (field == "phone")
+        {
+            var digits = Regex.Replace(value, @"[\s-]", "");
+            if (!Regex.IsMatch(digits, @"^\+?\d{7,15}$")) return null;
+            value = digits;
+        }
+        else if (value.Length < 2) return null;
+        return new ParsedCommand { Kind = CommandKind.CustomerUpdate, Text = m.Groups["name"].Value.Trim(), Text2 = field, Text3 = value };
+    }
+
+    // "stock" lists tracked stock; "stock Kurti 20" sets, "stock Kurti +10" adds, "stock Kurti off" stops tracking. Text = product, Text2 = set|add|off.
+    private static readonly Regex StockList = new(@"^(?:stock|stocks|inventory|stock\s+list|اسٹاک)$", Opts);
+    private static readonly Regex StockOff = new(@"^(?:stock|اسٹاک)\s*:?\s*(?<name>[^\d].*?)\s+(?:off|band|remove|hatao)$", Opts);
+    private static readonly Regex StockSet = new(@"^(?:stock|اسٹاک)\s*:?\s*(?<name>[^\d].*?)\s*[=:]?\s*(?<sign>\+)?\s*(?<n>\d{1,6})$|^(?<name>[^\d].*?)\s+(?:ka\s+|ki\s+)?(?:stock|اسٹاک)\s*[=:]?\s*(?<sign>\+)?\s*(?<n>\d{1,6})$", Opts);
+
+    // "order 12" / "#12" shows one order in full.
+    private static readonly Regex OrderDetail = new(@"^(?:order|آرڈر)\s*#?(?<n>\d+)$|^#(?<n>\d+)$", Opts);
+
+    // Part payments: "order 12 advance 500", "12 paid 1000", "advance 500 order 12" add to what the buyer has paid so far.
+    private const string PaidWord = @"(?:advance|paid|payment|received|mila|mile|ملے|ایڈوانس)";
+    private static readonly Regex OrderPayment = new(@"^(?:order|آرڈر)?\s*#?(?<id>\d+)\s+" + PaidWord + @"\s*:?\s*(?:rs\.?\s*)?(?<a>\d+(?:\.\d+)?)(?:\s*(?:rs|rupees?|روپے))?$" +
+        @"|^(?:advance|payment|paid)\s+(?:rs\.?\s*)?(?<a>\d+(?:\.\d+)?)\s+(?:for\s+|in\s+)?(?:order|آرڈر)\s*#?(?<id>\d+)$", Opts);
+
+    // An advance written inside a new order ("Sara, 1 kurti, 0300..., advance 500 jazzcash" / "1000 advance").
+    private static readonly Regex AdvanceInTextAfter = new(@"(?<![\p{L}\p{N}])(?:advance|adv|ایڈوانس)(?:\s+(?:paid|diya|di|mila|received|bheja))?\s*[:=-]?\s*(?<rs>rs\.?\s*)?(?<n>\d{1,6})(?!\d)(?<rs2>\s*(?:rs|rupees?|rupay|روپے))?", Opts);
+    private static readonly Regex AdvanceInTextBefore = new(@"(?<![\p{L}\p{N}])(?<rs>rs\.?\s*)?(?<n>\d{1,6})(?<rs2>\s*(?:rs|rupees?|rupay|روپے))?\s+(?:advance|ایڈوانس)(?![\p{L}])", Opts);
+
+    /// <summary>Finds an advance amount the seller wrote inside an order (or typed alone while confirming: "advance 500").</summary>
+    public static bool TryFindAdvanceInOrderText(string message, out decimal amount)
+    {
+        amount = 0;
+        var text = NormalizeDigits(message);
+        foreach (var regex in new[] { AdvanceInTextAfter, AdvanceInTextBefore })
+        {
+            foreach (Match m in regex.Matches(text))
+            {
+                var value = decimal.Parse(m.Groups["n"].Value, System.Globalization.CultureInfo.InvariantCulture);
+                var saysRupees = m.Groups["rs"].Success && m.Groups["rs"].Length > 0 || m.Groups["rs2"].Success && m.Groups["rs2"].Length > 0;
+                if (value >= 50 || saysRupees)
+                {
+                    amount = value;
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 
     // "edit order 12" / "order 12 edit" / "edit order" (latest) / "آرڈر 12 تبدیل" opens edit mode for a saved order.
     private const string EditVerb = @"(?:edit|change|update|badlo|badlein|badalna|theek\s+karo|tabdeel|tabdeeli)";
@@ -550,6 +624,19 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.PriceTiers, Text = m.Groups[1].Value.Trim(), Text2 = m.Groups[2].Value.Trim() };
         if (CampaignStatus.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CampaignStatus };
         if (DiscountPerformance.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DiscountPerformance };
+        if (StockList.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Stock };
+        if ((m = StockOff.Match(message)).Success) return new ParsedCommand { Kind = CommandKind.Stock, Text = m.Groups["name"].Value.Trim(), Text2 = "off" };
+        if ((m = StockSet.Match(message)).Success)
+            return new ParsedCommand
+            {
+                Kind = CommandKind.Stock, Text = m.Groups["name"].Value.Trim(), Text2 = m.Groups["sign"].Success ? "add" : "set",
+                Amount = decimal.Parse(m.Groups["n"].Value)
+            };
+        if ((m = OrderDetail.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.OrderDetail, Number = int.Parse(m.Groups["n"].Value) };
+        if ((m = OrderPayment.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.OrderPayment, Number = int.Parse(m.Groups["id"].Value),
+                Amount = decimal.Parse(m.Groups["a"].Value, System.Globalization.CultureInfo.InvariantCulture) };
         if ((m = EditOrder.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.EditOrder, Number = m.Groups["n"].Success ? int.Parse(m.Groups["n"].Value) : null };
         if ((m = OrderDelivery.Match(message)).Success)
@@ -606,6 +693,7 @@ public static class CommandParser
         if (TryParseForwardedQuery(message, out var asker, out var question))
             return new ParsedCommand { Kind = CommandKind.ForwardedQuery, Text = asker, Text2 = question };
 
+        if (TryParseCustomerUpdate(message) is { } customerUpdate) return customerUpdate;
         if ((m = CustomerDetail.Match(message)).Success)
         {
             var arg = m.Groups[1].Value.Trim();

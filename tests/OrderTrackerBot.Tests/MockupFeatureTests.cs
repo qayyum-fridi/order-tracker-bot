@@ -371,6 +371,235 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task Advance_InOrderText_ThenPartPayments_UntilPaid_AndUndo()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(Order("Sara", "Kurti", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567, advance 500 jazzcash", default);
+        Assert.Contains(_sent, m => m.Contains("Advance: Rs.500 · Baqi: Rs.1,300"));
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        var order = await db.Orders.FirstAsync();
+        Assert.Equal(500m, order.AmountPaid);
+        Assert.Equal(PaymentStatus.Unpaid, order.PaymentStatus);
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "unpaid orders", default);
+        Assert.Contains(_sent, m => m.Contains("baqi Rs.1,300") && m.Contains("Total pending: Rs.1,300"));
+
+        await engine.HandleIncomingMessageAsync(Phone, $"order {order.Id}", default);
+        Assert.Contains(_sent, m => m.Contains($"📦 Order #{order.Id}") && m.Contains("PARTLY PAID — Rs.500 mila, baqi Rs.1,300") && m.Contains($"edit order {order.Id}"));
+
+        await engine.HandleIncomingMessageAsync(Phone, $"order {order.Id} advance 800", default);
+        Assert.Contains(_sent, m => m.Contains("Ab tak Rs.1,300 / Rs.1,800 — baqi Rs.500"));
+        await engine.HandleIncomingMessageAsync(Phone, $"order {order.Id} paid 500", default);
+        await db.Entry(order).ReloadAsync();
+        Assert.Equal(PaymentStatus.Paid, order.PaymentStatus);
+        Assert.Equal(1800m, order.AmountPaid);
+
+        await engine.HandleIncomingMessageAsync(Phone, "undo", default);
+        await db.Entry(order).ReloadAsync();
+        Assert.Equal(PaymentStatus.Unpaid, order.PaymentStatus);
+        Assert.Equal(1300m, order.AmountPaid);
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "today's summary", default);
+        // The order is COD (the model found no payment method) with part paid up front: received money counts, not just fully-paid orders.
+        Assert.Contains(_sent, m => m.Contains("Cash collected (COD): Rs.1,300"));
+    }
+
+    [Fact]
+    public async Task Advance_TypedWhileConfirming_IsApplied_AndFullAdvanceMeansPaid()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(Order("Sara", "Kurti", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
+
+        await engine.HandleIncomingMessageAsync(Phone, "advance 1800", default);
+        Assert.Equal(ConversationState.AwaitingOrderConfirmation, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sent, m => m.Contains("Advance: Rs.1,800 — poora paid"));
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        var order = await db.Orders.FirstAsync();
+        Assert.Equal(PaymentStatus.Paid, order.PaymentStatus);
+        Assert.Equal(1800m, order.AmountPaid);
+    }
+
+    [Fact]
+    public async Task MarkPaid_And_CodCollected_RecordTheFullAmount()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(Order("Sara", "Kurti", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567, advance 300", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        var order = await db.Orders.FirstAsync();
+
+        await engine.HandleIncomingMessageAsync(Phone, $"mark {order.Id} delivered", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default); // cash collected?
+        Assert.Contains(_sent, m => m.Contains("Rs.1,500 COD collected"));
+        await db.Entry(order).ReloadAsync();
+        Assert.Equal(1800m, order.AmountPaid);
+        Assert.Equal(PaymentStatus.Paid, order.PaymentStatus);
+    }
+
+    private async Task<int?> StockOf(AppDbContext db, string name) =>
+        (await db.Products.AsNoTracking().FirstAsync(p => p.Name == name)).StockQty;
+
+    [Fact]
+    public async Task Stock_FollowsTheOrderLifecycle_AndWarnsWhenLow()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await engine.HandleIncomingMessageAsync(Phone, "stock Kurti 5", default);
+        Assert.Contains(_sent, m => m.Contains("Kurti — stock: 5"));
+
+        // Save: 2 kurtis held -> 3 left, which is "low".
+        AiReturns(Order("Sara", "Kurti", 2));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 2 kurti, 03001234567", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        Assert.Equal(3, await StockOf(db, "Kurti"));
+        Assert.Contains(_sent, m => m.Contains("Stock alert") && m.Contains("Kurti: sirf 3 bache"));
+        Assert.Null(await StockOf(db, "Lawn Suit")); // untracked stays untracked
+        var order = await db.Orders.FirstAsync();
+
+        // Edit 2 -> 4: two more held; undo gives them back.
+        await engine.HandleIncomingMessageAsync(Phone, $"edit order {order.Id}", default);
+        await engine.HandleIncomingMessageAsync(Phone, "1 = 4", default);
+        await engine.HandleIncomingMessageAsync(Phone, "done", default);
+        Assert.Equal(1, await StockOf(db, "Kurti"));
+        await engine.HandleIncomingMessageAsync(Phone, "undo", default);
+        Assert.Equal(3, await StockOf(db, "Kurti"));
+
+        // Shipped then returned: the goods come back. Undo of the return holds them again.
+        await engine.HandleIncomingMessageAsync(Phone, $"mark {order.Id} shipped", default);
+        Assert.Equal(3, await StockOf(db, "Kurti"));
+        await engine.HandleIncomingMessageAsync(Phone, $"mark {order.Id} returned", default);
+        Assert.Equal(5, await StockOf(db, "Kurti"));
+        await engine.HandleIncomingMessageAsync(Phone, "undo", default);
+        Assert.Equal(3, await StockOf(db, "Kurti"));
+
+        // Cancel releases the stock.
+        await engine.HandleIncomingMessageAsync(Phone, $"cancel order {order.Id}", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        Assert.Equal(5, await StockOf(db, "Kurti"));
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "stock", default);
+        Assert.Contains(_sent, m => m.Contains("Stock (1)") && m.Contains("Kurti: 5"));
+        await engine.HandleIncomingMessageAsync(Phone, "catalog", default);
+        Assert.Contains(_sent, m => m.Contains("Kurti - Rs.1,800 (stock 5)"));
+    }
+
+    [Fact]
+    public async Task Stock_AddAndOff_AndOverselling_IsFlagged()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await engine.HandleIncomingMessageAsync(Phone, "stock Kurti 1", default);
+        await engine.HandleIncomingMessageAsync(Phone, "stock Kurti +1", default);
+        Assert.Equal(2, await StockOf(db, "Kurti"));
+
+        AiReturns(Order("Sara", "Kurti", 3));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 3 kurti, 03001234567", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        Assert.Equal(-1, await StockOf(db, "Kurti"));
+        Assert.Contains(_sent, m => m.Contains("Kurti: stock khatam (-1)"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "stock kurti off", default);
+        Assert.Null(await StockOf(db, "Kurti"));
+        await engine.HandleIncomingMessageAsync(Phone, "stock Shalwar 5", default);
+        Assert.Contains(_sent, m => m.Contains("\"Shalwar\" catalog mein nahi mila"));
+    }
+
+    [Fact]
+    public async Task VoiceNote_IsTranscribed_Echoed_AndHandledLikeText()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        _media.Setup(m => m.DownloadAsync("voice-1", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
+        var transcriber = new Mock<IAudioTranscriber>();
+        transcriber.SetupGet(t => t.IsConfigured).Returns(true);
+        transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<CancellationToken>())).ReturnsAsync("delivery 200");
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object);
+
+        await engine.HandleAudioMessageAsync(Phone, "voice-1");
+
+        Assert.Contains(_sent, m => m == "🎤 Maine suna: \"delivery 200\"");
+        Assert.Contains(_sent, m => m.Contains("Delivery charge Rs.200 set"));
+        Assert.Equal(200m, (await db.Sellers.FirstAsync()).DefaultDeliveryCharge);
+    }
+
+    [Fact]
+    public async Task VoiceNote_WhenTranscriptionFails_AsksToResend_AndReports()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        _media.Setup(m => m.DownloadAsync("voice-2", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
+        var transcriber = new Mock<IAudioTranscriber>();
+        transcriber.SetupGet(t => t.IsConfigured).Returns(true);
+        var issues = new Mock<IIssueReporter>();
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object,
+            issues: issues.Object, transcriber: transcriber.Object);
+
+        await engine.HandleAudioMessageAsync(Phone, "voice-2");
+
+        Assert.Contains(_sent, m => m.Contains("Voice message samajh nahi aaya"));
+        issues.Verify(i => i.ReportAsync(IssueCodes.VoiceTranscriptionFailed, Phone, It.IsAny<string?>(), null, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task VoiceNote_WithoutTranscription_KeepsTheSendTextReply()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+
+        await engine.HandleAudioMessageAsync(Phone, "voice-3");
+
+        Assert.Contains(_sent, m => m.Contains("Voice message mila") && m.Contains("TEXT"));
+    }
+
+    [Fact]
+    public async Task CustomerUpdate_ChangesPhoneAndAddress_AndUndoRestores()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await SaveSaraKurtiOrderAsync(engine, db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara ka phone 0300-999 8888", default);
+        Assert.Contains(_sent, m => m.Contains("Sara ka phone update: 03009998888") && m.Contains("pehle: 03001234567"));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara ka address House 5, Gulberg", default);
+        var customer = await db.Customers.AsNoTracking().FirstAsync();
+        Assert.Equal("03009998888", customer.Phone);
+        Assert.Equal("House 5, Gulberg", customer.Address);
+
+        await engine.HandleIncomingMessageAsync(Phone, "undo", default);
+        customer = await db.Customers.AsNoTracking().FirstAsync();
+        Assert.Null(customer.Address);
+        Assert.Equal("03009998888", customer.Phone);
+    }
+
+    [Fact]
+    public async Task CustomerUpdate_AsksWhichOne_WhenTheNameIsAmbiguous()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var sellerId = (await db.Sellers.FirstAsync()).Id;
+        db.Customers.AddRange(
+            new OrderTrackerBot.Domain.Entities.Customer { SellerId = sellerId, Name = "Sara Khan", Phone = "03001110000" },
+            new OrderTrackerBot.Domain.Entities.Customer { SellerId = sellerId, Name = "Sara Ali", Phone = "03002220000" });
+        await db.SaveChangesAsync();
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara ka phone 03009998888", default);
+        Assert.Contains(_sent, m => m.Contains("naam ke 2 customers") && m.Contains("Sara Khan (03001110000)") && m.Contains("Sara Ali"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara Ali ka phone 03009998888", default);
+        Assert.Equal("03009998888", (await db.Customers.AsNoTracking().FirstAsync(c => c.Name == "Sara Ali")).Phone);
+        Assert.Equal("03001110000", (await db.Customers.AsNoTracking().FirstAsync(c => c.Name == "Sara Khan")).Phone);
+    }
+
+    [Fact]
     public async Task NewOrder_DefaultsToCod()
     {
         using var db = _dbFactory.CreateContext();

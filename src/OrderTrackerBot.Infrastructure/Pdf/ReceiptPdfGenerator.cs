@@ -156,8 +156,15 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
                     {
                         t.Span("Payment: ").Bold();
                         t.Span($"{r.PaymentMethod} — ");
-                        t.Span(r.Paid ? "PAID" : "UNPAID").Bold().FontColor(r.Paid ? Accent : Colors.Red.Darken2);
+                        var partly = !r.Paid && r.AmountPaid > 0;
+                        t.Span(r.Paid ? "PAID" : partly ? "PARTLY PAID" : "UNPAID").Bold().FontColor(r.Paid ? Accent : Colors.Red.Darken2);
                     });
+                    if (!r.Paid && r.AmountPaid > 0)
+                        c.Item().Text(t =>
+                        {
+                            t.Span($"Paid: {Money(r.AmountPaid)} · ");
+                            t.Span($"Balance due: {Money(Math.Max(0, r.Total - r.AmountPaid))}").Bold();
+                        });
                     c.Item().Text(t => { t.Span("Order status: ").Bold(); t.Span(r.Status); });
                     if (!string.IsNullOrWhiteSpace(r.TrackingNumber))
                         c.Item().Text(t => { t.Span("Tracking: ").Bold(); t.Span($"{r.TrackingCourier} {r.TrackingNumber}".Trim()); });

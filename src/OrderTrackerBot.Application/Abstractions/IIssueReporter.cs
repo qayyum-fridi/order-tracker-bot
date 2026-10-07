@@ -20,6 +20,8 @@ public static class IssueCodes
 
     // 3xxx — OpenAI, 4xxx — Instagram, 5xxx — background jobs
     public static readonly IssueCode OpenAiAnalysisFailed = new("OTB-3001", "OpenAI order analysis failed", IssueSeverity.Error);
+    public static readonly IssueCode VoiceTranscriptionFailed = new("OTB-3002", "Voice note could not be transcribed", IssueSeverity.Warning);
+    public static readonly IssueCode VoiceNoteFailed = new("OTB-1005", "Voice note processing failed", IssueSeverity.Error);
     public static readonly IssueCode InstagramCommentFailed = new("OTB-4001", "Instagram comment processing failed", IssueSeverity.Error);
     public static readonly IssueCode ScheduledJobFailed = new("OTB-5001", "Scheduled job run failed", IssueSeverity.Error);
 }

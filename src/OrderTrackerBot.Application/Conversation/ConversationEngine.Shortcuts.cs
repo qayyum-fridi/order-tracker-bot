@@ -30,11 +30,8 @@ public partial class ConversationEngine
                 : "⚡ Yeh buttons har jawab ke neeche milte rahenge — bas dabayein.\nBand karne ke liye likhein: \"shortcut off\"";
         await _sender.SendButtonsMessageAsync(phone, body, ShortcutLabels(seller.PreferredLanguage), ct);
 
-        if (!ctx.ShortcutIntroShown)
-        {
-            ctx.ShortcutIntroShown = true;
-            await PersistAsync(session, ctx, ct);
-        }
+        ctx.ShortcutIntroShown = true;
+        await PersistAsync(session, ctx, ct); // also saves the bar's message-log row
     }
 
     private async Task HandleShortcutsToggleAsync(Seller seller, SessionContextData ctx, string value, CancellationToken ct)

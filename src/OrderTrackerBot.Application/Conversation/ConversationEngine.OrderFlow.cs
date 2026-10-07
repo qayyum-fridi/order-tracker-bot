@@ -44,6 +44,8 @@ public partial class ConversationEngine
         // The seller's own words beat the model: "delivery 300" in a single order is that order's delivery charge.
         if (analysis.Order is { } single && analysis.AdditionalOrders.Count == 0 && CommandParser.TryFindDeliveryInOrderText(message, out var delivery))
             single.DeliveryCharge = delivery;
+        if (analysis.Order is { } one && analysis.AdditionalOrders.Count == 0 && CommandParser.TryFindAdvanceInOrderText(message, out var advance))
+            one.AdvancePaid = advance;
         await HandleAnalysisAsync(seller, session, ctx, analysis, catalog, fromScreenshot: false, ct);
     }
 
@@ -144,6 +146,7 @@ public partial class ConversationEngine
             DiscountCode = draft.DiscountCode,
             OrderSource = draft.OrderSource,
             DeliveryCharge = draft.DeliveryCharge,
+            AdvancePaid = draft.AdvancePaid,
             FromScreenshot = fromScreenshot
         };
 
@@ -304,6 +307,7 @@ public partial class ConversationEngine
                 "پروڈکٹ: " + string.Join("، ", pending.Items.Select(i => $"{i.ProductName} — {i.Quantity} عدد")),
                 $"قیمت: {pending.Total:#,0} روپے"
             };
+            if (pending.AdvancePaid is > 0) urdu.Add($"ایڈوانس: {pending.AdvancePaid:#,0} روپے");
             if (pending.DeliveryCharge is > 0) urdu.Add($"(ڈیلیوری {pending.DeliveryCharge:#,0} روپے شامل — بدلنے کے لیے لکھیں: delivery 300)");
             if (!string.IsNullOrWhiteSpace(pending.Phone)) urdu.Add($"فون: {pending.Phone}");
             if (!string.IsNullOrWhiteSpace(pending.Address)) urdu.Add($"پتہ: {pending.Address}");
@@ -345,6 +349,8 @@ public partial class ConversationEngine
         if (pending.DiscountAmount > 0) lines.Add($"Discount ({pending.DiscountCode?.ToUpperInvariant()}): -{Formatters.Money(pending.DiscountAmount)}");
         if (pending.DeliveryCharge is > 0) lines.Add($"Delivery: {Formatters.Money(pending.DeliveryCharge.Value)} (badalne ke liye: \"delivery 300\" ya \"free delivery\")");
         lines.Add($"Total: {Formatters.Money(pending.Total)}");
+        if (pending.AdvancePaid is > 0 and var advance)
+            lines.Add(advance >= pending.Total ? $"Advance: {Formatters.Money(advance)} — poora paid" : $"Advance: {Formatters.Money(advance)} · Baqi: {Formatters.Money(pending.Total - advance)}");
         lines.Add("");
         lines.Add("Reply YES to save, ya EDIT to fix.");
         return string.Join("\n", lines);
@@ -368,7 +374,8 @@ public partial class ConversationEngine
     {
         var trimmed = message.Trim();
         // "delivery 300" while confirming changes this order's delivery, not the seller default.
-        if (session.State == ConversationState.AwaitingOrderConfirmation && CommandParser.TryParseDeliveryAmount(trimmed, out _)) return false;
+        if (session.State == ConversationState.AwaitingOrderConfirmation
+            && (CommandParser.TryParseDeliveryAmount(trimmed, out _) || trimmed.Length <= 30 && CommandParser.TryFindAdvanceInOrderText(trimmed, out _))) return false;
         var command = CommandParser.TryParse(trimmed);
         var isCancel = CancelWords.Contains(trimmed);
         var isCommand = command is not null && command.Kind is not (CommandKind.AddProduct or CommandKind.AddProductsBulk or CommandKind.MoreCustomers);
@@ -398,6 +405,13 @@ public partial class ConversationEngine
             var order = await SaveOrderFromDraftAsync(seller, pending, ct);
             await ReplyAsync(seller, SavedText(seller, order, pending), ct);
             await AfterOrderSavedAsync(seller, session, ctx, order, ct);
+            return;
+        }
+
+        if (CommandParser.TryFindAdvanceInOrderText(message, out var typedAdvance) && message.Trim().Length <= 30 && ctx.PendingOrder is { } advanceDraft)
+        {
+            advanceDraft.AdvancePaid = typedAdvance;
+            await ReplyAsync(seller, BuildConfirmationText(seller.PreferredLanguage, advanceDraft), ct);
             return;
         }
 
@@ -571,6 +585,7 @@ public partial class ConversationEngine
         DiscountCode = source.DiscountCode,
         OrderSource = source.OrderSource,
         DeliveryCharge = source.DeliveryCharge,
+        AdvancePaid = source.AdvancePaid,
         FromScreenshot = source.FromScreenshot
     };
 
@@ -604,6 +619,15 @@ public partial class ConversationEngine
             DeliveryCharge = pending.DeliveryCharge ?? seller.DefaultDeliveryCharge,
             Total = OrderTotal(pending.Subtotal, pending.DiscountAmount, pending.DeliveryCharge ?? seller.DefaultDeliveryCharge)
         };
+        if (pending.AdvancePaid is > 0 and var advance)
+        {
+            order.AmountPaid = Math.Min(advance, order.Total);
+            if (advance >= order.Total)
+            {
+                order.PaymentStatus = PaymentStatus.Paid;
+                order.PaidAt = DateTime.UtcNow;
+            }
+        }
 
         foreach (var item in pending.Items)
         {
@@ -620,6 +644,7 @@ public partial class ConversationEngine
 
         _db.Orders.Add(order);
         await _db.SaveChangesAsync(ct);
+        await ApplyStockChangeAsync(seller, new Dictionary<int, int>(), StockFootprint(order), ct);
 
         _db.ActionLogs.Add(new ActionLog
         {

@@ -64,7 +64,7 @@ public partial class ConversationEngine
             order.Subtotal, order.DiscountAmount, order.DiscountCode, order.Total,
             order.PaymentMethod switch { OrderPaymentMethod.Cod => "Cash on delivery", OrderPaymentMethod.Manual => "Bank / wallet transfer", OrderPaymentMethod.Gateway => "Online payment", _ => "Not specified" },
             order.PaymentStatus == PaymentStatus.Paid, Formatters.Status(order.Status),
-            order.TrackingCourier, order.TrackingNumber, payTo, Logo: branding?.Logo, Banner: branding?.Banner, DeliveryCharge: order.DeliveryCharge));
+            order.TrackingCourier, order.TrackingNumber, payTo, Logo: branding?.Logo, Banner: branding?.Banner, DeliveryCharge: order.DeliveryCharge, AmountPaid: OrderMoney.Received(order)));
 
         var sent = await _sender.SendDocumentAsync(seller.WhatsAppPhoneNumber, pdf, $"Receipt-{order.Id}.pdf", "application/pdf",
             $"🧾 Receipt #{order.Id} — {order.Customer?.Name}, {Formatters.Money(order.Total)}", ct);

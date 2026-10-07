@@ -62,4 +62,11 @@ public class ReceiptPdfTests
         var pdf = new ReceiptPdfGenerator().Generate(Sample() with { DeliveryCharge = 200, Total = 8120 });
         Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(pdf, 0, 5));
     }
+
+    [Fact]
+    public void Generate_PartlyPaid_Works()
+    {
+        var pdf = new ReceiptPdfGenerator().Generate(Sample() with { AmountPaid = 2000 });
+        Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(pdf, 0, 5));
+    }
 }

@@ -12,37 +12,25 @@ public partial class ConversationEngine
     // Screen 10: the full command list (the 9 core commands are what a seller memorizes; the rest lives under "menu").
     private const string HelpText =
         "🆘 Yeh commands try karein:\n" +
-        "• \"guide\" — naya hain? step-by-step seekhein\n" +
-        "• \"change language\" — Roman Urdu/English/اردو\n" +
+        "• \"guide\" — step-by-step seekhein\n" +
         "• \"new order: naam, product, phone, address\"\n" +
-        "• \"orders today\"\n" +
-        "• \"today's summary\"\n" +
-        "• \"pending orders\"\n" +
-        "• \"[naam] ka order\"\n" +
-        "• \"mark [number] shipped/delivered\"\n" +
+        "• \"orders today\" / \"pending orders\" / \"today's summary\"\n" +
+        "• \"order 12\" — detail · \"edit order 12\" — badlein\n" +
+        "• \"mark 12 shipped/delivered/returned/paid\"\n" +
+        "• \"order 12 advance 500\" · \"delivery 200\"\n" +
+        "• \"[naam] ka order\" / \"[naam] ka tracking\"\n" +
         "• \"add tracking: courier, number\"\n" +
-        "• \"[naam] ka tracking\"\n" +
-        "• \"cod pending\"\n" +
-        "• \"catalog\"\n" +
-        "• \"share catalog\"\n" +
-        "• \"add product: naam - price\"\n" +
-        "• \"add product (detailed)\" — full form\n" +
-        "• \"add customer (detailed)\" — full form\n" +
-        "• \"new order (detailed)\" — full form\n" +
-        "• \"payment link\"\n" +
-        "• \"unpaid orders\"\n" +
-        "• \"trending products\"\n" +
-        "• \"slow movers\"\n" +
-        "• \"[product] ka report\"\n" +
-        "• \"discount performance\"\n" +
-        "• \"loyal customers\"\n" +
-        "• \"create discount\"\n" +
-        "• \"feedback: [your message]\"\n" +
-        "• \"support queries\"\n" +
-        "• \"mark [n] resolved\"\n" +
+        "• \"unpaid orders\" / \"cod pending\" / \"payment link\"\n" +
+        "• \"catalog\" · \"Kurti - 1800\" · \"stock Kurti 20\"\n" +
+        "• \"add product/customer/order (detailed)\" — form\n" +
+        "• \"trending products\" / \"slow movers\" / \"[product] ka report\"\n" +
+        "• \"loyal customers\" / \"create discount\"\n" +
+        "• \"Sara ka phone 0300...\" — customer update\n" +
+        "• \"receipt 12\" — PDF · \"export\" — Excel\n" +
+        "• \"support queries\" · \"change language\"\n" +
         "• \"undo\"\n" +
         "\n" +
-        "📷 Tip: Order ya payment receipt ki screenshot bhi bhej saktay hain — text zaroori nahi.\n" +
+        "🎤 Voice note ya 📷 screenshot bhi bhej saktay hain.\n" +
         "Ya \"menu\" likh kar categorized list dekhein.";
 
     // Screen 10b: categorized menu.
@@ -123,7 +111,7 @@ public partial class ConversationEngine
     private static readonly IReadOnlyDictionary<string, (string Title, string Body, MenuRow[] Rows)> MenuCategories =
         new Dictionary<string, (string, string, MenuRow[])>
         {
-            ["orders"] = ("📦 Orders", "📦 Orders\n • new order: [details]\n • [customer] ka order\n • mark [n] shipped/delivered\n • receipt [n] — PDF receipt", new[]
+            ["orders"] = ("📦 Orders", "📦 Orders\n • new order: [details]\n • order [n] — poori detail\n • edit order [n]\n • [customer] ka order\n • mark [n] shipped/delivered/returned\n • receipt [n] — PDF receipt", new[]
             {
                 new MenuRow("orders today", "Orders today"), new MenuRow("pending orders", "Pending orders"),
                 new MenuRow("unpaid orders", "Unpaid orders"), new MenuRow("cod pending", "COD pending"), new MenuRow("receipt", "Last order receipt (PDF)"), new MenuRow("edit order", "Last order edit"),
@@ -136,12 +124,12 @@ public partial class ConversationEngine
                 new MenuRow("customer feedback", "Customer feedback"), new MenuRow("weekly summary", "Weekly summary"),
                 new MenuRow("discount performance", "Discount performance"), BackToMenu
             }),
-            ["catalog"] = ("🛍️ Catalog", "🛍️ Catalog\n • naya product: Kurti - 1800\n • weight/pack: Sugar 5 kg - 500\n • edit product: Kurti - 1900\n • delete product: Kurti\n • wholesale: Kaju - price tiers: 1kg=320, 10kg=300\n • ek saath kai products bhi bhej saktay hain", new[]
+            ["catalog"] = ("🛍️ Catalog", "🛍️ Catalog\n • naya product: Kurti - 1800\n • stock: \"stock Kurti 20\" / \"stock\"\n • weight/pack: Sugar 5 kg - 500\n • edit product: Kurti - 1900\n • delete product: Kurti\n • wholesale: Kaju - price tiers: 1kg=320, 10kg=300\n • ek saath kai products bhi bhej saktay hain", new[]
             {
                 new MenuRow("catalog", "View catalog"), new MenuRow("share catalog", "Share catalog"),
                 new MenuRow("add product", "Add product"), new MenuRow("add product (detailed)", "Add product (form)"), BackToMenu
             }),
-            ["payments"] = ("💰 Payments", "💰 Payments\n • mark [order] paid\n • add tracking: courier, number", new[]
+            ["payments"] = ("💰 Payments", "💰 Payments\n • mark [order] paid\n • advance / thori payment: order [n] advance 500\n • delivery charge: delivery 200\n • add tracking: courier, number", new[]
             {
                 new MenuRow("payment link", "Payment link"), new MenuRow("unpaid orders", "Unpaid orders"),
                 new MenuRow("cod pending", "COD pending"), new MenuRow("add payment", "Add payment method"), BackToMenu
@@ -152,7 +140,7 @@ public partial class ConversationEngine
                 new MenuRow("create loyalty", "Add loyalty rule"), new MenuRow("loyal customers", "Loyal customers"),
                 new MenuRow("campaign status", "Campaign status"), BackToMenu
             }),
-            ["customers"] = ("👥 Customers", "👥 Customers\n • \"customer 1\" ya naam likh kar detail\n • \"search customer: naam/phone\"\n • \"delete customer naam\" / \"restore customer naam\"\n • promotion: \"sab customers ko batao: naya stock aaya\"\n • customer ka sawal: \"order kab aayega? — Bilal ne poocha\"\n • \"mark [n] resolved\"", new[]
+            ["customers"] = ("👥 Customers", "👥 Customers\n • \"customer 1\" ya naam likh kar detail\n • update: \"Sara ka phone 0300...\" / \"Sara ka address ...\"\n • \"search customer: naam/phone\"\n • \"delete customer naam\" / \"restore customer naam\"\n • promotion: \"sab customers ko batao: naya stock aaya\"\n • customer ka sawal: \"order kab aayega? — Bilal ne poocha\"\n • \"mark [n] resolved\"", new[]
             {
                 new MenuRow("customer list", "Customer list"), new MenuRow("support queries", "Support queries"),
                 new MenuRow("comment leads", "📷 Comment leads"), new MenuRow("connect instagram", "📷 Connect Instagram"),
@@ -217,6 +205,18 @@ public partial class ConversationEngine
                 return;
             case CommandKind.DisconnectInstagram:
                 await HandleDisconnectInstagramAsync(seller, ct);
+                return;
+            case CommandKind.CustomerUpdate:
+                await HandleCustomerUpdateAsync(seller, cmd, ct);
+                return;
+            case CommandKind.Stock:
+                await HandleStockAsync(seller, cmd, ct);
+                return;
+            case CommandKind.OrderDetail:
+                await HandleOrderDetailAsync(seller, ctx, cmd.Number!.Value, ct);
+                return;
+            case CommandKind.OrderPayment:
+                await HandleOrderPaymentAsync(seller, ctx, cmd.Number!.Value, cmd.Amount!.Value, ct);
                 return;
             case CommandKind.EditOrder:
                 await StartOrderEditAsync(seller, session, ctx, cmd.Number, ct);
@@ -486,8 +486,8 @@ public partial class ConversationEngine
         var delivered = orders.Count(o => o.Status == OrderStatus.Delivered);
         var shipped = orders.Count(o => o.Status == OrderStatus.Shipped);
         var pending = orders.Count(o => o.Status == OrderStatus.Pending);
-        var cod = orders.Where(o => o.PaymentMethod == OrderPaymentMethod.Cod && o.PaymentStatus == PaymentStatus.Paid).Sum(o => o.Total);
-        var prepaid = orders.Where(o => o.PaymentMethod != OrderPaymentMethod.Cod && o.PaymentStatus == PaymentStatus.Paid).Sum(o => o.Total);
+        var cod = orders.Where(o => o.PaymentMethod == OrderPaymentMethod.Cod).Sum(OrderMoney.Received);
+        var prepaid = orders.Where(o => o.PaymentMethod != OrderPaymentMethod.Cod).Sum(OrderMoney.Received);
         var totalSales = orders.Sum(o => o.Total);
         var returned = await _db.Orders.CountAsync(o => o.SellerId == seller.Id && o.Status == OrderStatus.Returned
             && o.ReturnedAt >= start && o.ReturnedAt < end, ct);
@@ -520,7 +520,7 @@ public partial class ConversationEngine
             return;
         }
 
-        var lines = products.Select((p, i) => $"{i + 1} {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}");
+        var lines = products.Select((p, i) => $"{i + 1} {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}" + (p.StockQty is { } q ? $" (stock {q})" : ""));
         await ReplyAsync(seller,
             $"🛍️ Aapka Catalog ({products.Count} products):\n\n{string.Join("\n", lines)}\n\n" +
             "Naya product add karne ke liye bas likhein: Kurti - 1800\n" +
@@ -778,7 +778,9 @@ public partial class ConversationEngine
             return;
         }
 
+        var stockBefore = StockFootprint(order);
         order.Status = newStatus;
+        await ApplyStockChangeAsync(seller, stockBefore, StockFootprint(order), ct);
         order.ShippedAt = newStatus == OrderStatus.Shipped ? DateTime.UtcNow : order.ShippedAt;
         order.DeliveredAt = newStatus == OrderStatus.Delivered ? DateTime.UtcNow : order.DeliveredAt;
         order.ReturnedAt = newStatus == OrderStatus.Returned ? DateTime.UtcNow : order.ReturnedAt;
@@ -812,20 +814,29 @@ public partial class ConversationEngine
 
     private async Task MarkOrderPaidAsync(Seller seller, Order order, CancellationToken ct)
     {
-        var previous = order.PaymentStatus;
-        order.PaymentStatus = PaymentStatus.Paid;
-        order.PaidAt = DateTime.UtcNow;
-        LogPaymentChange(seller, order, previous);
+        MarkFullyPaid(seller, order);
         await ReplyAsync(seller, $"✅ Order #{order.Id} marked as PAID.", ct);
     }
 
-    private void LogPaymentChange(Seller seller, Order order, PaymentStatus previous) =>
+    /// <summary>Marks the order fully paid (undoable) and returns what was still owed, i.e. what was just collected.</summary>
+    private decimal MarkFullyPaid(Seller seller, Order order)
+    {
+        var collected = OrderMoney.Balance(order);
+        LogPaymentChange(seller, order);
+        order.PaymentStatus = PaymentStatus.Paid;
+        order.PaidAt = DateTime.UtcNow;
+        order.AmountPaid = order.Total;
+        return collected;
+    }
+
+    /// <summary>Call before changing payment fields: undo restores the status and the amount paid so far.</summary>
+    private void LogPaymentChange(Seller seller, Order order) =>
         _db.ActionLogs.Add(new ActionLog
         {
             SellerId = seller.Id,
             ActionType = ActionType.OrderStatusChanged,
             OrderId = order.Id,
-            PayloadJson = System.Text.Json.JsonSerializer.Serialize(new { PreviousPaymentStatus = previous.ToString() })
+            PayloadJson = System.Text.Json.JsonSerializer.Serialize(new { PreviousPaymentStatus = order.PaymentStatus.ToString(), PreviousAmountPaid = order.AmountPaid })
         });
 
     private async Task HandleUnpaidOrdersAsync(Seller seller, SessionContextData ctx, CancellationToken ct)
@@ -842,10 +853,10 @@ public partial class ConversationEngine
         }
 
         ctx.LastListOrderIds = orders.Select(o => o.Id).ToList();
-        var lines = orders.Select((o, i) => Formatters.OrderLine(i + 1, o) + ", unpaid");
+        var lines = orders.Select((o, i) => Formatters.OrderLine(i + 1, o) + (o.AmountPaid > 0 ? $", baqi {Formatters.Money(OrderMoney.Balance(o))}" : ", unpaid"));
         await ReplyAsync(seller,
             $"💸 Unpaid Orders ({orders.Count}):\n\n{string.Join("\n", lines)}\n\n" +
-            $"Total pending: {Formatters.Money(orders.Sum(o => o.Total))}\n\n" +
+            $"Total pending: {Formatters.Money(orders.Sum(OrderMoney.Balance))}\n\n" +
             "\"payment link 1\" likh kar link bhej saktay hain.", ct);
     }
 }
