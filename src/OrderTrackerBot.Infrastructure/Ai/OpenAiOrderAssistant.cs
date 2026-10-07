@@ -79,7 +79,8 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "asked them, e.g. \"mera order kab tak aayega? — Bilal ne poocha\" or \"Ayesha pooch rahi hai Karachi bhejte hain?\" — fill support_query " +
             "with the buyer's name if given and the question itself), add_products (the seller is telling you which products THEY sell or stock — " +
             "\"mere paas 3 khaddar chadar aur 2 wool dupatte hain\", \"yeh naye products hain\" — with no customer buying anything: this is NOT an order; " +
-            "set is_order_attempt=false and list each product in new_products with its price in rupees when the seller said one, else null), unclear. " +
+            "set is_order_attempt=false and list each product in new_products with its price in rupees when the seller said one, else null; the name " +
+            "is the product only, without a unit or quantity word such as thaan/gaz/kg), unclear. " +
             "For new_order put one entry per customer in orders (two different customers in one message = two entries). Quantity is the number " +
             "of catalog units; for weight-sold items like \"15kg kaju\" use the number of kg (15). " +
             "Required order fields are customer_name and phone; if either is missing, still return the order with what you found and list the " +
@@ -191,7 +192,10 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "(pehla/first/ek = 1, dusra/second/do = 2) or from the meaning of the option the seller refers to. (4) When a product mentioned clearly is a catalog " +
             "product, use its exact catalog name. (5) When products are being added to the catalog, write each as \"Name - price\" (e.g. \"Lawn Suit - 3500\"); " +
             "a seller saying what they stock is adding a product, never placing an order; when they gave no prices, write one clean sentence in Roman Urdu " +
-            "(\"teen khaddar chadar, do wool dupatte aur teen cotton suit naye products hain\"). (6) A dictated customer order is written like " +
+            "built ONLY from the product names and quantities the seller actually said, in the form \"<qty> <name>, <qty> <name> naye products hain\" " +
+            "(the shape is a pattern: never output product names or numbers that are not in the transcript or the last chat messages — if the seller only " +
+            "corrects a name (\"X nahi, Y naam hai\"), keep that correction as one sentence in their own words). A cloth/fabric unit word (thaan, than, " +
+            "gaz, meter) is a unit, not part of the product name: \"char thaan mozgi\", not \"char mozgi thaan\". (6) A dictated customer order is written like " +
             "\"Ayesha, 2 lawn suit, 03001234567, Gulberg Lahore\". Commands keep their typed form (\"orders today\", \"mark 3 shipped\", \"stock Kurti 20\", " +
             "\"delivery 250\"). (7) A product's catalog price is only a default: the seller often sells one order at a different price. To change what ONE " +
             "customer was charged use three steps: \"edit order <order id>\", \"price <item number> = <amount>\", \"done\" (item numbers are the 1) 2) numbers " +
