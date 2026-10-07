@@ -597,8 +597,15 @@ public partial class ConversationEngine
     /// The seller described products they sell ("teen khaddar chadar aur do wool dupatte naye products hain") — not an order. Products that came
     /// with a price are saved; for the rest the bot asks for the price instead of guessing one.
     /// </summary>
-    private async Task HandleNewProductsAsync(Seller seller, SessionContextData ctx, IReadOnlyList<AiNewProduct> products, CancellationToken ct)
+    private async Task HandleNewProductsAsync(Seller seller, SessionContextData ctx, IReadOnlyList<AiNewProduct> products, string? sourceText, CancellationToken ct)
     {
+        // The model must not make up a price (it likes to copy one from a similar catalog product): only a price the seller wrote as digits counts.
+        if (sourceText is not null)
+        {
+            var written = System.Text.RegularExpressions.Regex.Matches(sourceText.Replace(",", ""), @"\d+(?:\.\d+)?").Select(m => decimal.Parse(m.Value, System.Globalization.CultureInfo.InvariantCulture)).ToHashSet();
+            products = products.Select(p => p.Price is { } price && !written.Contains(price) ? new AiNewProduct { Name = p.Name } : p).ToList();
+        }
+
         var saved = new List<string>();
         foreach (var p in products.Where(p => p.Price is not null))
         {

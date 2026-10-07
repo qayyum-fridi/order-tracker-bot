@@ -268,7 +268,7 @@ public partial class ConversationEngine
                 var stockAnalysis = await _ai.AnalyzeMessageAsync(AiContext(seller, await LoadCatalogAsync(seller, ct), ctx), message, ct);
                 if (stockAnalysis is { Intent: "add_products", NewProducts.Count: > 0 })
                 {
-                    await HandleNewProductsAsync(seller, ctx, stockAnalysis.NewProducts, ct);
+                    await HandleNewProductsAsync(seller, ctx, stockAnalysis.NewProducts, message, ct);
                     return;
                 }
 

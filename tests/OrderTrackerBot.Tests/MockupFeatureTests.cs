@@ -645,9 +645,9 @@ public class MockupFeatureTests : IDisposable
         var engine = await OnboardAsync(db);
         AiSaysNewProducts();
 
-        await engine.HandleIncomingMessageAsync(Phone, "teen chadar khaddar ki aur do wool ke dupatte naye products hain", default);
+        await engine.HandleIncomingMessageAsync(Phone, "teen chadar khaddar ki aur do wool ke dupatte 800 ke naye products hain", default);
 
-        Assert.True(await db.Products.AnyAsync(p => p.Name == "Wool Dupatta"));
+        Assert.True(await db.Products.AnyAsync(p => p.Name == "Wool Dupatta" && p.Price == 800));
         Assert.False(await db.Products.AnyAsync(p => p.Name == "Khaddar Chadar"));
         Assert.Contains(_sent, m => m.Contains("Wool Dupatta") && m.Contains("add ho gaye") && m.Contains("Khaddar Chadar") && m.Contains("order nahi"));
         Assert.Equal(0, await db.Orders.CountAsync());
@@ -704,6 +704,23 @@ public class MockupFeatureTests : IDisposable
         // Nothing is waiting any more, so the next analysis gets no pending names.
         await engine.HandleIncomingMessageAsync(Phone, "kuch aur", default);
         Assert.Empty(seen!.PendingPriceProducts);
+    }
+
+    [Fact]
+    public async Task NewProduct_PriceTheSellerNeverWrote_IsDropped_AndAskedFor()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts = { new AiNewProduct { Name = "Cotton Suit", Price = 3500 } } // copied from the catalog's "Lawn Suit - 3500"
+        });
+
+        await engine.HandleIncomingMessageAsync(Phone, "teen cotton suit naye products hain", default);
+
+        Assert.False(await db.Products.AnyAsync(p => p.Name == "Cotton Suit"));
+        Assert.Contains(_sent, m => m.Contains("Cotton Suit") && m.Contains("price bhejein"));
     }
 
     [Theory]

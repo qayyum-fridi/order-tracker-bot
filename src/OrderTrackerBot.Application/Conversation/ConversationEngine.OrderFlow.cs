@@ -50,11 +50,11 @@ public partial class ConversationEngine
             single.DeliveryCharge = delivery;
         if (analysis.Order is { } one && analysis.AdditionalOrders.Count == 0 && CommandParser.TryFindAdvanceInOrderText(message, out var advance))
             one.AdvancePaid = advance;
-        await HandleAnalysisAsync(seller, session, ctx, analysis, catalog, fromScreenshot: false, ct);
+        await HandleAnalysisAsync(seller, session, ctx, analysis, catalog, fromScreenshot: false, ct, message);
     }
 
     private async Task HandleAnalysisAsync(Seller seller, ConversationSession session, SessionContextData ctx, AiMessageAnalysis analysis,
-        List<CatalogEntry> catalog, bool fromScreenshot, CancellationToken ct)
+        List<CatalogEntry> catalog, bool fromScreenshot, CancellationToken ct, string? sourceText = null)
     {
         if (analysis.Intent == "off_topic")
         {
@@ -77,7 +77,7 @@ public partial class ConversationEngine
 
         if (analysis.Intent == "add_products" && analysis.NewProducts.Count > 0)
         {
-            await HandleNewProductsAsync(seller, ctx, analysis.NewProducts, ct);
+            await HandleNewProductsAsync(seller, ctx, analysis.NewProducts, sourceText, ct);
             return;
         }
 
