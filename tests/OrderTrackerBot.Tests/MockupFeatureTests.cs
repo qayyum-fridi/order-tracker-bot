@@ -872,6 +872,30 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task VoiceNote_AtOptionalDetails_SplitIntoSeveralSteps_IsAppliedAsOneAnswer()
+    {
+        using var db = _dbFactory.CreateContext();
+        var setup = Engine(db);
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections" })
+            await setup.HandleIncomingMessageAsync(Phone, m, default);
+        var seller = await db.Sellers.FirstAsync();
+        seller.BusinessType = "Food"; // stale value from an earlier attempt
+        await db.SaveChangesAsync();
+        var engine = VoiceEngine(db, "سرگودھا کلوتھنگ");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "Sargodha", "Clothing" } });
+        _sent.Clear();
+
+        await engine.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        seller = await db.Sellers.AsNoTracking().FirstAsync();
+        Assert.Equal("Sargodha", seller.City);
+        Assert.Equal("Clothing", seller.BusinessType);
+        Assert.Equal(ConversationState.OnboardingCatalogSize, (await db.Sessions.AsNoTracking().FirstAsync()).State);
+        Assert.Contains(_sent, m => m.Contains("Sargodha, Clothing business"));
+    }
+
+    [Fact]
     public async Task CustomerUpdate_ChangesPhoneAndAddress_AndUndoRestores()
     {
         using var db = _dbFactory.CreateContext();

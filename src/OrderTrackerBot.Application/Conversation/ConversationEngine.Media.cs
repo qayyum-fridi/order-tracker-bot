@@ -46,6 +46,11 @@ public partial class ConversationEngine
             return;
         }
 
+        // City / business type / handle are one answer ("Lahore, Clothing, @x"); separate steps would leave the first one to
+        // complete the question and push the rest into the next onboarding step.
+        if (steps.Count > 1 && seller.Session!.State == ConversationState.OnboardingOptionalDetails)
+            steps = new[] { string.Join(", ", steps) };
+
         if (steps.Count != 1 || !string.Equals(steps[0], text, StringComparison.OrdinalIgnoreCase))
             heard += $"\n➡️ Samjha: {string.Join("  →  ", steps.Select(s => $"\"{s}\""))}";
 
@@ -150,7 +155,7 @@ public partial class ConversationEngine
             ConversationState.OnboardingLanguage or ConversationState.AwaitingLanguageChoice => "Waiting for the seller to choose a language: Roman Urdu, Urdu or English.",
             ConversationState.OnboardingStartChoice => "Waiting for a choice: \"Setup shuru karein\", \"Guide dekhein\" or \"Baad mein karunga\".",
             ConversationState.OnboardingBusinessName => "Waiting for the name of the seller's shop/business.",
-            ConversationState.OnboardingOptionalDetails => "Waiting for the shop's city, business type and Instagram handle, or \"skip\".",
+            ConversationState.OnboardingOptionalDetails => "Waiting for the shop's city, business type and Instagram handle in ONE step, comma-separated (e.g. \"Lahore, Clothing, @ayesha\"), or \"skip\".",
             ConversationState.OnboardingCatalogSize => "Waiting for how many products the seller has: a number, \"Chhota (20 se kam)\" or \"Bara (20+)\".",
             ConversationState.OnboardingAddProduct =>
                 "Waiting for products to add to the catalog, each as \"Name - price\" (e.g. \"Lawn Suit - 3500\"), or \"done\" when finished. " +
