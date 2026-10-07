@@ -150,6 +150,9 @@ public partial class ConversationEngine
             case ActionType.CustomerUpdated:
                 await UndoCustomerUpdateAsync(seller, last, ct);
                 return;
+            case ActionType.CustomFieldChanged:
+                await UndoCustomFieldChangeAsync(seller, last, ct);
+                return;
             case ActionType.ProductPriceChanged:
             {
                 using var doc = JsonDocument.Parse(last.PayloadJson);

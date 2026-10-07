@@ -598,4 +598,66 @@ public class CustomFieldTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "فیلڈز", default);
         Assert.Contains(_sent, m => m.Contains("Product: Fabric"));
     }
+
+    [Fact]
+    public async Task Undo_RestoresPreviousValue_RemovesNewValue_AndBringsBackAClearedOne()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await engine.HandleIncomingMessageAsync(Phone, "add field product Fabric", default);
+
+        await engine.HandleIncomingMessageAsync(Phone, "set product Kurti Fabric = Cotton", default);
+        Assert.Contains(_sent, m => m.Contains("Ghalti ho to \"undo\""));
+        await engine.HandleIncomingMessageAsync(Phone, "undo", default); // first value -> removed again
+        Assert.Empty(await db.CustomFieldValues.ToListAsync());
+        Assert.Contains(_sent, m => m.Contains("Reverted") && m.Contains("hata di"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "set product Kurti Fabric = Cotton", default);
+        await engine.HandleIncomingMessageAsync(Phone, "set product Kurti Fabric = Lawn", default);
+        await engine.HandleIncomingMessageAsync(Phone, "undo", default); // overwrite -> previous value
+        Assert.Equal("Cotton", (await db.CustomFieldValues.SingleAsync()).Value);
+
+        await engine.HandleIncomingMessageAsync(Phone, "set product Kurti Fabric = -", default);
+        Assert.Empty(await db.CustomFieldValues.ToListAsync());
+        await engine.HandleIncomingMessageAsync(Phone, "undo", default); // cleared -> back
+        Assert.Equal("Cotton", (await db.CustomFieldValues.SingleAsync()).Value);
+    }
+
+    [Fact]
+    public async Task Undo_AfterTappedChoice_AndWhenFieldWasRemoved()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await engine.HandleIncomingMessageAsync(Phone, "add field product Fabric: Cotton, Lawn", default);
+        await engine.HandleIncomingMessageAsync(Phone, "set product Kurti Fabric", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Lawn", default);
+        Assert.Single(await db.CustomFieldValues.ToListAsync());
+
+        await engine.HandleIncomingMessageAsync(Phone, "remove field product Fabric", default);
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "undo", default);
+        Assert.Contains(_sent, m => m.Contains("field ab maujood nahi"));
+        Assert.Empty(await db.CustomFieldValues.ToListAsync());
+    }
+
+    [Fact]
+    public async Task DraftOrderConfirmation_ShowsProductFields_IncludingPrivateOnes()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await engine.HandleIncomingMessageAsync(Phone, "add field product Fabric", default);
+        await engine.HandleIncomingMessageAsync(Phone, "add field product Cost: number private", default);
+        await engine.HandleIncomingMessageAsync(Phone, "set product Kurti Fabric = Cotton", default);
+        await engine.HandleIncomingMessageAsync(Phone, "set product Kurti Cost = 900", default);
+        _sent.Clear();
+
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(new AiMessageAnalysis
+        {
+            Intent = "new_order", IsOrderAttempt = true,
+            Order = new AiOrderDraft { CustomerName = "Bilal", Phone = "03005556666", Items = { new AiOrderItemDraft { ProductName = "Kurti", MatchedCatalogProductName = "Kurti", Quantity = 1 } } }
+        });
+        await engine.HandleIncomingMessageAsync(Phone, "Bilal, 1 kurti, 03005556666", default);
+
+        Assert.Contains(_sent, m => m.Contains("Confirm order") && m.Contains("🏷️ Kurti: Fabric: Cotton · Cost: 900"));
+    }
 }

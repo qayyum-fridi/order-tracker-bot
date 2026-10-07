@@ -202,6 +202,7 @@ shared-state action: confirm with the user and get SSH/host details first.
   (`CustomFieldPickData.Stage` = entity|record|field|value|text; "cancel" ends it, any other real command leaves it and runs). Commands also accept
   Urdu-script words in the same word order ("نئی فیلڈ پروڈکٹ فیبرک", "سیٹ پروڈکٹ …", "فیلڈز"). Values show in the customer profile, order detail, catalog list,
   shareable catalog (public fields), PDF receipt (public product fields under the item + public order fields) and as extra Excel columns on the
-  Orders/Customers/Catalog sheets. Values max 200 chars, **not undoable**; "remove field" deletes its values; `reset account` deletes both tables. The
-  draft order confirmation (before "yes") does not show them. New tables `CustomFields`/`CustomFieldValues` are created on Sqlite by the patcher —
+  Orders/Customers/Catalog sheets. The draft "Confirm order" text lists the catalog products' values (all fields, private included — it is the seller's view). Values max 200 chars;
+  setting/clearing a value is undoable (`ActionType.CustomFieldChanged`; not after its field was removed); "remove field" deletes its values and is not undoable;
+  `reset account` deletes both tables. New tables `CustomFields`/`CustomFieldValues` are created on Sqlite by the patcher —
   **no SQL Server migration yet — generate one**.

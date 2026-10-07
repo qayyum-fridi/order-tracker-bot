@@ -236,7 +236,7 @@ public partial class ConversationEngine
         }
 
         SetState(session, ConversationState.AwaitingOrderConfirmation);
-        await ReplyAsync(seller, BuildConfirmationText(seller.PreferredLanguage, pending), ct);
+        await ReplyAsync(seller, await ConfirmationTextAsync(seller, pending, ct), ct);
     }
 
     private async Task ApplyDiscountAsync(Seller seller, PendingOrderData pending, CancellationToken ct)
@@ -295,7 +295,17 @@ public partial class ConversationEngine
         _ => string.IsNullOrWhiteSpace(text) ? "Advance (JazzCash/Easypaisa/Bank)" : text!
     };
 
-    private static string BuildConfirmationText(string language, PendingOrderData pending)
+    /// <summary>The "Confirm order" text plus the catalog products' custom values (seller-facing, so private fields included).</summary>
+    private async Task<string> ConfirmationTextAsync(Seller seller, PendingOrderData pending, CancellationToken ct)
+    {
+        var ids = pending.Items.Where(i => i.ProductId != null).Select(i => i.ProductId!.Value).Distinct().ToList();
+        var fields = await ProductFieldTextAsync(seller, ids, publicOnly: false, ct);
+        var extras = pending.Items.Where(i => i.ProductId is { } id && fields.ContainsKey(id))
+            .Select(i => $"🏷️ {i.ProductName}: {string.Join(" · ", fields[i.ProductId!.Value])}").Distinct().ToList();
+        return BuildConfirmationText(seller.PreferredLanguage, pending, extras);
+    }
+
+    private static string BuildConfirmationText(string language, PendingOrderData pending, IReadOnlyList<string>? extras = null)
     {
         var lang = Lang.Normalize(language);
         if (lang == Lang.UrduScript)
@@ -311,6 +321,7 @@ public partial class ConversationEngine
             if (pending.DeliveryCharge is > 0) urdu.Add($"(ڈیلیوری {pending.DeliveryCharge:#,0} روپے شامل — بدلنے کے لیے لکھیں: delivery 300)");
             if (!string.IsNullOrWhiteSpace(pending.Phone)) urdu.Add($"فون: {pending.Phone}");
             if (!string.IsNullOrWhiteSpace(pending.Address)) urdu.Add($"پتہ: {pending.Address}");
+            if (extras is { Count: > 0 }) urdu.AddRange(extras);
             urdu.Add("");
             urdu.Add("تصدیق کے لیے \"ہاں\" لکھیں");
             return string.Join("\n", urdu);
@@ -351,6 +362,7 @@ public partial class ConversationEngine
         lines.Add($"Total: {Formatters.Money(pending.Total)}");
         if (pending.AdvancePaid is > 0 and var advance)
             lines.Add(advance >= pending.Total ? $"Advance: {Formatters.Money(advance)} — poora paid" : $"Advance: {Formatters.Money(advance)} · Baqi: {Formatters.Money(pending.Total - advance)}");
+        if (extras is { Count: > 0 }) lines.AddRange(extras);
         lines.Add("");
         lines.Add("Reply YES to save, ya EDIT to fix.");
         return string.Join("\n", lines);
@@ -411,7 +423,7 @@ public partial class ConversationEngine
         if (CommandParser.TryFindAdvanceInOrderText(message, out var typedAdvance) && message.Trim().Length <= 30 && ctx.PendingOrder is { } advanceDraft)
         {
             advanceDraft.AdvancePaid = typedAdvance;
-            await ReplyAsync(seller, BuildConfirmationText(seller.PreferredLanguage, advanceDraft), ct);
+            await ReplyAsync(seller, await ConfirmationTextAsync(seller, advanceDraft, ct), ct);
             return;
         }
 
@@ -419,7 +431,7 @@ public partial class ConversationEngine
         {
             draft.DeliveryCharge = delivery;
             draft.Total = OrderTotal(draft.Subtotal, draft.DiscountAmount, delivery);
-            await ReplyAsync(seller, BuildConfirmationText(seller.PreferredLanguage, draft), ct);
+            await ReplyAsync(seller, await ConfirmationTextAsync(seller, draft, ct), ct);
             return;
         }
 

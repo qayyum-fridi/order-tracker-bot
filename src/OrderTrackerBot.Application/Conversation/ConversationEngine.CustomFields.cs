@@ -355,8 +355,14 @@ public partial class ConversationEngine
         if (value is "-" || value.Equals("clear", StringComparison.OrdinalIgnoreCase) || value.Equals("hatao", StringComparison.OrdinalIgnoreCase) || value == "ہٹاؤ")
         {
             var current = await _db.CustomFieldValues.FirstOrDefaultAsync(v => v.CustomFieldId == field!.Id && v.EntityId == record.Id, ct);
-            if (current is not null) _db.CustomFieldValues.Remove(current);
-            await ReplyAsync(seller, $"🗑️ {record.Name} ki {field!.Name} hata di.", ct);
+            if (current is null)
+            {
+                await ReplyAsync(seller, $"{record.Name} ki {field!.Name} pehle se khali hai.", ct);
+                return;
+            }
+            LogCustomFieldChange(seller, field!, record.Id, record.Name, current.Value);
+            _db.CustomFieldValues.Remove(current);
+            await ReplyAsync(seller, $"🗑️ {record.Name} ki {field!.Name} hata di.\nGhalti ho to \"undo\".", ct);
             return;
         }
 
@@ -407,9 +413,47 @@ public partial class ConversationEngine
     {
         var current = await _db.CustomFieldValues.FirstOrDefaultAsync(v => v.CustomFieldId == field.Id && v.EntityId == entityId, ct);
         var previous = current?.Value;
+        if (previous != value) LogCustomFieldChange(seller, field, entityId, recordName, previous);
         if (current is null) _db.CustomFieldValues.Add(new CustomFieldValue { SellerId = seller.Id, CustomFieldId = field.Id, EntityId = entityId, Value = value });
         else current.Value = value;
-        return $"✅ {recordName} — {field.Name}: {value}" + (previous is null || previous == value ? "" : $" (pehle: {previous})");
+        return $"✅ {recordName} — {field.Name}: {value}" + (previous is null || previous == value ? "" : $" (pehle: {previous})") +
+               (previous == value ? "" : "\nGhalti ho to \"undo\".");
+    }
+
+    private void LogCustomFieldChange(Seller seller, CustomField field, int entityId, string recordName, string? previous) =>
+        _db.ActionLogs.Add(new ActionLog
+        {
+            SellerId = seller.Id, ActionType = ActionType.CustomFieldChanged,
+            PayloadJson = System.Text.Json.JsonSerializer.Serialize(new { FieldId = field.Id, FieldName = field.Name, EntityId = entityId, RecordName = recordName, Previous = previous })
+        });
+
+    // "undo" after a field change: put the previous value back (or remove the value if there was none).
+    private async Task UndoCustomFieldChangeAsync(Seller seller, ActionLog log, CancellationToken ct)
+    {
+        using var doc = System.Text.Json.JsonDocument.Parse(log.PayloadJson);
+        var fieldId = doc.RootElement.GetProperty("FieldId").GetInt32();
+        var entityId = doc.RootElement.GetProperty("EntityId").GetInt32();
+        var recordName = doc.RootElement.GetProperty("RecordName").GetString();
+        var previous = doc.RootElement.GetProperty("Previous").GetString();
+
+        var field = await _db.CustomFields.FirstOrDefaultAsync(f => f.Id == fieldId && f.SellerId == seller.Id, ct);
+        if (field is null)
+        {
+            await ReplyAsync(seller, "↩️ Yeh field ab maujood nahi, isliye undo nahi ho saka.", ct);
+            return;
+        }
+
+        var current = await _db.CustomFieldValues.FirstOrDefaultAsync(v => v.CustomFieldId == fieldId && v.EntityId == entityId, ct);
+        if (previous is null)
+        {
+            if (current is not null) _db.CustomFieldValues.Remove(current);
+            await ReplyAsync(seller, $"↩️ Reverted — {recordName} ki {field.Name} hata di.", ct);
+            return;
+        }
+
+        if (current is null) _db.CustomFieldValues.Add(new CustomFieldValue { SellerId = seller.Id, CustomFieldId = fieldId, EntityId = entityId, Value = previous });
+        else current.Value = previous;
+        await ReplyAsync(seller, $"↩️ Reverted — {recordName} ki {field.Name} wapas: {previous}", ct);
     }
 
     // ---- tap-to-select flow: entity -> record -> field -> value ----------------------------------------------------------------------
