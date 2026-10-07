@@ -151,6 +151,9 @@ public interface IAiOrderAssistant
 public sealed class AiVoiceInterpretation
 {
     public List<string> Steps { get; init; } = new();
+    /// <summary>The kind of each step (reply | command | yes | no | choose | edit_step | done | skip | help), same length as <see cref="Steps"/>;
+    /// empty when the model gave plain strings. The engine drops any step whose action is not valid in the bot's current state.</summary>
+    public List<string> Actions { get; init; } = new();
     public string? Question { get; init; }
 }
 
@@ -160,6 +163,8 @@ public sealed class AiVoiceContext
     public string BusinessName { get; init; } = "";
     /// <summary>English description of the bot's last question and the input it expects (including any numbered options).</summary>
     public string Situation { get; init; } = "";
+    /// <summary>The only step kinds the bot accepts in this state; the model must pick from these.</summary>
+    public List<string> AllowedActions { get; init; } = new();
     public List<string> CatalogNames { get; init; } = new();
     /// <summary>The seller's latest orders, one line each ("Order #12 Hassan, Pending: 1) Lawn Suit x1 @ Rs.1800 ...") so "Hassan ka order" can be resolved.</summary>
     public List<string> RecentOrders { get; init; } = new();

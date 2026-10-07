@@ -118,6 +118,7 @@ public partial class ConversationEngine
         {
             BusinessName = seller.BusinessName ?? "",
             Situation = DescribeVoiceSituation(seller, ctx),
+            AllowedActions = AllowedVoiceActions(seller, seller.Session!.State).ToList(),
             CatalogNames = catalog.Select(c => c.Label).ToList(),
             RecentOrders = recent.Select(DescribeOrderForVoice).ToList(),
             KnownCustomers = knownCustomers,
@@ -125,9 +126,15 @@ public partial class ConversationEngine
         }, transcript, ct);
 
         if (result?.Question is { } question && result.Steps.Count == 0) return (Array.Empty<string>(), question);
-        return result is { Steps.Count: > 0 } && IsFaithfulRewrite(transcript, string.Join("\n", result.Steps))
-            ? (result.Steps.Select(s => s.Trim()).ToList(), null)
-            : (new[] { transcript }, null);
+        if (result is { Steps.Count: > 0 })
+        {
+            // The model may only pick actions that make sense right now; anything else it made up is dropped (and the transcript is used if nothing is left).
+            var steps = result.Actions.Count == result.Steps.Count
+                ? ValidateVoiceSteps(seller.Session!.State, seller, result.Steps, result.Actions)
+                : result.Steps.Select(s => s.Trim()).ToList();
+            if (steps.Count > 0 && IsFaithfulRewrite(transcript, string.Join("\n", steps))) return (steps, null);
+        }
+        return (new[] { transcript }, null);
     }
 
     private static string DescribeCustomerForVoice(Customer c)

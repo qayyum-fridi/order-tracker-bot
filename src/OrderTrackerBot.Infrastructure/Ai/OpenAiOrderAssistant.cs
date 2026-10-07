@@ -187,6 +187,9 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         var catalog = context.CatalogNames.Count == 0 ? "(empty)" : string.Join("; ", context.CatalogNames);
         var orders = context.RecentOrders.Count == 0 ? "(no orders yet)" : string.Join("\n", context.RecentOrders);
         var customers = context.KnownCustomers.Count == 0 ? "(no customers yet)" : string.Join("\n", context.KnownCustomers);
+        var allowedActions = context.AllowedActions.Count == 0
+            ? "reply, command, yes, no, choose, edit_step, done, skip, help"
+            : string.Join(", ", context.AllowedActions);
         var json = await CompleteTextAsync(
             $"You clean up voice notes that the owner of the small Pakistani shop '{context.BusinessName}' sends to their WhatsApp order-tracking bot. " +
             "The input is a speech-to-text transcript; it may be Urdu script, Roman Urdu or English, with misheard words and spoken numbers. " +
@@ -223,7 +226,13 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "those only when the seller clearly said them (done, khatam, bas, skip, haan, nahi...). If the seller clearly wants a change but a needed value was " +
             "not said (the new price, or which of several matching orders/items), return no steps and a short Roman Urdu question asking exactly that, naming the " +
             "customer and item (\"Hassan ke order #12 mein Lawn Suit ki price kitni rakhni hai?\"). If you are not sure what they want, return one step: the transcript " +
-            "written in Latin script. Return ONLY JSON: {\"steps\": [\"...\"], \"question\": null}; steps are run one after another as separate typed messages " +
+            "written in Latin script, as a reply. " +
+            "OUTPUT: every step is an object {\"action\": ..., \"text\": ...} and action is ONE of the ALLOWED ACTIONS, nothing else. Meaning of the actions: " +
+            "reply = typed text that answers the bot's question, or a dictated order / product lines; command = a typed bot command (orders today, mark 3 shipped, edit order 12, catalog...); " +
+            "yes / no = the seller agrees / refuses (text empty); choose = picks a numbered option (text is only the number); edit_step = one edit line while changing an order " +
+            "(price 1 = 1500, qty 2 = 3, remove 1, delivery 250...); done = the seller says they are finished (text empty); skip = the seller says skip (text empty); help = kya karun / guide. " +
+            $"ALLOWED ACTIONS right now: {allowedActions}. If the seller's words need an action that is not allowed, use reply with their words — never pick another action to make it fit. " +
+            "Return ONLY JSON: {\"steps\": [{\"action\": \"reply\", \"text\": \"...\"}], \"question\": null}; steps run one after another as separate typed messages " +
             "(normally just one; at most 4); question is a string only when asking.",
             new JsonObject { ["transcript"] = transcript }.ToJsonString(),
             0.1, "voice interpretation", cancellationToken, jsonMode: true, model: _options.VoiceModel);
@@ -233,12 +242,23 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         {
             using var doc = JsonDocument.Parse(json);
             var steps = new List<string>();
+            var actions = new List<string>();
             if (doc.RootElement.TryGetProperty("steps", out var stepsEl) && stepsEl.ValueKind == JsonValueKind.Array)
-                steps.AddRange(stepsEl.EnumerateArray().Where(s => s.ValueKind == JsonValueKind.String).Select(s => s.GetString()!.Trim())
-                    .Where(s => s.Length > 0).Take(4));
+                foreach (var stepEl in stepsEl.EnumerateArray().Take(4))
+                {
+                    // {"action": "...", "text": "..."}; a bare string is accepted too (no action then, so the engine cannot check it).
+                    var action = stepEl.ValueKind == JsonValueKind.Object ? GetNullableString(stepEl, "action")?.Trim().ToLowerInvariant() ?? "" : null;
+                    var text = stepEl.ValueKind == JsonValueKind.Object ? GetNullableString(stepEl, "text")?.Trim() ?? "" : stepEl.ValueKind == JsonValueKind.String ? stepEl.GetString()!.Trim() : null;
+                    if (text is null) continue;
+                    // yes / no / done / skip carry no text of their own.
+                    if (text.Length == 0 && action is not ("yes" or "no" or "done" or "skip")) continue;
+                    steps.Add(text);
+                    if (action is not null) actions.Add(action);
+                }
+            if (actions.Count != 0 && actions.Count != steps.Count) actions.Clear();
             var question = GetNullableString(doc.RootElement, "question")?.Trim();
             if (string.IsNullOrWhiteSpace(question)) question = null;
-            return steps.Count == 0 && question is null ? null : new AiVoiceInterpretation { Steps = steps, Question = question };
+            return steps.Count == 0 && question is null ? null : new AiVoiceInterpretation { Steps = steps, Actions = actions, Question = question };
         }
         catch (JsonException ex)
         {

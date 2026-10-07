@@ -724,6 +724,67 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task VoiceNote_StepsWithAnActionThatIsNotValidNow_AreDropped()
+    {
+        using var db = _dbFactory.CreateContext();
+        const string spoken = "suit 5000";
+        var engine = await VoiceEngineAtAddProductAsync(db, spoken);
+        AiVoiceContext? seen = null;
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), spoken, It.IsAny<CancellationToken>()))
+            .Callback<AiVoiceContext, string, CancellationToken>((c, _, _) => seen = c)
+            .ReturnsAsync(new AiVoiceInterpretation
+            {
+                Steps = { "Suit - 5000", "setup", "yes", "done" },
+                Actions = { "reply", "command", "yes", "done" }
+            });
+
+        await engine.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        // While adding products only reply / done / skip / help are valid: the invented "setup" and "yes" never run, and "done" needs the seller to say it.
+        Assert.Equal(new[] { "reply", "done", "skip", "help" }, seen!.AllowedActions);
+        Assert.True(await db.Products.AnyAsync(p => p.Name == "Suit" && p.Price == 5000));
+        Assert.False((await db.Sellers.AsNoTracking().FirstAsync()).OnboardingComplete);
+        Assert.DoesNotContain(_sent, m => m.Contains("Kya update karna hai"));
+    }
+
+    [Fact]
+    public async Task VoiceNote_WhenNoStepIsValidNow_FallsBackToTheTranscript()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var voice = VoiceEngine(db, "haan kar do");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "yes" }, Actions = { "yes" } }); // nothing is waiting for a yes
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        Assert.DoesNotContain(_sent, m => m.Contains("Samjha"));
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+    }
+
+    [Fact]
+    public async Task VoiceNote_EditSequence_KeepsEditStepsAndDone_AfterEditOrder()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var order = await SaveSaraKurtiOrderAsync(engine, db);
+        var voice = VoiceEngine(db, "sara ke kurti ki price pandrah sau lagao");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation
+            {
+                Steps = { $"edit order {order.Id}", "price 1 = 1500", "done" },
+                Actions = { "command", "edit_step", "done" }
+            });
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        Assert.Contains(_sent, m => m.Contains($"edit order {order.Id}") && m.Contains("price 1 = 1500") && m.Contains("done"));
+        Assert.Equal(ConversationState.AwaitingVoiceConfirmation, (await db.Sessions.FirstAsync()).State);
+    }
+
+    [Fact]
     public async Task SpokenProductWithCostAndStock_IsRemembered_UntilThePriceArrives()
     {
         using var db = _dbFactory.CreateContext();
