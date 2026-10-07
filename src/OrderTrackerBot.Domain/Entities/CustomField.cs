@@ -27,6 +27,8 @@ public class CustomField
     public CustomFieldType Type { get; set; }
     /// <summary>Internal field (e.g. "Cost"): shown to the seller only — never on receipts or the shareable catalog.</summary>
     public bool IsPrivate { get; set; }
+    /// <summary>Soft delete: "remove field" hides the field and its values (global query filter) so "undo" can bring them back.</summary>
+    public DateTime? DeletedAt { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public List<string> OptionList => string.IsNullOrEmpty(Options) ? new List<string>() : Options.Split('|').ToList();

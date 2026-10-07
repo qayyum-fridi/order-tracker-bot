@@ -203,6 +203,8 @@ shared-state action: confirm with the user and get SSH/host details first.
   Urdu-script words in the same word order ("نئی فیلڈ پروڈکٹ فیبرک", "سیٹ پروڈکٹ …", "فیلڈز"). Values show in the customer profile, order detail, catalog list,
   shareable catalog (public fields), PDF receipt (public product fields under the item + public order fields) and as extra Excel columns on the
   Orders/Customers/Catalog sheets. The draft "Confirm order" text lists the catalog products' values (all fields, private included — it is the seller's view). Values max 200 chars;
-  setting/clearing a value is undoable (`ActionType.CustomFieldChanged`; not after its field was removed); "remove field" deletes its values and is not undoable;
-  `reset account` deletes both tables. New tables `CustomFields`/`CustomFieldValues` are created on Sqlite by the patcher —
+  setting/clearing a value is undoable (`ActionType.CustomFieldChanged`). "remove field" is a **soft delete** (`CustomField.DeletedAt`, global query filters on
+  `CustomField`/`CustomFieldValue` hide the field and its values everywhere) and is undoable too (`ActionType.CustomFieldRemoved`; undo runs newest-first, so
+  earlier value undos work after it is restored); creating a field with the same name as a hidden one purges the hidden one for good (its removal can no longer be
+  undone) because of the unique name index; use `IgnoreQueryFilters()` when you need hidden rows. `reset account` deletes both tables including hidden rows. New tables `CustomFields`/`CustomFieldValues` are created on Sqlite by the patcher —
   **no SQL Server migration yet — generate one**.

@@ -149,9 +149,10 @@ public class CustomFieldTests : IDisposable
         Assert.Single(await db.CustomFieldValues.ToListAsync());
 
         await engine.HandleIncomingMessageAsync(Phone, "remove field product Fabric", default);
-        Assert.Contains(_sent, m => m.Contains("1 values bhi delete"));
-        Assert.Empty(await db.CustomFields.ToListAsync());
+        Assert.Contains(_sent, m => m.Contains("1 values bhi"));
+        Assert.Empty(await db.CustomFields.ToListAsync());      // hidden from every query...
         Assert.Empty(await db.CustomFieldValues.ToListAsync());
+        Assert.Single(await db.CustomFields.IgnoreQueryFilters().ToListAsync()); // ...but kept so "undo" can restore it
     }
 
     [Fact]
@@ -624,7 +625,7 @@ public class CustomFieldTests : IDisposable
     }
 
     [Fact]
-    public async Task Undo_AfterTappedChoice_AndWhenFieldWasRemoved()
+    public async Task Undo_AfterTappedChoice_ThenAfterFieldRemoval_UndoesInOrder()
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
@@ -634,10 +635,58 @@ public class CustomFieldTests : IDisposable
         Assert.Single(await db.CustomFieldValues.ToListAsync());
 
         await engine.HandleIncomingMessageAsync(Phone, "remove field product Fabric", default);
+        Assert.Empty(await db.CustomFields.ToListAsync());
+
         _sent.Clear();
-        await engine.HandleIncomingMessageAsync(Phone, "undo", default);
-        Assert.Contains(_sent, m => m.Contains("field ab maujood nahi"));
+        await engine.HandleIncomingMessageAsync(Phone, "undo", default); // 1st undo: the field is back, with its value
+        Assert.Contains(_sent, m => m.Contains("wapas") && m.Contains("1 values ke saath"));
+        Assert.Equal("Lawn", (await db.CustomFieldValues.SingleAsync()).Value);
+
+        await engine.HandleIncomingMessageAsync(Phone, "undo", default); // 2nd undo: the earlier value change still works
         Assert.Empty(await db.CustomFieldValues.ToListAsync());
+        Assert.Single(await db.CustomFields.ToListAsync());
+    }
+
+    [Fact]
+    public async Task RemovedField_IsHiddenEverywhere_AndReAddingTheSameNameStartsFresh()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await engine.HandleIncomingMessageAsync(Phone, "add field product Fabric", default);
+        await engine.HandleIncomingMessageAsync(Phone, "set product Kurti Fabric = Cotton", default);
+        await engine.HandleIncomingMessageAsync(Phone, "remove field product Fabric", default);
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "catalog", default);
+        Assert.DoesNotContain(_sent, m => m.Contains("Cotton"));
+        await engine.HandleIncomingMessageAsync(Phone, "fields", default);
+        Assert.Contains(_sent, m => m.Contains("Abhi koi custom field nahi"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "add field product Fabric", default); // same name: no unique-index clash
+        Assert.Single(await db.CustomFields.ToListAsync());
+        Assert.Empty(await db.CustomFieldValues.ToListAsync());
+        Assert.Single(await db.CustomFields.IgnoreQueryFilters().ToListAsync());
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "undo", default); // the older removal can no longer be restored
+        Assert.Contains(_sent, m => m.Contains("wapas nahi aa saki"));
+        Assert.Single(await db.CustomFields.ToListAsync());
+    }
+
+    [Fact]
+    public async Task ResetAccount_AlsoDeletesRemovedFields()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await engine.HandleIncomingMessageAsync(Phone, "add field product Fabric", default);
+        await engine.HandleIncomingMessageAsync(Phone, "set product Kurti Fabric = Cotton", default);
+        await engine.HandleIncomingMessageAsync(Phone, "remove field product Fabric", default);
+
+        await engine.HandleIncomingMessageAsync(Phone, "reset account", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        Assert.Empty(await db.CustomFields.IgnoreQueryFilters().ToListAsync());
+        Assert.Empty(await db.CustomFieldValues.IgnoreQueryFilters().ToListAsync());
     }
 
     [Fact]

@@ -86,7 +86,8 @@ public enum ActionType
     ProductPriceChanged,
     OrderEdited,
     CustomerUpdated,
-    CustomFieldChanged
+    CustomFieldChanged,
+    CustomFieldRemoved
 }
 
 public enum SubscriptionPlan

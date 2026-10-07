@@ -122,6 +122,16 @@ public partial class ConversationEngine
             return;
         }
 
+        // A hidden (removed) field with the same name would clash with the unique name index: drop it for good (its "undo" is then unavailable).
+        var lowered = name.ToLower();
+        var hiddenIds = await _db.CustomFields.IgnoreQueryFilters()
+            .Where(f => f.SellerId == seller.Id && f.Entity == entity && f.DeletedAt != null && f.Name.ToLower() == lowered).Select(f => f.Id).ToListAsync(ct);
+        if (hiddenIds.Count > 0)
+        {
+            await _db.CustomFieldValues.IgnoreQueryFilters().Where(v => hiddenIds.Contains(v.CustomFieldId)).ExecuteDeleteAsync(ct);
+            await _db.CustomFields.IgnoreQueryFilters().Where(f => hiddenIds.Contains(f.Id)).ExecuteDeleteAsync(ct);
+        }
+
         var field = new CustomField
         {
             SellerId = seller.Id, Entity = entity, Name = name, Type = type, IsPrivate = isPrivate,
@@ -251,6 +261,7 @@ public partial class ConversationEngine
             : $"👁️ \"{field.Name}\" ab receipt aur share catalog mein dikhegi.", ct);
     }
 
+    // "remove field" hides the field and its values; "undo" brings them back (see UndoCustomFieldRemovedAsync).
     private async Task HandleCustomFieldRemoveAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
     {
         var entity = FieldEntityFrom(cmd.Text);
@@ -261,10 +272,39 @@ public partial class ConversationEngine
             return;
         }
 
-        var values = await _db.CustomFieldValues.Where(v => v.CustomFieldId == field.Id).ToListAsync(ct);
-        _db.CustomFieldValues.RemoveRange(values);
-        _db.CustomFields.Remove(field);
-        await ReplyAsync(seller, $"🗑️ {FieldEntityLabel(entity)} field \"{field.Name}\" hata di" + (values.Count > 0 ? $" ({values.Count} values bhi delete)." : "."), ct);
+        var valueCount = await _db.CustomFieldValues.CountAsync(v => v.CustomFieldId == field.Id, ct);
+        field.DeletedAt = DateTime.UtcNow;
+        _db.ActionLogs.Add(new ActionLog
+        {
+            SellerId = seller.Id, ActionType = ActionType.CustomFieldRemoved,
+            PayloadJson = System.Text.Json.JsonSerializer.Serialize(new { FieldId = field.Id, FieldName = field.Name, Entity = FieldEntityLabel(entity), ValueCount = valueCount })
+        });
+        await ReplyAsync(seller, $"🗑️ {FieldEntityLabel(entity)} field \"{field.Name}\" hata di" + (valueCount > 0 ? $" ({valueCount} values bhi)." : ".") + "\nGhalti ho to \"undo\".", ct);
+    }
+
+    private async Task UndoCustomFieldRemovedAsync(Seller seller, ActionLog log, CancellationToken ct)
+    {
+        using var doc = System.Text.Json.JsonDocument.Parse(log.PayloadJson);
+        var fieldId = doc.RootElement.GetProperty("FieldId").GetInt32();
+        var name = doc.RootElement.GetProperty("FieldName").GetString();
+
+        var field = await _db.CustomFields.IgnoreQueryFilters().FirstOrDefaultAsync(f => f.Id == fieldId && f.SellerId == seller.Id, ct);
+        if (field is null)
+        {
+            // Purged when a new field with the same name was created afterwards.
+            await ReplyAsync(seller, $"↩️ \"{name}\" field wapas nahi aa saki — us naam ki nayi field ban chuki hai.", ct);
+            return;
+        }
+        if (await _db.CustomFields.CountAsync(f => f.SellerId == seller.Id && f.Entity == field.Entity, ct) >= MaxCustomFieldsPerEntity)
+        {
+            log.Undone = false; // nothing was undone — keep it available
+            await ReplyAsync(seller, $"↩️ Pehle {FieldEntityLabel(field.Entity)} ki koi field hata dein ({MaxCustomFieldsPerEntity} ki had), phir \"undo\".", ct);
+            return;
+        }
+
+        field.DeletedAt = null;
+        var values = await _db.CustomFieldValues.IgnoreQueryFilters().CountAsync(v => v.CustomFieldId == field.Id, ct); // the field is still hidden in the DB until this turn is saved
+        await ReplyAsync(seller, $"↩️ Reverted — {FieldEntityLabel(field.Entity)} field \"{field.Name}\" wapas" + (values > 0 ? $" ({values} values ke saath)." : "."), ct);
     }
 
     // ---- list / show ------------------------------------------------------------------------------------------------------------
