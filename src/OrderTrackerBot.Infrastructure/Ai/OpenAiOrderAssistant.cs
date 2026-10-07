@@ -214,7 +214,8 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "No match = a NEW customer: for a new order keep the spoken name, but for an edit/status/receipt on an existing order ask which customer or order they mean, " +
             "because that customer has no orders. If the seller asks for help or says they do not know what to do or say (\"kya bolun\", \"samajh nahi aa raha\", " +
             "\"kaise karun\", \"madad chahiye\") return exactly one step: \"kya karun\" (or \"guide\" when they ask for the step-by-step guide). Same for PRODUCTS against the catalog: a clear match uses the catalog spelling; an unknown name that is not a plain " +
-            "misspelling is a new product (a new order may keep it — the bot then asks whether to add it); two close matches = ask which. (9) Never invent anything the seller did not say. If the seller clearly wants a change but a needed value was " +
+            "misspelling is a new product (a new order may keep it — the bot then asks whether to add it); two close matches = ask which. (9) Never invent anything the seller did not say — above all never add a \"done\", \"skip\", \"yes\", \"no\", \"setup\" or \"menu\" step on your own: " +
+            "those only when the seller clearly said them (done, khatam, bas, skip, haan, nahi...). If the seller clearly wants a change but a needed value was " +
             "not said (the new price, or which of several matching orders/items), return no steps and a short Roman Urdu question asking exactly that, naming the " +
             "customer and item (\"Hassan ke order #12 mein Lawn Suit ki price kitni rakhni hai?\"). If you are not sure what they want, return one step: the transcript " +
             "written in Latin script. Return ONLY JSON: {\"steps\": [\"...\"], \"question\": null}; steps are run one after another as separate typed messages " +

@@ -707,6 +707,22 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Theory]
+    [InlineData("suit 5000", false)]
+    [InlineData("suit 5000 bas ho gaya", true)]
+    public async Task VoiceNote_DoneStep_OnlyEndsSetup_WhenTheSellerSaidTheyAreFinished(string spoken, bool setupEnds)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await VoiceEngineAtAddProductAsync(db, spoken);
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), spoken, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "Suit - 5000", "done" } });
+
+        await engine.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        Assert.True(await db.Products.AnyAsync(p => p.Name == "Suit" && p.Price == 5000));
+        Assert.Equal(setupEnds, (await db.Sellers.AsNoTracking().FirstAsync()).OnboardingComplete);
+    }
+
+    [Theory]
     [InlineData("catalog show")]
     [InlineData("show catalog")]
     [InlineData("catalog dikhao")]

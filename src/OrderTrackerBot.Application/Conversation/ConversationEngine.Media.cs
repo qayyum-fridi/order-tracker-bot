@@ -51,6 +51,13 @@ public partial class ConversationEngine
         if (steps.Count > 1 && seller.Session!.State == ConversationState.OnboardingOptionalDetails)
             steps = new[] { string.Join(", ", steps) };
 
+        // "done"/"skip" end setup and start the trial: the rewrite must not add them unless the seller said they were finished.
+        if (!seller.OnboardingComplete && !FinishWords.IsMatch(text) && steps.Any(s => DoneOrSkip.IsMatch(s.Trim())))
+        {
+            var withoutFinish = steps.Where(s => !DoneOrSkip.IsMatch(s.Trim())).ToList();
+            steps = withoutFinish.Count > 0 ? withoutFinish : new List<string> { text };
+        }
+
         if (steps.Count != 1 || !string.Equals(steps[0], text, StringComparison.OrdinalIgnoreCase))
             heard += $"\n➡️ Samjha: {string.Join("  →  ", steps.Select(s => $"\"{s}\""))}";
 
@@ -69,6 +76,11 @@ public partial class ConversationEngine
         await _sender.SendTextMessageAsync(fromPhoneNumber, heard, ct);
         await RunVoiceStepsAsync(fromPhoneNumber, steps, ct);
     }
+
+    /// <summary>Words that really mean "I am finished / skip this" in the transcript (Roman Urdu, English or Urdu script).</summary>
+    private static readonly Regex FinishWords = new(
+        @"\b(?:done|skip|finish(?:ed)?|complete|khatam|khtm|bas|hogaya|ho\s+gaya|mukammal|chor|chhor|baad\s+mein)\b|ڈن|ختم|بس|ہو\s*گیا|مکمل|سکپ|چھوڑ|بعد\s*میں",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     /// <summary>The seller's own words (shop, customers, products) given to the speech model so names are heard correctly.</summary>
     private async Task<List<string>> BuildVoiceVocabularyAsync(Seller seller, CancellationToken ct)
