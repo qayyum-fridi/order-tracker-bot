@@ -763,6 +763,68 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task Guidance_MidOrder_TellsWhatToDo_AndKeepsTheDraft()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(Order("Sara", "Kurti", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
+        Assert.Equal(ConversationState.AwaitingOrderConfirmation, (await db.Sessions.FirstAsync()).State);
+        _sent.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "kya karun", default);
+
+        Assert.Contains(_sent, m => m.Contains("YES likhein") && m.Contains("voice note"));
+        Assert.Equal(ConversationState.AwaitingOrderConfirmation, (await db.Sessions.FirstAsync()).State);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        Assert.Equal(1, await db.Orders.CountAsync());
+    }
+
+    [Fact]
+    public async Task Guidance_DuringOnboarding_GivesAProductExample_AndStaysOnTheStep()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = Engine(db);
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "10 ke qareeb" })
+            await engine.HandleIncomingMessageAsync(Phone, m, default);
+        _sent.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "?", default);
+
+        Assert.Contains(_sent, m => m.Contains("Lawn Suit - 3500") && m.Contains("done"));
+        Assert.Equal(ConversationState.OnboardingAddProduct, (await db.Sessions.FirstAsync()).State);
+    }
+
+    [Fact]
+    public async Task Guidance_WhenIdle_ShowsTheCommandList()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "kaise karun", default);
+
+        Assert.Contains(_sent, m => m.Contains("Yeh commands try karein"));
+    }
+
+    [Fact]
+    public async Task VoiceNote_AskingForHelp_ShowsTheTipForTheCurrentStep()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(Order("Sara", "Kurti", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
+        var voice = VoiceEngine(db, "mujhe samajh nahi aa raha kya bolun");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "kya karun" } });
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        Assert.Contains(_sent, m => m.Contains("YES likhein"));
+        Assert.Equal(ConversationState.AwaitingOrderConfirmation, (await db.Sessions.FirstAsync()).State);
+    }
+
+    [Fact]
     public async Task VoiceNote_SafeReads_RunWithoutConfirmation()
     {
         using var db = _dbFactory.CreateContext();

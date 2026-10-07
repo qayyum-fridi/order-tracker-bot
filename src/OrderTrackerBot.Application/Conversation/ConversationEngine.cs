@@ -87,6 +87,14 @@ public partial class ConversationEngine
         _turnSeller = seller;
         _turnCtx = ctx;
 
+        // "kya karun" / "kaise karun" / "?" — a tip for the current step, from any state, without touching it.
+        if (CommandParser.IsGuidanceRequest(message))
+        {
+            await SendContextualGuideAsync(seller, session, ctx, ct);
+            await PersistAsync(session, ctx, ct);
+            return;
+        }
+
         if (session.State != ConversationState.AwaitingResetConfirmation
             && CommandParser.TryParse(message)?.Kind == CommandKind.ResetAccount)
         {

@@ -197,6 +197,9 @@ shared-state action: confirm with the user and get SSH/host details first.
   names as a hint (`BuildVoiceVocabularyAsync`). For an idle seller, risky steps (`RiskyVoiceCommands`, or edits inside `edit order`) are parked in
   `PendingVoiceSteps` / `AwaitingVoiceConfirmation` until YES (`ConversationEngine.VoiceConfirm.cs`, checked at the top of `HandleIncomingMessageAsync`);
   a sequence stops if `edit order N` did not open edit mode.
+  "Ask for help" phrases ("kya karun", "kaise karun", "kya bolun", "samajh nahi aa raha", "?" — `CommandParser.IsGuidanceRequest`) are checked at the top of
+  `HandleIncomingCoreAsync` in every state and answer with a tip for the current step (`ConversationEngine.Guidance.cs`) without changing state; an idle seller gets
+  the normal help list. The voice AI maps spoken help requests to the typed phrase "kya karun". The plain words help / guide / menu are unchanged.
 - Customer corrections: "Sara ka phone 0300…", "Sara ka address …", "Bilal ki city …", "customer Sara name Sara Khan" (`CommandKind.CustomerUpdate`,
   `ConversationEngine.CustomerUpdate.cs`). Questions ("… kya hai") and non-numeric phones are not treated as updates; an ambiguous name
   lists the matches instead of guessing; each change is undoable (`ActionType.CustomerUpdated`).

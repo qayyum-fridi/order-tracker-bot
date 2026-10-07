@@ -853,6 +853,12 @@ public static class CommandParser
     private static readonly Regex ConfirmYes = new(@"^(yes|y|ha|haan|han|ji|ji haan|ok|okay|👍\S*|✅|ہاں|جی)[.!]*$", Opts);
     private static readonly Regex ConfirmNo = new(@"^(no|n|nahi|نہیں)$", Opts);
 
+    // "What do I do / say now?" — answered with a tip for the current step in ANY state (the plain words help / guide / menu keep their old meaning).
+    private static readonly Regex GuidanceRequest = new(
+        @"^(?:(?:ab\s+)?kya\s+kar(?:un|oon|u)(?:\s+ab)?|kaise\s+kar(?:un|oon|u)|kya\s+(?:bolun|bolu|likhun|likhu)|samajh\s+nahi\s+aa\s+raha|(?:mujhe\s+)?(?:madad|help)\s+chahiye|help\s+me|need\s+help|guidelines?|tips?|what\s+now|what\s+can\s+i\s+(?:do|say|type)|\?+|کیا\s+کروں|مجھے\s+مدد\s+چاہیے)[.!?]*$", Opts);
+
+    public static bool IsGuidanceRequest(string message) => GuidanceRequest.IsMatch(message.Trim());
+
     public static bool IsAffirmative(string message) => ConfirmYes.IsMatch(message.Trim());
     public static bool IsNegative(string message) => ConfirmNo.IsMatch(message.Trim());
 }
