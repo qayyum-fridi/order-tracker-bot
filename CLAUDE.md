@@ -190,3 +190,10 @@ shared-state action: confirm with the user and get SSH/host details first.
   `ConversationEngine.CustomerUpdate.cs`). Questions ("… kya hai") and non-numeric phones are not treated as updates; an ambiguous name
   lists the matches instead of guessing; each change is undoable (`ActionType.CustomerUpdated`).
 - The WhatsApp list body (help) must stay ≤ 1024 chars — a test enforces it; keep `HelpText` curated rather than exhaustive.
+- Custom fields (`ConversationEngine.CustomFields.cs`, WordPress-style attributes): the seller defines a field per entity ("add field product Fabric",
+  "add field customer Birthday", "add field order Gift Note"; `CustomField`: Seller+Entity+Name, max 10 per entity, name <= 30 chars) and sets values with
+  "set product Kurti Fabric = Cotton" / "set customer Sara Birthday = 12 May" / "set order 12 Gift Note = yes" (`= -` clears; the field is the longest defined name
+  ending the text before "="). "fields" lists definitions, "fields product Kurti" shows one record; values also appear in the customer profile and
+  order detail, and as extra columns on the Orders/Customers/Catalog export sheets. Values are free text (no number/date/choice types), max 200 chars, **not
+  undoable**; "remove field" deletes its values; `reset account` deletes both tables. Not shown in the catalog list, receipts or order confirmation; no Urdu-script
+  command words. New tables `CustomFields`/`CustomFieldValues` are created on Sqlite by the patcher — **no SQL Server migration yet — generate one**.

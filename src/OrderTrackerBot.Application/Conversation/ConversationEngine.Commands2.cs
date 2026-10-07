@@ -419,6 +419,8 @@ public partial class ConversationEngine
         _db.MerchantFeedbacks.RemoveRange(await _db.MerchantFeedbacks.Where(f => f.SellerId == seller.Id).ToListAsync(ct));
         _db.CustomerFeedbacks.RemoveRange(await _db.CustomerFeedbacks.Where(f => f.SellerId == seller.Id).ToListAsync(ct));
         _db.SellerBrandings.RemoveRange(await _db.SellerBrandings.Where(b => b.SellerId == seller.Id).ToListAsync(ct));
+        _db.CustomFieldValues.RemoveRange(await _db.CustomFieldValues.Where(v => v.SellerId == seller.Id).ToListAsync(ct));
+        _db.CustomFields.RemoveRange(await _db.CustomFields.Where(f => f.SellerId == seller.Id).ToListAsync(ct));
 
         seller.BusinessName = null;
         seller.OnboardingComplete = false;

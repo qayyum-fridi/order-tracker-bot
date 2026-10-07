@@ -90,6 +90,22 @@ public partial class ConversationEngine
 
     private static ExportColumn Col(string header, Type type) => new(header, type);
 
+    /// <summary>Appends one text column per custom field (rows in the same order as <paramref name="ids"/>).</summary>
+    private async Task<ExportSheet> WithCustomFieldsAsync(Seller seller, CustomFieldEntity entity, ExportSheet sheet, IReadOnlyList<int> ids, CancellationToken ct)
+    {
+        var fields = await _db.CustomFields.AsNoTracking().Where(f => f.SellerId == seller.Id && f.Entity == entity).OrderBy(f => f.Id).ToListAsync(ct);
+        if (fields.Count == 0) return sheet;
+
+        var values = (await _db.CustomFieldValues.AsNoTracking().Where(v => v.SellerId == seller.Id && fields.Select(f => f.Id).Contains(v.CustomFieldId)).ToListAsync(ct))
+            .ToDictionary(v => (v.CustomFieldId, v.EntityId), v => v.Value);
+        var taken = new HashSet<string>(sheet.Columns.Select(c => c.Header), StringComparer.OrdinalIgnoreCase);
+        var headers = fields.Select(f => taken.Add(f.Name) ? f.Name : $"{f.Name} (custom)").ToList();
+
+        var columns = sheet.Columns.Concat(headers.Select(h => Col(h, typeof(string)))).ToList();
+        var rows = sheet.Rows.Select((row, i) => row.Concat(fields.Select(f => (object?)(values.TryGetValue((f.Id, ids[i]), out var v) ? v : null))).ToArray()).ToList();
+        return sheet with { Columns = columns, Rows = rows };
+    }
+
     private async Task<(string Label, List<ExportSheet> Sheets)> BuildOrderSheetsAsync(Seller seller, string? period, Func<DateTime?, DateTime?> local, CancellationToken ct)
     {
         var now = DateTime.UtcNow;
@@ -126,6 +142,7 @@ public partial class ConversationEngine
             o.PaymentMethod switch { OrderPaymentMethod.Cod => "COD", OrderPaymentMethod.Manual => "Transfer", OrderPaymentMethod.Gateway => "Online", _ => "" },
             local(o.PaidAt), o.TrackingCourier, o.TrackingNumber, o.OrderSource, local(o.DeliveryDate), o.Notes
         }).ToList());
+        orderSheet = await WithCustomFieldsAsync(seller, CustomFieldEntity.Order, orderSheet, orders.Select(o => o.Id).ToList(), ct);
 
         var itemSheet = new ExportSheet("Order Items", new[]
         {
@@ -158,6 +175,7 @@ public partial class ConversationEngine
             return new object?[] { c.Name, c.Phone, c.City, c.Address, c.PreferredContact, c.Notes, t.Count, t.Spent,
                 t.Count == 0 ? null : local(t.Last), local(c.CreatedAt) };
         }).ToList());
+        sheet = await WithCustomFieldsAsync(seller, CustomFieldEntity.Customer, sheet, customers.Select(c => c.Id).ToList(), ct);
         return ("Customers", new List<ExportSheet> { sheet });
     }
 
@@ -171,6 +189,7 @@ public partial class ConversationEngine
             Col("Stock", typeof(int)), Col("Active", typeof(string)), Col("Added on", typeof(DateTime))
         }, products.Select(p => new object?[] { p.Name, p.Price, p.UnitType, p.UnitQty, p.Category, p.Size, p.Color, p.Sku,
             p.StockQty, p.IsActive ? "Yes" : "No", local(p.CreatedAt) }).ToList());
+        sheet = await WithCustomFieldsAsync(seller, CustomFieldEntity.Product, sheet, products.Select(p => p.Id).ToList(), ct);
         return ("Catalog", new List<ExportSheet> { sheet });
     }
 

@@ -71,6 +71,10 @@ public enum CommandKind
     OrderDetail,
     Stock,
     CustomerUpdate,
+    CustomFieldAdd,
+    CustomFieldRemove,
+    CustomFieldList,
+    CustomFieldSet,
     OrderPayment,
     OrderDeliveryCharge,
     RemoveBranding,
@@ -576,6 +580,38 @@ public static class CommandParser
         });
     }
 
+    // Seller-defined attributes: "add field product Fabric", "remove field customer Birthday", "fields", "fields product Kurti",
+    // "set product Kurti Fabric = Cotton". Text = product|customer|order, Text2 = field name / record, Text3 = value.
+    private const string FieldEntity = @"(?<e>products?|customers?|orders?)";
+    private const string FieldWord = @"(?:custom\s+)?(?:fields?|attributes?)";
+    private static readonly Regex CustomFieldAddA = new(@"^(?:add|new|create|naya)\s+" + FieldWord + @"\s+(?:for\s+|to\s+)?" + FieldEntity + @"\s*[:\-]?\s*(?<n>.+)$", Opts);
+    private static readonly Regex CustomFieldAddB = new(@"^(?:add|new|create|naya)\s+" + FieldEntity + @"\s+" + FieldWord + @"\s*[:\-]?\s*(?<n>.+)$", Opts);
+    private static readonly Regex CustomFieldRemoveA = new(@"^(?:remove|delete|del|hatao)\s+" + FieldWord + @"\s+(?:for\s+|from\s+)?" + FieldEntity + @"\s*[:\-]?\s*(?<n>.+)$", Opts);
+    private static readonly Regex CustomFieldRemoveB = new(@"^(?:remove|delete|del|hatao)\s+" + FieldEntity + @"\s+" + FieldWord + @"\s*[:\-]?\s*(?<n>.+)$", Opts);
+    private static readonly Regex CustomFieldList = new(@"^(?:my\s+|show\s+)?(?:custom\s+)?(?:fields|attributes)$", Opts);
+    private static readonly Regex CustomFieldShow = new(@"^(?:custom\s+)?(?:fields|attributes)\s+(?:of\s+|for\s+)?" + FieldEntity + @"\s+(?<r>.+)$", Opts);
+    private static readonly Regex CustomFieldSet = new(@"^set\s+" + FieldEntity + @"\s+(?<l>[^=:]+?)\s*[=:]\s*(?<v>.+)$", Opts);
+
+    private static string FieldEntityOf(Match m) => m.Groups["e"].Value.ToLowerInvariant().TrimEnd('s');
+
+    private static ParsedCommand? TryParseCustomField(string message)
+    {
+        var m = CustomFieldAddA.Match(message);
+        if (!m.Success) m = CustomFieldAddB.Match(message);
+        if (m.Success) return new ParsedCommand { Kind = CommandKind.CustomFieldAdd, Text = FieldEntityOf(m), Text2 = m.Groups["n"].Value.Trim() };
+
+        m = CustomFieldRemoveA.Match(message);
+        if (!m.Success) m = CustomFieldRemoveB.Match(message);
+        if (m.Success) return new ParsedCommand { Kind = CommandKind.CustomFieldRemove, Text = FieldEntityOf(m), Text2 = m.Groups["n"].Value.Trim() };
+
+        if (CustomFieldList.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CustomFieldList };
+        if ((m = CustomFieldShow.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.CustomFieldList, Text = FieldEntityOf(m), Text2 = m.Groups["r"].Value.Trim() };
+        if ((m = CustomFieldSet.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.CustomFieldSet, Text = FieldEntityOf(m), Text2 = m.Groups["l"].Value.Trim(), Text3 = m.Groups["v"].Value.Trim() };
+        return null;
+    }
+
     public static ParsedCommand? TryParse(string rawMessage)
     {
         var message = NormalizeDigits(rawMessage.Trim());
@@ -605,6 +641,7 @@ public static class CommandParser
         if (LastMonthSummary.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.TodaysSummary, Text = "lastmonth" };
         if (Catalog.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Catalog };
         if (ShareCatalog.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ShareCatalog };
+        if (TryParseCustomField(message) is { } customField) return customField;
         if ((m = MenuCategory.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.MenuCategory, Text = m.Groups[1].Value.ToLowerInvariant() };
         if (CustomerList.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CustomerList };

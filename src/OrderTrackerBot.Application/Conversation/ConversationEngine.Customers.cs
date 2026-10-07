@@ -78,6 +78,7 @@ public partial class ConversationEngine
             lines.Add($"🕐 Last order: {(days == 0 ? "aaj" : $"{days} din pehle")} ({Formatters.Status(orders[0].Status)})");
         }
         if (!string.IsNullOrWhiteSpace(customer.Notes)) lines.Add($"📝 {customer.Notes}");
+        lines.AddRange(await CustomFieldLinesAsync(seller, CustomFieldEntity.Customer, customer.Id, ct));
 
         if (orders.Count > 0)
         {

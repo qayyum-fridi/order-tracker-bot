@@ -299,6 +299,18 @@ public partial class ConversationEngine
             case CommandKind.CustomerDetail:
                 await HandleCustomerDetailAsync(seller, ctx, cmd, ct);
                 return;
+            case CommandKind.CustomFieldAdd:
+                await HandleCustomFieldAddAsync(seller, cmd, ct);
+                return;
+            case CommandKind.CustomFieldRemove:
+                await HandleCustomFieldRemoveAsync(seller, cmd, ct);
+                return;
+            case CommandKind.CustomFieldList:
+                await HandleCustomFieldListAsync(seller, ctx, cmd, ct);
+                return;
+            case CommandKind.CustomFieldSet:
+                await HandleCustomFieldSetAsync(seller, ctx, cmd, ct);
+                return;
             case CommandKind.CustomerSearch:
                 await HandleCustomerSearchAsync(seller, cmd.Text!, ct);
                 return;
