@@ -125,6 +125,9 @@ public class MockupFeatureTests : IDisposable
         seller = await db.Sellers.FirstAsync();
         Assert.False(seller.OnboardingComplete);
         Assert.Equal(0, await db.Products.CountAsync());
+        Assert.Null(seller.City);
+        Assert.Null(seller.BusinessType);
+        Assert.Null(seller.InstagramHandle);
         Assert.Contains(_sent, m => m.Contains("Account reset ho gaya"));
     }
 

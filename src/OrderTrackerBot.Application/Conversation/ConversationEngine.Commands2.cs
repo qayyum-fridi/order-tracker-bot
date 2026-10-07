@@ -420,6 +420,9 @@ public partial class ConversationEngine
         _db.SellerBrandings.RemoveRange(await _db.SellerBrandings.Where(b => b.SellerId == seller.Id).ToListAsync(ct));
 
         seller.BusinessName = null;
+        seller.City = null;
+        seller.BusinessType = null;
+        seller.InstagramHandle = null;
         seller.OnboardingComplete = false;
         seller.PreferredLanguage = Lang.RomanUrdu;
         await ReplyAsync(seller, "✅ Account reset ho gaya.", ct);
