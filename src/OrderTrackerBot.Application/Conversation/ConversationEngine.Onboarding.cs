@@ -264,6 +264,14 @@ public partial class ConversationEngine
                 // Without a phone, free text here is the seller describing their own stock ("mere paas 4 lawn suit hain, 3500"), never an order.
                 if (await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: true, ct)) return;
 
+                // "teen chadar aur do dupatte naye products hain": the seller is naming products (maybe without prices) — read it and ask for the prices.
+                var stockAnalysis = await _ai.AnalyzeMessageAsync(AiContext(seller, await LoadCatalogAsync(seller, ct)), message, ct);
+                if (stockAnalysis is { Intent: "add_products", NewProducts.Count: > 0 })
+                {
+                    await HandleNewProductsAsync(seller, stockAnalysis.NewProducts, ct);
+                    return;
+                }
+
                 await ReplyAsync(seller,
                     "Maazrat, samajh nahi aaya.\n• Product add karna ho to: 'naam - price' (misaal: 'Kurti - 1800')\n" +
                     "• Order darj karna ho to customer ka naam, items aur phone number ek saath bhej dein\n• Ya 'done'/'skip' likhein.", ct);

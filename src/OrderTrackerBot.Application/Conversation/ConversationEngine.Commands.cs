@@ -1,6 +1,7 @@
 using OrderTrackerBot.Application.Time;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Abstractions;
+using OrderTrackerBot.Application.Ai;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
@@ -590,6 +591,27 @@ public partial class ConversationEngine
             updated ? $"✅ {label} price updated: {Formatters.Money(product.Price)}"
             : line.UnitType != "piece" || line.UnitQty != 1 ? $"✅ Added: {label} - {Formatters.Money(product.Price)}"
             : $"✅ {label} - {Formatters.Money(product.Price)} catalog mein add ho gaya.\n\nAur add karein (Naam - price), ya \"catalog\" likhein.", ct);
+    }
+
+    /// <summary>
+    /// The seller described products they sell ("teen khaddar chadar aur do wool dupatte naye products hain") — not an order. Products that came
+    /// with a price are saved; for the rest the bot asks for the price instead of guessing one.
+    /// </summary>
+    private async Task HandleNewProductsAsync(Seller seller, IReadOnlyList<AiNewProduct> products, CancellationToken ct)
+    {
+        var saved = new List<string>();
+        foreach (var p in products.Where(p => p.Price is not null))
+        {
+            var (product, _) = await UpsertProductAsync(seller, new ProductLine(p.Name, p.Price!.Value, "piece", 1), ct);
+            saved.Add($"• {Formatters.ProductLabel(product)} - {Formatters.Money(product.Price)}");
+        }
+
+        var needPrice = products.Where(p => p.Price is null).Select(p => p.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var reply = saved.Count == 0 ? "" : $"✅ {saved.Count} product{(saved.Count == 1 ? "" : "s")} catalog mein add ho gaye:\n{string.Join("\n", saved)}\n\n";
+        if (needPrice.Count > 0)
+            reply += "📦 Samajh gaya — yeh naye products hain, order nahi:\n" + string.Join("\n", needPrice.Select(n => $"• {n}")) +
+                     "\n\nCatalog mein daalne ke liye har product ka price bhejein, har line mein ek (misaal: 'Kurti - 1800').";
+        await ReplyAsync(seller, reply.TrimEnd(), ct);
     }
 
     private async Task HandleAddProductsBulkAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)

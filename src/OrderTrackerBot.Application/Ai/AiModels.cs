@@ -59,12 +59,21 @@ public sealed class AiMessageAnalysis
     public AiCustomerFeedback? Feedback { get; init; }
     /// <summary>Set for support_query: the seller forwarded a buyer's question ("mera order kab aayega?").</summary>
     public AiSupportQuery? SupportQuery { get; init; }
+    /// <summary>Set for add_products: the seller is telling the bot about products they sell (with or without prices), not placing an order.</summary>
+    public List<AiNewProduct> NewProducts { get; init; } = new();
     /// <summary>Set when a screenshot is a payment receipt (JazzCash/Easypaisa/bank), not an order.</summary>
     public AiPaymentReceipt? Receipt { get; init; }
     /// <summary>True when the message named 2+ items in a way that could mean separate orders or one combined order (spec screen 3).</summary>
     public bool IsAmbiguousItemGrouping { get; init; }
     public string? ClarificationQuestion { get; init; }
     public List<string> ClarificationOptions { get; init; } = new();
+}
+
+/// <summary>A product the seller named while describing what they sell; the price is null when they did not say it.</summary>
+public sealed class AiNewProduct
+{
+    public string Name { get; init; } = "";
+    public decimal? Price { get; init; }
 }
 
 public sealed class AiCustomerFeedback

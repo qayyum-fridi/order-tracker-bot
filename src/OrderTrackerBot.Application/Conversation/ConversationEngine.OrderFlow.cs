@@ -71,6 +71,12 @@ public partial class ConversationEngine
             return;
         }
 
+        if (analysis.Intent == "add_products" && analysis.NewProducts.Count > 0)
+        {
+            await HandleNewProductsAsync(seller, analysis.NewProducts, ct);
+            return;
+        }
+
         if (!analysis.IsOrderAttempt || analysis.Order is null)
         {
             var options = analysis.ClarificationOptions.Count > 0 ? analysis.ClarificationOptions : DefaultClarificationOptions.ToList();

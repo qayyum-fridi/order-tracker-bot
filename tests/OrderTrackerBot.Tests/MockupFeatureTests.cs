@@ -628,6 +628,67 @@ public class MockupFeatureTests : IDisposable
         Assert.False((await db.Sellers.FirstAsync()).OnboardingComplete);
     }
 
+    private void AiSaysNewProducts() =>
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts = { new AiNewProduct { Name = "Khaddar Chadar" }, new AiNewProduct { Name = "Wool Dupatta", Price = 800 } }
+        });
+
+    [Fact]
+    public async Task SellerNamingProducts_IsNotAnOrder_SavesPricedOnes_AndAsksForTheRestsPrice()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiSaysNewProducts();
+
+        await engine.HandleIncomingMessageAsync(Phone, "teen chadar khaddar ki aur do wool ke dupatte naye products hain", default);
+
+        Assert.True(await db.Products.AnyAsync(p => p.Name == "Wool Dupatta"));
+        Assert.False(await db.Products.AnyAsync(p => p.Name == "Khaddar Chadar"));
+        Assert.Contains(_sent, m => m.Contains("Wool Dupatta") && m.Contains("add ho gaye") && m.Contains("Khaddar Chadar") && m.Contains("order nahi"));
+        Assert.Equal(0, await db.Orders.CountAsync());
+    }
+
+    [Fact]
+    public async Task Onboarding_NamingProductsWithoutPrices_AsksForPrices_AndStaysInSetup()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = Engine(db);
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "10 ke qareeb" })
+            await engine.HandleIncomingMessageAsync(Phone, m, default);
+        AiSaysNewProducts();
+
+        await engine.HandleIncomingMessageAsync(Phone, "teen chadar khaddar ki aur do wool ke dupatte naye products hain", default);
+
+        Assert.False((await db.Sellers.FirstAsync()).OnboardingComplete);
+        Assert.Contains(_sent, m => m.Contains("Khaddar Chadar") && m.Contains("price"));
+        Assert.Equal(0, await db.Orders.CountAsync());
+    }
+
+    private sealed class StubOpenAi(string body) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") });
+    }
+
+    [Fact]
+    public async Task OpenAiAssistant_ReadsNewProducts()
+    {
+        var content = "{\"intent\":\"add_products\",\"is_order_attempt\":false,\"new_products\":[{\"name\":\"Cotton Suit\",\"price\":null},{\"name\":\"Wool Dupatta\",\"price\":800}]}";
+        var body = System.Text.Json.JsonSerializer.Serialize(new { choices = new[] { new { message = new { content } } } });
+        var assistant = new OrderTrackerBot.Infrastructure.Ai.OpenAiOrderAssistant(new HttpClient(new StubOpenAi(body)),
+            Microsoft.Extensions.Options.Options.Create(new OrderTrackerBot.Infrastructure.Ai.OpenAiOptions { ApiKey = "k" }),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<OrderTrackerBot.Infrastructure.Ai.OpenAiOrderAssistant>.Instance, new Mock<IIssueReporter>().Object);
+
+        var analysis = await assistant.AnalyzeMessageAsync(new AiAnalysisContext { BusinessName = "Ayesha", Catalog = new List<AiCatalogItem>() }, "teen chadar aur do dupatte naye products hain");
+
+        Assert.Equal("add_products", analysis.Intent);
+        Assert.Collection(analysis.NewProducts,
+            p => { Assert.Equal("Cotton Suit", p.Name); Assert.Null(p.Price); },
+            p => { Assert.Equal("Wool Dupatta", p.Name); Assert.Equal(800m, p.Price); });
+    }
+
     [Fact]
     public async Task VoiceNote_RewriteThatDropsANumber_IsIgnored()
     {

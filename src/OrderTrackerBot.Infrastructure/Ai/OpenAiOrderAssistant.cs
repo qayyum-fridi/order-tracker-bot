@@ -77,7 +77,9 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "(the seller relays how a buyer felt about their order, e.g. \"ayesha bahut khush thi order se\" — fill feedback), off_topic (small talk " +
             "or chatter unrelated to the business, e.g. \"bohat thak gayi hoon aaj\"), support_query (the seller forwards a question a buyer " +
             "asked them, e.g. \"mera order kab tak aayega? — Bilal ne poocha\" or \"Ayesha pooch rahi hai Karachi bhejte hain?\" — fill support_query " +
-            "with the buyer's name if given and the question itself), unclear. " +
+            "with the buyer's name if given and the question itself), add_products (the seller is telling you which products THEY sell or stock — " +
+            "\"mere paas 3 khaddar chadar aur 2 wool dupatte hain\", \"yeh naye products hain\" — with no customer buying anything: this is NOT an order; " +
+            "set is_order_attempt=false and list each product in new_products with its price in rupees when the seller said one, else null), unclear. " +
             "For new_order put one entry per customer in orders (two different customers in one message = two entries). Quantity is the number " +
             "of catalog units; for weight-sold items like \"15kg kaju\" use the number of kg (15). " +
             "Required order fields are customer_name and phone; if either is missing, still return the order with what you found and list the " +
@@ -175,19 +177,22 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         var json = await CompleteTextAsync(
             $"You clean up voice notes that the owner of the small Pakistani shop '{context.BusinessName}' sends to their WhatsApp order-tracking bot. " +
             "The input is a speech-to-text transcript; it may be Urdu script, Roman Urdu or English, with misheard words and spoken numbers. " +
-            "Rewrite it into the exact text the seller would have TYPED to the bot, in Latin script (Roman Urdu / English), for this situation: " +
+            "FIRST understand what the seller means (the transcript's words are often phonetically wrong: \"kaan\" may be cotton, \"soor\" suit, " +
+            "\"paroshak\" products); never transliterate sounds word for word — write the intended words with their normal spellings (khaddar, chadar, dupatta, wool, cotton, suit, product). " +
+            "Then rewrite it into the exact text the seller would have TYPED to the bot, in Latin script (Roman Urdu / English), for this situation: " +
             $"{context.Situation}\nSeller's catalog: {catalog}\n\n" +
             "Rules: (1) Keep every digit of every number, price and phone; turn spoken number words into digits (char = 4, ek = 1, teen hazaar paanch sau = 3500). " +
             "(2) If a yes/no answer is expected and the transcript clearly agrees (haan, ji, theek hai, kar do) answer exactly \"yes\"; if it clearly refuses " +
             "(nahi, ruko, mat karo) answer exactly \"no\". (3) If a numbered choice is expected, answer only the option number — from a number word " +
             "(pehla/first/ek = 1, dusra/second/do = 2) or from the meaning of the option the seller refers to. (4) When a product mentioned clearly is a catalog " +
             "product, use its exact catalog name. (5) When products are being added to the catalog, write each as \"Name - price\" (e.g. \"Lawn Suit - 3500\"); " +
-            "a seller saying what they stock is adding a product, never placing an order. (6) A dictated customer order is written like " +
+            "a seller saying what they stock is adding a product, never placing an order; when they gave no prices, write one clean sentence in Roman Urdu " +
+            "(\"teen khaddar chadar, do wool dupatte aur teen cotton suit naye products hain\"). (6) A dictated customer order is written like " +
             "\"Ayesha, 2 lawn suit, 03001234567, Gulberg Lahore\". Commands keep their typed form (\"orders today\", \"mark 3 shipped\", \"stock Kurti 20\", " +
             "\"delivery 250\"). (7) Never invent anything the seller did not say. If you are not sure, return the transcript unchanged apart from writing it " +
             "in Latin script. Return ONLY JSON: {\"text\": \"...\"}.",
             new JsonObject { ["transcript"] = transcript }.ToJsonString(),
-            0.1, "voice interpretation", cancellationToken, jsonMode: true);
+            0.1, "voice interpretation", cancellationToken, jsonMode: true, model: _options.VoiceModel);
         if (json is null) return null;
 
         try
@@ -239,7 +244,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
 
     /// <summary>A plain single-turn completion; null when AI is unavailable or fails (every caller has a non-AI fallback).</summary>
     private async Task<string?> CompleteTextAsync(string systemPrompt, string userText, double temperature, string purpose,
-        CancellationToken cancellationToken, bool jsonMode = false)
+        CancellationToken cancellationToken, bool jsonMode = false, string? model = null)
     {
         if (string.IsNullOrWhiteSpace(_options.ApiKey)) return null;
 
@@ -247,7 +252,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         {
             var requestBody = new JsonObject
             {
-                ["model"] = _options.Model,
+                ["model"] = string.IsNullOrWhiteSpace(model) ? _options.Model : model,
                 ["temperature"] = temperature,
                 ["messages"] = new JsonArray
                 {
@@ -299,6 +304,17 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             && GetNullableString(sq, "question") is { Length: > 0 } question)
             supportQuery = new AiSupportQuery { CustomerName = GetNullableString(sq, "customer_name"), Question = question };
 
+        var newProducts = new List<AiNewProduct>();
+        if (root.TryGetProperty("new_products", out var np) && np.ValueKind == JsonValueKind.Array)
+            foreach (var p in np.EnumerateArray().Where(p => p.ValueKind == JsonValueKind.Object))
+                if (GetNullableString(p, "name")?.Trim() is { Length: > 0 } productName)
+                    newProducts.Add(new AiNewProduct
+                    {
+                        Name = productName,
+                        Price = p.TryGetProperty("price", out var price) && price.ValueKind == JsonValueKind.Number
+                            && price.TryGetDecimal(out var amountValue) && amountValue > 0 ? amountValue : null
+                    });
+
         AiPaymentReceipt? receipt = null;
         if (root.TryGetProperty("receipt", out var rc) && rc.ValueKind == JsonValueKind.Object)
             receipt = new AiPaymentReceipt
@@ -319,6 +335,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             AdditionalOrders = orders.Skip(1).ToList(),
             Feedback = feedback,
             SupportQuery = supportQuery,
+            NewProducts = newProducts,
             Receipt = receipt
         };
     }
@@ -396,7 +413,16 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             ["intent"] = new JsonObject
             {
                 ["type"] = "string",
-                ["enum"] = new JsonArray { "new_order", "status_update", "customer_feedback", "support_query", "off_topic", "unclear" }
+                ["enum"] = new JsonArray { "new_order", "status_update", "customer_feedback", "support_query", "add_products", "off_topic", "unclear" }
+            },
+            ["new_products"] = new JsonObject
+            {
+                ["type"] = "array",
+                ["items"] = StrictObject(new JsonObject
+                {
+                    ["name"] = new JsonObject { ["type"] = "string" },
+                    ["price"] = new JsonObject { ["type"] = new JsonArray { "number", "null" } }
+                })
             },
             ["support_query"] = StrictObject(new JsonObject
             {

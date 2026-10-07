@@ -188,7 +188,10 @@ shared-state action: confirm with the user and get SSH/host details first.
   transcription asks to resend and reports OTB-3002. Before handling, `IAiOrderAssistant.InterpretVoiceAsync` rewrites the transcript into what the
   seller would have typed for the bot's current question (`DescribeVoiceSituation`: state, offered options, catalog) — "pehla wala" -> `1`, "haan kar do" -> `yes`,
   "mere paas 4 lawn suit 3500" -> `Lawn Suit - 3500` — and the bot echoes "➡️ Samjha: …". The rewrite is discarded (transcript used) when the AI is
-  unavailable or it drops a 3+ digit number (`IsFaithfulRewrite`); the rewritten text then goes through the normal deterministic engine.
+  unavailable or it drops a 3+ digit number (`IsFaithfulRewrite`); the rewritten text then goes through the normal deterministic engine. The rewrite uses `OpenAi:VoiceModel` (default `gpt-4o`) and is told to
+  understand meaning rather than transliterate sounds. The order analysis also has an `add_products` intent (`AiMessageAnalysis.NewProducts`): a seller naming
+  products they sell ("teen chadar aur do dupatte naye products hain") is not an order — priced ones are saved, the rest get a "send the price" prompt
+  (`HandleNewProductsAsync`; also reached from the onboarding add-product step when the text has no buyer phone).
 - Customer corrections: "Sara ka phone 0300…", "Sara ka address …", "Bilal ki city …", "customer Sara name Sara Khan" (`CommandKind.CustomerUpdate`,
   `ConversationEngine.CustomerUpdate.cs`). Questions ("… kya hai") and non-numeric phones are not treated as updates; an ambiguous name
   lists the matches instead of guessing; each change is undoable (`ActionType.CustomerUpdated`).
