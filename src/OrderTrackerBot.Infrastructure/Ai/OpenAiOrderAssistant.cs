@@ -80,7 +80,9 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "with the buyer's name if given and the question itself), add_products (the seller is telling you which products THEY sell or stock — " +
             "\"mere paas 3 khaddar chadar aur 2 wool dupatte hain\", \"yeh naye products hain\" — with no customer buying anything: this is NOT an order; " +
             "set is_order_attempt=false and list each product in new_products with its price in rupees when the seller said one, else null; the name " +
-            "is the product only, without a unit or quantity word such as thaan/gaz/kg), unclear. " +
+            "is the product only, without a unit or quantity word such as thaan/gaz/kg. Also fill cost_price (what it cost the seller to buy, \"kharid/cost\"), " +
+            "stock_qty (how many they have) and attributes (other facts, each as name+value, e.g. colour, size, fabric) ONLY when the seller said them, else null / an empty list; " +
+            "a number is never copied from the catalog), unclear. " +
             "For new_order put one entry per customer in orders (two different customers in one message = two entries). Quantity is the number " +
             "of catalog units; for weight-sold items like \"15kg kaju\" use the number of kg (15). " +
             "Required order fields are customer_name and phone; if either is missing, still return the order with what you found and list the " +
@@ -349,7 +351,18 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
                     {
                         Name = productName,
                         Price = p.TryGetProperty("price", out var price) && price.ValueKind == JsonValueKind.Number
-                            && price.TryGetDecimal(out var amountValue) && amountValue > 0 ? amountValue : null
+                            && price.TryGetDecimal(out var amountValue) && amountValue > 0 ? amountValue : null,
+                        Cost = p.TryGetProperty("cost_price", out var costPrice) && costPrice.ValueKind == JsonValueKind.Number
+                            && costPrice.TryGetDecimal(out var costValue) && costValue > 0 ? costValue : null,
+                        Stock = p.TryGetProperty("stock_qty", out var stockQty) && stockQty.ValueKind == JsonValueKind.Number
+                            && stockQty.TryGetInt32(out var stockValue) && stockValue >= 0 ? stockValue : null,
+                        Attributes = p.TryGetProperty("attributes", out var attrs) && attrs.ValueKind == JsonValueKind.Array
+                            ? attrs.EnumerateArray().Where(a => a.ValueKind == JsonValueKind.Object)
+                                .Select(a => (Name: GetNullableString(a, "name")?.Trim(), Value: GetNullableString(a, "value")?.Trim()))
+                                .Where(a => !string.IsNullOrEmpty(a.Name) && !string.IsNullOrEmpty(a.Value))
+                                .GroupBy(a => a.Name!, StringComparer.OrdinalIgnoreCase)
+                                .ToDictionary(g => g.Key, g => g.First().Value!)
+                            : new Dictionary<string, string>()
                     });
 
         AiPaymentReceipt? receipt = null;
@@ -458,7 +471,14 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
                 ["items"] = StrictObject(new JsonObject
                 {
                     ["name"] = new JsonObject { ["type"] = "string" },
-                    ["price"] = new JsonObject { ["type"] = new JsonArray { "number", "null" } }
+                    ["price"] = new JsonObject { ["type"] = new JsonArray { "number", "null" } },
+                    ["cost_price"] = new JsonObject { ["type"] = new JsonArray { "number", "null" } },
+                    ["stock_qty"] = new JsonObject { ["type"] = new JsonArray { "integer", "null" } },
+                    ["attributes"] = new JsonObject
+                    {
+                        ["type"] = "array",
+                        ["items"] = StrictObject(new JsonObject { ["name"] = new JsonObject { ["type"] = "string" }, ["value"] = new JsonObject { ["type"] = "string" } })
+                    }
                 })
             },
             ["support_query"] = StrictObject(new JsonObject

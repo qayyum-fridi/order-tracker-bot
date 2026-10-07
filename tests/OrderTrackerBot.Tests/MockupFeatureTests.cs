@@ -724,6 +724,39 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task SpokenProductWithCostAndStock_IsRemembered_UntilThePriceArrives()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts =
+            {
+                new AiNewProduct { Name = "Polo Shirt", Cost = 300, Stock = 10, Attributes = { ["fabric"] = "cotton" } },
+                new AiNewProduct { Name = "Jeans", Cost = 9999 } // 9999 was never said: dropped
+            }
+        });
+
+        await engine.HandleIncomingMessageAsync(Phone, "mere paas 10 cotton polo shirt hain jo 300 mein aati hain aur jeans", default);
+
+        Assert.False(await db.Products.AnyAsync(p => p.Name == "Polo Shirt"));
+        Assert.Contains(_sent, m => m.Contains("Polo Shirt (cost Rs.300, stock 10, fabric: cotton)") && !m.Contains("9999"));
+
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts = { new AiNewProduct { Name = "Polo Shirt", Price = 500 }, new AiNewProduct { Name = "Jeans", Price = 500 } }
+        });
+        await engine.HandleIncomingMessageAsync(Phone, "dono ki price 500 hai", default);
+
+        var polo = await db.Products.AsNoTracking().SingleAsync(p => p.Name == "Polo Shirt");
+        Assert.Equal((500m, 300m, 10), (polo.Price, polo.CostPrice!.Value, polo.StockQty!.Value));
+        Assert.Contains("cotton", polo.AttributesJson);
+        Assert.Null((await db.Products.AsNoTracking().SingleAsync(p => p.Name == "Jeans")).CostPrice);
+    }
+
+    [Fact]
     public async Task ProductWithCostStockAndAttributes_SavesAllOfThem_AndEchoesWhatWasSaved()
     {
         using var db = _dbFactory.CreateContext();

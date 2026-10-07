@@ -599,18 +599,38 @@ public partial class ConversationEngine
     /// </summary>
     private async Task HandleNewProductsAsync(Seller seller, SessionContextData ctx, IReadOnlyList<AiNewProduct> products, string? sourceText, CancellationToken ct)
     {
-        // The model must not make up a price (it likes to copy one from a similar catalog product): only a price the seller wrote as digits counts.
+        // The model must not make up numbers (it likes to copy one from a similar catalog product): a price, cost or stock only counts when the
+        // seller wrote that number as digits, and an attribute only when its value appears in what they wrote.
         if (sourceText is not null)
         {
-            var written = System.Text.RegularExpressions.Regex.Matches(sourceText.Replace(",", ""), @"\d+(?:\.\d+)?").Select(m => decimal.Parse(m.Value, System.Globalization.CultureInfo.InvariantCulture)).ToHashSet();
-            products = products.Select(p => p.Price is { } price && !written.Contains(price) ? new AiNewProduct { Name = p.Name } : p).ToList();
+            var written = System.Text.RegularExpressions.Regex.Matches(sourceText.Replace(",", ""), @"\d+(?:\.\d+)?")
+                .Select(m => decimal.Parse(m.Value, System.Globalization.CultureInfo.InvariantCulture)).ToHashSet();
+            products = products.Select(p => new AiNewProduct
+            {
+                Name = p.Name,
+                Price = p.Price is { } price && written.Contains(price) ? price : null,
+                Cost = p.Cost is { } cost && written.Contains(cost) ? cost : null,
+                Stock = p.Stock is { } stock && written.Contains(stock) ? stock : null,
+                Attributes = p.Attributes.Where(a => sourceText.Contains(a.Value, StringComparison.OrdinalIgnoreCase)).ToDictionary(a => a.Key, a => a.Value)
+            }).ToList();
         }
+
+        var pendingExtras = ctx.PendingProductExtras ?? new Dictionary<string, ProductExtras>(StringComparer.OrdinalIgnoreCase);
+        pendingExtras = new Dictionary<string, ProductExtras>(pendingExtras, StringComparer.OrdinalIgnoreCase);
 
         var saved = new List<string>();
         foreach (var p in products.Where(p => p.Price is not null))
         {
-            var (product, _) = await UpsertProductAsync(seller, new ProductLine(p.Name, p.Price!.Value, "piece", 1), ct);
-            saved.Add($"• {Formatters.ProductLabel(product)} - {Formatters.Money(product.Price)}");
+            pendingExtras.TryGetValue(p.Name, out var earlier);
+            var (product, _) = await UpsertProductAsync(seller, new ProductLine(p.Name, p.Price!.Value, "piece", 1, MergeExtras(earlier, ExtrasOf(p))), ct);
+            pendingExtras.Remove(p.Name);
+            saved.Add($"• {Formatters.ProductLabel(product)} - {Formatters.Money(product.Price)}{ProductDetailsText(product)}");
+        }
+
+        foreach (var p in products.Where(p => p.Price is null && ExtrasOf(p) is not null))
+        {
+            pendingExtras.TryGetValue(p.Name, out var earlier);
+            pendingExtras[p.Name] = MergeExtras(earlier, ExtrasOf(p))!;
         }
 
         var needPrice = products.Where(p => p.Price is null).Select(p => p.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
@@ -621,12 +641,54 @@ public partial class ConversationEngine
             .Where(n => !activeNames.Contains(n, StringComparer.OrdinalIgnoreCase))
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         ctx.PendingPriceProducts = stillWaiting.Count == 0 ? null : stillWaiting;
+        ctx.PendingProductExtras = pendingExtras.Where(e => stillWaiting.Contains(e.Key, StringComparer.OrdinalIgnoreCase)).ToDictionary(e => e.Key, e => e.Value);
+        if (ctx.PendingProductExtras.Count == 0) ctx.PendingProductExtras = null;
         needPrice = stillWaiting;
+
         var reply = saved.Count == 0 ? "" : $"✅ {saved.Count} product{(saved.Count == 1 ? "" : "s")} catalog mein add ho gaye:\n{string.Join("\n", saved)}\n\n";
         if (needPrice.Count > 0)
-            reply += "📦 Samajh gaya — yeh naye products hain, order nahi:\n" + string.Join("\n", needPrice.Select(n => $"• {n}")) +
-                     "\n\nCatalog mein daalne ke liye har product ka price bhejein, har line mein ek (misaal: 'Kurti - 1800').";
+            reply += "📦 Samajh gaya — yeh naye products hain, order nahi:\n" +
+                     string.Join("\n", needPrice.Select(n => $"• {n}{(ctx.PendingProductExtras is { } extras && extras.FirstOrDefault(e => string.Equals(e.Key, n, StringComparison.OrdinalIgnoreCase)) is { Value: not null } found ? ExtrasText(found.Value) : "")}")) +
+                     "\n\nBas har product ki sale price bata dein (misaal: 'Kurti - 1800' ya \"teenon ki 5000\") — jo kuch aap ne bataya hai (cost, stock) woh yaad hai.";
         await ReplyAsync(seller, reply.TrimEnd(), ct);
+    }
+
+    /// <summary>Cost, stock and attributes the model read for one new product (color/size go to their own fields); null when there is none.</summary>
+    private static ProductExtras? ExtrasOf(AiNewProduct p)
+    {
+        string? color = null, size = null;
+        var other = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (name, value) in p.Attributes)
+        {
+            if (name.Equals("color", StringComparison.OrdinalIgnoreCase) || name.Equals("colour", StringComparison.OrdinalIgnoreCase) || name.Equals("rang", StringComparison.OrdinalIgnoreCase)) color = value;
+            else if (name.Equals("size", StringComparison.OrdinalIgnoreCase)) size = value;
+            else other[name] = value;
+        }
+        return p.Cost is null && p.Stock is null && color is null && size is null && other.Count == 0
+            ? null
+            : new ProductExtras(p.Cost, p.Stock, null, size, color, null, other.Count == 0 ? null : other);
+    }
+
+    /// <summary>What was said later wins over what was said earlier.</summary>
+    private static ProductExtras? MergeExtras(ProductExtras? earlier, ProductExtras? later)
+    {
+        if (earlier is null) return later;
+        if (later is null) return earlier;
+        var attributes = new Dictionary<string, string>(earlier.Attributes ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
+        foreach (var (name, value) in later.Attributes ?? new Dictionary<string, string>()) attributes[name] = value;
+        return new ProductExtras(later.Cost ?? earlier.Cost, later.Stock ?? earlier.Stock, later.Category ?? earlier.Category, later.Size ?? earlier.Size,
+            later.Color ?? earlier.Color, later.Sku ?? earlier.Sku, attributes.Count == 0 ? null : attributes);
+    }
+
+    private static string ExtrasText(ProductExtras e)
+    {
+        var parts = new List<string>();
+        if (e.Cost is { } cost) parts.Add($"cost {Formatters.Money(cost)}");
+        if (e.Stock is { } stock) parts.Add($"stock {stock}");
+        if (e.Color is not null) parts.Add($"color: {e.Color}");
+        if (e.Size is not null) parts.Add($"size: {e.Size}");
+        if (e.Attributes is not null) parts.AddRange(e.Attributes.Select(a => $"{a.Key}: {a.Value}"));
+        return parts.Count == 0 ? "" : $" ({string.Join(", ", parts)})";
     }
 
     private async Task HandleAddProductsBulkAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)

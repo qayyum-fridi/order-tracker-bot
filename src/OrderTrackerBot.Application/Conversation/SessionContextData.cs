@@ -48,6 +48,8 @@ public sealed class SessionContextData
     public string? PendingNewProductName { get; set; }
     /// <summary>Products the seller named ("naye products hain") that the bot is still waiting to get a price for.</summary>
     public List<string>? PendingPriceProducts { get; set; }
+    /// <summary>Cost/stock/attributes already given for those products, kept until their price arrives (product name -> details).</summary>
+    public Dictionary<string, ProductExtras>? PendingProductExtras { get; set; }
     public List<int>? BulkStatusOrderIds { get; set; }
     public int? CancelOrderId { get; set; }
     public int? CodCollectedOrderId { get; set; }

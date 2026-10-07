@@ -76,6 +76,12 @@ public sealed class AiNewProduct
 {
     public string Name { get; init; } = "";
     public decimal? Price { get; init; }
+    /// <summary>What it cost the seller, when they said so.</summary>
+    public decimal? Cost { get; init; }
+    /// <summary>How many the seller has, when they said so.</summary>
+    public int? Stock { get; init; }
+    /// <summary>Other facts the seller gave ("fabric" = "cotton", "color" = "white"); empty when none.</summary>
+    public Dictionary<string, string> Attributes { get; init; } = new();
 }
 
 public sealed class AiCustomerFeedback
