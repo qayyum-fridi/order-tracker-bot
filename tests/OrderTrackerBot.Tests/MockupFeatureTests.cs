@@ -111,6 +111,32 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task ExpiredTrial_ResetAccountConfirmation_StillResets_WithoutNewTrial()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db, new BillingOptions());
+        var seller = await db.Sellers.FirstAsync();
+        var expiredAt = DateTime.UtcNow.AddDays(-1);
+        seller.TrialEndsAt = expiredAt;
+        await db.SaveChangesAsync();
+
+        await engine.HandleIncomingMessageAsync(Phone, "reset account", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Yes", default);
+
+        seller = await db.Sellers.Include(s => s.Session).FirstAsync();
+        Assert.False(seller.OnboardingComplete);
+        Assert.Equal(0, await db.Products.CountAsync());
+        Assert.Equal(ConversationState.OnboardingLanguage, seller.Session!.State);
+        Assert.Contains(_sent, m => m.Contains("Account reset ho gaya"));
+        Assert.DoesNotContain(_sent, m => m.Contains("free trial khatam ho gaya"));
+
+        foreach (var m in new[] { "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "10", "Kurti - 1800", "done" })
+            await engine.HandleIncomingMessageAsync(Phone, m, default);
+        seller = await db.Sellers.FirstAsync();
+        Assert.Equal(expiredAt, seller.TrialEndsAt); // no fresh trial from resetting
+    }
+
+    [Fact]
     public async Task WeightProducts_QuickAdd_AndOrderShowsPackTotal()
     {
         using var db = _dbFactory.CreateContext();
