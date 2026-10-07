@@ -50,6 +50,8 @@ public sealed class AiMessageAnalysis
     /// <summary>new_order | status_update | customer_feedback | support_query | off_topic | unclear.</summary>
     public string Intent { get; init; } = "";
     public bool IsOrderAttempt { get; init; }
+    /// <summary>True when the AI could not be reached (no API key, or the call failed) — distinct from "reached it, not an order".</summary>
+    public bool AiUnavailable { get; init; }
     public AiOrderDraft? Order { get; init; }
     /// <summary>Further orders for other customers in the same message ("Ayesha 2 suit, Bilal 1 kurti").</summary>
     public List<AiOrderDraft> AdditionalOrders { get; init; } = new();
@@ -111,4 +113,10 @@ public interface IAiOrderAssistant
 
     /// <summary>Best-effort one-line insight appended to a trend/slow-mover report. Returns null if AI is unavailable — callers must not block on it.</summary>
     Task<string?> GenerateInsightAsync(string factsSummary, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Translates bot messages from Roman Urdu into <paramref name="targetLanguage"/> (a <c>Lang</c> constant), one result per input in the
+    /// same order. Null when AI is unavailable or the result is unusable — callers send the original text instead.
+    /// </summary>
+    Task<IReadOnlyList<string>?> TranslateAsync(IReadOnlyList<string> texts, string targetLanguage, CancellationToken cancellationToken = default);
 }

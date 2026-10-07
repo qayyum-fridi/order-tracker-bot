@@ -114,7 +114,7 @@ public class MockupFeatureTests : IDisposable
     public async Task ExpiredTrial_ResetAccountConfirmation_IsNotSwallowedByBilling()
     {
         using var db = _dbFactory.CreateContext();
-        var engine = await OnboardAsync(db, new BillingOptions { PaymentNumber = "0300-0000000" }, "Kurti");
+        var engine = await OnboardAsync(db, new BillingOptions { PaymentNumber = "0300-0000000" }, "Kurti - 1800");
         var seller = await db.Sellers.FirstAsync();
         seller.TrialEndsAt = DateTime.UtcNow.AddDays(-1);
         await db.SaveChangesAsync();

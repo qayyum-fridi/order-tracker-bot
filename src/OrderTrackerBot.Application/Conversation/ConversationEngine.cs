@@ -18,6 +18,7 @@ public partial class ConversationEngine
     private readonly IAppDbContext _db;
     private readonly IAiOrderAssistant _ai;
     private readonly IWhatsAppSender _sender;
+    private readonly TranslatingSender _translator;
     private readonly IFounderAlertNotifier _founderAlerts;
     private readonly BillingOptions _billing;
     private readonly IWhatsAppMediaClient? _media;
@@ -40,7 +41,7 @@ public partial class ConversationEngine
         _db = db;
         _ai = ai;
         _turn = new MessageLoggingSender(sender, db);
-        _sender = _turn;
+        _sender = _translator = new TranslatingSender(_turn, ai);
         _founderAlerts = founderAlerts;
         _billing = billing ?? new BillingOptions();
         _media = media;
@@ -78,6 +79,7 @@ public partial class ConversationEngine
 
         _db.MessageLogs.Add(new MessageLog { Phone = fromPhoneNumber, Direction = "inbound", RawText = message });
         var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
+        message = _translator.RestoreButtonLabel(message);
 
         var session = seller.Session!;
         var ctx = SessionContextData.FromJson(session.ContextJson);
@@ -223,6 +225,7 @@ public partial class ConversationEngine
             await _db.SaveChangesAsync(ct);
         }
 
+        _translator.Seller = seller;
         return seller;
     }
 

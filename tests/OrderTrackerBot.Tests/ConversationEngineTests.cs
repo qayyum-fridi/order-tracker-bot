@@ -3,6 +3,7 @@ using Moq;
 using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Ai;
 using OrderTrackerBot.Application.Conversation;
+using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Enums;
 using OrderTrackerBot.Infrastructure.Persistence;
 using Xunit;
@@ -960,6 +961,104 @@ public class ConversationEngineTests : IDisposable
         Assert.Equal(ConversationState.OnboardingAddProduct, (await db.Sessions.FirstAsync()).State);
     }
 
+    private async Task SetSellerLanguageAsync(AppDbContext db, string language)
+    {
+        (await db.Sellers.FirstAsync()).PreferredLanguage = language;
+        await db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task UrduSeller_GetsRepliesTranslated_ListsKeepRowIds_ButButtonLabelsStayAsIs()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        await SetSellerLanguageAsync(db, Lang.UrduScript);
+        var engine = CreateEngine(db);
+        _ai.Setup(a => a.TranslateAsync(It.IsAny<IReadOnlyList<string>>(), Lang.UrduScript, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<string> texts, string _, CancellationToken _) => (IReadOnlyList<string>?)texts.Select(t => "UR:" + t).ToList());
+        string? listBody = null;
+        IReadOnlyList<MenuSection>? listSections = null;
+        _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, body, _, sections, _) => { listBody = body; listSections = sections; })
+            .Returns(Task.CompletedTask);
+
+        await engine.HandleIncomingMessageAsync(Phone, "catalog", default);
+        await engine.HandleIncomingMessageAsync(Phone, "naya order", default);
+
+        Assert.Contains(_sentMessages, m => m.StartsWith("UR:"));
+        Assert.StartsWith("UR:", listBody);
+        Assert.All(listSections!.SelectMany(s => s.Rows), r => Assert.NotNull(CommandParser.TryParse(r.Id)));
+    }
+
+    [Fact]
+    public async Task TranslatedButtonLabels_AreShown_AndATapIsMappedBackToTheOriginalLabel()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        await SetSellerLanguageAsync(db, Lang.UrduScript);
+        var engine = CreateEngine(db);
+        _ai.Setup(a => a.TranslateAsync(It.IsAny<IReadOnlyList<string>>(), Lang.UrduScript, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<string> texts, string _, CancellationToken _) => (IReadOnlyList<string>?)texts.Select(t => "UR:" + t).ToList());
+        IReadOnlyList<string>? labels = null;
+        _sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, _, l, _) => labels = l)
+            .Returns(Task.CompletedTask);
+
+        await engine.HandleIncomingMessageAsync(Phone, "cod pending", default);
+
+        Assert.Equal(new[] { "UR:All", "UR:3+ days", "UR:7+ days" }, labels);
+        Assert.Equal(ConversationState.AwaitingRuntimeFilterChoice, (await db.Sessions.FirstAsync()).State);
+
+        await engine.HandleIncomingMessageAsync(Phone, "UR:3+ days", default);
+
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+    }
+
+    [Fact]
+    public async Task Translation_ThatChangesANumber_IsDiscarded_AndTheOriginalIsSent()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        await SetSellerLanguageAsync(db, Lang.English);
+        var engine = CreateEngine(db);
+        _ai.Setup(a => a.TranslateAsync(It.IsAny<IReadOnlyList<string>>(), Lang.English, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<string> texts, string _, CancellationToken _) => (IReadOnlyList<string>?)texts.Select(t => "EN:" + t + " 777").ToList());
+
+        await engine.HandleIncomingMessageAsync(Phone, "catalog", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Lawn Suit") && m.Contains("3,500"));
+        Assert.DoesNotContain(_sentMessages, m => m.StartsWith("EN:"));
+    }
+
+    [Fact]
+    public async Task RomanUrduSeller_IsNeverTranslated()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "catalog", default);
+
+        _ai.Verify(a => a.TranslateAsync(It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task OrderTextDuringCatalogStep_WhenAiUnavailable_SaysSoInsteadOfFormatHint()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+        await StartCatalogStepAsync(engine);
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "unclear", IsOrderAttempt = false, AiUnavailable = true });
+
+        await engine.HandleIncomingMessageAsync(Phone, "Ayesha 2 lawn suit aur 1 kurti, 0300-1234567, Gulberg Lahore", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("AI service available nahi"));
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("Maazrat, samajh nahi aaya"));
+        Assert.False((await db.Sellers.FirstAsync()).OnboardingComplete);
+        Assert.Equal(ConversationState.OnboardingAddProduct, (await db.Sessions.FirstAsync()).State);
+    }
+
     [Fact]
     public async Task OrderLineWithPhoneNumber_IsNeverSavedAsCatalogProduct()
     {
@@ -1398,6 +1497,28 @@ public class ConversationEngineTests : IDisposable
 
         var session = await db.Sessions.FirstAsync();
         Assert.Equal(ConversationState.AwaitingClarificationChoice, session.State);
+    }
+
+    [Theory]
+    [InlineData("Order dena hai", "order ki tafseel")]
+    [InlineData("Kisi order ka status update karna chahte hain", "naya status")]
+    [InlineData("Product ke baare mein poochna hai", "catalog")]
+    [InlineData("Kuch aur", "kya karna hai")]
+    public async Task ClarificationChoice_ReplyMatchesChosenOption(string option, string expectedFragment)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { IsOrderAttempt = false, ClarificationQuestion = "Kya aap:", ClarificationOptions = { option } });
+        await engine.HandleIncomingMessageAsync(Phone, "lon suit", default);
+
+        _sentMessages.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "1", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains(expectedFragment));
+        if (expectedFragment != "order ki tafseel")
+            Assert.DoesNotContain(_sentMessages, m => m.Contains("order ki tafseel"));
     }
 
     [Fact]
