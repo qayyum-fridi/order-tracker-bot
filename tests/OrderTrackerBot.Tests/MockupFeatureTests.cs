@@ -301,6 +301,28 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task OrderLookupAndMultiDayLists_ShowOrderDate()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var order = await SaveSaraKurtiOrderAsync(engine, db);
+        var tz = OrderTrackerBot.Application.Time.SellerClock.Resolve(null);
+        var date = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(order.CreatedAt, DateTimeKind.Utc), tz).ToString("dd MMM", System.Globalization.CultureInfo.CurrentCulture);
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "Sara ka order", default);
+        Assert.Contains(_sent, m => m.Contains("Ordered: ") && m.Contains(date) && m.Contains(DateTime.UtcNow.Year.ToString()));
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "pending orders", default);
+        Assert.Contains(_sent, m => m.Contains("Pending Orders") && m.Contains($"- {date}"));
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "unpaid orders", default);
+        Assert.Contains(_sent, m => m.Contains("Unpaid Orders") && m.Contains($"- {date}"));
+    }
+
+    [Fact]
     public async Task EditOrder_ChangesItemsCustomerAndDelivery_ThenDone_ThenUndoRestoresEverything()
     {
         using var db = _dbFactory.CreateContext();

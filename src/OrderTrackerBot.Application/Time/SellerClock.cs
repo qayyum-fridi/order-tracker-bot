@@ -15,6 +15,9 @@ public static class SellerClock
         }
     }
 
+    public static DateTime ToLocal(string? timeZoneId, DateTime utc) =>
+        TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), Resolve(timeZoneId));
+
     public static DateTime StartOfLocalDayUtc(string? timeZoneId, DateTime utcNow)
     {
         var tz = Resolve(timeZoneId);

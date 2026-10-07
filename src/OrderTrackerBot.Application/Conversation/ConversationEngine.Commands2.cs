@@ -1,3 +1,4 @@
+using OrderTrackerBot.Application.Time;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
@@ -288,7 +289,7 @@ public partial class ConversationEngine
             $"🔍 {order.Customer?.Name}'s latest order:\n\n" +
             $"{Formatters.ItemsSummary(order)} - {Formatters.Money(order.Total)}\n" +
             $"Status: {Formatters.Status(order.Status)}\n" +
-            $"Ordered: {order.CreatedAt:ddd, hh:mm tt}\n" +
+            $"Ordered: {SellerClock.ToLocal(seller.TimeZoneId, order.CreatedAt):dd MMM yyyy, hh:mm tt}\n" +
             $"Phone: {order.Customer?.Phone}\n" +
             $"Address: {order.Customer?.Address}", ct);
     }

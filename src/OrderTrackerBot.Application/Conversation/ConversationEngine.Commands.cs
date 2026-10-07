@@ -454,7 +454,7 @@ public partial class ConversationEngine
             .ToListAsync(ct);
 
         ctx.LastListOrderIds = orders.Select(o => o.Id).ToList();
-        await ReplyAsync(seller, Formatters.OrdersToday(seller.PreferredLanguage, orders, period), ct);
+        await ReplyAsync(seller, Formatters.OrdersToday(seller.PreferredLanguage, orders, period, seller.TimeZoneId), ct);
     }
 
     private async Task HandlePendingOrdersAsync(Seller seller, SessionContextData ctx, CancellationToken ct)
@@ -471,7 +471,7 @@ public partial class ConversationEngine
         }
 
         ctx.LastListOrderIds = orders.Select(o => o.Id).ToList();
-        var lines = orders.Select((o, i) => Formatters.OrderLine(i + 1, o));
+        var lines = orders.Select((o, i) => Formatters.OrderLine(i + 1, o, seller.TimeZoneId ?? SellerClock.DefaultTimeZoneId));
         await ReplyAsync(seller, $"📦 Pending Orders ({orders.Count}):\n\n{string.Join("\n", lines)}\n\nReply \"mark 1 shipped\" to update.", ct);
     }
 
@@ -853,7 +853,7 @@ public partial class ConversationEngine
         }
 
         ctx.LastListOrderIds = orders.Select(o => o.Id).ToList();
-        var lines = orders.Select((o, i) => Formatters.OrderLine(i + 1, o) + (o.AmountPaid > 0 ? $", baqi {Formatters.Money(OrderMoney.Balance(o))}" : ", unpaid"));
+        var lines = orders.Select((o, i) => Formatters.OrderLine(i + 1, o, seller.TimeZoneId ?? SellerClock.DefaultTimeZoneId) + (o.AmountPaid > 0 ? $", baqi {Formatters.Money(OrderMoney.Balance(o))}" : ", unpaid"));
         await ReplyAsync(seller,
             $"💸 Unpaid Orders ({orders.Count}):\n\n{string.Join("\n", lines)}\n\n" +
             $"Total pending: {Formatters.Money(orders.Sum(OrderMoney.Balance))}\n\n" +

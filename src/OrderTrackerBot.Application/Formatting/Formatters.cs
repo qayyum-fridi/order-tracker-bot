@@ -1,3 +1,4 @@
+using OrderTrackerBot.Application.Time;
 using System.Globalization;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
@@ -79,15 +80,17 @@ public static class Formatters
             : Status(status);
 
     // Numerals stay Western digits even in Urdu script (matches real Pakistani usage); only words are translated.
-    public static string OrderLine(string language, int index, Order order)
+    // timeZoneId != null adds the order date (seller-local) — for lists spanning more than one day.
+    public static string OrderLine(string language, int index, Order order, string? timeZoneId = null)
     {
         var status = Status(language, order.Status);
+        var date = timeZoneId is null ? "" : $" - {SellerClock.ToLocal(timeZoneId, order.CreatedAt):dd MMM}";
         return Lang.Normalize(language) == Lang.UrduScript
-            ? $"{index}- {order.Customer?.Name} - {ItemsSummary(order)} - {Money(order.Total)} - {status}"
-            : $"{index}. {order.Customer?.Name} - {ItemsSummary(order)} - {Money(order.Total)} - {status}";
+            ? $"{index}- {order.Customer?.Name} - {ItemsSummary(order)} - {Money(order.Total)} - {status}{date}"
+            : $"{index}. {order.Customer?.Name} - {ItemsSummary(order)} - {Money(order.Total)} - {status}{date}";
     }
 
-    public static string OrdersToday(string language, IReadOnlyList<Order> orders, string? period = null)
+    public static string OrdersToday(string language, IReadOnlyList<Order> orders, string? period = null, string? timeZoneId = null)
     {
         var lang = Lang.Normalize(language);
         if (orders.Count == 0)
@@ -118,7 +121,7 @@ public static class Formatters
             Lang.UrduScript => "\"mark 1 shipped\" لکھ کر اپڈیٹ کریں۔",
             _ => "Reply \"mark 1 shipped\" to update."
         };
-        var lines = orders.Select((o, i) => OrderLine(language, i + 1, o));
+        var lines = orders.Select((o, i) => OrderLine(language, i + 1, o, period == "lastmonth" ? timeZoneId ?? SellerClock.DefaultTimeZoneId : null));
         return $"{header}\n\n{string.Join("\n", lines)}\n\n{footer}";
     }
 
@@ -136,6 +139,7 @@ public static class Formatters
                  "Type \"menu\" for options, ya seedha order bhej dein."
         };
 
-    public static string OrderLine(int index, Order order) =>
-        $"{index} {order.Customer?.Name} - {ItemsSummary(order)} - {Money(order.Total)} - {Status(order.Status)}";
+    public static string OrderLine(int index, Order order, string? timeZoneId = null) =>
+        $"{index} {order.Customer?.Name} - {ItemsSummary(order)} - {Money(order.Total)} - {Status(order.Status)}" +
+        (timeZoneId is null ? "" : $" - {SellerClock.ToLocal(timeZoneId, order.CreatedAt):dd MMM}");
 }
