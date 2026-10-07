@@ -14,7 +14,11 @@ public class CustomField
     public int SellerId { get; set; }
     public CustomFieldEntity Entity { get; set; }
     public required string Name { get; set; }
+    /// <summary>Allowed values joined with '|' (null = free text). Choice fields are set by tapping a button/list row.</summary>
+    public string? Options { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public List<string> OptionList => string.IsNullOrEmpty(Options) ? new List<string>() : Options.Split('|').ToList();
 }
 
 /// <summary>The value of one field for one product/customer/order (<see cref="EntityId"/> points at the entity named by the field).</summary>

@@ -75,6 +75,7 @@ public enum CommandKind
     CustomFieldRemove,
     CustomFieldList,
     CustomFieldSet,
+    CustomFieldOption,
     OrderPayment,
     OrderDeliveryCharge,
     RemoveBranding,
@@ -592,6 +593,9 @@ public static class CommandParser
     private static readonly Regex CustomFieldShow = new(@"^(?:custom\s+)?(?:fields|attributes)\s+(?:of\s+|for\s+)?" + FieldEntity + @"\s+(?<r>.+)$", Opts);
     private static readonly Regex CustomFieldSet = new(@"^set\s+" + FieldEntity + @"\s+(?<l>[^=:]+?)\s*[=:]\s*(?<v>.+)$", Opts);
 
+    private static readonly Regex CustomFieldPick = new(@"^set\s+" + FieldEntity + @"\s+(?<l>[^=:]+)$", Opts);
+    private static readonly Regex CustomFieldOptionAdd = new(@"^(?:add|new)\s+(?:option|options|choice|choices)\s+(?:for\s+|to\s+)?" + FieldEntity + @"\s+(?<l>[^=:]+?)\s*[=:]\s*(?<v>.+)$", Opts);
+
     private static string FieldEntityOf(Match m) => m.Groups["e"].Value.ToLowerInvariant().TrimEnd('s');
 
     private static ParsedCommand? TryParseCustomField(string message)
@@ -609,6 +613,11 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.CustomFieldList, Text = FieldEntityOf(m), Text2 = m.Groups["r"].Value.Trim() };
         if ((m = CustomFieldSet.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.CustomFieldSet, Text = FieldEntityOf(m), Text2 = m.Groups["l"].Value.Trim(), Text3 = m.Groups["v"].Value.Trim() };
+        // No "=": the seller taps the field/value instead of typing it.
+        if ((m = CustomFieldPick.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.CustomFieldSet, Text = FieldEntityOf(m), Text2 = m.Groups["l"].Value.Trim() };
+        if ((m = CustomFieldOptionAdd.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.CustomFieldOption, Text = FieldEntityOf(m), Text2 = m.Groups["l"].Value.Trim(), Text3 = m.Groups["v"].Value.Trim() };
         return null;
     }
 

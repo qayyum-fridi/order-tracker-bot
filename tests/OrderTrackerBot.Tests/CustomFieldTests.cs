@@ -18,15 +18,17 @@ public class CustomFieldTests : IDisposable
     private readonly Mock<IFounderAlertNotifier> _founderAlerts = new();
     private readonly List<string> _sent = new();
     private readonly List<(string Name, byte[] Bytes)> _files = new();
+    private readonly List<List<string>> _buttons = new();
+    private readonly List<List<string>> _lists = new();
 
     public CustomFieldTests()
     {
         _sender.Setup(s => s.SendTextMessageAsync(Phone, It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .Callback<string, string, CancellationToken>((_, body, _) => _sent.Add(body)).Returns(Task.CompletedTask);
         _sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
-            .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, body, _, _) => _sent.Add(body)).Returns(Task.CompletedTask);
+            .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, body, buttons, _) => { _sent.Add(body); _buttons.Add(buttons.ToList()); }).Returns(Task.CompletedTask);
         _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
-            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, body, _, _, _) => _sent.Add(body)).Returns(Task.CompletedTask);
+            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, body, _, sections, _) => { _sent.Add(body); _lists.Add(sections.SelectMany(x => x.Rows).Select(r => r.Id).ToList()); }).Returns(Task.CompletedTask);
         _sender.Setup(s => s.SendDocumentAsync(Phone, It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Callback<string, byte[], string, string, string?, CancellationToken>((_, bytes, name, _, _, _) => _files.Add((name, bytes))).ReturnsAsync(true);
     }
@@ -48,6 +50,8 @@ public class CustomFieldTests : IDisposable
         db.Orders.Add(order);
         await db.SaveChangesAsync();
         _sent.Clear();
+        _buttons.Clear();
+        _lists.Clear();
         return engine;
     }
 
@@ -190,5 +194,130 @@ public class CustomFieldTests : IDisposable
 
         Assert.Empty(await db.CustomFields.ToListAsync());
         Assert.Empty(await db.CustomFieldValues.ToListAsync());
+    }
+
+    [Fact]
+    public void Parses_ChoiceFieldAndTapForms()
+    {
+        var add = CommandParser.TryParse("add field product Fabric: Cotton, Lawn, Silk")!;
+        Assert.Equal((CommandKind.CustomFieldAdd, "product", "Fabric: Cotton, Lawn, Silk"), (add.Kind, add.Text, add.Text2));
+        var pick = CommandParser.TryParse("set product Kurti")!;
+        Assert.Equal((CommandKind.CustomFieldSet, "product", "Kurti", (string?)null), (pick.Kind, pick.Text, pick.Text2, pick.Text3));
+        Assert.Equal(CommandKind.CustomFieldSet, CommandParser.TryParse("set product Kurti Fabric")!.Kind);
+        var option = CommandParser.TryParse("add option product Fabric: Chiffon")!;
+        Assert.Equal((CommandKind.CustomFieldOption, "product", "Fabric", "Chiffon"), (option.Kind, option.Text, option.Text2, option.Text3));
+    }
+
+    [Fact]
+    public async Task ChoiceField_FewOptions_AreButtons_AndTapSavesValue()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await engine.HandleIncomingMessageAsync(Phone, "add field product Fabric: Cotton, Lawn, Silk", default);
+        Assert.Contains(_sent, m => m.Contains("options: Cotton, Lawn, Silk"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "set product Kurti Fabric", default);
+        Assert.Equal(new[] { "Cotton", "Lawn", "Silk" }, Assert.Single(_buttons));
+        Assert.Equal(OrderTrackerBot.Domain.Enums.ConversationState.AwaitingCustomFieldChoice, (await db.Sessions.FirstAsync()).State);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Lawn", default); // the tapped button's title
+        Assert.Contains(_sent, m => m.Contains("Kurti — Fabric: Lawn"));
+        Assert.Equal("Lawn", (await db.CustomFieldValues.SingleAsync()).Value);
+        Assert.Equal(OrderTrackerBot.Domain.Enums.ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+    }
+
+    [Fact]
+    public async Task ChoiceField_ManyOptions_AreAList_AndTypedValueMustMatchAnOption()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await engine.HandleIncomingMessageAsync(Phone, "add field customer Size: S, M, L, XL, XXL", default);
+
+        await engine.HandleIncomingMessageAsync(Phone, "set customer Sara Size = xl", default); // case-insensitive, stored canonically
+        Assert.Equal("XL", (await db.CustomFieldValues.SingleAsync()).Value);
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "set customer Sara Size = Huge", default);
+        Assert.Contains(_sent, m => m.Contains("ka option nahi hai"));
+        Assert.Equal(new[] { "S", "M", "L", "XL", "XXL" }, Assert.Single(_lists));
+
+        await engine.HandleIncomingMessageAsync(Phone, "M", default); // the tapped list row id
+        Assert.Equal("M", (await db.CustomFieldValues.SingleAsync()).Value);
+    }
+
+    [Fact]
+    public async Task SetRecordOnly_ListsFields_ThenValues_FullyTappable()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await engine.HandleIncomingMessageAsync(Phone, "add field product Fabric: Cotton, Lawn", default);
+        await engine.HandleIncomingMessageAsync(Phone, "add field product Season: Summer, Winter", default);
+        await engine.HandleIncomingMessageAsync(Phone, "add field product Care", default); // free text
+
+        await engine.HandleIncomingMessageAsync(Phone, "set product Kurti", default);
+        Assert.Equal(new[] { "Fabric", "Season", "Care" }, Assert.Single(_buttons));
+
+        await engine.HandleIncomingMessageAsync(Phone, "Season", default);
+        Assert.Equal(new[] { "Summer", "Winter" }, _buttons.Last());
+        await engine.HandleIncomingMessageAsync(Phone, "2", default); // a number picks by position too
+        Assert.Contains(_sent, m => m.Contains("Kurti — Season: Winter"));
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "set product Kurti", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Care", default);
+        Assert.Contains(_sent, m => m.Contains("Care likhein"));
+        await engine.HandleIncomingMessageAsync(Phone, "Dry clean only", default);
+        Assert.Equal("Dry clean only", (await db.CustomFieldValues.Include(v => v.CustomField).SingleAsync(v => v.CustomField!.Name == "Care")).Value);
+        Assert.Equal(OrderTrackerBot.Domain.Enums.ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+    }
+
+    [Fact]
+    public async Task Picker_CancelAndOtherCommands_LeaveTheFlow()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await engine.HandleIncomingMessageAsync(Phone, "add field product Fabric: Cotton, Lawn", default);
+
+        await engine.HandleIncomingMessageAsync(Phone, "set product Kurti Fabric", default);
+        await engine.HandleIncomingMessageAsync(Phone, "cancel", default);
+        Assert.Equal(OrderTrackerBot.Domain.Enums.ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+
+        await engine.HandleIncomingMessageAsync(Phone, "set product Kurti Fabric", default);
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "orders today", default);
+        Assert.Equal(OrderTrackerBot.Domain.Enums.ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sent, m => m.Contains("Orders") || m.Contains("order"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "set product Kurti Fabric", default);
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "blah blah", default);
+        Assert.Contains(_sent, m => m.Contains("option chunein"));
+        Assert.Equal(OrderTrackerBot.Domain.Enums.ConversationState.AwaitingCustomFieldChoice, (await db.Sessions.FirstAsync()).State);
+        Assert.Empty(await db.CustomFieldValues.ToListAsync());
+    }
+
+    [Fact]
+    public async Task OptionLimits_AndAddOption()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "add field product Fabric: Cotton", default);
+        Assert.Contains(_sent, m => m.Contains("Kam az kam 2 options"));
+        await engine.HandleIncomingMessageAsync(Phone, "add field product Fabric: Cotton, A very very long option name", default);
+        Assert.Contains(_sent, m => m.Contains("bohat lambi"));
+        Assert.Empty(await db.CustomFields.ToListAsync());
+
+        await engine.HandleIncomingMessageAsync(Phone, "add field product Fabric: Cotton, Lawn", default);
+        await engine.HandleIncomingMessageAsync(Phone, "add option product Fabric: Silk, lawn", default); // lawn is a duplicate
+        Assert.Equal("Cotton|Lawn|Silk", (await db.CustomFields.SingleAsync()).Options);
+
+        await engine.HandleIncomingMessageAsync(Phone, "add field product Care", default);
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "add option product Care: Dry", default);
+        Assert.Contains(_sent, m => m.Contains("free-text field hai"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "fields", default);
+        Assert.Contains(_sent, m => m.Contains("Fabric (Cotton/Lawn/Silk)"));
     }
 }

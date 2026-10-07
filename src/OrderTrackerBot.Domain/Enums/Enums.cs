@@ -36,7 +36,8 @@ public enum ConversationState
     OnboardingStartChoice,
     AwaitingLanguageChoice,
     AwaitingPaymentMethodInput,
-    AwaitingOrderEdit
+    AwaitingOrderEdit,
+    AwaitingCustomFieldChoice
 }
 
 public enum OrderStatus

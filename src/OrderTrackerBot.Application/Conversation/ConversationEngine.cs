@@ -171,6 +171,9 @@ public partial class ConversationEngine
             case ConversationState.AwaitingDiscountDetails:
                 await HandleDiscountDetailsAsync(seller, session, ctx, message, ct);
                 break;
+            case ConversationState.AwaitingCustomFieldChoice:
+                await HandleCustomFieldChoiceAsync(seller, session, ctx, message, ct);
+                break;
             case ConversationState.AwaitingResetConfirmation:
                 await HandleResetConfirmationAsync(seller, session, message, ct);
                 break;
