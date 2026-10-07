@@ -176,6 +176,9 @@ public partial class ConversationEngine
 
         if (ctx.ClarificationOptions is { Count: > 0 } options)
             core += " Options offered: " + string.Join(" | ", options.Select((o, i) => $"{i + 1}) {o}")) + ".";
+        if (ctx.PendingPriceProducts is { Count: > 0 } waiting)
+            core += $" The bot is waiting for the price of these new products: {string.Join(", ", waiting)}. A spoken price (one price for all, or one each) is for them: " +
+                    "write it as one sentence naming that price and who it is for (\"sab ki price 5000\" or \"chadar 800, dupatte 1200\"), never as a new product.";
         if (ctx.PendingNewProductName is { } unknown)
             core += $" The bot asked about the product \"{unknown}\" which is not in the catalog: 1 = add it as a new product, 2 = it is another name for an existing catalog product (then the seller names which one).";
         return core;

@@ -139,7 +139,7 @@ public static class CommandParser
     private static readonly Regex TodaysSummary = new(@"^(?:today'?s\s+summary|today\s+summary|" + Today + @"\s+" + Of + @"\s+" + SummaryWord + @")$", Opts);
     private static readonly Regex YesterdaysSummary = new(@"^(?:yesterday'?s\s+summary|summary\s+yesterday|" + Yesterday + @"\s+" + Of + @"\s+" + SummaryWord + @")$", Opts);
     private static readonly Regex LastMonthSummary = new(@"^(?:last\s+month'?s?\s+summary|summary\s+last\s+month|" + LastMonth + @"\s+" + Of + @"\s+" + SummaryWord + @")$", Opts);
-    private static readonly Regex Catalog = new(@"^(catalog|کیٹلاگ)$", Opts);
+    private static readonly Regex Catalog = new(@"^(?:catalog|کیٹلاگ|(?:show|dikhao|dikhana|dekhao|dekhein|view)\s+(?:my\s+|mera\s+)?catalog|catalog\s+(?:show|list|view|dikhao|dikhana|dekhao|dekhein|dekhna))$", Opts);
     private static readonly Regex ShareCatalog = new(@"^share\s+catalog$", Opts);
     private static readonly Regex MenuCategory = new(@"^menu\s+(orders|reports|catalog|payments|discounts|customers|settings)$", Opts);
     private static readonly Regex CustomerList = new(@"^(customers?\s+list|my\s+customers)$", Opts);

@@ -94,6 +94,14 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "If the message is unclear, set is_order_attempt=false and return a short Roman Urdu clarification_question with 2-3 short " +
             "clarification_options the seller can pick by number.";
 
+        if (context.PendingPriceProducts.Count > 0)
+            systemPrompt +=
+                "\n\nPENDING PRICES: the bot just asked the seller for the price of these products: " + string.Join("; ", context.PendingPriceProducts) + ". " +
+                "A message that gives a price for them is intent add_products and must list EXACTLY these product names (copy the spelling above) in new_products, " +
+                "never a new product named after a unit or word in the message. One price for all (\"teenon ki 5000\", \"sab 5000\", \"har suit 5000\", \"5000 fi piece\") = " +
+                "that price on every pending product; separate prices (\"chadar 800, dupatte 1200\") = each price on its own product; a product with no price said stays price null. " +
+                "Only treat the message as something else if it clearly is (an order, a command, a different product).";
+
         var requestBody = new JsonObject
         {
             ["model"] = _options.Model,
@@ -197,7 +205,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "corrects a name (\"X nahi, Y naam hai\"), keep that correction as one sentence in their own words). A cloth/fabric unit word (thaan, than, " +
             "gaz, meter) is a unit, not part of the product name: \"char thaan mozgi\", not \"char mozgi thaan\". (6) A dictated customer order is written like " +
             "\"Ayesha, 2 lawn suit, 03001234567, Gulberg Lahore\". Commands keep their typed form (\"orders today\", \"mark 3 shipped\", \"stock Kurti 20\", " +
-            "\"delivery 250\"). (7) A product's catalog price is only a default: the seller often sells one order at a different price. To change what ONE " +
+            "\"delivery 250\", \"catalog\" for any request to see/show the catalog). (7) A product's catalog price is only a default: the seller often sells one order at a different price. To change what ONE " +
             "customer was charged use three steps: \"edit order <order id>\", \"price <item number> = <amount>\", \"done\" (item numbers are the 1) 2) numbers " +
             "in the order list above; \"qty <item number> = <n>\", \"remove <item number>\", \"delivery <amount>\", \"phone <digits>\" and \"address <text>\" are the other edits you can put between edit order and done). " +
             "Never touch the catalog price for this. (8) NAMES: when the seller names a person, match it against the saved customers (spelling, Urdu script and phonetic " +

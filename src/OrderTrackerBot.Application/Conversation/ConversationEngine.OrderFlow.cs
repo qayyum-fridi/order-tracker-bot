@@ -26,10 +26,14 @@ public partial class ConversationEngine
             tiers.Where(t => t.ProductId == p.Id).OrderBy(t => t.MinQty).ToList())).ToList();
     }
 
-    private static AiAnalysisContext AiContext(Seller seller, List<CatalogEntry> catalog) => new()
+    private static AiAnalysisContext AiContext(Seller seller, List<CatalogEntry> catalog, SessionContextData? ctx = null) => new()
     {
         BusinessName = seller.BusinessName ?? "",
         PreferredLanguage = seller.PreferredLanguage,
+        // Names the seller has since priced (typed "Name - price") are no longer waiting.
+        PendingPriceProducts = ctx?.PendingPriceProducts?
+            .Where(n => !catalog.Any(c => string.Equals(c.Product.Name, n, StringComparison.OrdinalIgnoreCase))).ToList()
+            ?? new List<string>(),
         Catalog = catalog.Select(c => new AiCatalogItem
         {
             Name = c.Tiers.Count > 0 ? $"{c.Label} (sold per {c.Product.UnitType})" : c.Label,
@@ -40,7 +44,7 @@ public partial class ConversationEngine
     private async Task HandleFreeformMessageAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         var catalog = await LoadCatalogAsync(seller, ct);
-        var analysis = await _ai.AnalyzeMessageAsync(AiContext(seller, catalog), message, ct);
+        var analysis = await _ai.AnalyzeMessageAsync(AiContext(seller, catalog, ctx), message, ct);
         // The seller's own words beat the model: "delivery 300" in a single order is that order's delivery charge.
         if (analysis.Order is { } single && analysis.AdditionalOrders.Count == 0 && CommandParser.TryFindDeliveryInOrderText(message, out var delivery))
             single.DeliveryCharge = delivery;
@@ -73,7 +77,7 @@ public partial class ConversationEngine
 
         if (analysis.Intent == "add_products" && analysis.NewProducts.Count > 0)
         {
-            await HandleNewProductsAsync(seller, analysis.NewProducts, ct);
+            await HandleNewProductsAsync(seller, ctx, analysis.NewProducts, ct);
             return;
         }
 

@@ -265,10 +265,10 @@ public partial class ConversationEngine
                 if (await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: true, ct)) return;
 
                 // "teen chadar aur do dupatte naye products hain": the seller is naming products (maybe without prices) — read it and ask for the prices.
-                var stockAnalysis = await _ai.AnalyzeMessageAsync(AiContext(seller, await LoadCatalogAsync(seller, ct)), message, ct);
+                var stockAnalysis = await _ai.AnalyzeMessageAsync(AiContext(seller, await LoadCatalogAsync(seller, ct), ctx), message, ct);
                 if (stockAnalysis is { Intent: "add_products", NewProducts.Count: > 0 })
                 {
-                    await HandleNewProductsAsync(seller, stockAnalysis.NewProducts, ct);
+                    await HandleNewProductsAsync(seller, ctx, stockAnalysis.NewProducts, ct);
                     return;
                 }
 

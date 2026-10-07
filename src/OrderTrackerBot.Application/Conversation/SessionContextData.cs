@@ -46,6 +46,8 @@ public sealed class SessionContextData
     public string? PendingMissingField { get; set; }
     public List<string>? ClarificationOptions { get; set; }
     public string? PendingNewProductName { get; set; }
+    /// <summary>Products the seller named ("naye products hain") that the bot is still waiting to get a price for.</summary>
+    public List<string>? PendingPriceProducts { get; set; }
     public List<int>? BulkStatusOrderIds { get; set; }
     public int? CancelOrderId { get; set; }
     public int? CodCollectedOrderId { get; set; }

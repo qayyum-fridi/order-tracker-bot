@@ -12,6 +12,8 @@ public sealed class AiAnalysisContext
     public required string BusinessName { get; init; }
     public required IReadOnlyList<AiCatalogItem> Catalog { get; init; }
     public string PreferredLanguage { get; init; } = "roman-urdu";
+    /// <summary>Products the bot just asked the seller to price; a price in the next message is for these, not a new product.</summary>
+    public IReadOnlyList<string> PendingPriceProducts { get; init; } = Array.Empty<string>();
 }
 
 public sealed class AiOrderItemDraft

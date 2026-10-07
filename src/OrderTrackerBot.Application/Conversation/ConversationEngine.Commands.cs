@@ -597,7 +597,7 @@ public partial class ConversationEngine
     /// The seller described products they sell ("teen khaddar chadar aur do wool dupatte naye products hain") — not an order. Products that came
     /// with a price are saved; for the rest the bot asks for the price instead of guessing one.
     /// </summary>
-    private async Task HandleNewProductsAsync(Seller seller, IReadOnlyList<AiNewProduct> products, CancellationToken ct)
+    private async Task HandleNewProductsAsync(Seller seller, SessionContextData ctx, IReadOnlyList<AiNewProduct> products, CancellationToken ct)
     {
         var saved = new List<string>();
         foreach (var p in products.Where(p => p.Price is not null))
@@ -607,6 +607,14 @@ public partial class ConversationEngine
         }
 
         var needPrice = products.Where(p => p.Price is null).Select(p => p.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+        // Remember who is still waiting for a price, so "teenon ki 5000" in the next message prices them instead of creating a product.
+        var activeNames = await _db.Products.Where(p => p.SellerId == seller.Id && p.IsActive).Select(p => p.Name).ToListAsync(ct);
+        var stillWaiting = (ctx.PendingPriceProducts ?? new List<string>()).Concat(needPrice)
+            .Where(n => !activeNames.Contains(n, StringComparer.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        ctx.PendingPriceProducts = stillWaiting.Count == 0 ? null : stillWaiting;
+        needPrice = stillWaiting;
         var reply = saved.Count == 0 ? "" : $"✅ {saved.Count} product{(saved.Count == 1 ? "" : "s")} catalog mein add ho gaye:\n{string.Join("\n", saved)}\n\n";
         if (needPrice.Count > 0)
             reply += "📦 Samajh gaya — yeh naye products hain, order nahi:\n" + string.Join("\n", needPrice.Select(n => $"• {n}")) +

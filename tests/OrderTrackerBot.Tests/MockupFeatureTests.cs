@@ -669,6 +669,50 @@ public class MockupFeatureTests : IDisposable
         Assert.Equal(0, await db.Orders.CountAsync());
     }
 
+    [Fact]
+    public async Task OnePriceForAllPendingProducts_PricesThem_InsteadOfCreatingAnotherProduct()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts = { new AiNewProduct { Name = "Khaddar" }, new AiNewProduct { Name = "Karandi" }, new AiNewProduct { Name = "Boski" } }
+        });
+        await engine.HandleIncomingMessageAsync(Phone, "teen naye products hain khaddar karandi boski", default);
+
+        AiAnalysisContext? seen = null;
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<AiAnalysisContext, string, CancellationToken>((c, _, _) => seen = c)
+            .ReturnsAsync(new AiMessageAnalysis
+            {
+                Intent = "add_products",
+                NewProducts =
+                {
+                    new AiNewProduct { Name = "Khaddar", Price = 5000 }, new AiNewProduct { Name = "Karandi", Price = 5000 }, new AiNewProduct { Name = "Boski", Price = 5000 }
+                }
+            });
+        _sent.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "Teenon ki price 5000 fi suit ke hisaab se hai", default);
+
+        Assert.Equal(new[] { "Khaddar", "Karandi", "Boski" }, seen!.PendingPriceProducts);
+        Assert.Equal(3, await db.Products.CountAsync(p => new[] { "Khaddar", "Karandi", "Boski" }.Contains(p.Name) && p.Price == 5000));
+        Assert.False(await db.Products.AnyAsync(p => p.Name == "suit"));
+        Assert.DoesNotContain(_sent, m => m.Contains("order nahi"));
+
+        // Nothing is waiting any more, so the next analysis gets no pending names.
+        await engine.HandleIncomingMessageAsync(Phone, "kuch aur", default);
+        Assert.Empty(seen!.PendingPriceProducts);
+    }
+
+    [Theory]
+    [InlineData("catalog show")]
+    [InlineData("show catalog")]
+    [InlineData("catalog dikhao")]
+    public void Catalog_AcceptsShowVariants(string text) =>
+        Assert.Equal(CommandKind.Catalog, CommandParser.TryParse(text)?.Kind);
+
     private sealed class StubOpenAi(string body) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
