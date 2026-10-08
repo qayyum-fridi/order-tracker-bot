@@ -49,7 +49,7 @@ public sealed class AiOrderDraft
 /// </summary>
 public sealed class AiMessageAnalysis
 {
-    /// <summary>new_order | status_update | customer_feedback | support_query | off_topic | unclear.</summary>
+    /// <summary>new_order | status_update | customer_feedback | support_query | add_products | create_discount | off_topic | unclear.</summary>
     public string Intent { get; init; } = "";
     public bool IsOrderAttempt { get; init; }
     /// <summary>True when the AI could not be reached (no API key, or the call failed) — distinct from "reached it, not an order".</summary>
@@ -155,6 +155,9 @@ public sealed class AiVoiceInterpretation
     /// empty when the model gave plain strings. The engine drops any step whose action is not valid in the bot's current state.</summary>
     public List<string> Actions { get; init; } = new();
     public string? Question { get; init; }
+    /// <summary>When <see cref="Question"/> has a few known answers (which customer, which order, which status, which period): each is the exact text the bot
+    /// receives when the seller taps it. Shown as buttons / a list so the seller can tap instead of speaking again.</summary>
+    public List<string> Options { get; init; } = new();
 }
 
 /// <summary>What the bot is waiting for right now, so a voice transcript can be understood in context.</summary>

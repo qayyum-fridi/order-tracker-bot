@@ -225,6 +225,9 @@ public partial class ConversationEngine
             case CommandKind.MonthlyNet:
                 await HandleMonthlyNetAsync(seller, cmd.Text, ct);
                 return;
+            case CommandKind.StatusPicker:
+                await HandleStatusPickerAsync(seller, ctx, cmd.Number, ct);
+                return;
             case CommandKind.OrderDetail:
                 await HandleOrderDetailAsync(seller, ctx, cmd.Number!.Value, ct);
                 return;
@@ -271,7 +274,7 @@ public partial class ConversationEngine
                 await HandleProductReportAsync(seller, cmd.Text!, ct);
                 return;
             case CommandKind.DiscountPerformance:
-                await HandleDiscountPerformanceAsync(seller, ct);
+                await HandleDiscountPerformanceAsync(seller, cmd.Text, ct);
                 return;
             case CommandKind.CommentLeads:
                 await HandleCommentLeadsListAsync(seller, ct);
@@ -319,7 +322,8 @@ public partial class ConversationEngine
                 await HandleMenuCategoryAsync(seller, cmd.Text!, ct);
                 return;
             case CommandKind.CustomerList:
-                await HandleCustomerListAsync(seller, ctx, ct);
+                if (cmd.Text is not null) await HandleCustomersByPeriodAsync(seller, ctx, cmd.Text, ct);
+                else await HandleCustomerListAsync(seller, ctx, ct);
                 return;
             case CommandKind.CustomerDetail:
                 await HandleCustomerDetailAsync(seller, ctx, cmd, ct);
@@ -422,12 +426,22 @@ public partial class ConversationEngine
                 await HandleLoyalCustomersAsync(seller, ct);
                 return;
             case CommandKind.TrendingProducts:
+                if (cmd.Text is not null && ReportPeriods.Resolve(cmd.Text, seller.TimeZoneId, DateTime.UtcNow) is { } trendWindow)
+                {
+                    await SendTrendingProductsAsync(seller, trendWindow.StartUtc, PeriodLabel(seller, cmd.Text), ct, trendWindow.EndUtc);
+                    return;
+                }
                 ctx.RuntimeFilterCommand = "trending";
                 SetState(session, ConversationState.AwaitingRuntimeFilterChoice);
                 await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, "📈 Konsi time period dekhna chahte hain? (\"last 30 days\" bhi likh saktay hain)",
                     new[] { "This Week", "This Month", "Custom Dates" }, ct);
                 return;
             case CommandKind.SlowMovers:
+                if (cmd.Text is not null && ReportPeriods.Resolve(cmd.Text, seller.TimeZoneId, DateTime.UtcNow) is { } slowWindow)
+                {
+                    await SendSlowMoversAsync(seller, Math.Max(1, (int)Math.Ceiling((DateTime.UtcNow - slowWindow.StartUtc).TotalDays)), ct);
+                    return;
+                }
                 ctx.RuntimeFilterCommand = "slow";
                 SetState(session, ConversationState.AwaitingRuntimeFilterChoice);
                 await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, "📉 Kitne din se koi order nahi aaya?", new[] { "7 days", "14 days", "30 days" }, ct);
@@ -468,6 +482,8 @@ public partial class ConversationEngine
     private static (DateTime StartUtc, DateTime EndUtc) ReportRange(Seller seller, string? period)
     {
         var now = DateTime.UtcNow;
+        if (period is not (null or "yesterday" or "lastmonth") && ReportPeriods.Resolve(period, seller.TimeZoneId, now) is { } resolved)
+            return (resolved.StartUtc, resolved.EndUtc);
         return period switch
         {
             "yesterday" => SellerClock.LocalDayRangeUtc(seller.TimeZoneId, now, -1),
@@ -476,16 +492,27 @@ public partial class ConversationEngine
         };
     }
 
+    /// <summary>A short name for a period key in the seller's language ("Last quarter", "1 May – 15 May 2026").</summary>
+    private static string PeriodLabel(Seller seller, string? key) =>
+        ReportPeriods.Describe(key, Lang.Normalize(seller.PreferredLanguage) == Lang.UrduScript);
+
     private async Task HandleOrdersTodayAsync(Seller seller, SessionContextData ctx, string? period, CancellationToken ct)
     {
         var (start, end) = ReportRange(seller, period);
-        var orders = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
-            .Where(o => o.SellerId == seller.Id && o.CreatedAt >= start && o.CreatedAt < end && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
-            .OrderBy(o => o.CreatedAt)
-            .ToListAsync(ct);
+        var window = period is null or "yesterday" or "lastmonth" ? null : ReportPeriods.Resolve(period, seller.TimeZoneId, DateTime.UtcNow);
+        // A day that has not happened yet (tomorrow, the day after) has no orders placed on it: show what is due for delivery then.
+        var deliveryDue = window is { IsFuture: true };
+
+        var query = _db.Orders.Include(o => o.Customer).Include(o => o.Items).Where(o => o.SellerId == seller.Id);
+        var orders = deliveryDue
+            ? await query.Where(o => o.DeliveryDate >= start && o.DeliveryDate < end
+                    && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned && o.Status != OrderStatus.Delivered)
+                .OrderBy(o => o.DeliveryDate).ToListAsync(ct)
+            : await query.Where(o => o.CreatedAt >= start && o.CreatedAt < end && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
+                .OrderBy(o => o.CreatedAt).ToListAsync(ct);
 
         ctx.LastListOrderIds = orders.Select(o => o.Id).ToList();
-        await ReplyAsync(seller, Formatters.OrdersToday(seller.PreferredLanguage, orders, period), ct);
+        await ReplyAsync(seller, Formatters.OrdersToday(seller.PreferredLanguage, orders, period, window is null ? null : PeriodLabel(seller, period), deliveryDue), ct);
     }
 
     private async Task HandlePendingOrdersAsync(Seller seller, SessionContextData ctx, CancellationToken ct)
@@ -509,7 +536,7 @@ public partial class ConversationEngine
     private async Task HandleTodaysSummaryAsync(Seller seller, string? period, CancellationToken ct)
     {
         var (start, end) = ReportRange(seller, period);
-        var label = period switch { "yesterday" => "Yesterday's", "lastmonth" => "Last Month's", _ => "Today's" };
+        var label = period switch { null => "Today's", "yesterday" => "Yesterday's", "lastmonth" => "Last Month's", _ => PeriodLabel(seller, period) };
         var orders = await _db.Orders
             .Where(o => o.SellerId == seller.Id && o.CreatedAt >= start && o.CreatedAt < end && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
             .ToListAsync(ct);

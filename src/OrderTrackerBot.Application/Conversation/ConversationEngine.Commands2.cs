@@ -1,3 +1,4 @@
+using OrderTrackerBot.Application.Time;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
@@ -320,7 +321,7 @@ public partial class ConversationEngine
             .FirstOrDefaultAsync(ct)!;
 
     private static readonly Regex DiscountSpec = new(
-        @"^(?<code>\S+)\s*,\s*(?:(?<percent>\d+(?:\.\d+)?)\s*(?:percent|%|pc)|Rs\.?\s*(?<flat>\d+(?:\.\d+)?)(?:\s*flat)?|(?<flat>\d+(?:\.\d+)?)\s*(?:rs|rupees?|flat))\s*(?:,\s*expires\s+(?<days>\d+)\s*days?)?$",
+        @"^(?<code>\S+)\s*,\s*(?:(?<percent>\d+(?:\.\d+)?)\s*(?:percent|%|pc)|Rs\.?\s*(?<flat>\d+(?:\.\d+)?)(?:\s*flat)?|(?<flat>\d+(?:\.\d+)?)\s*(?:rs|rupees?|flat))\s*(?:,\s*(?<exp>.+?))?\s*$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly Regex DiscountCodeOnly = new(@"^[A-Za-z0-9_-]{3,20}$", RegexOptions.Compiled);
@@ -357,7 +358,7 @@ public partial class ConversationEngine
         {
             ctx.PendingDiscountCode = trimmed.ToUpperInvariant();
             await ReplyAsync(seller,
-                $"👍 Code: {ctx.PendingDiscountCode}\n\nAb kitna discount? Likhein:\n10 percent\nya\nRs.50 flat\n\n(Expiry chahiye to: 10 percent, expires 15 days)", ct);
+                $"👍 Code: {ctx.PendingDiscountCode}\n\nAb kitna discount? Likhein:\n10 percent\nya\nRs.50 flat\n\n(Expiry chahiye to: 10 percent, expires 15 days / 2 weeks / 31 Dec)", ct);
             return;
         }
 
@@ -378,7 +379,16 @@ public partial class ConversationEngine
 
         var isPercent = match.Groups["percent"].Success;
         var value = decimal.Parse(isPercent ? match.Groups["percent"].Value : match.Groups["flat"].Value);
-        DateTime? expiresAt = match.Groups["days"].Success ? DateTime.UtcNow.AddDays(int.Parse(match.Groups["days"].Value)) : null;
+        DateTime? expiresAt = null;
+        if (match.Groups["exp"].Success)
+        {
+            if (!ReportPeriods.TryParseExpiry(match.Groups["exp"].Value, DateTime.UtcNow, seller.TimeZoneId, out var expiry))
+            {
+                await ReplyAsync(seller, "Expiry samajh nahi aayi. Jaise likhein: \"expires 15 days\", \"expires 2 weeks\", \"expires 3 mahine\", \"expires 31 Dec\" ya \"expires month end\".", ct);
+                return;
+            }
+            expiresAt = expiry;
+        }
 
         var code = match.Groups["code"].Value.ToUpperInvariant();
         _db.Discounts.Add(new Discount

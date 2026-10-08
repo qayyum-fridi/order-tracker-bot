@@ -39,7 +39,7 @@ public partial class ConversationEngine
         lines.Add($"🗓️ {placed:dd MMM yyyy, hh:mm tt}" + (string.IsNullOrWhiteSpace(order.OrderSource) ? "" : $" · {Formatters.SourceLabel(order.OrderSource)}"));
         if (!string.IsNullOrWhiteSpace(order.Notes)) lines.Add($"📝 {order.Notes}");
         lines.Add("");
-        lines.Add($"👉 \"edit order {order.Id}\" · \"receipt {order.Id}\" · \"mark {order.Id} shipped\"" +
+        lines.Add($"👉 \"edit order {order.Id}\" · \"receipt {order.Id}\" · \"status {order.Id}\"" +
                   (order.PaymentStatus == PaymentStatus.Paid ? "" : $" · \"order {order.Id} advance 500\""));
         await ReplyAsync(seller, string.Join("\n", lines), ct);
     }

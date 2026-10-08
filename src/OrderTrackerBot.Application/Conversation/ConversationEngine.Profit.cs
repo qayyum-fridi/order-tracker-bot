@@ -15,7 +15,9 @@ public partial class ConversationEngine
     private async Task HandleProfitAsync(Seller seller, string? period, CancellationToken ct)
     {
         var now = DateTime.UtcNow;
-        var (start, end, label) = period switch
+        // Anything beyond the original today / yesterday / last month / 7 / 30 days (this week, last quarter, a date range...) comes from ReportPeriods.
+        var custom = period is null or "today" or "yesterday" or "lastmonth" or "7d" or "30d" ? null : ReportPeriods.Resolve(period, seller.TimeZoneId, now);
+        var (start, end, label) = custom is not null ? (custom.StartUtc, custom.EndUtc, PeriodLabel(seller, period).ToLowerInvariant()) : period switch
         {
             "today" => (SellerClock.StartOfLocalDayUtc(seller.TimeZoneId, now), DateTime.MaxValue, "aaj"),
             "yesterday" => (SellerClock.LocalDayRangeUtc(seller.TimeZoneId, now, -1).StartUtc, SellerClock.LocalDayRangeUtc(seller.TimeZoneId, now, -1).EndUtc, "kal"),

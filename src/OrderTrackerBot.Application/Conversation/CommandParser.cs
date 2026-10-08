@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using OrderTrackerBot.Application.Time;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -71,6 +72,7 @@ public enum CommandKind
     DeliveryCharge,
     EditOrder,
     OrderDetail,
+    StatusPicker,
     Stock,
     Expense,
     ExpenseList,
@@ -145,9 +147,11 @@ public static class CommandParser
     private const string Today = @"(?:aaj|آج)";
     private const string Yesterday = @"(?:kal|کل)";
     private const string LastMonth = @"(?:(?:pichle|pichhle|pichlay|پچھلے)\s+(?:mahine|mahinay|maheene|mahiny|مہینے))";
-    private static readonly Regex OrdersToday = new(@"^(?:orders?\s+today|today'?s\s+orders?|" + Today + @"\s+" + Of + @"\s+" + OrdersWord + @")$", Opts);
-    private static readonly Regex OrdersYesterday = new(@"^(?:orders?\s+yesterday|yesterday'?s\s+orders?|" + Yesterday + @"\s+" + Of + @"\s+" + OrdersWord + @")$", Opts);
-    private static readonly Regex OrdersLastMonth = new(@"^(?:orders?\s+last\s+month|last\s+month'?s?\s+orders?|" + LastMonth + @"\s+" + Of + @"\s+" + OrdersWord + @")$", Opts);
+    // "kal ke orders" / "kal ke kitne orders the?" / "aaj kitne orders aaye": the period word, optional ka/ke, optional "kitne", the word orders, optional question tail.
+    private const string OrdersOfPeriod = @"(?:\s+" + Of + @")?(?:\s+(?:kitne|kitnay|کتنے))?\s+" + OrdersWord + @"(?:\s+(?:the|thay|tha|hain|hai|aaye|aae|hue|تھے|تھا|ہیں|ہے|آئے|ہوئے))*\s*[?؟]?";
+    private static readonly Regex OrdersToday = new(@"^(?:orders?\s+today|today'?s\s+orders?|" + Today + OrdersOfPeriod + @")$", Opts);
+    private static readonly Regex OrdersYesterday = new(@"^(?:orders?\s+yesterday|yesterday'?s\s+orders?|" + Yesterday + OrdersOfPeriod + @")$", Opts);
+    private static readonly Regex OrdersLastMonth = new(@"^(?:orders?\s+last\s+month|last\s+month'?s?\s+orders?|" + LastMonth + OrdersOfPeriod + @")$", Opts);
     private static readonly Regex PendingOrders = new(@"^(pending\s+orders?|پینڈنگ\s+آرڈرز?)$", Opts);
     private static readonly Regex TodaysSummary = new(@"^(?:today'?s\s+summary|today\s+summary|" + Today + @"\s+" + Of + @"\s+" + SummaryWord + @")$", Opts);
     private static readonly Regex YesterdaysSummary = new(@"^(?:yesterday'?s\s+summary|summary\s+yesterday|" + Yesterday + @"\s+" + Of + @"\s+" + SummaryWord + @")$", Opts);
@@ -242,6 +246,8 @@ public static class CommandParser
     private static readonly Regex StockSet = new(@"^(?:stock|اسٹاک)\s*:?\s*(?<name>[^\d].*?)\s*[=:]?\s*(?<sign>\+)?\s*(?<n>\d{1,6})$|^(?<name>[^\d].*?)\s+(?:ka\s+|ki\s+)?(?:stock|اسٹاک)\s*[=:]?\s*(?<sign>\+)?\s*(?<n>\d{1,6})$", Opts);
 
     // "order 12" / "#12" shows one order in full.
+    // "status" / "status 13" / "update status 13" / "order 13 status" / "mark 13" (no status said): show the statuses the order can move to as a pick-list.
+    private static readonly Regex StatusPicker = new(@"^(?:(?:update|change)\s+)?(?:status|اسٹیٹس)(?:\s+(?:update|change))?(?:\s+#?(?<n>\d+))?$|^(?:order|آرڈر|mark|update)\s*#?(?<n>\d+)\s*(?:status|اسٹیٹس)?(?:\s+(?:update|change))?$", Opts);
     private static readonly Regex OrderDetail = new(@"^(?:order|آرڈر)\s*#?(?<n>\d+)$|^#(?<n>\d+)$", Opts);
 
     // Part payments: "order 12 advance 500", "12 paid 1000", "advance 500 order 12" add to what the buyer has paid so far.
@@ -408,7 +414,10 @@ public static class CommandParser
         var m = ProfitLead.Match(message);
         if (!m.Success) return null;
         if (!m.Groups["p"].Success) return new ParsedCommand { Kind = CommandKind.Profit, Text = "30d" };
-        var period = ExportPeriodWords.FirstOrDefault(p => p.Pattern.IsMatch(m.Groups["p"].Value)).Period;
+        // A whole period phrase first ("last week", "this quarter", "1 May se 15 May"), then the older keyword scan.
+        var period = ReportPeriods.TryParseKey(m.Groups["p"].Value, DateTime.UtcNow, out var phraseKey)
+            ? phraseKey
+            : ExportPeriodWords.FirstOrDefault(p => p.Pattern.IsMatch(m.Groups["p"].Value)).Period;
         return period is null ? null : new ParsedCommand { Kind = CommandKind.Profit, Text = period };
     }
 
@@ -440,13 +449,73 @@ public static class CommandParser
         return null;
     }
 
+    // "For how long": any report followed or preceded by a period phrase, in English / Roman Urdu / Urdu script —
+    // "orders last quarter", "pichle hafte ka profit", "kharcha 1 May se 15 May", "aaj 2pm se 6pm ke orders", "کل کے آرڈرز".
+    // The period itself is understood by ReportPeriods; ParsedCommand.Text carries its key. A phrase that is not entirely a period
+    // (a customer's name, an order number) is left alone, so "Ayesha ka order" and "orders 12" are never taken for reports.
+    private static readonly (Regex Words, CommandKind Kind)[] PeriodReportWords =
+    {
+        (new(@"^(?:orders?|order\s+list|آرڈرز?)$", Opts), CommandKind.OrdersToday),
+        (new(@"^(?:summary|reconciliation|hisab|hisaab|sales?|bikri|خلاصہ|حساب|فروخت|سیلز)$", Opts), CommandKind.TodaysSummary),
+        (new(@"^(?:profit|munafa|nafa|منافع|نفع)$", Opts), CommandKind.Profit),
+        (new(@"^(?:expenses?|kharcha|kharche|kharch|اخراجات|خرچہ|خرچ)$", Opts), CommandKind.ExpenseList),
+        (new(@"^net$", Opts), CommandKind.MonthlyNet),
+        (new(@"^(?:customers|گاہک|کسٹمرز)$", Opts), CommandKind.CustomerList),
+        (new(@"^(?:discounts?|discount\s+(?:report|performance)|coupons?|ڈسکاؤنٹس?)$", Opts), CommandKind.DiscountPerformance),
+        (new(@"^(?:trending(?:\s+products?)?|top\s+products?|best\s*sellers?|best\s+selling(?:\s+products?)?)$", Opts), CommandKind.TrendingProducts),
+        (new(@"^(?:slow\s+movers?|slow\s+products?)$", Opts), CommandKind.SlowMovers),
+    };
+    private static readonly Regex PeriodReportTail = new(
+        @"(?:\s+(?:the|thay|tha|thi|hain|hai|aaye|aae|hue|hui|batao|bataein|bataiye|btao|dikhao|dikhana|dikhain|dekhao|dekhein|show|please|plz|بتاؤ|بتائیں|دکھاؤ|دکھائیں|تھے|تھا|ہیں|ہے|آئے|ہوئے))+$", Opts);
+    private static readonly HashSet<string> OfTokens = new(StringComparer.OrdinalIgnoreCase) { "ka", "ke", "ki", "kay", "کا", "کے", "کی" };
+    private static readonly HashSet<string> HowManyTokens = new(StringComparer.OrdinalIgnoreCase) { "kitne", "kitni", "kitna", "کتنے", "کتنی", "کتنا" };
+
+    private static CommandKind? PeriodReportKind(string words) =>
+        PeriodReportWords.Where(w => w.Words.IsMatch(words)).Select(w => (CommandKind?)w.Kind).FirstOrDefault();
+
+    private static ParsedCommand? TryParsePeriodReport(string message)
+    {
+        var text = PeriodReportTail.Replace(message.Trim(), "").Trim();
+        var tokens = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length < 2 || tokens.Length > 10) return null;
+        var now = DateTime.UtcNow;
+
+        for (var i = 1; i < tokens.Length; i++)
+        {
+            // "<report> <period>": orders last quarter
+            if (PeriodReportKind(string.Join(' ', tokens[..i])) is { } leading
+                && ReportPeriods.TryParseKey(string.Join(' ', tokens[i..]), now, out var leadingKey))
+                return new ParsedCommand { Kind = leading, Text = leadingKey };
+
+            // "<period> ka/ke/ki [kitne] <report>": pichle hafte ka profit
+            if (!OfTokens.Contains(tokens[i])) continue;
+            var next = i + 1;
+            if (next < tokens.Length && HowManyTokens.Contains(tokens[next])) next++;
+            if (next >= tokens.Length) continue;
+            if (PeriodReportKind(string.Join(' ', tokens[next..])) is { } trailing
+                && ReportPeriods.TryParseKey(string.Join(' ', tokens[..i]), now, out var trailingKey))
+                return new ParsedCommand { Kind = trailing, Text = trailingKey };
+        }
+
+        return null;
+    }
+
     public static ExportRequest ParseExportRequest(string? what)
     {
         var text = what ?? "";
         var datasets = ExportAll.IsMatch(text)
             ? ExportDatasetWords.Select(d => d.Name).ToList()
             : ExportDatasetWords.Where(d => d.Pattern.IsMatch(text)).Select(d => d.Name).ToList();
-        var period = ExportPeriodWords.FirstOrDefault(p => p.Pattern.IsMatch(text)).Period;
+        // A whole period phrase ("last quarter", "this year", "1 May se 15 May", "aaj 2pm se 6pm") once the dataset words are taken out;
+        // otherwise the older keyword scan ("30 days", "last month", "today", "kal").
+        var rest = text;
+        foreach (var d in ExportDatasetWords) rest = d.Pattern.Replace(rest, " ");
+        rest = ExportAll.Replace(rest, " ");
+        rest = Regex.Replace(rest, @"[,&]|(?<![\p{L}\p{N}])(?:and|aur|اور)(?![\p{L}\p{N}])", " ");
+        rest = Regex.Replace(rest, @"\s+", " ").Trim();
+        var period = rest.Length > 0 && ReportPeriods.TryParseKey(rest, DateTime.UtcNow, out var phraseKey)
+            ? phraseKey
+            : ExportPeriodWords.FirstOrDefault(p => p.Pattern.IsMatch(text)).Period;
         return new ExportRequest(datasets, period);
     }
 
@@ -504,9 +573,11 @@ public static class CommandParser
     private static readonly Regex MarkAllPendingShipped = new(@"^mark\s+all\s+pending\s+as\s+shipped$", Opts);
     // "mark 3 shipped" / "mark 3 bhej diya" / "آرڈر 3 شپ ہو گیا": the verb phrase is mapped by StatusFromPhrase.
     private static readonly Regex MarkStatus = new(@"^(?:mark|order|آرڈر)\s+(\d+)\s+(.+)$", Opts);
-    private const string DoneWords = @"(?:\s+(?:ho\s*(?:gaya|gya|gaye|gai|gayi)|kar\s+(?:diya|dia|do)|ہو\s+گیا(?:\s+ہے)?|کر\s+(?:دیا|دو)))?";
+    private const string DoneWords = @"(?:\s+(?:ho\s*(?:gaya|gya|gaye|gai|gayi)|kar\s+(?:diya|dia|do|dein|den)|ہو\s+گیا(?:\s+ہے)?|کر\s+(?:دیا|دو|دیں)))?";
     private static readonly Regex ShippedPhrase = new(@"^(?:shipped?" + DoneWords + @"|bhej\s*(?:diya|dia|di|do)|شپ" + DoneWords + @"|بھیج\s+(?:دیا|دو))$", Opts);
-    private static readonly Regex DeliveredPhrase = new(@"^(?:deliver(?:ed)?" + DoneWords + @"|(?:pohanch|pahunch|pohnch)\s+gaya|ڈیلیور" + DoneWords + @"|پہنچ\s+گیا)$", Opts);
+    private static readonly Regex DeliveredPhrase = new(@"^(?:deliver(?:ed)?" + DoneWords + @"|(?:pohanch|pahunch|pohnch)\s+gaya|ڈیلیور" + DoneWords + @"|پہنچ\s+گیا"
+        // "complete" is the seller's word for the final state: delivered.
+        + @"|(?:complete(?:d)?|mukammal|mukamal)" + DoneWords + @"|(?:مکمل|کمپلیٹ(?:ڈ)?)" + DoneWords + @")$", Opts);
     private static readonly Regex PaidPhrase = new(@"^(?:paid" + DoneWords + @"|payment\s+(?:aa|mil)\s+(?:gayi|gai)|پیڈ" + DoneWords + @"|ادائیگی\s+ہو\s+گئی)$", Opts);
     private static readonly Regex PendingPhrase = new(@"^(?:pending|پینڈنگ)$", Opts);
     private static readonly Regex ReturnedPhrase = new(@"^(?:return(?:ed)?" + DoneWords + @"|(?:wapas|wapis|waapas)(?:\s+(?:aa|a|aya|agaya|aa\s*gaya|aa\s*gya|ho\s*gaya|ho\s*gya|kar\s+diya))?|واپس(?:\s+(?:آ\s+گیا|آیا|ہو\s+گیا))?|ریٹرن)$", Opts);
@@ -680,6 +751,9 @@ public static class CommandParser
     private static readonly Regex DetailedForm = new(@"^(?:add\s+)?(product|customer|order)\s*\(\s*detailed\s*\)$|^new\s+(order)\s*\(\s*detailed\s*\)$", Opts);
     private static readonly Regex NewOrderHelp = new(@"^(?:new|naya|nya|add|create|make)\s+orders?$|^نیا\s+آرڈر$|^(?:naya\s+)?orders?\s+(?:add|darj|likhna|karna|dalna)(?:\s+(?:karna|karni|hai|karein|krna))*$", Opts);
     private static readonly Regex HowTo =new(@"^(?:add|new|create|make)\s+(discount|product|payment|loyalty|tracking)s?$", Opts);
+    // Spoken/Roman Urdu "[ek HBL 50 ka] discount naya bana dein" / "ڈسکاؤنٹ نیا بنا دیں": same as "create discount" with no details.
+    private static readonly Regex NaturalCreateDiscount = new(
+        @"^(?:[^\n,:]{0,40}?\s)?(?:(?:naya|nya|new|نیا)\s+)?(?:discount|ڈسکاؤنٹ)\s+(?:(?:naya|nya|new|نیا)\s+)?(?:bana\w*(?:\s+(?:do|dein|den|dijiye|karo))?|add\s+kar\w*|بنا\w*(?:\s*(?:دیں|دو))?)[.!۔\s]*$", Opts);
 
     private static readonly Regex SafepayId = new(@"^safepay\s+id:\s*(.+)$", Opts);
 
@@ -874,6 +948,7 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.Export, Export = ParseExportRequest(m.Groups["what"].Success ? m.Groups["what"].Value : null) };
         if ((m = ExportTrail.Match(message)).Success && ParseExportRequest(m.Groups["what"].Value) is { Datasets.Count: > 0 } trailing)
             return new ParsedCommand { Kind = CommandKind.Export, Export = trailing };
+        if (TryParsePeriodReport(message) is { } periodReport) return periodReport;
         if ((m = RemoveBranding.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.RemoveBranding, Text = BrandingKind(m.Groups["k"].Value) };
         if ((m = BrandingHelp.Match(message)).Success)
@@ -934,6 +1009,9 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.EditProduct, Text = m.Groups[1].Value.Trim(), Amount = decimal.Parse(m.Groups[2].Value) };
 
         if (MarkAllPendingShipped.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.MarkAllPendingShipped };
+
+        if ((m = StatusPicker.Match(message)).Success && !OrderDetail.IsMatch(message))
+            return new ParsedCommand { Kind = CommandKind.StatusPicker, Number = m.Groups["n"].Success ? int.Parse(m.Groups["n"].Value) : null };
 
         if ((m = MarkStatus.Match(message)).Success && StatusFromPhrase(m.Groups[2].Value) is { } markStatus)
             return new ParsedCommand { Kind = CommandKind.MarkStatus, Number = int.Parse(m.Groups[1].Value), Text = markStatus };
@@ -996,6 +1074,9 @@ public static class CommandParser
 
         if ((m = HowTo.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.HowTo, Text = m.Groups[1].Value.ToLowerInvariant() };
+
+        if (NaturalCreateDiscount.IsMatch(message))
+            return new ParsedCommand { Kind = CommandKind.HowTo, Text = "discount" };
 
         var lines = message.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (lines.Length == 1 && TryParseProductLine(lines[0], out ProductLine? line))

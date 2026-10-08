@@ -56,10 +56,25 @@ public partial class ConversationEngine
     private async Task HandleAnalysisAsync(Seller seller, ConversationSession session, SessionContextData ctx, AiMessageAnalysis analysis,
         List<CatalogEntry> catalog, bool fromScreenshot, CancellationToken ct, string? sourceText = null)
     {
+        // A word that names a bot feature (discount, stock, expense...) is never small talk: ask which command was meant.
+        if (analysis.Intent is "off_topic" or "unclear" && analysis.Order is null && analysis.ClarificationOptions.Count == 0
+            && TryKeywordClarification(sourceText, out var keywordQuestion, out var keywordOptions))
+        {
+            await AskClarificationAsync(seller, session, ctx, keywordQuestion, keywordOptions, ct);
+            return;
+        }
+
         if (analysis.Intent == "off_topic")
         {
             var opener = string.IsNullOrWhiteSpace(analysis.ClarificationQuestion) ? "😊" : $"😊 {analysis.ClarificationQuestion!.Trim()}";
             await ReplyAsync(seller, $"{opener} Main sirf orders/sales manage karne mein madad karta hoon.\nJab zaroorat ho, \"menu\" likh dein.", ct);
+            return;
+        }
+
+        if (analysis.Intent == "create_discount")
+        {
+            SetState(session, ConversationState.AwaitingDiscountDetails);
+            await ReplyAsync(seller, HowToText("discount"), ct);
             return;
         }
 
@@ -84,11 +99,10 @@ public partial class ConversationEngine
         if (!analysis.IsOrderAttempt || analysis.Order is null)
         {
             var options = analysis.ClarificationOptions.Count > 0 ? analysis.ClarificationOptions : DefaultClarificationOptions.ToList();
-            ctx.ClarificationOptions = options;
-            SetState(session, ConversationState.AwaitingClarificationChoice);
             var question = analysis.ClarificationQuestion ?? "Mujhe samajh nahi aaya 🤔 Kya aap:";
-            var numbered = string.Join("\n", options.Select((o, i) => $"{i + 1}️⃣ {o}"));
-            await ReplyAsync(seller, $"{question}\n\n{numbered}\n\nReply number se, ya \"help\" likhein.", ct);
+            if (analysis.ClarificationOptions.Count == 0 && TryKeywordClarification(sourceText, out var kwQuestion, out var kwOptions))
+                (question, options) = (kwQuestion, kwOptions);
+            await AskClarificationAsync(seller, session, ctx, question, options, ct);
             return;
         }
 
@@ -753,6 +767,15 @@ public partial class ConversationEngine
         return "Theek hai — bata dein kya karna hai, ya \"menu\" likhein.";
     }
 
+    private async Task AskClarificationAsync(Seller seller, ConversationSession session, SessionContextData ctx, string question, List<string> options, CancellationToken ct)
+    {
+        ctx.ClarificationOptions = options;
+        SetState(session, ConversationState.AwaitingClarificationChoice);
+        // A tap sends the command itself when the option is one ("create discount"), otherwise its number (handled by HandleClarificationChoiceAsync).
+        var choices = options.Select((o, i) => new ChoiceOption(o, CommandParser.TryParse(o) is not null ? o : (i + 1).ToString())).ToList();
+        await SendChoicesAsync(seller.WhatsAppPhoneNumber, question, choices, ct);
+    }
+
     private async Task HandleClarificationChoiceAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         var options = ctx.ClarificationOptions ?? DefaultClarificationOptions.ToList();
@@ -770,6 +793,12 @@ public partial class ConversationEngine
             ctx.ClarificationOptions = null;
             SetState(session, ConversationState.Idle);
             var chosen = options[idx - 1];
+            // Keyword-clarification options are typed commands: run the one picked.
+            if (CommandParser.TryParse(chosen) is { } chosenCommand)
+            {
+                await ExecuteCommandAsync(seller, session, ctx, chosenCommand, ct);
+                return;
+            }
             await ReplyAsync(seller, ClarificationChoiceReply(chosen), ct);
             return;
         }

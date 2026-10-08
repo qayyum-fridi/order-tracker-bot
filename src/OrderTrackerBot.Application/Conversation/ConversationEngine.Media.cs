@@ -36,12 +36,13 @@ public partial class ConversationEngine
             return;
         }
 
-        var (steps, question) = await InterpretVoiceAsync(seller, text, ct);
+        var (steps, question, options) = await InterpretVoiceAsync(seller, text, ct);
         var heard = $"🎤 Maine suna: \"{text}\"";
         if (question is not null)
         {
             // Clear intent but a detail is missing (which order, the new price): ask for it instead of guessing or failing.
-            await _sender.SendTextMessageAsync(fromPhoneNumber, $"{heard}\n\n❓ {question}", ct);
+            // When the answers are a few known choices they come as tap buttons, so the seller need not speak again.
+            await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n❓ {question}", options.Select(o => new ChoiceOption(o, o)).ToList(), ct);
             await _db.SaveChangesAsync(ct);
             return;
         }
@@ -98,7 +99,7 @@ public partial class ConversationEngine
     /// ("pehla wala" -> "1", "haan kar do" -> "yes", "mere paas 4 lawn suit 3500" -> "Lawn Suit - 3500"). The rewrite still goes through the
     /// normal deterministic engine; the transcript itself is used when the AI is unavailable or the rewrite drops a number.
     /// </summary>
-    private async Task<(IReadOnlyList<string> Steps, string? Question)> InterpretVoiceAsync(Seller seller, string transcript, CancellationToken ct)
+    private async Task<(IReadOnlyList<string> Steps, string? Question, IReadOnlyList<string> Options)> InterpretVoiceAsync(Seller seller, string transcript, CancellationToken ct)
     {
         var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
         var catalog = await LoadCatalogAsync(seller, ct);
@@ -125,16 +126,16 @@ public partial class ConversationEngine
             RecentExchanges = exchanges
         }, transcript, ct);
 
-        if (result?.Question is { } question && result.Steps.Count == 0) return (Array.Empty<string>(), question);
+        if (result?.Question is { } question && result.Steps.Count == 0) return (Array.Empty<string>(), question, result.Options);
         if (result is { Steps.Count: > 0 })
         {
             // The model may only pick actions that make sense right now; anything else it made up is dropped (and the transcript is used if nothing is left).
             var steps = result.Actions.Count == result.Steps.Count
                 ? ValidateVoiceSteps(seller.Session!.State, seller, result.Steps, result.Actions)
                 : result.Steps.Select(s => s.Trim()).ToList();
-            if (steps.Count > 0 && IsFaithfulRewrite(transcript, string.Join("\n", steps), KnownVoiceNumbers(recent, catalog))) return (steps, null);
+            if (steps.Count > 0 && IsFaithfulRewrite(transcript, string.Join("\n", steps), KnownVoiceNumbers(recent, catalog))) return (steps, null, Array.Empty<string>());
         }
-        return (new[] { transcript }, null);
+        return (new[] { transcript }, null, Array.Empty<string>());
     }
 
     /// <summary>Ids, totals and prices the model was shown for this voice note: a rewrite may legitimately use them ("pichla order" -> "edit order 105").</summary>

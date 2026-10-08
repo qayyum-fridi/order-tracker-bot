@@ -48,6 +48,19 @@ public static class SellerClock
         return (LocalMidnightToUtc(tz, thisMonth.AddMonths(-1)), LocalMidnightToUtc(tz, thisMonth));
     }
 
+    /// <summary>The seller's local calendar date right now.</summary>
+    public static DateTime LocalToday(string? timeZoneId, DateTime utcNow) =>
+        TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utcNow, DateTimeKind.Utc), Resolve(timeZoneId)).Date;
+
+    /// <summary>A local date-time in the seller's time zone as a UTC instant (a time skipped by a DST jump moves forward an hour).</summary>
+    public static DateTime LocalToUtc(string? timeZoneId, DateTime local)
+    {
+        var tz = Resolve(timeZoneId);
+        var unspecified = DateTime.SpecifyKind(local, DateTimeKind.Unspecified);
+        if (tz.IsInvalidTime(unspecified)) unspecified = unspecified.AddHours(1);
+        return TimeZoneInfo.ConvertTimeToUtc(unspecified, tz);
+    }
+
     private static DateTime LocalMidnightToUtc(TimeZoneInfo tz, DateTime localDate)
     {
         var localMidnight = DateTime.SpecifyKind(localDate.Date, DateTimeKind.Unspecified);

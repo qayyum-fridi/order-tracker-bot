@@ -1167,6 +1167,43 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task VoiceNote_QuestionWithShortOptions_ShowsTapButtons()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var voice = VoiceEngine(db, "hassan ka order complete kar do");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Question = "Kaunsa status lagana hai?", Options = { "mark 13 delivered", "mark 13 shipped" } });
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        var (body, buttons) = Assert.Single(_buttons);
+        Assert.Contains("❓ Kaunsa status lagana hai?", body);
+        Assert.Equal(new[] { "mark 13 delivered", "mark 13 shipped" }, buttons);
+    }
+
+    [Fact]
+    public async Task VoiceNote_QuestionWithLongOptions_ShowsATapList_WithAMenuWayOut()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var voice = VoiceEngine(db, "hassan ka order complete kar do");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Question = "Kaun sa Hassan?", Options = { "mark 12 delivered (Hassan Ali)", "mark 15 delivered (Hassan Raza)" } });
+        IReadOnlyList<MenuSection>? sent = null;
+        _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, body, _, sections, _) => { _sent.Add(body); sent = sections; })
+            .Returns(Task.CompletedTask);
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        var rows = sent!.SelectMany(s => s.Rows).ToList();
+        Assert.Equal(new[] { "mark 12 delivered (Hassan Ali)", "mark 15 delivered (Hassan Raza)", "menu" }, rows.Select(r => r.Id));
+        Assert.All(rows, r => Assert.True(r.Title.Length <= 24, r.Title));
+        Assert.Contains(_sent, m => m.Contains("❓ Kaun sa Hassan?") && m.Contains("Hassan Raza"));
+    }
+
+    [Fact]
     public async Task VoiceNote_RewriteThatDropsANumber_IsIgnored()
     {
         using var db = _dbFactory.CreateContext();

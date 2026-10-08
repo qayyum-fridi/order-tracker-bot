@@ -99,6 +99,7 @@ public partial class ConversationEngine
         var (start, end) = period switch
         {
             "today" or "yesterday" or "lastmonth" => ReportRange(seller, period),
+            not null when ReportPeriods.Resolve(period, seller.TimeZoneId, now) is { } resolved && period is not ("7d" or "30d") => (resolved.StartUtc, resolved.EndUtc),
             "7d" => (SellerClock.LocalDayRangeUtc(seller.TimeZoneId, now, -6).StartUtc, DateTime.MaxValue),
             "30d" => (SellerClock.LocalDayRangeUtc(seller.TimeZoneId, now, -29).StartUtc, DateTime.MaxValue),
             _ => (DateTime.MinValue, DateTime.MaxValue)
@@ -106,7 +107,9 @@ public partial class ConversationEngine
         var label = period switch
         {
             "today" => "Orders (aaj)", "yesterday" => "Orders (kal)", "lastmonth" => "Orders (pichla maah)",
-            "7d" => "Orders (7 din)", "30d" => "Orders (30 din)", _ => "Orders"
+            "7d" => "Orders (7 din)", "30d" => "Orders (30 din)",
+            not null when ReportPeriods.Resolve(period, seller.TimeZoneId, now) is not null => $"Orders ({PeriodLabel(seller, period).ToLowerInvariant()})",
+            _ => "Orders"
         };
 
         var orders = await _db.Orders.AsNoTracking().Include(o => o.Customer).Include(o => o.Items)

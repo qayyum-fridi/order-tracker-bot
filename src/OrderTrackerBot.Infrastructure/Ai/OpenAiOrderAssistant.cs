@@ -82,7 +82,8 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "set is_order_attempt=false and list each product in new_products with its price in rupees when the seller said one, else null; the name " +
             "is the product only, without a unit or quantity word such as thaan/gaz/kg. Also fill cost_price (what it cost the seller to buy, \"kharid/cost\"), " +
             "stock_qty (how many they have) and attributes (other facts, each as name+value, e.g. colour, size, fabric) ONLY when the seller said them, else null / an empty list; " +
-            "a number is never copied from the catalog), unclear. " +
+            "a number is never copied from the catalog), create_discount (the seller wants to make/add a discount code or offer, in any wording or just " +
+            "describing it — \"naya discount banain\", \"ye ek naya discount hai jo product ke liye hoga\": not an order, not off_topic; set is_order_attempt=false), unclear. " +
             "For new_order put one entry per customer in orders (two different customers in one message = two entries). Quantity is the number " +
             "of catalog units; for weight-sold items like \"15kg kaju\" use the number of kg (15). " +
             "Required order fields are customer_name and phone; if either is missing, still return the order with what you found and list the " +
@@ -213,7 +214,21 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "corrects a name (\"X nahi, Y naam hai\"), keep that correction as one sentence in their own words). A cloth/fabric unit word (thaan, than, " +
             "gaz, meter) is a unit, not part of the product name: \"char thaan mozgi\", not \"char mozgi thaan\". (6) A dictated customer order is written like " +
             "\"Ayesha, 2 lawn suit, 03001234567, Gulberg Lahore\". Commands keep their typed form (\"orders today\", \"mark 3 shipped\", \"stock Kurti 20\", " +
-            "\"delivery 250\", \"catalog\" for any request to see/show the catalog). (7) A product's catalog price is only a default: the seller often sells one order at a different price. To change what ONE " +
+            "\"delivery 250\", \"catalog\" for any request to see/show the catalog). A seller who wants to create/add a discount, in any wording or just describing it " +
+            "(\"naya discount banain\", \"ye ek naya discount hai jo product ke liye hoga\"), gives the command \"create discount\" (action command); only when they also said the code and the value " +
+            "write \"create discount: CODE, 10 percent\" or \"create discount: CODE, Rs.50 flat\" (append \", expires <duration or date>\" if said, e.g. \"expires 15 days\"). " +
+            "ORDER STATUS: the only statuses are pending, shipped, delivered, returned, cancelled (plus paid for payment). The command is \"mark <order id> <status>\" using the real id from the " +
+            "latest orders list above (\"Order #13 Hassan\" -> 13; the numbers in the examples are NOT real). Map the seller's words by meaning: shipped = bhej diya / courier ko de diya / dispatch / ship kar do; " +
+            "delivered = complete / completed / mukammal / ho chuka / customer ko mil gaya / pohanch gaya (an order that is \"complete\" is DELIVERED, never shipped); returned = wapas aa gaya; " +
+            "paid = payment aa gayi; cancelled = \"cancel order <id>\". Never choose shipped unless they said it was sent/dispatched. If several orders match the name, ask which one. If they want to change an order's status but did not say which status, or you are not sure which one they mean, " +
+            "return the command \"status <order id>\" (just \"status\" when no order is clear): the bot then shows the seller the possible statuses to pick from. " +
+            "REPORT QUESTIONS: a question about how many orders, sales, profit, expenses, customers or discounts for some time (\"kal ke kitne orders the?\", \"aaj kitni sales hui\") is a command, not a reply: " +
+            "\"<report> <period>\" with report = orders | summary | profit | expenses | net | customers | discounts | trending products | slow movers, and period written in English: " +
+            "today, yesterday, tomorrow (\"agla din\", \"aane wala kal\"), day before yesterday (parso), this week, last week, this month, last month, this quarter (\"sehmahi\", \"quarterly\"), last quarter, " +
+            "this year (\"saal\", \"yearly\"), last year, \"last 15 days\", \"last 3 months\", a date range (\"1 May 2026 to 15 May 2026\"), one date (\"5 May\") and, for one day, a time window (\"today 2pm to 6pm\"). " +
+            "Note \"kal\" is yesterday unless the seller says it is the coming day. Examples: \"pichle hafte ka profit\" -> \"profit last week\"; \"پچھلے مہینے کے آرڈرز\" -> \"orders last month\"; " +
+            "\"is saal ke customers\" -> \"customers this year\"; \"1 se 15 May tak kharcha\" -> \"expenses 1 May to 15 May\". If the period is unclear, ask which period. " +
+            "A discount's validity is a duration or date: \"create discount: EID10, 10 percent, expires 2 weeks\" (also 15 days, 3 months, 31 Dec, month end). (7) A product's catalog price is only a default: the seller often sells one order at a different price. To change what ONE " +
             "customer was charged use three steps: \"edit order <order id>\", \"price <item number> = <amount>\", \"done\" (item numbers are the 1) 2) numbers " +
             "in the order list above; \"qty <item number> = <n>\", \"remove <item number>\", \"delivery <amount>\", \"phone <digits>\" and \"address <text>\" are the other edits you can put between edit order and done). " +
             "Never touch the catalog price for this. (8) NAMES: when the seller names a person, match it against the saved customers (spelling, Urdu script and phonetic " +
@@ -232,8 +247,11 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "yes / no = the seller agrees / refuses (text empty); choose = picks a numbered option (text is only the number); edit_step = one edit line while changing an order " +
             "(price 1 = 1500, qty 2 = 3, remove 1, delivery 250...); done = the seller says they are finished (text empty); skip = the seller says skip (text empty); help = kya karun / guide. " +
             $"ALLOWED ACTIONS right now: {allowedActions}. If the seller's words need an action that is not allowed, use reply with their words — never pick another action to make it fit. " +
-            "Return ONLY JSON: {\"steps\": [{\"action\": \"reply\", \"text\": \"...\"}], \"question\": null}; steps run one after another as separate typed messages " +
-            "(normally just one; at most 4); question is a string only when asking.",
+            "Return ONLY JSON: {\"steps\": [{\"action\": \"reply\", \"text\": \"...\"}], \"question\": null, \"options\": []}; steps run one after another as separate typed messages " +
+            "(normally just one; at most 4); question is a string only when asking. WHENEVER you are unsure what the seller means, or a detail has a few possible values " +
+            "(which of two customers, which order, which status, which period, which of several commands), ask a short question AND fill options with up to 5 answers the seller can TAP: " +
+            "each option is EXACTLY the message the bot should receive when tapped, written as the typed command or reply (\"mark 13 delivered\", \"orders last week\", \"Hassan Ali\", \"create discount\"), " +
+            "at most 40 characters. Use options [] for an open question (a price, a name nobody has said).",
             new JsonObject { ["transcript"] = transcript }.ToJsonString(),
             0.1, "voice interpretation", cancellationToken, jsonMode: true, model: _options.VoiceModel);
         if (json is null) return null;
@@ -258,7 +276,14 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             if (actions.Count != 0 && actions.Count != steps.Count) actions.Clear();
             var question = GetNullableString(doc.RootElement, "question")?.Trim();
             if (string.IsNullOrWhiteSpace(question)) question = null;
-            return steps.Count == 0 && question is null ? null : new AiVoiceInterpretation { Steps = steps, Actions = actions, Question = question };
+            var options = new List<string>();
+            if (question is not null && doc.RootElement.TryGetProperty("options", out var optionsEl) && optionsEl.ValueKind == JsonValueKind.Array)
+                foreach (var optionEl in optionsEl.EnumerateArray().Take(5))
+                {
+                    var option = optionEl.ValueKind == JsonValueKind.String ? optionEl.GetString()?.Trim() : null;
+                    if (!string.IsNullOrWhiteSpace(option) && option.Length <= 60 && !options.Contains(option, StringComparer.OrdinalIgnoreCase)) options.Add(option);
+                }
+            return steps.Count == 0 && question is null ? null : new AiVoiceInterpretation { Steps = steps, Actions = actions, Question = question, Options = options };
         }
         catch (JsonException ex)
         {
@@ -483,7 +508,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             ["intent"] = new JsonObject
             {
                 ["type"] = "string",
-                ["enum"] = new JsonArray { "new_order", "status_update", "customer_feedback", "support_query", "add_products", "off_topic", "unclear" }
+                ["enum"] = new JsonArray { "new_order", "status_update", "customer_feedback", "support_query", "add_products", "create_discount", "off_topic", "unclear" }
             },
             ["new_products"] = new JsonObject
             {

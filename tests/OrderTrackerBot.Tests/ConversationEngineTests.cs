@@ -1,3 +1,4 @@
+using OrderTrackerBot.Application.Time;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using OrderTrackerBot.Application.Abstractions;
@@ -51,6 +52,13 @@ public class ConversationEngineTests : IDisposable
     {
         _sender.Setup(s => s.SendTextMessageAsync(Phone, It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .Callback<string, string, CancellationToken>((_, text, _) => _sentMessages.Add(text))
+            .Returns(Task.CompletedTask);
+        // Clarifications are tap lists / buttons: their body counts as a sent message unless a test captures them itself.
+        _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, body, _, _, _) => _sentMessages.Add(body))
+            .Returns(Task.CompletedTask);
+        _sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, body, _, _) => _sentMessages.Add(body))
             .Returns(Task.CompletedTask);
     }
 
@@ -303,6 +311,11 @@ public class ConversationEngineTests : IDisposable
 
     [Theory]
     [InlineData("add discount", "create discount: EID10")]
+    [InlineData("ek HBL 50 ka discount naya bana dein", "create discount: EID10")]
+    [InlineData("Naya discount banain.", "create discount: EID10")]
+    [InlineData("نیا ڈسکاؤنٹ بنائیں۔", "create discount: EID10")]
+    [InlineData("discount bana do", "create discount: EID10")]
+    [InlineData("ڈسکاؤنٹ نیا بنا دیں", "create discount: EID10")]
     [InlineData("New Product", "Kurti - 1800")]
     [InlineData("add payment", "add payment: jazzcash")]
     [InlineData("create loyalty", "create loyalty: 5 orders")]
@@ -317,6 +330,101 @@ public class ConversationEngineTests : IDisposable
 
         Assert.Contains(_sentMessages, m => m.Contains(expectedFragment));
         _ai.Verify(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Clarification_WithLongOptions_IsATapList_WhoseRowsAreTheirNumbers()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        IReadOnlyList<MenuSection>? sent = null;
+        _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, _, _, sections, _) => sent = sections)
+            .Returns(Task.CompletedTask);
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis
+            {
+                IsOrderAttempt = false,
+                ClarificationQuestion = "Mujhe samajh nahi aaya 🤔 Kya aap:",
+                ClarificationOptions = { "Naya order add karna chahte hain", "Kisi order ka status update karna chahte hain" }
+            });
+
+        await engine.HandleIncomingMessageAsync(Phone, "wo waala order kal tak bhej dena", default);
+
+        var rows = sent!.SelectMany(s => s.Rows).ToList();
+        Assert.Equal(new[] { "1", "2", "menu" }, rows.Select(r => r.Id));
+        Assert.All(rows, r => Assert.True(r.Title.Length <= 24, r.Title));
+
+        await engine.HandleIncomingMessageAsync(Phone, "2", default); // the tapped row arrives as its id
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sentMessages, m => m.Contains("mark 3 shipped"));
+    }
+
+    [Fact]
+    public async Task DescribedNewDiscount_AiCreateDiscountIntent_StartsDiscountFlow()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "create_discount" });
+
+        await engine.HandleIncomingMessageAsync(Phone, "ye ek naya discount hai jo ke product ke liye istemal hoga.", default);
+
+        Assert.Equal(ConversationState.AwaitingDiscountDetails, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sentMessages, m => m.Contains("create discount: EID10"));
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("sirf orders/sales"));
+    }
+
+    [Fact]
+    public void KeywordClarificationOptions_AreAllRunnableCommands()
+    {
+        foreach (var area in ConversationEngine.CommandKeywordAreas)
+            foreach (var option in area.Options)
+                Assert.True(CommandParser.TryParse(option) is not null, $"\"{option}\" is not a parseable command");
+    }
+
+    [Theory]
+    [InlineData("ye ek naya discount hai jo ke product ke liye istemal hoga.", "Discount")]
+    [InlineData("kharcha ka kuch karna hai", "Kharche")]
+    [InlineData("mera stock kitna hai", "Stock")]
+    [InlineData("ڈسکاؤنٹ کے بارے میں", "Discount")]
+    public void TryKeywordClarification_PicksTheFeatureNamed(string text, string questionFragment)
+    {
+        Assert.True(ConversationEngine.TryKeywordClarification(text, out var question, out var options));
+        Assert.Contains(questionFragment, question);
+        Assert.NotEmpty(options);
+    }
+
+    [Fact]
+    public void TryKeywordClarification_SmallTalk_HasNoMatch() =>
+        Assert.False(ConversationEngine.TryKeywordClarification("bohat thak gayi hoon aaj", out _, out _));
+
+    [Fact]
+    public async Task VoiceStyleSentenceWithFeatureKeyword_AsksWhichCommand_ThenRunsThePickedOne()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "off_topic" });
+        IReadOnlyList<string>? buttons = null;
+        _sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, body, b, _) => { _sentMessages.Add(body); buttons = b; })
+            .Returns(Task.CompletedTask);
+
+        await engine.HandleIncomingMessageAsync(Phone, "ye ek naya discount hai jo ke product ke liye istemal hoga.", default);
+
+        Assert.Equal(ConversationState.AwaitingClarificationChoice, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sentMessages, m => m.Contains("Discount ke baare mein"));
+        Assert.Equal(new[] { "create discount", "discount list", "discount performance" }, buttons); // one tap each, no typing
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("sirf orders/sales"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "create discount", default); // the tapped button arrives as its label
+
+        Assert.Equal(ConversationState.AwaitingDiscountDetails, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sentMessages, m => m.Contains("create discount: EID10"));
     }
 
     [Fact]
@@ -418,6 +526,47 @@ public class ConversationEngineTests : IDisposable
         Assert.Single(shipped);
         Assert.Equal(pendingIds[1], shipped[0].Id);
         Assert.Contains(_sentMessages, m => m.Contains("last list"));
+    }
+
+    [Fact]
+    public async Task StatusPicker_ListsTheStatusesAnOrderCanMoveTo_AsRunnableRows()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var pendingIds = await SeedTwoPendingOrdersAsync(db);
+        var engine = CreateEngine(db);
+        string? body = null;
+        IReadOnlyList<MenuSection>? sent = null;
+        _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, text, _, sections, _) => { body = text; sent = sections; })
+            .Returns(Task.CompletedTask);
+        var id = pendingIds[0];
+
+        await engine.HandleIncomingMessageAsync(Phone, $"status {id}", default);
+
+        var rows = sent!.SelectMany(s => s.Rows).ToList();
+        Assert.Contains($"Order #{id}", body);
+        Assert.Contains(rows, r => r.Id == $"mark {id} shipped");
+        Assert.Contains(rows, r => r.Id == $"mark {id} delivered");
+        Assert.Contains(rows, r => r.Id == $"cancel order {id}");
+        Assert.DoesNotContain(rows, r => r.Id == $"mark {id} returned"); // a pending order was never sent out
+        Assert.All(rows, r => Assert.NotNull(CommandParser.TryParse(r.Id)));
+        Assert.All(rows, r => Assert.True(r.Title.Length <= 24, r.Title));
+    }
+
+    [Fact]
+    public async Task StatusPicker_ForACancelledOrder_SaysItCannotChange()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var pendingIds = await SeedTwoPendingOrdersAsync(db);
+        (await db.Orders.FirstAsync(o => o.Id == pendingIds[0])).Status = OrderStatus.Cancelled;
+        await db.SaveChangesAsync();
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, $"status {pendingIds[0]}", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("CANCELLED") && m.Contains("change nahi ho sakta"));
     }
 
     [Fact]
@@ -1869,6 +2018,223 @@ public class ConversationEngineTests : IDisposable
 
         var product = await db.Products.SingleAsync(p => p.Name == "Sharara");
         Assert.Equal(4200m, product.Price);
+    }
+
+    // ---- "for how long": every report takes any period ----
+
+    private async Task<OrderTrackerBot.Domain.Entities.Order> SeedOrderAsync(AppDbContext db, string customerName, double daysAgo, decimal total = 1000m,
+        OrderStatus status = OrderStatus.Delivered, string? discountCode = null, decimal discount = 0m, DateTime? deliveryDate = null)
+    {
+        var seller = await db.Sellers.FirstAsync();
+        var customer = await db.Customers.FirstOrDefaultAsync(c => c.SellerId == seller.Id && c.Name == customerName);
+        if (customer is null)
+        {
+            customer = new OrderTrackerBot.Domain.Entities.Customer { SellerId = seller.Id, Name = customerName, Phone = "0300" + Math.Abs(customerName.GetHashCode() % 10000000).ToString("D7") };
+            db.Customers.Add(customer);
+            await db.SaveChangesAsync();
+        }
+
+        var order = new OrderTrackerBot.Domain.Entities.Order
+        {
+            SellerId = seller.Id, CustomerId = customer.Id, Status = status, PaymentStatus = PaymentStatus.Unpaid, Total = total,
+            DiscountCode = discountCode, DiscountAmount = discount, DeliveryDate = deliveryDate,
+            CreatedAt = DateTime.UtcNow.AddDays(-daysAgo)
+        };
+        db.Orders.Add(order);
+        await db.SaveChangesAsync();
+        return order;
+    }
+
+    [Theory]
+    [InlineData("orders last 7 days")]
+    [InlineData("pichle 7 din ke orders")]
+    [InlineData("آرڈرز پچھلے 7 دن")]
+    [InlineData("orders 7 din")]
+    public async Task OrdersForLastNDays_ListsOnlyOrdersInsideTheWindow(string message)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        await SeedOrderAsync(db, "Ayesha", daysAgo: 2);
+        await SeedOrderAsync(db, "Bilal", daysAgo: 40);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, message, default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Ayesha") && !m.Contains("Bilal"));
+    }
+
+    [Fact]
+    public async Task OrdersForALongerWindow_IncludeOlderOrders_ButNotOlderThanThat()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        await SeedOrderAsync(db, "Ayesha", daysAgo: 2);
+        await SeedOrderAsync(db, "Bilal", daysAgo: 40);
+        await SeedOrderAsync(db, "Chand", daysAgo: 400);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "orders last 90 days", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Ayesha") && m.Contains("Bilal") && !m.Contains("Chand") && m.Contains("Last 90 days"));
+    }
+
+    [Fact]
+    public async Task OrdersTomorrow_ListsWhatIsDueForDeliveryThen_NotOrdersPlacedThen()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var seller = await db.Sellers.FirstAsync();
+        var tomorrowNoon = SellerClock.LocalToUtc(seller.TimeZoneId, SellerClock.LocalToday(seller.TimeZoneId, DateTime.UtcNow).AddDays(1).AddHours(12));
+        await SeedOrderAsync(db, "Ayesha", daysAgo: 1, status: OrderStatus.Pending, deliveryDate: tomorrowNoon);
+        await SeedOrderAsync(db, "Bilal", daysAgo: 1, status: OrderStatus.Delivered, deliveryDate: tomorrowNoon);
+        await SeedOrderAsync(db, "Chand", daysAgo: 1, status: OrderStatus.Pending);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "orders tomorrow", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Delivery due") && m.Contains("Ayesha") && !m.Contains("Bilal") && !m.Contains("Chand"));
+    }
+
+    [Fact]
+    public async Task OrdersForAPeriodWithNoOrders_SaysSoByName()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "orders last year", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Last year") && m.Contains("koi order nahi"));
+    }
+
+    [Fact]
+    public async Task CustomersForAPeriod_RanksThoseWhoOrderedThen_BySpend()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        await SeedOrderAsync(db, "Ayesha", daysAgo: 2, total: 500);
+        await SeedOrderAsync(db, "Ayesha", daysAgo: 3, total: 700);
+        await SeedOrderAsync(db, "Bilal", daysAgo: 1, total: 3000);
+        await SeedOrderAsync(db, "Chand", daysAgo: 40, total: 9000);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "pichle hafte ke customers", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Last week") || m.Contains("Last"));
+        await engine.HandleIncomingMessageAsync(Phone, "customers last 7 days", default);
+        var reply = _sentMessages.Last();
+        Assert.Contains("Ayesha", reply);
+        Assert.Contains("2 orders", reply);
+        Assert.DoesNotContain("Chand", reply);
+        Assert.True(reply.IndexOf("Bilal", StringComparison.Ordinal) < reply.IndexOf("Ayesha", StringComparison.Ordinal), reply); // 3000 beats 1200
+    }
+
+    [Fact]
+    public async Task DiscountPerformance_CanBeLimitedToAPeriod()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        await SeedOrderAsync(db, "Ayesha", daysAgo: 2, total: 900, discountCode: "EID10", discount: 100);
+        await SeedOrderAsync(db, "Bilal", daysAgo: 40, total: 900, discountCode: "EID10", discount: 100);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "discounts last 7 days", default);
+        Assert.Contains(_sentMessages, m => m.Contains("Discount Performance — Last 7 days") && m.Contains("EID10") && m.Contains("1 orders"));
+
+        _sentMessages.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "discount report last 90 days", default);
+        Assert.Contains(_sentMessages, m => m.Contains("EID10") && m.Contains("2 orders"));
+    }
+
+    [Theory]
+    [InlineData("profit last quarter", "last quarter")]
+    [InlineData("expenses last week", "last week")]
+    [InlineData("net last quarter", "last quarter")]
+    [InlineData("summary last year", "Last year")]
+    public async Task OtherReports_AcceptAPeriod_AndNameItInTheReply(string message, string label)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, message, default);
+
+        Assert.Contains(_sentMessages, m => m.Contains(label, StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("Samajh nahi aaya"));
+    }
+
+    [Theory]
+    [InlineData("create discount: EID10, 10 percent, expires 2 weeks", 14)]
+    [InlineData("create discount: EID10, 10 percent, expires 2 hafte", 14)]
+    [InlineData("create discount: EID10, 10 percent, expires 15 days", 15)]
+    [InlineData("create discount: EID10, Rs.50 flat, expires 1 month", 30)]
+    public async Task CreateDiscount_ExpiryDurations(string message, int approxDays)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, message, default);
+
+        var discount = await db.Discounts.SingleAsync();
+        Assert.InRange((discount.ExpiresAt!.Value - DateTime.UtcNow).TotalDays, approxDays - 2, approxDays + 1);
+    }
+
+    [Fact]
+    public async Task CreateDiscount_ExpiryDate_ExpiresAtTheEndOfThatDay()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "create discount: NEWYEAR, 20 percent, expires 31 Dec", default);
+
+        var expires = (await db.Discounts.SingleAsync()).ExpiresAt!.Value;
+        var seller = await db.Sellers.FirstAsync();
+        var local = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(expires, DateTimeKind.Utc), SellerClock.Resolve(seller.TimeZoneId));
+        Assert.Equal(new DateTime(local.Year, 1, 1, 0, 0, 0), local); // midnight after 31 Dec
+        Assert.Equal(1, local.Day);
+    }
+
+    [Fact]
+    public async Task CreateDiscount_ExpiryNotUnderstood_CreatesNothingAndShowsExamples()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "create discount: EID10, 10 percent, expires someday", default);
+
+        Assert.Empty(await db.Discounts.ToListAsync());
+        Assert.Contains(_sentMessages, m => m.Contains("Expiry samajh nahi aayi") && m.Contains("expires 2 weeks"));
+    }
+
+    [Fact]
+    public async Task TrendingProducts_CustomPeriod_AcceptsAnyPeriodPhrase()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "trending products", default);
+        await engine.HandleIncomingMessageAsync(Phone, "custom", default);
+        Assert.Equal(ConversationState.AwaitingCustomDateRange, (await db.Sessions.FirstAsync()).State);
+        await engine.HandleIncomingMessageAsync(Phone, "pichle 3 mahine", default);
+
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("samajh nahi aayi"));
+    }
+
+    [Fact]
+    public async Task TrendingProducts_WithAPeriodInTheCommand_SkipsTheQuestion()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "trending products last quarter", default);
+
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
     }
 
     public void Dispose() => _dbFactory.Dispose();
