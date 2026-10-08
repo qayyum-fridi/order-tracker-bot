@@ -81,6 +81,17 @@ public class SellerBranding
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }
 
+/// <summary>A business cost the seller logged ("expense 500 packaging"). Category is the first word of the note, lower-cased, so the monthly net can group them.</summary>
+public class Expense
+{
+    public int Id { get; set; }
+    public int SellerId { get; set; }
+    public decimal Amount { get; set; }
+    public required string Category { get; set; }
+    public string? Note { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
 public class Customer
 {
     public int Id { get; set; }

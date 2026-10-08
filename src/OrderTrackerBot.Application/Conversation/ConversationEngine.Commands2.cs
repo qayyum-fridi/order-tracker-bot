@@ -149,6 +149,9 @@ public partial class ConversationEngine
             case ActionType.CustomerUpdated:
                 await UndoCustomerUpdateAsync(seller, last, ct);
                 return;
+            case ActionType.ExpenseAdded:
+                await UndoExpenseAsync(seller, last, ct);
+                return;
             case ActionType.ProductPriceChanged:
             {
                 using var doc = JsonDocument.Parse(last.PayloadJson);
@@ -418,6 +421,7 @@ public partial class ConversationEngine
         _db.MerchantFeedbacks.RemoveRange(await _db.MerchantFeedbacks.Where(f => f.SellerId == seller.Id).ToListAsync(ct));
         _db.CustomerFeedbacks.RemoveRange(await _db.CustomerFeedbacks.Where(f => f.SellerId == seller.Id).ToListAsync(ct));
         _db.SellerBrandings.RemoveRange(await _db.SellerBrandings.Where(b => b.SellerId == seller.Id).ToListAsync(ct));
+        _db.Expenses.RemoveRange(await _db.Expenses.Where(x => x.SellerId == seller.Id).ToListAsync(ct));
 
         seller.BusinessName = null;
         seller.City = null;

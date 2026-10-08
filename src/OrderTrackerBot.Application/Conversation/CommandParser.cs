@@ -70,6 +70,9 @@ public enum CommandKind
     EditOrder,
     OrderDetail,
     Stock,
+    Expense,
+    ExpenseList,
+    MonthlyNet,
     CustomerUpdate,
     OrderPayment,
     OrderDeliveryCharge,
@@ -360,6 +363,34 @@ public static class CommandParser
         ("yesterday", new(NotLetter + @"(?:yesterday|kal|کل)" + NotLetterAfter, Opts)),
         ("today", new(NotLetter + @"(?:today|aaj|آج)" + NotLetterAfter, Opts)),
     };
+
+    // Expenses: "expense 500 packaging", "kharcha Rs 1,200 rent", "expense packaging 500". Text = note (may be empty), Amount = value.
+    private const string ExpenseWord = @"(?:expenses?|kharcha|kharch|kharcay|خرچہ|خرچ)";
+    private const string ExpenseAmount = @"(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d{1,2})?)";
+    private static readonly Regex ExpenseAmountFirst = new(@"^" + ExpenseWord + @"\s*:?\s*" + ExpenseAmount + @"(?:\s+(?<note>.+))?$", Opts);
+    private static readonly Regex ExpenseNoteFirst = new(@"^" + ExpenseWord + @"\s*:?\s*(?<note>[^\d].*?)\s+" + ExpenseAmount + @"$", Opts);
+    // "expenses", "expenses today|last month|this month" -> list. Text = "today" | "month" | "lastmonth".
+    private static readonly Regex ExpenseListLead = new(@"^(?:expenses?|kharche|kharcha|اخراجات)(?:\s+(?<p>today|aaj|آج|this\s+month|month|is\s+mahine|last\s+month|pichle\s+mahine|pichla\s+mah(?:ina)?))?$", Opts);
+    // "monthly net", "net", "is mahine ka net", "last month net".
+    private static readonly Regex MonthlyNetLead = new(@"^(?:(?:monthly|month|mahana|mahaana)\s+net|net|is\s+mahine\s+ka\s+net|ماہانہ\s+نیٹ)(?:\s+(?<last>last\s+month|pichle\s+mahine|pichla\s+mah(?:ina)?))?$|^(?<last>last\s+month|pichle\s+mahine\s+ka)\s+net$", Opts);
+
+    private static ParsedCommand? TryParseExpense(string message)
+    {
+        var m = ExpenseAmountFirst.Match(message);
+        if (!m.Success) m = ExpenseNoteFirst.Match(message);
+        if (m.Success && decimal.TryParse(m.Groups["a"].Value.Replace(",", ""), System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var amount))
+            return new ParsedCommand { Kind = CommandKind.Expense, Amount = amount, Text = m.Groups["note"].Success ? m.Groups["note"].Value.Trim() : "" };
+
+        if ((m = ExpenseListLead.Match(message)).Success)
+        {
+            var p = m.Groups["p"].Success ? m.Groups["p"].Value.ToLowerInvariant() : "";
+            var period = p.Contains("last") || p.StartsWith("pichl") ? "lastmonth" : p is "today" or "aaj" or "آج" ? "today" : "month";
+            return new ParsedCommand { Kind = CommandKind.ExpenseList, Text = period };
+        }
+        if ((m = MonthlyNetLead.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.MonthlyNet, Text = m.Groups["last"].Success ? "lastmonth" : "month" };
+        return null;
+    }
 
     public static ExportRequest ParseExportRequest(string? what)
     {
@@ -686,6 +717,7 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.PriceTiers, Text = m.Groups[1].Value.Trim(), Text2 = m.Groups[2].Value.Trim() };
         if (CampaignStatus.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CampaignStatus };
         if (DiscountPerformance.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DiscountPerformance };
+        if (TryParseExpense(message) is { } expense) return expense;
         if (StockList.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Stock };
         if ((m = StockOff.Match(message)).Success) return new ParsedCommand { Kind = CommandKind.Stock, Text = m.Groups["name"].Value.Trim(), Text2 = "off" };
         if ((m = StockSet.Match(message)).Success)

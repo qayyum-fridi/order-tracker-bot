@@ -26,6 +26,7 @@ public interface IAppDbContext
     DbSet<CommentLead> CommentLeads { get; }
     DbSet<SupportQuery> SupportQueries { get; }
     DbSet<SellerBranding> SellerBrandings { get; }
+    DbSet<Expense> Expenses { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

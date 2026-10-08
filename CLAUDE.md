@@ -182,6 +182,12 @@ shared-state action: confirm with the user and get SSH/host details first.
   returned, edit, undo of any of these) applies `StockFootprint(after) - StockFootprint(before)` — add that call around any new place that
   changes an order's items or status. Stock can go negative (oversold). Low/out-of-stock warnings (≤3) are collected per turn and sent once
   after the reply (`FlushStockWarningsAsync`).
+- Expenses (`ConversationEngine.Expenses.cs`): "expense 500 packaging" / "kharcha 800 petrol" / "expense packaging 500" saves an `Expense`
+  (category = first word of the note, lower-cased; `ActionType.ExpenseAdded`, so one "undo" removes it); "expenses [today|last month]" lists them;
+  "monthly net" / "net" / "last month net" = sales (non-cancelled, non-returned orders created in the seller's calendar month, delivery included)
+  minus expenses, plus the top 3 categories. Net does NOT subtract product cost — that is the separate "profit" report (hint line points to it).
+  No edit/delete of a single expense yet (undo only, while it is the last action); not in `export` yet. `Expenses` is its own table, created on
+  Sqlite by the patcher — **no SQL Server migration yet, generate one**. `reset account` deletes expenses.
 - Voice notes (ported from PR #9): `HandleAudioMessageAsync` downloads the audio, `OpenAiAudioTranscriber` (`OpenAi:TranscriptionModel`,
   default `gpt-transcribe`, which gets the seller's names as `keywords[]` and `OpenAi:TranscriptionLanguages` (`ur`,`en`) as `languages[]`, retrying without them if the API answers 400; `whisper-1` is shut down by OpenAI on 2027-02-26 and still works via config with the names appended to the prompt, plus `TranscriptionPrompt` steering towards Roman Urdu/English and digits) transcribes it, the bot echoes
   "🎤 Maine suna: …" and handles the text exactly like a typed message. No API key -> the old "send it as text" reply; a failed

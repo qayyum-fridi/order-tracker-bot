@@ -30,6 +30,15 @@ public static class SellerClock
         return (LocalMidnightToUtc(tz, today.AddDays(dayOffset)), LocalMidnightToUtc(tz, today.AddDays(dayOffset + 1)));
     }
 
+    /// <summary>[start, end) of the current calendar month in the seller's local time.</summary>
+    public static (DateTime StartUtc, DateTime EndUtc) CurrentMonthRangeUtc(string? timeZoneId, DateTime utcNow)
+    {
+        var tz = Resolve(timeZoneId);
+        var today = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utcNow, DateTimeKind.Utc), tz).Date;
+        var thisMonth = new DateTime(today.Year, today.Month, 1);
+        return (LocalMidnightToUtc(tz, thisMonth), LocalMidnightToUtc(tz, thisMonth.AddMonths(1)));
+    }
+
     /// <summary>[start, end) of the previous calendar month in the seller's local time.</summary>
     public static (DateTime StartUtc, DateTime EndUtc) PreviousMonthRangeUtc(string? timeZoneId, DateTime utcNow)
     {

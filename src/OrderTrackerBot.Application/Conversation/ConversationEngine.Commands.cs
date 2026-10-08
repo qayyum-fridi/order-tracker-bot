@@ -28,6 +28,7 @@ public partial class ConversationEngine
         "• \"loyal customers\" / \"create discount\"\n" +
         "• \"Sara ka phone 0300...\" — customer update\n" +
         "• \"receipt 12\" — PDF · \"export\" — Excel\n" +
+        "• \"expense 500 packaging\" · \"monthly net\"\n" +
         "• \"support queries\" · \"change language\"\n" +
         "• \"undo\"\n" +
         "\n" +
@@ -48,6 +49,7 @@ public partial class ConversationEngine
         "\n" +
         "📊 Reports\n" +
         " • today's summary\n" +
+        " • monthly net / expenses\n" +
         " • trending products (custom dates bhi)\n" +
         " • slow movers\n" +
         " • [product] ka report\n" +
@@ -118,12 +120,13 @@ public partial class ConversationEngine
                 new MenuRow("unpaid orders", "Unpaid orders"), new MenuRow("cod pending", "COD pending"), new MenuRow("receipt", "Last order receipt (PDF)"), new MenuRow("edit order", "Last order edit"),
                 new MenuRow("new order (detailed)", "New order (form)"), BackToMenu
             }),
-            ["reports"] = ("📊 Reports", "📊 Reports\n Sales aur trends ek tap par.\n • [product] ka report — e.g. \"Lawn Suit ka report\"", new[]
+            ["reports"] = ("📊 Reports", "📊 Reports\n Sales aur trends ek tap par.\n • [product] ka report — e.g. \"Lawn Suit ka report\"\n • kharcha likhein: \"expense 500 packaging\"", new[]
             {
                 new MenuRow("today's summary", "Today's summary"), new MenuRow("trending products", "Trending products"),
                 new MenuRow("slow movers", "Slow movers"), new MenuRow("loyal customers", "Loyal customers"),
                 new MenuRow("customer feedback", "Customer feedback"), new MenuRow("weekly summary", "Weekly summary"),
-                new MenuRow("discount performance", "Discount performance"), BackToMenu
+                new MenuRow("discount performance", "Discount performance"),
+                new MenuRow("monthly net", "Monthly net"), new MenuRow("expenses", "Expenses"), BackToMenu
             }),
             ["catalog"] = ("🛍️ Catalog", "🛍️ Catalog\n • naya product: Kurti - 1800\n • stock: \"stock Kurti 20\" / \"stock\"\n • weight/pack: Sugar 5 kg - 500\n • edit product: Kurti - 1900\n • delete product: Kurti\n • wholesale: Kaju - price tiers: 1kg=320, 10kg=300\n • ek saath kai products bhi bhej saktay hain", new[]
             {
@@ -212,6 +215,15 @@ public partial class ConversationEngine
                 return;
             case CommandKind.Stock:
                 await HandleStockAsync(seller, cmd, ct);
+                return;
+            case CommandKind.Expense:
+                await HandleExpenseAsync(seller, cmd, ct);
+                return;
+            case CommandKind.ExpenseList:
+                await HandleExpenseListAsync(seller, cmd.Text, ct);
+                return;
+            case CommandKind.MonthlyNet:
+                await HandleMonthlyNetAsync(seller, cmd.Text, ct);
                 return;
             case CommandKind.OrderDetail:
                 await HandleOrderDetailAsync(seller, ctx, cmd.Number!.Value, ct);

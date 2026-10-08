@@ -29,6 +29,7 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<CommentLead> CommentLeads => Set<CommentLead>();
     public DbSet<SupportQuery> SupportQueries => Set<SupportQuery>();
     public DbSet<SellerBranding> SellerBrandings => Set<SellerBranding>();
+    public DbSet<Expense> Expenses => Set<Expense>();
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -131,5 +132,6 @@ public class AppDbContext : DbContext, IAppDbContext
         });
         modelBuilder.Entity<SupportQuery>(e => e.HasIndex(q => new { q.SellerId, q.Number }));
         modelBuilder.Entity<SellerBranding>(e => e.HasIndex(b => b.SellerId).IsUnique());
+        modelBuilder.Entity<Expense>(e => e.HasIndex(x => new { x.SellerId, x.CreatedAt }));
     }
 }
