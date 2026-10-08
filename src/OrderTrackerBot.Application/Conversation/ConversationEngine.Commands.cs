@@ -240,6 +240,12 @@ public partial class ConversationEngine
             case CommandKind.OrderDeliveryCharge:
                 await HandleOrderDeliveryChargeAsync(seller, ctx, cmd.Number!.Value, cmd.Amount ?? 0, ct);
                 return;
+            case CommandKind.TaxSettings:
+                await HandleTaxSettingsAsync(seller, cmd, ct);
+                return;
+            case CommandKind.OrderTaxWithheld:
+                await HandleOrderTaxWithheldAsync(seller, ctx, cmd.Number!.Value, cmd.Amount ?? 0, ct);
+                return;
             case CommandKind.Shortcuts:
                 await HandleShortcutsToggleAsync(seller, ctx, cmd.Text!, ct);
                 return;
@@ -502,6 +508,8 @@ public partial class ConversationEngine
         var cod = orders.Where(o => o.PaymentMethod == OrderPaymentMethod.Cod).Sum(OrderMoney.Received);
         var prepaid = orders.Where(o => o.PaymentMethod != OrderPaymentMethod.Cod).Sum(OrderMoney.Received);
         var totalSales = orders.Sum(o => o.Total);
+        var salesTax = orders.Sum(o => SalesTax.Amount(o));
+        var withheld = orders.Sum(o => o.TaxWithheld);
         var returned = await _db.Orders.CountAsync(o => o.SellerId == seller.Id && o.Status == OrderStatus.Returned
             && o.ReturnedAt >= start && o.ReturnedAt < end, ct);
 
@@ -512,8 +520,10 @@ public partial class ConversationEngine
             (returned > 0 ? $"Returned: {returned}\n" : "") +
             $"Cash collected (COD): {Formatters.Money(cod)}\n" +
             $"Prepaid received: {Formatters.Money(prepaid)}\n" +
-            $"Total sales {(period is null ? "today" : label.Replace("'s", "").ToLowerInvariant())}: {Formatters.Money(totalSales)}\n\n" +
-            "Sab theek lag raha hai ✅", ct);
+            $"Total sales {(period is null ? "today" : label.Replace("'s", "").ToLowerInvariant())}: {Formatters.Money(totalSales)}\n" +
+            (salesTax > 0 ? $"Sales tax included: {Formatters.Money(salesTax)}\n" : "") +
+            (withheld > 0 ? $"Tax withheld by courier/gateway: {Formatters.Money(withheld)} → net after withholding {Formatters.Money(totalSales - withheld)}\n" : "") +
+            "\nSab theek lag raha hai ✅", ct);
     }
 
     private async Task HandleCatalogAsync(Seller seller, CancellationToken ct)

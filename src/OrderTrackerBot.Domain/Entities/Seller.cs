@@ -17,6 +17,12 @@ public class Seller
     public string? InstagramHandle { get; set; }
     /// <summary>Delivery charge added to every new order unless changed on that order ("delivery 200" sets it, "free delivery" clears it).</summary>
     public decimal DefaultDeliveryCharge { get; set; }
+    /// <summary>National Tax Number printed on receipts (optional; online sellers need one to use couriers/marketplaces).</summary>
+    public string? Ntn { get; set; }
+    /// <summary>Sales Tax Registration Number; only sales-tax-registered sellers may issue a tax invoice.</summary>
+    public string? Strn { get; set; }
+    /// <summary>Percent of sales tax included in the seller's prices (e.g. 18). 0 = not charging sales tax, receipts stay plain receipts.</summary>
+    public decimal SalesTaxRate { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>Free trial end; null until onboarding completes (trial starts then).</summary>

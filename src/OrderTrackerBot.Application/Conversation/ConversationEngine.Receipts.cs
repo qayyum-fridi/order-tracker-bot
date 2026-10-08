@@ -53,6 +53,11 @@ public partial class ConversationEngine
 
         var branding = await _db.SellerBrandings.AsNoTracking().FirstOrDefaultAsync(b => b.SellerId == seller.Id, ct);
         var tz = SellerClock.Resolve(seller.TimeZoneId);
+
+        // Invoices are serially numbered per seller; the number is given the first time one is issued and kept on re-sends.
+        var numberIsNew = order.ReceiptNumber is null;
+        if (numberIsNew)
+            order.ReceiptNumber = (await _db.Orders.Where(o => o.SellerId == seller.Id).MaxAsync(o => o.ReceiptNumber, ct) ?? 0) + 1;
         var pdf = _receiptPdf.Generate(new ReceiptData(
             order.Id,
             TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(order.CreatedAt, DateTimeKind.Utc), tz),
@@ -64,12 +69,15 @@ public partial class ConversationEngine
             order.Subtotal, order.DiscountAmount, order.DiscountCode, order.Total,
             order.PaymentMethod switch { OrderPaymentMethod.Cod => "Cash on delivery", OrderPaymentMethod.Manual => "Bank / wallet transfer", OrderPaymentMethod.Gateway => "Online payment", _ => "Not specified" },
             order.PaymentStatus == PaymentStatus.Paid, Formatters.Status(order.Status),
-            order.TrackingCourier, order.TrackingNumber, payTo, Logo: branding?.Logo, Banner: branding?.Banner, DeliveryCharge: order.DeliveryCharge, AmountPaid: OrderMoney.Received(order)));
+            order.TrackingCourier, order.TrackingNumber, payTo, Logo: branding?.Logo, Banner: branding?.Banner, DeliveryCharge: order.DeliveryCharge, AmountPaid: OrderMoney.Received(order),
+            ReceiptNumber: order.ReceiptNumber, Ntn: seller.Ntn, Strn: seller.Strn,
+            SalesTaxRate: order.SalesTaxRate, SalesTaxAmount: SalesTax.Amount(order)));
 
         var sent = await _sender.SendDocumentAsync(seller.WhatsAppPhoneNumber, pdf, $"Receipt-{order.Id}.pdf", "application/pdf",
-            $"🧾 Receipt #{order.Id} — {order.Customer?.Name}, {Formatters.Money(order.Total)}", ct);
+            $"🧾 {(order.SalesTaxRate > 0 ? "Tax invoice" : "Receipt")} No. {order.ReceiptNumber} (Order #{order.Id}) — {order.Customer?.Name}, {Formatters.Money(order.Total)}", ct);
         if (!sent)
         {
+            if (numberIsNew) order.ReceiptNumber = null; // never burn a serial number on a receipt the seller didn't get
             await ReplyAsync(seller, "⚠️ Receipt PDF bhej nahi saka — thori der baad dobara try karein.", ct);
             return;
         }

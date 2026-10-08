@@ -96,6 +96,8 @@ public partial class ConversationEngine
             $"Delivered: {orders.Count(o => o.Status == OrderStatus.Delivered)} | Pending: {orders.Count(o => o.Status == OrderStatus.Pending)} | " +
             $"Cancelled: {orders.Count(o => o.Status == OrderStatus.Cancelled)} | Returned: {orders.Count(o => o.Status == OrderStatus.Returned)}\n" +
             (top is null ? "" : $"Top product: {top.Name} ({top.Orders} orders)\n") +
-            $"Total sales: {Formatters.Money(active.Sum(o => o.Total))}\n\nKeep it up! 🎉", ct);
+            $"Total sales: {Formatters.Money(active.Sum(o => o.Total))}\n" +
+            (active.Sum(o => o.TaxWithheld) is > 0 and var withheld ? $"Tax withheld by courier/gateway: {Formatters.Money(withheld)}\n" : "") +
+            "\nKeep it up! 🎉", ct);
     }
 }

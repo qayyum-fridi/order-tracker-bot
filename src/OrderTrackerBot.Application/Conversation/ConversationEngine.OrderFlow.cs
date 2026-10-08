@@ -627,7 +627,8 @@ public partial class ConversationEngine
             Subtotal = pending.Subtotal,
             DiscountAmount = pending.DiscountAmount,
             DeliveryCharge = pending.DeliveryCharge ?? seller.DefaultDeliveryCharge,
-            Total = OrderTotal(pending.Subtotal, pending.DiscountAmount, pending.DeliveryCharge ?? seller.DefaultDeliveryCharge)
+            Total = OrderTotal(pending.Subtotal, pending.DiscountAmount, pending.DeliveryCharge ?? seller.DefaultDeliveryCharge),
+            SalesTaxRate = seller.SalesTaxRate
         };
         if (pending.AdvancePaid is > 0 and var advance)
         {

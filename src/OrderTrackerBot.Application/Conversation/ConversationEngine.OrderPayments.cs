@@ -31,6 +31,9 @@ public partial class ConversationEngine
         if (order.DiscountAmount > 0) lines.Add($"Discount{(order.DiscountCode is null ? "" : $" ({order.DiscountCode})")}: -{Formatters.Money(order.DiscountAmount)}");
         if (order.DeliveryCharge > 0) lines.Add($"Delivery: {Formatters.Money(order.DeliveryCharge)}");
         lines.Add($"Total: {Formatters.Money(order.Total)}");
+        if (order.SalesTaxRate > 0) lines.Add($"Sales tax ({SalesTax.Percent(order.SalesTaxRate)}% shamil): {Formatters.Money(SalesTax.Amount(order))}");
+        if (order.TaxWithheld > 0) lines.Add($"Tax withheld: {Formatters.Money(order.TaxWithheld)} → aap ko milenge {Formatters.Money(SalesTax.NetOfWithheld(order))}");
+        if (order.ReceiptNumber is { } receiptNo) lines.Add($"🧾 {(order.SalesTaxRate > 0 ? "Invoice" : "Receipt")} No. {receiptNo}");
         lines.Add($"💰 {PaymentLabel(order.PaymentMethod, null)} — {OrderMoney.State(order)}");
         if (!string.IsNullOrWhiteSpace(order.TrackingNumber)) lines.Add($"🚚 {order.TrackingCourier} {order.TrackingNumber}".TrimEnd());
         lines.Add($"🗓️ {placed:dd MMM yyyy, hh:mm tt}" + (string.IsNullOrWhiteSpace(order.OrderSource) ? "" : $" · {Formatters.SourceLabel(order.OrderSource)}"));

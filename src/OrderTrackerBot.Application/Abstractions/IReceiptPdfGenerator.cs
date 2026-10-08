@@ -27,7 +27,12 @@ public sealed record ReceiptData(
     byte[]? Logo = null,
     byte[]? Banner = null,
     decimal DeliveryCharge = 0,
-    decimal AmountPaid = 0);
+    decimal AmountPaid = 0,
+    int? ReceiptNumber = null,
+    string? Ntn = null,
+    string? Strn = null,
+    decimal SalesTaxRate = 0,
+    decimal SalesTaxAmount = 0);
 
 public interface IReceiptPdfGenerator
 {

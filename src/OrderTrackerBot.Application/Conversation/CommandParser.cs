@@ -76,6 +76,8 @@ public enum CommandKind
     CustomerUpdate,
     OrderPayment,
     OrderDeliveryCharge,
+    TaxSettings,
+    OrderTaxWithheld,
     RemoveBranding,
     DiscountPerformance,
     NewOrderHelp,
@@ -190,6 +192,14 @@ public static class CommandParser
     private static readonly Regex DeliveryFree = new(@"^(?:free\s+delivery|delivery\s+free|no\s+delivery(?:\s+charges?)?|delivery\s+(?:charges?\s+)?(?:nahi|none|off)|فری\s+ڈیلیوری)$", Opts);
     private static readonly Regex DeliveryShow = new(@"^(?:my\s+)?" + DeliveryWord + "$", Opts);
     private static readonly Regex OrderDelivery = new(@"^(?:order|آرڈر)?\s*#?(?<id>\d+)\s+" + DeliveryWord + @"\s*[:=-]?\s*(?:rs\.?\s*)?(?<n>\d{1,6}|free|0)$|^(?:order|آرڈر)\s*#?(?<id>\d+)\s+free\s+delivery$", Opts);
+
+    // Tax setup: "ntn 1234567-8" / "strn 17-00-8888-001-37" / "sales tax 18" / "sales tax off"; with no value they show the current one,
+    // "tax" shows all three. Text = ntn|strn|rate|show, Text2 = the value ("off" clears; "set" for a rate), Amount = the rate.
+    private static readonly Regex TaxId = new(@"^(?:my\s+)?(?<k>ntn|strn)(?:\s*[:=#-]?\s*(?<v>\d[\d\- ]{5,24}\d|off|remove|none|nahi|hata\s*do))?$", Opts);
+    private static readonly Regex SalesTaxRate = new(@"^(?:sales\s+tax|gst|سیلز\s+ٹیکس)(?:\s+rate)?\s*[:=-]?\s*(?:(?<n>\d{1,2}(?:\.\d{1,2})?)\s*%?|(?<off>off|none|nahi|remove|hata\s*do))?$", Opts);
+    private static readonly Regex TaxShow = new(@"^(?:my\s+)?(?:taxes|tax(?:\s+(?:settings?|setup|info))?)$", Opts);
+    // Income tax a courier / payment gateway held back from a payout: "order 12 withheld 120" / "12 wht 120" / "order 12 tax withheld 0".
+    private static readonly Regex OrderTaxWithheld = new(@"^(?:order|آرڈر)?\s*#?(?<id>\d+)\s+(?:tax\s+)?(?:withheld|withholding|wht|katauti|kata)\s*:?\s*(?:rs\.?\s*)?(?<a>\d+(?:\.\d+)?)(?:\s*(?:rs|rupees?|روپے))?$", Opts);
 
     // "Sara ka phone 0300..." / "Sara ka address House 5" / "customer Sara city Lahore" / "customer Sara name Sara Khan".
     // Text = who, Text2 = phone|address|city|name, Text3 = the new value. Questions ("Sara ka phone kya hai") are left alone.
@@ -739,6 +749,18 @@ public static class CommandParser
                 Kind = CommandKind.OrderDeliveryCharge, Number = int.Parse(m.Groups["id"].Value),
                 Amount = m.Groups["n"].Success && m.Groups["n"].Value != "free" ? decimal.Parse(m.Groups["n"].Value) : 0
             };
+        if ((m = OrderTaxWithheld.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.OrderTaxWithheld, Number = int.Parse(m.Groups["id"].Value),
+                Amount = decimal.Parse(m.Groups["a"].Value, System.Globalization.CultureInfo.InvariantCulture) };
+        if ((m = TaxId.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.TaxSettings, Text = m.Groups["k"].Value.ToLowerInvariant(), Text2 = m.Groups["v"].Success ? m.Groups["v"].Value.Trim() : null };
+        if ((m = SalesTaxRate.Match(message)).Success)
+            return new ParsedCommand
+            {
+                Kind = CommandKind.TaxSettings, Text = "rate", Text2 = m.Groups["n"].Success ? "set" : m.Groups["off"].Success ? "off" : null,
+                Amount = m.Groups["n"].Success ? decimal.Parse(m.Groups["n"].Value, System.Globalization.CultureInfo.InvariantCulture) : null
+            };
+        if (TaxShow.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.TaxSettings, Text = "show" };
         if (TryParseDeliveryAmount(message, out var deliveryAmount))
             return new ParsedCommand { Kind = CommandKind.DeliveryCharge, Amount = deliveryAmount };
         if (DeliveryShow.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DeliveryCharge };

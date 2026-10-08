@@ -47,6 +47,9 @@ public class AppDbContext : DbContext, IAppDbContext
             e.HasIndex(s => s.WhatsAppPhoneNumber).IsUnique();
             e.Property(s => s.BusinessName).HasMaxLength(200);
             e.Property(s => s.DefaultDeliveryCharge).HasColumnType("decimal(18,2)");
+            e.Property(s => s.SalesTaxRate).HasColumnType("decimal(5,2)");
+            e.Property(s => s.Ntn).HasMaxLength(30);
+            e.Property(s => s.Strn).HasMaxLength(30);
             e.HasOne(s => s.Session).WithOne(cs => cs.Seller!)
                 .HasForeignKey<ConversationSession>(cs => cs.SellerId).OnDelete(DeleteBehavior.Cascade);
         });
@@ -72,6 +75,9 @@ public class AppDbContext : DbContext, IAppDbContext
             e.Property(o => o.DeliveryCharge).HasColumnType("decimal(18,2)");
             e.Property(o => o.AmountPaid).HasColumnType("decimal(18,2)");
             e.Property(o => o.Total).HasColumnType("decimal(18,2)");
+            e.Property(o => o.SalesTaxRate).HasColumnType("decimal(5,2)");
+            e.Property(o => o.TaxWithheld).HasColumnType("decimal(18,2)");
+            e.HasIndex(o => new { o.SellerId, o.ReceiptNumber }).IsUnique();
             e.HasOne(o => o.Seller).WithMany(s => s.Orders).HasForeignKey(o => o.SellerId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(o => o.Customer).WithMany(c => c.Orders).HasForeignKey(o => o.CustomerId).OnDelete(DeleteBehavior.Restrict);
         });

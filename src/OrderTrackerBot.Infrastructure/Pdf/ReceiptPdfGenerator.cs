@@ -37,6 +37,8 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
 
     private static string Money(decimal amount) => "Rs. " + amount.ToString("#,0.##", CultureInfo.InvariantCulture);
 
+    private static string? Id(string label, string? value) => string.IsNullOrWhiteSpace(value) ? null : $"{label} {value}";
+
     public bool CanEmbedImage(byte[] image)
     {
         try
@@ -84,11 +86,14 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
                         var sub = string.Join(" · ", new[] { r.BusinessCity, r.BusinessPhone is null ? null : "WhatsApp " + r.BusinessPhone, r.InstagramHandle }
                             .Where(s => !string.IsNullOrWhiteSpace(s)));
                         if (sub.Length > 0) c.Item().Text(sub).FontSize(9).FontColor(Muted);
+                        var taxIds = string.Join(" · ", new[] { Id("NTN", r.Ntn), Id("STRN", r.Strn) }.Where(s => s is not null));
+                        if (taxIds.Length > 0) c.Item().Text(taxIds).FontSize(9).FontColor(Muted);
                     });
                     row.ConstantItem(120).AlignRight().Column(c =>
                     {
-                        c.Item().AlignRight().Text("RECEIPT").FontSize(14).Bold();
-                        c.Item().AlignRight().Text($"#{r.OrderId}").FontSize(11);
+                        c.Item().AlignRight().Text(r.SalesTaxRate > 0 ? "TAX INVOICE" : "RECEIPT").FontSize(14).Bold();
+                        c.Item().AlignRight().Text(r.ReceiptNumber is { } no ? $"No. {no}" : $"#{r.OrderId}").FontSize(11);
+                        if (r.ReceiptNumber is not null) c.Item().AlignRight().Text($"Order #{r.OrderId}").FontSize(9).FontColor(Muted);
                         c.Item().AlignRight().Text(r.OrderedAtLocal.ToString("dd MMM yyyy, hh:mm tt", CultureInfo.InvariantCulture)).FontSize(9).FontColor(Muted);
                     });
                 });
@@ -147,7 +152,14 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
                     if (r.DeliveryCharge > 0)
                         Row("Delivery", Money(r.DeliveryCharge));
                     c.Item().PaddingVertical(3).LineHorizontal(1).LineColor(Line);
-                    Row("TOTAL", Money(r.Total), bold: true, color: Accent);
+                    if (r.SalesTaxRate > 0)
+                    {
+                        Row("Value excl. sales tax", Money(r.Total - r.SalesTaxAmount));
+                        Row($"Sales tax ({r.SalesTaxRate.ToString("0.##", CultureInfo.InvariantCulture)}%)", Money(r.SalesTaxAmount));
+                    }
+                    Row(r.SalesTaxRate > 0 ? "TOTAL (incl. tax)" : "TOTAL", Money(r.Total), bold: true, color: Accent);
+                    if (r.SalesTaxRate > 0)
+                        c.Item().PaddingTop(3).Text("Prices include sales tax.").FontSize(8).FontColor(Muted);
                 });
 
                 col.Item().Background(Colors.Grey.Lighten4).Padding(8).Column(c =>

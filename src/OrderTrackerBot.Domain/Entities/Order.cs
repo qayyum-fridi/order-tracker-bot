@@ -23,6 +23,12 @@ public class Order
     /// <summary>Added after the discount: Total = max(0, Subtotal - DiscountAmount) + DeliveryCharge.</summary>
     public decimal DeliveryCharge { get; set; }
     public decimal Total { get; set; }
+    /// <summary>Sales tax percent included in Total, copied from the seller when the order was placed. 0 = no sales tax on this sale.</summary>
+    public decimal SalesTaxRate { get; set; }
+    /// <summary>Income tax a courier / payment gateway held back from the seller's payout for this order (seller-only; never on receipts).</summary>
+    public decimal TaxWithheld { get; set; }
+    /// <summary>Per-seller serial number given the first time a receipt/invoice is issued (1, 2, 3...); null until then.</summary>
+    public int? ReceiptNumber { get; set; }
 
     public string? TrackingCourier { get; set; }
     public string? TrackingNumber { get; set; }

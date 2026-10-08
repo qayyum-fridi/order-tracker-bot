@@ -116,7 +116,9 @@ public partial class ConversationEngine
             Col("Address", typeof(string)), Col("Items", typeof(string)), Col("Subtotal", typeof(decimal)), Col("Discount", typeof(decimal)),
             Col("Discount code", typeof(string)), Col("Delivery", typeof(decimal)), Col("Total", typeof(decimal)), Col("Status", typeof(string)), Col("Payment status", typeof(string)), Col("Amount paid", typeof(decimal)), Col("Balance", typeof(decimal)),
             Col("Payment method", typeof(string)), Col("Paid on", typeof(DateTime)), Col("Courier", typeof(string)), Col("Tracking #", typeof(string)),
-            Col("Source", typeof(string)), Col("Delivery date", typeof(DateTime)), Col("Notes", typeof(string))
+            Col("Source", typeof(string)), Col("Delivery date", typeof(DateTime)), Col("Notes", typeof(string)),
+            Col("Receipt #", typeof(int)), Col("Sales tax %", typeof(decimal)), Col("Sales tax", typeof(decimal)),
+            Col("Tax withheld", typeof(decimal)), Col("Net after withholding", typeof(decimal))
         }, orders.Select(o => new object?[]
         {
             o.Id, local(o.CreatedAt), o.Customer?.Name, o.Customer?.Phone,
@@ -124,7 +126,8 @@ public partial class ConversationEngine
             string.Join("; ", o.Items.Select(i => $"{i.Quantity} x {i.ProductNameSnapshot}")), o.Subtotal, o.DiscountAmount,
             o.DiscountCode, o.DeliveryCharge, o.Total, Formatters.Status(o.Status), o.PaymentStatus.ToString(), OrderMoney.Received(o), OrderMoney.Balance(o),
             o.PaymentMethod switch { OrderPaymentMethod.Cod => "COD", OrderPaymentMethod.Manual => "Transfer", OrderPaymentMethod.Gateway => "Online", _ => "" },
-            local(o.PaidAt), o.TrackingCourier, o.TrackingNumber, o.OrderSource, local(o.DeliveryDate), o.Notes
+            local(o.PaidAt), o.TrackingCourier, o.TrackingNumber, o.OrderSource, local(o.DeliveryDate), o.Notes,
+            o.ReceiptNumber, o.SalesTaxRate, SalesTax.Amount(o), o.TaxWithheld, SalesTax.NetOfWithheld(o)
         }).ToList());
 
         var itemSheet = new ExportSheet("Order Items", new[]
