@@ -19,6 +19,9 @@ dotnet test
 # single test
 dotnet test --filter "FullyQualifiedName~CommandParserTests.Parses_MarkShipped"
 
+# large-account latency/accuracy benchmark (skipped unless OTB_PERF=1; OTB_PERF_ORDERS=30000 default)
+OTB_PERF=1 dotnet test --filter "FullyQualifiedName~LargeAccountPerfTests" --logger "console;verbosity=detailed"
+
 cd src/OrderTrackerBot.Api
 dotnet run   # ASPNETCORE_ENVIRONMENT defaults to Development -> Sqlite, no setup needed
 ```
