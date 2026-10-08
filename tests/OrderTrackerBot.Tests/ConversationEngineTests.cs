@@ -341,6 +341,51 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public void KeywordClarificationOptions_AreAllRunnableCommands()
+    {
+        foreach (var area in ConversationEngine.CommandKeywordAreas)
+            foreach (var option in area.Options)
+                Assert.True(CommandParser.TryParse(option) is not null, $"\"{option}\" is not a parseable command");
+    }
+
+    [Theory]
+    [InlineData("ye ek naya discount hai jo ke product ke liye istemal hoga.", "Discount")]
+    [InlineData("kharcha ka kuch karna hai", "Kharche")]
+    [InlineData("mera stock kitna hai", "Stock")]
+    [InlineData("ڈسکاؤنٹ کے بارے میں", "Discount")]
+    public void TryKeywordClarification_PicksTheFeatureNamed(string text, string questionFragment)
+    {
+        Assert.True(ConversationEngine.TryKeywordClarification(text, out var question, out var options));
+        Assert.Contains(questionFragment, question);
+        Assert.NotEmpty(options);
+    }
+
+    [Fact]
+    public void TryKeywordClarification_SmallTalk_HasNoMatch() =>
+        Assert.False(ConversationEngine.TryKeywordClarification("bohat thak gayi hoon aaj", out _, out _));
+
+    [Fact]
+    public async Task VoiceStyleSentenceWithFeatureKeyword_AsksWhichCommand_ThenRunsThePickedOne()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "off_topic" });
+
+        await engine.HandleIncomingMessageAsync(Phone, "ye ek naya discount hai jo ke product ke liye istemal hoga.", default);
+
+        Assert.Equal(ConversationState.AwaitingClarificationChoice, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sentMessages, m => m.Contains("Discount ke baare mein") && m.Contains("1️⃣ create discount"));
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("sirf orders/sales"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "1", default);
+
+        Assert.Equal(ConversationState.AwaitingDiscountDetails, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sentMessages, m => m.Contains("create discount: EID10"));
+    }
+
+    [Fact]
     public async Task DiscountList_WhenEmpty_ShowsHowToCreateOne()
     {
         using var db = _dbFactory.CreateContext();
