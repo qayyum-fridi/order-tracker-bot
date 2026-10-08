@@ -155,6 +155,19 @@ public class CommandParserTests
         Assert.Equal(number, parsed.Number);
     }
 
+    [Theory]
+    [InlineData("kal ke kitne orders the?", "yesterday")]
+    [InlineData("کل کے کتنے آرڈرز تھے؟", "yesterday")]
+    [InlineData("kal kitne orders aaye", "yesterday")]
+    [InlineData("aaj kitne orders aaye?", null)]
+    [InlineData("pichle mahine ke kitne orders the", "lastmonth")]
+    public void CountQuestionsAboutOrders_MapToThePeriodReport(string message, string? period)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.Equal(CommandKind.OrdersToday, parsed!.Kind);
+        Assert.Equal(period, parsed.Text);
+    }
+
     [Fact]
     public void OrderNumberAlone_StillShowsTheOrder_NotTheStatusPicker() =>
         Assert.Equal(CommandKind.OrderDetail, CommandParser.TryParse("order 13")!.Kind);

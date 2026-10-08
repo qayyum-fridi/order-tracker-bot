@@ -144,9 +144,11 @@ public static class CommandParser
     private const string Today = @"(?:aaj|آج)";
     private const string Yesterday = @"(?:kal|کل)";
     private const string LastMonth = @"(?:(?:pichle|pichhle|pichlay|پچھلے)\s+(?:mahine|mahinay|maheene|mahiny|مہینے))";
-    private static readonly Regex OrdersToday = new(@"^(?:orders?\s+today|today'?s\s+orders?|" + Today + @"\s+" + Of + @"\s+" + OrdersWord + @")$", Opts);
-    private static readonly Regex OrdersYesterday = new(@"^(?:orders?\s+yesterday|yesterday'?s\s+orders?|" + Yesterday + @"\s+" + Of + @"\s+" + OrdersWord + @")$", Opts);
-    private static readonly Regex OrdersLastMonth = new(@"^(?:orders?\s+last\s+month|last\s+month'?s?\s+orders?|" + LastMonth + @"\s+" + Of + @"\s+" + OrdersWord + @")$", Opts);
+    // "kal ke orders" / "kal ke kitne orders the?" / "aaj kitne orders aaye": the period word, optional ka/ke, optional "kitne", the word orders, optional question tail.
+    private const string OrdersOfPeriod = @"(?:\s+" + Of + @")?(?:\s+(?:kitne|kitnay|کتنے))?\s+" + OrdersWord + @"(?:\s+(?:the|thay|tha|hain|hai|aaye|aae|hue|تھے|تھا|ہیں|ہے|آئے|ہوئے))*\s*[?؟]?";
+    private static readonly Regex OrdersToday = new(@"^(?:orders?\s+today|today'?s\s+orders?|" + Today + OrdersOfPeriod + @")$", Opts);
+    private static readonly Regex OrdersYesterday = new(@"^(?:orders?\s+yesterday|yesterday'?s\s+orders?|" + Yesterday + OrdersOfPeriod + @")$", Opts);
+    private static readonly Regex OrdersLastMonth = new(@"^(?:orders?\s+last\s+month|last\s+month'?s?\s+orders?|" + LastMonth + OrdersOfPeriod + @")$", Opts);
     private static readonly Regex PendingOrders = new(@"^(pending\s+orders?|پینڈنگ\s+آرڈرز?)$", Opts);
     private static readonly Regex TodaysSummary = new(@"^(?:today'?s\s+summary|today\s+summary|" + Today + @"\s+" + Of + @"\s+" + SummaryWord + @")$", Opts);
     private static readonly Regex YesterdaysSummary = new(@"^(?:yesterday'?s\s+summary|summary\s+yesterday|" + Yesterday + @"\s+" + Of + @"\s+" + SummaryWord + @")$", Opts);
