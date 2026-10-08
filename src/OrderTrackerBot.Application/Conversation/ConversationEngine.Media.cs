@@ -171,17 +171,25 @@ public partial class ConversationEngine
     /// Small numbers may change on purpose ("4 lawn suits at 3500" -> "Lawn Suit - 3500", "pehla" -> "1"); the "Samjha" echo shows the result.
     /// Phone-length digit runs (7+) are only protected by rule (1).
     /// </summary>
-    public static bool IsFaithfulRewrite(string transcript, string? rewritten, IReadOnlySet<long>? knownNumbers = null)
+    public static bool IsFaithfulRewrite(string transcript, string? rewritten, IReadOnlySet<long>? knownNumbers = null) =>
+        WhyUnfaithful(transcript, rewritten, knownNumbers) is null;
+
+    /// <summary>The first guard rule a rewrite breaks, in words, or null when the rewrite is faithful (same rules as <see cref="IsFaithfulRewrite"/>).</summary>
+    public static string? WhyUnfaithful(string transcript, string? rewritten, IReadOnlySet<long>? knownNumbers = null)
     {
-        if (string.IsNullOrWhiteSpace(rewritten) || rewritten.Length > Math.Max(200, transcript.Length * 3)) return false;
+        if (string.IsNullOrWhiteSpace(rewritten)) return "empty rewrite";
+        if (rewritten.Length > Math.Max(200, transcript.Length * 3)) return "rewrite too long";
         var kept = LongNumberDigits(rewritten);
-        if (!LongNumberDigits(transcript).All(d => kept.GetValueOrDefault(d.Key) >= d.Value)) return false;
+        if (!LongNumberDigits(transcript).All(d => kept.GetValueOrDefault(d.Key) >= d.Value)) return "a 3+ digit run from the transcript was dropped";
 
         var rewrittenAmounts = SpokenNumbers.Amounts(rewritten);
-        if (!SpokenNumbers.WordAmounts(transcript).All(rewrittenAmounts.Contains)) return false;
+        if (SpokenNumbers.WordAmounts(transcript).FirstOrDefault(a => !rewrittenAmounts.Contains(a)) is var missing and > 0)
+            return $"spoken amount {missing} is missing from the rewrite";
 
         var said = SpokenNumbers.Amounts(transcript);
-        return rewrittenAmounts.All(a => said.Contains(a) || (knownNumbers?.Contains(a) ?? false));
+        if (rewrittenAmounts.FirstOrDefault(a => !said.Contains(a) && !(knownNumbers?.Contains(a) ?? false)) is var invented and > 0)
+            return $"amount {invented} appears in the rewrite but was not said";
+        return null;
     }
 
     private static Dictionary<int, int> LongNumberDigits(string text) =>

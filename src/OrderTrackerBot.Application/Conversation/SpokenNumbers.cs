@@ -66,6 +66,11 @@ public static class SpokenNumbers
         return map;
     }
 
+    public static bool IsMultiplier(string word) => Multipliers.ContainsKey(word);
+    public static bool IsNumberWord(string word) => Words.ContainsKey(word) || word.Equals("sadhe", StringComparison.OrdinalIgnoreCase) || word == "ساڑھے";
+    public static IEnumerable<string> NumberWords => Words.Keys;
+    public static IEnumerable<string> MultiplierWords => Multipliers.Keys;
+
     private static readonly Regex Token = new(@"[\p{L}\p{N}]+", RegexOptions.Compiled);
     private static readonly Regex GroupedDigits = new(@"(?<=\d),(?=\d{3}(?!\d))", RegexOptions.Compiled);
 

@@ -211,6 +211,7 @@ shared-state action: confirm with the user and get SSH/host details first.
   `edit order 12`, `price 1 = 1500`, `done`) or one follow-up *question* when a detail wasn't said. The transcription call gets the seller's customer/product/shop
   names as a hint (`BuildVoiceVocabularyAsync`). For an idle seller, risky steps (`RiskyVoiceCommands`, or edits inside `edit order`) are parked in
   `PendingVoiceSteps` / `AwaitingVoiceConfirmation` until YES (`ConversationEngine.VoiceConfirm.cs`, checked at the top of `HandleIncomingMessageAsync`);
+  To see how the real speech model writes numbers (digits vs words, multiplier spellings, number words missing from `SpokenNumbers`) run the local-only `VoiceTranscriptReport`: `VOICE_TRANSCRIPTS=<folder of .txt | text file | app .db> dotnet test --filter VoiceTranscriptReport --logger "console;verbosity=detailed"` (reads `MessageLogs` read-only for a .db; skipped when the variable is unset; phone-length numbers are masked in the output; optional `VOICE_TRANSCRIPTS_REPORT=<file>`). Unknown spellings are added to `SpokenNumbers` by hand from that report — no phonetic mapping (e.g. "saat" 7 vs "saath" 60 would collide).
   a sequence stops if `edit order N` did not open edit mode.
   "Ask for help" phrases ("kya karun", "kaise karun", "kya bolun", "samajh nahi aa raha", "?" — `CommandParser.IsGuidanceRequest`) are checked at the top of
   `HandleIncomingCoreAsync` in every state and answer with a tip for the current step (`ConversationEngine.Guidance.cs`) without changing state; an idle seller gets
