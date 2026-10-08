@@ -23,7 +23,7 @@ public partial class ConversationEngine
         ConversationState.AwaitingOrderConfirmation or ConversationState.AwaitingCancelConfirmation or ConversationState.AwaitingBulkStatusConfirmation
             or ConversationState.AwaitingDuplicateOrderConfirmation or ConversationState.AwaitingCodCollectedConfirmation or ConversationState.AwaitingResetConfirmation
             or ConversationState.AwaitingDeleteCustomerConfirmation or ConversationState.AwaitingLoyaltyDiscountConfirmation or ConversationState.AwaitingMultiOrderConfirmation
-            or ConversationState.AwaitingSupportReplyConfirmation or ConversationState.AwaitingVoiceConfirmation => new[] { "yes", "no", "reply", "help" },
+            or ConversationState.AwaitingSupportReplyConfirmation or ConversationState.AwaitingVoiceConfirmation or ConversationState.AwaitingImportConfirmation => new[] { "yes", "no", "reply", "help" },
         ConversationState.AwaitingClarificationChoice or ConversationState.AwaitingOrderGroupingChoice or ConversationState.AwaitingRuntimeFilterChoice
             or ConversationState.AwaitingBroadcastAudienceChoice or ConversationState.AwaitingBroadcastChannelChoice or ConversationState.AwaitingReceiptOrderChoice
             or ConversationState.AwaitingSupportQueryPick => new[] { "choose", "reply", "help" },

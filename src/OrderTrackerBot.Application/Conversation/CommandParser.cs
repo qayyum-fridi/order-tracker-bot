@@ -88,7 +88,9 @@ public enum CommandKind
     ChangeLanguage,
     BusinessSetup,
     PaymentMethodPrompt,
-    ImportCatalogSheet
+    ImportCatalogSheet,
+    ImportHelp,
+    ImportTemplate
 }
 
 /// <summary>What to export: any of "orders", "customers", "catalog", "discounts" (empty = ask), and an optional orders period (today/yesterday/7d/30d/lastmonth).</summary>
@@ -356,6 +358,27 @@ public static class CommandParser
 
     // "export" -> asks what; "export orders customers", "export all", "export orders 30 days", "customers export", "excel". One .xlsx comes back.
     private static readonly Regex ExportLead = new(@"^(?:data\s+)?(?:export|download|ایکسپورٹ|ڈاؤنلوڈ)(?:\s+(?<what>.+))?$|^(?:excel|xlsx)$", Opts);
+    // "import" explains how to bring data from an old system; "import template customers" sends that Excel template (with its Guide tab).
+    private static readonly Regex ImportHelpLead = new(@"^(?:(?:data\s+)?import(?:\s+(?:data|karna|karein|karo))?|(?:purana|puraana|old)\s+(?:data|system)(?:\s+(?:import|laana|lana|laayein|lao|migrate))?|(?:data\s+)?migrate|امپورٹ|ڈیٹا\s+امپورٹ)$", Opts);
+    // "Purana data system se data aana hai, excel file bhej raha hoon": starts like the command and says it wants to bring data in.
+    // Without such a word ("purana data delete karo", "purana data ka total") it is not the import help.
+    private static readonly Regex ImportHelpSentence = new(@"^(?:purana|puraana|old)\s+(?:data|system)(?![\p{L}\p{N}]).*" + NotLetter + @"(?:system|aana|aani|laana|lana|laani|lani|lao|laayein|layein|import|migrate|excel|file|sheet|transfer|shift|upload|lekar)" + NotLetterAfter, Opts);
+    private static readonly Regex DestroyWords = new(NotLetter + @"(?:delete|remove|clear|reset|hata|hatao|mita|mitao|khatam)" + NotLetterAfter, Opts);
+    private static readonly Regex ImportTemplateLead = new(@"^import\s+(?:template|file|format)s?(?:\s+(?<t>.+))?$|^(?<t>.+?)\s+import\s+(?:template|file|format)s?$|^import\s+(?<t>.+?)\s+(?:template|file|format)s?$", Opts);
+    private static readonly Regex ImportWhichCustomers = new(NotLetter + @"(?:customers?|gahak|گاہک)" + NotLetterAfter, Opts);
+    private static readonly Regex ImportWhichCatalog = new(NotLetter + @"(?:catalog|catalogue|products?|maal|کیٹلاگ)" + NotLetterAfter, Opts);
+    private static readonly Regex ImportWhichAll = new(NotLetter + @"(?:all|everything|both|dono|sab(?:\s+kuch)?|سب)" + NotLetterAfter, Opts);
+
+    /// <summary>"customers" | "catalog" | "all", or null when the words name none of them (the bot then shows the choices).</summary>
+    public static string? ParseImportTemplateKind(string? what)
+    {
+        var text = what ?? "";
+        var customers = ImportWhichCustomers.IsMatch(text);
+        var catalog = ImportWhichCatalog.IsMatch(text);
+        if (ImportWhichAll.IsMatch(text) || (customers && catalog)) return "all";
+        return customers ? "customers" : catalog ? "catalog" : null;
+    }
+
     private static readonly Regex ExportTrail = new(@"^(?<what>.+?)\s+(?:export|excel|xlsx|download)$", Opts);
     private const string NotLetter = @"(?<![\p{L}\p{N}])";
     private const string NotLetterAfter = @"(?![\p{L}\p{N}])";
@@ -467,6 +490,8 @@ public static class CommandParser
     }
 
     // "receipt" (latest order) / "receipt 12" / "receipt Ayesha" / "Ayesha ki receipt" / "رسید 12". Number or Text is the order reference.
+    private static readonly Regex BillQuestion = new(@"\?|" + NotLetter + @"(?:kitna|kitni|kitne|kya|kia|kaun|kab|kahan|kyun|kyon|check|total|hua|banta|how|what|which|کتنا|کتنی|کتنے|کیا)" + NotLetterAfter, Opts);
+    private static readonly Regex BillOrderRef = new(NotLetter + @"(?:order|id)\s*(?:id\s*)?#?(?<n>\d+)|#(?<n>\d+)", Opts);
     private const string ReceiptWord = @"(?:receipt|invoice|rasid|raseed|bill|رسید)";
     private static readonly Regex Receipt = new(@"^(?:(?:order|pdf)\s+)?" + ReceiptWord + @"(?:\s*:?\s*#?(?<n>\d+)|\s*:?\s+(?<name>.+))?$|^(?<name>.+?)\s+(?:ki|ka|ke)\s+" + ReceiptWord + "$", Opts);
     private static readonly Regex DiscountPerformance = new(@"^discount\s+(?:performance|report)$", Opts);
@@ -842,6 +867,9 @@ public static class CommandParser
         if ((m = Shortcuts.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.Shortcuts, Text = m.Groups["v"].Value.ToLowerInvariant() is "on" or "chalu" ? "on" : "off" };
         if (TryParseProfit(message) is { } profit) return profit;
+        if ((m = ImportTemplateLead.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.ImportTemplate, Text = ParseImportTemplateKind(m.Groups["t"].Success ? m.Groups["t"].Value : null) };
+        if (ImportHelpLead.IsMatch(message) || (ImportHelpSentence.IsMatch(message) && !DestroyWords.IsMatch(message))) return new ParsedCommand { Kind = CommandKind.ImportHelp };
         if ((m = ExportLead.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.Export, Export = ParseExportRequest(m.Groups["what"].Success ? m.Groups["what"].Value : null) };
         if ((m = ExportTrail.Match(message)).Success && ParseExportRequest(m.Groups["what"].Value) is { Datasets.Count: > 0 } trailing)
@@ -852,7 +880,11 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.BrandingHelp, Text = BrandingKind(m.Groups["k"].Value) };
         if (TryParseBrandingWish(message, out var wishKind))
             return new ParsedCommand { Kind = CommandKind.BrandingHelp, Text = wishKind };
-        if ((m = Receipt.Match(message)).Success)
+        // "bill kitna hua order id 501 ka?" asks for a total; it is not "bill <name>" (a receipt for that customer).
+        var billQuestion = ReceiptWish.IsMatch(message) && BillQuestion.IsMatch(message);
+        if (billQuestion && BillOrderRef.Match(message) is { Success: true } billOrder)
+            return new ParsedCommand { Kind = CommandKind.OrderDetail, Number = int.Parse(billOrder.Groups["n"].Value) };
+        if (!billQuestion && (m = Receipt.Match(message)).Success)
             return new ParsedCommand
             {
                 Kind = CommandKind.Receipt,

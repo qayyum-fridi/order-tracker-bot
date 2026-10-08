@@ -100,6 +100,20 @@ public class WhatsAppWebhookController : ControllerBase
             }
         }
 
+        foreach (var (from, mediaId, fileName, mimeType, messageId) in payload.ExtractDocumentMessages())
+        {
+            try
+            {
+                await _gate.RunOnceAsync(from, messageId, () => _engine.HandleDocumentMessageAsync(from, mediaId, fileName, mimeType, ct), ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to process document from {From}", from);
+                await _issues.ReportAsync(IssueCodes.UnsupportedMediaReplyFailed, from, "media type: document", ex, ct);
+                await _engine.SendSystemErrorAsync(from, IssueCodes.UnsupportedMediaReplyFailed.Code, ct);
+            }
+        }
+
         foreach (var (from, json, messageId) in payload.ExtractFlowSubmissions())
         {
             try

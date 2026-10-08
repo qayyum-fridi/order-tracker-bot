@@ -33,6 +33,7 @@ public class WhatsAppWebhookPayload
         [JsonPropertyName("interactive")] public InboundInteractive? Interactive { get; set; }
         [JsonPropertyName("image")] public InboundMedia? Image { get; set; }
         [JsonPropertyName("audio")] public InboundMedia? Audio { get; set; }
+        [JsonPropertyName("document")] public InboundMedia? Document { get; set; }
     }
 
     public class InboundMedia
@@ -40,6 +41,7 @@ public class WhatsAppWebhookPayload
         [JsonPropertyName("id")] public string? Id { get; set; }
         [JsonPropertyName("mime_type")] public string? MimeType { get; set; }
         [JsonPropertyName("caption")] public string? Caption { get; set; }
+        [JsonPropertyName("filename")] public string? FileName { get; set; }
     }
 
     public class InboundInteractive
@@ -121,7 +123,19 @@ public class WhatsAppWebhookPayload
         }
     }
 
-    private static readonly HashSet<string> UnsupportedMediaTypes = new() { "video", "document", "sticker" };
+    /// <summary>Files (an .xlsx to import customers/products from an old system).</summary>
+    public IEnumerable<(string From, string MediaId, string? FileName, string? MimeType, string? MessageId)> ExtractDocumentMessages()
+    {
+        foreach (var entry in Entries)
+        foreach (var change in entry.Changes)
+        foreach (var message in change.Value?.Messages ?? Enumerable.Empty<InboundMessage>())
+        {
+            if (message.Type == "document" && message.From is not null && message.Document?.Id is not null)
+                yield return (message.From, message.Document.Id, message.Document.FileName, message.Document.MimeType, message.Id);
+        }
+    }
+
+    private static readonly HashSet<string> UnsupportedMediaTypes = new() { "video", "sticker" };
 
     /// <summary>Voice notes, screenshots and other media the bot can't read yet — the seller still deserves a reply.</summary>
     public IEnumerable<(string From, string Type, string? MessageId)> ExtractUnsupportedMessages()

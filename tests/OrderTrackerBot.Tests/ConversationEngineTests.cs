@@ -1407,7 +1407,7 @@ public class ConversationEngineTests : IDisposable
         Assert.Matches(@"^Ayesha-Collections-export-\d{4}-\d{2}-\d{2}\.xlsx$", name);
         Assert.Contains("Orders (30 din) (1)", caption);
         using var stream = new MemoryStream(bytes);
-        Assert.Equal(new[] { "Orders", "Order Items" }, MiniExcelLibs.MiniExcel.GetSheetNames(stream).ToArray());
+        Assert.Equal(new[] { "Orders", "Order Items", "Guide" }, MiniExcelLibs.MiniExcel.GetSheetNames(stream).ToArray());
         var orders = MiniExcelLibs.MiniExcel.Query(new MemoryStream(bytes), useHeaderRow: true, sheetName: "Orders").Cast<IDictionary<string, object>>().ToList();
         var row = Assert.Single(orders);
         Assert.Equal("Sara", row["Customer"]);
@@ -1429,7 +1429,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "export all", default);
 
         var (_, bytes, _) = Assert.Single(files);
-        Assert.Equal(new[] { "Orders", "Order Items", "Customers", "Catalog", "Discounts", "Loyalty Rules" },
+        Assert.Equal(new[] { "Orders", "Order Items", "Customers", "Catalog", "Discounts", "Loyalty Rules", "Guide" },
             MiniExcelLibs.MiniExcel.GetSheetNames(new MemoryStream(bytes)).ToArray());
         var customers = MiniExcelLibs.MiniExcel.Query(new MemoryStream(bytes), useHeaderRow: true, sheetName: "Customers").Cast<IDictionary<string, object>>().ToList();
         Assert.DoesNotContain(customers, c => (string)c["Name"] == "Deleted Dan");

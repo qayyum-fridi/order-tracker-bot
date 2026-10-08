@@ -132,9 +132,24 @@ public partial class ConversationEngine
             var steps = result.Actions.Count == result.Steps.Count
                 ? ValidateVoiceSteps(seller.Session!.State, seller, result.Steps, result.Actions)
                 : result.Steps.Select(s => s.Trim()).ToList();
-            if (steps.Count > 0 && IsFaithfulRewrite(transcript, string.Join("\n", steps))) return (steps, null);
+            if (steps.Count > 0 && IsFaithfulRewrite(transcript, string.Join("\n", steps), KnownVoiceNumbers(recent, catalog))) return (steps, null);
         }
         return (new[] { transcript }, null);
+    }
+
+    /// <summary>Ids, totals and prices the model was shown for this voice note: a rewrite may legitimately use them ("pichla order" -> "edit order 105").</summary>
+    private static IReadOnlySet<long> KnownVoiceNumbers(IEnumerable<Order> recent, IEnumerable<CatalogEntry> catalog)
+    {
+        var known = new HashSet<long>();
+        void Add(decimal value) { if (value == decimal.Truncate(value) && value >= 0) known.Add((long)value); }
+        foreach (var order in recent)
+        {
+            Add(order.Id);
+            Add(order.Total);
+            foreach (var item in order.Items) Add(item.UnitPrice);
+        }
+        foreach (var entry in catalog) Add(entry.Product.Price);
+        return known;
     }
 
     private static string DescribeCustomerForVoice(Customer c)
@@ -149,14 +164,35 @@ public partial class ConversationEngine
         string.Join("; ", o.Items.Select((i, n) => $"{n + 1}) {i.ProductNameSnapshot} x{i.Quantity} @ Rs.{i.UnitPrice:0.##}")) + $" — total Rs.{o.Total:0.##}";
 
     /// <summary>
-    /// A rewrite is only trusted if it is not absurdly long and keeps every price/phone-sized number the seller said (runs of 3+ digits).
+    /// A rewrite is only trusted if it is not absurdly long and its amounts match what the seller said, in both directions:
+    /// (1) every price/phone-sized run of 3+ digits the transcript has survives; (2) every amount the transcript spells out in words
+    /// ("teen sau", "three thousand", "تین ہزار") shows up in the rewrite, as digits or words; (3) the rewrite invents no amount (100-999,999)
+    /// that the seller did not say — except <paramref name="knownNumbers"/>, ids and prices the model was shown (so "last order" can become "edit order 105").
     /// Small numbers may change on purpose ("4 lawn suits at 3500" -> "Lawn Suit - 3500", "pehla" -> "1"); the "Samjha" echo shows the result.
+    /// An amount the seller took back ("410 nahi, 420") need not survive. Phone-length digit runs (7+) are only protected by rule (1).
     /// </summary>
-    internal static bool IsFaithfulRewrite(string transcript, string? rewritten)
+    public static bool IsFaithfulRewrite(string transcript, string? rewritten, IReadOnlySet<long>? knownNumbers = null) =>
+        WhyUnfaithful(transcript, rewritten, knownNumbers) is null;
+
+    /// <summary>The first guard rule a rewrite breaks, in words, or null when the rewrite is faithful (same rules as <see cref="IsFaithfulRewrite"/>).</summary>
+    public static string? WhyUnfaithful(string transcript, string? rewritten, IReadOnlySet<long>? knownNumbers = null)
     {
-        if (string.IsNullOrWhiteSpace(rewritten) || rewritten.Length > Math.Max(200, transcript.Length * 3)) return false;
+        if (string.IsNullOrWhiteSpace(rewritten)) return "empty rewrite";
+        if (rewritten.Length > Math.Max(200, transcript.Length * 3)) return "rewrite too long";
+        // Amounts the seller took back ("410 nahi, 420") need not survive the rewrite.
+        var retracted = SpokenNumbers.RetractedAmounts(transcript);
         var kept = LongNumberDigits(rewritten);
-        return LongNumberDigits(transcript).All(d => kept.GetValueOrDefault(d.Key) >= d.Value);
+        var needed = retracted.Count == 0 ? transcript : SpokenNumbers.RemoveDigitAmounts(transcript, retracted);
+        if (!LongNumberDigits(needed).All(d => kept.GetValueOrDefault(d.Key) >= d.Value)) return "a 3+ digit run from the transcript was dropped";
+
+        var rewrittenAmounts = SpokenNumbers.Amounts(rewritten);
+        if (SpokenNumbers.WordAmounts(transcript).Where(a => !retracted.Contains(a)).FirstOrDefault(a => !rewrittenAmounts.Contains(a)) is var missing and > 0)
+            return $"spoken amount {missing} is missing from the rewrite";
+
+        var said = SpokenNumbers.Amounts(transcript);
+        if (rewrittenAmounts.FirstOrDefault(a => !said.Contains(a) && !(knownNumbers?.Contains(a) ?? false)) is var invented and > 0)
+            return $"amount {invented} appears in the rewrite but was not said";
+        return null;
     }
 
     private static Dictionary<int, int> LongNumberDigits(string text) =>
@@ -172,7 +208,7 @@ public partial class ConversationEngine
                 "The bot is idle: the seller can type a command (orders today, mark 3 shipped, stock Kurti 20, catalog, delivery 250, receipt), dictate a customer order, or tell the bot about new products they sell.",
             ConversationState.Idle => "The bot is at the start of setup; the seller can say start, pick a language or say \"Setup shuru karein\".",
             ConversationState.OnboardingLanguage or ConversationState.AwaitingLanguageChoice => "Waiting for the seller to choose a language: Roman Urdu, Urdu or English.",
-            ConversationState.OnboardingStartChoice => "Waiting for a choice: \"Setup shuru karein\", \"Guide dekhein\" or \"Baad mein karunga\".",
+            ConversationState.OnboardingStartChoice => "Waiting for a choice: \"Setup shuru karein\", \"Guide dekhein\" or \"Purana data\" (bring customers/products from an old system).",
             ConversationState.OnboardingBusinessName => "Waiting for the name of the seller's shop/business.",
             ConversationState.OnboardingOptionalDetails => "Waiting for the shop's city, business type and Instagram handle in ONE step, comma-separated (e.g. \"Lahore, Clothing, @ayesha\"), or \"skip\".",
             ConversationState.OnboardingCatalogSize => "Waiting for how many products the seller has: a number, \"Chhota (20 se kam)\" or \"Bara (20+)\".",
@@ -185,7 +221,7 @@ public partial class ConversationEngine
             ConversationState.AwaitingCancelConfirmation or ConversationState.AwaitingBulkStatusConfirmation or ConversationState.AwaitingDuplicateOrderConfirmation
                 or ConversationState.AwaitingCodCollectedConfirmation or ConversationState.AwaitingResetConfirmation or ConversationState.AwaitingDeleteCustomerConfirmation
                 or ConversationState.AwaitingLoyaltyDiscountConfirmation or ConversationState.AwaitingMultiOrderConfirmation
-                or ConversationState.AwaitingSupportReplyConfirmation => "Waiting for a yes or no confirmation.",
+                or ConversationState.AwaitingSupportReplyConfirmation or ConversationState.AwaitingImportConfirmation => "Waiting for a yes or no confirmation.",
             ConversationState.AwaitingVoiceConfirmation => "Waiting for yes or no on the actions the bot just listed from the seller's previous voice note.",
             ConversationState.AwaitingClarificationChoice or ConversationState.AwaitingOrderGroupingChoice or ConversationState.AwaitingRuntimeFilterChoice
                 or ConversationState.AwaitingBroadcastAudienceChoice or ConversationState.AwaitingBroadcastChannelChoice or ConversationState.AwaitingReceiptOrderChoice
