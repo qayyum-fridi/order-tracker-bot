@@ -132,9 +132,24 @@ public partial class ConversationEngine
             var steps = result.Actions.Count == result.Steps.Count
                 ? ValidateVoiceSteps(seller.Session!.State, seller, result.Steps, result.Actions)
                 : result.Steps.Select(s => s.Trim()).ToList();
-            if (steps.Count > 0 && IsFaithfulRewrite(transcript, string.Join("\n", steps))) return (steps, null);
+            if (steps.Count > 0 && IsFaithfulRewrite(transcript, string.Join("\n", steps), KnownVoiceNumbers(recent, catalog))) return (steps, null);
         }
         return (new[] { transcript }, null);
+    }
+
+    /// <summary>Ids, totals and prices the model was shown for this voice note: a rewrite may legitimately use them ("pichla order" -> "edit order 105").</summary>
+    private static IReadOnlySet<long> KnownVoiceNumbers(IEnumerable<Order> recent, IEnumerable<CatalogEntry> catalog)
+    {
+        var known = new HashSet<long>();
+        void Add(decimal value) { if (value == decimal.Truncate(value) && value >= 0) known.Add((long)value); }
+        foreach (var order in recent)
+        {
+            Add(order.Id);
+            Add(order.Total);
+            foreach (var item in order.Items) Add(item.UnitPrice);
+        }
+        foreach (var entry in catalog) Add(entry.Product.Price);
+        return known;
     }
 
     private static string DescribeCustomerForVoice(Customer c)
@@ -149,14 +164,24 @@ public partial class ConversationEngine
         string.Join("; ", o.Items.Select((i, n) => $"{n + 1}) {i.ProductNameSnapshot} x{i.Quantity} @ Rs.{i.UnitPrice:0.##}")) + $" — total Rs.{o.Total:0.##}";
 
     /// <summary>
-    /// A rewrite is only trusted if it is not absurdly long and keeps every price/phone-sized number the seller said (runs of 3+ digits).
+    /// A rewrite is only trusted if it is not absurdly long and its amounts match what the seller said, in both directions:
+    /// (1) every price/phone-sized run of 3+ digits the transcript has survives; (2) every amount the transcript spells out in words
+    /// ("teen sau", "three thousand", "تین ہزار") shows up in the rewrite, as digits or words; (3) the rewrite invents no amount (100-999,999)
+    /// that the seller did not say — except <paramref name="knownNumbers"/>, ids and prices the model was shown (so "last order" can become "edit order 105").
     /// Small numbers may change on purpose ("4 lawn suits at 3500" -> "Lawn Suit - 3500", "pehla" -> "1"); the "Samjha" echo shows the result.
+    /// Phone-length digit runs (7+) are only protected by rule (1).
     /// </summary>
-    internal static bool IsFaithfulRewrite(string transcript, string? rewritten)
+    public static bool IsFaithfulRewrite(string transcript, string? rewritten, IReadOnlySet<long>? knownNumbers = null)
     {
         if (string.IsNullOrWhiteSpace(rewritten) || rewritten.Length > Math.Max(200, transcript.Length * 3)) return false;
         var kept = LongNumberDigits(rewritten);
-        return LongNumberDigits(transcript).All(d => kept.GetValueOrDefault(d.Key) >= d.Value);
+        if (!LongNumberDigits(transcript).All(d => kept.GetValueOrDefault(d.Key) >= d.Value)) return false;
+
+        var rewrittenAmounts = SpokenNumbers.Amounts(rewritten);
+        if (!SpokenNumbers.WordAmounts(transcript).All(rewrittenAmounts.Contains)) return false;
+
+        var said = SpokenNumbers.Amounts(transcript);
+        return rewrittenAmounts.All(a => said.Contains(a) || (knownNumbers?.Contains(a) ?? false));
     }
 
     private static Dictionary<int, int> LongNumberDigits(string text) =>

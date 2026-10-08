@@ -1061,7 +1061,7 @@ public class MockupFeatureTests : IDisposable
         var order = await SaveSaraKurtiOrderAsync(engine, db);
         var voice = VoiceEngine(db, "order nau nau nau ki price pandrah sau lagao");
         _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "edit order 9999", "price 1 = 1500", "done" } });
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "edit order 999", "price 1 = 1500", "done" } }); // 999 = "nau nau nau"; no such order
 
         await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
         await voice.HandleIncomingMessageAsync(Phone, "yes", default);
