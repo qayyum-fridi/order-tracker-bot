@@ -720,7 +720,7 @@ public class MockupFeatureTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "teen cotton suit naye products hain", default);
 
         Assert.False(await db.Products.AnyAsync(p => p.Name == "Cotton Suit"));
-        Assert.Contains(_sent, m => m.Contains("Cotton Suit") && m.Contains("price bhejein"));
+        Assert.Contains(_sent, m => m.Contains("Cotton Suit") && m.Contains("sale price bata dein"));
     }
 
     [Fact]
