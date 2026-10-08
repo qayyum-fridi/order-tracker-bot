@@ -63,6 +63,13 @@ public partial class ConversationEngine
             return;
         }
 
+        if (analysis.Intent == "create_discount")
+        {
+            SetState(session, ConversationState.AwaitingDiscountDetails);
+            await ReplyAsync(seller, HowToText("discount"), ct);
+            return;
+        }
+
         if (analysis.Intent == "customer_feedback" && analysis.Feedback is { } feedback)
         {
             await SaveCustomerFeedbackAsync(seller, feedback, ct);

@@ -49,7 +49,7 @@ public sealed class AiOrderDraft
 /// </summary>
 public sealed class AiMessageAnalysis
 {
-    /// <summary>new_order | status_update | customer_feedback | support_query | off_topic | unclear.</summary>
+    /// <summary>new_order | status_update | customer_feedback | support_query | add_products | create_discount | off_topic | unclear.</summary>
     public string Intent { get; init; } = "";
     public bool IsOrderAttempt { get; init; }
     /// <summary>True when the AI could not be reached (no API key, or the call failed) — distinct from "reached it, not an order".</summary>

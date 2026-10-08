@@ -82,7 +82,8 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "set is_order_attempt=false and list each product in new_products with its price in rupees when the seller said one, else null; the name " +
             "is the product only, without a unit or quantity word such as thaan/gaz/kg. Also fill cost_price (what it cost the seller to buy, \"kharid/cost\"), " +
             "stock_qty (how many they have) and attributes (other facts, each as name+value, e.g. colour, size, fabric) ONLY when the seller said them, else null / an empty list; " +
-            "a number is never copied from the catalog), unclear. " +
+            "a number is never copied from the catalog), create_discount (the seller wants to make/add a discount code or offer, in any wording or just " +
+            "describing it — \"naya discount banain\", \"ye ek naya discount hai jo product ke liye hoga\": not an order, not off_topic; set is_order_attempt=false), unclear. " +
             "For new_order put one entry per customer in orders (two different customers in one message = two entries). Quantity is the number " +
             "of catalog units; for weight-sold items like \"15kg kaju\" use the number of kg (15). " +
             "Required order fields are customer_name and phone; if either is missing, still return the order with what you found and list the " +
@@ -213,7 +214,9 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "corrects a name (\"X nahi, Y naam hai\"), keep that correction as one sentence in their own words). A cloth/fabric unit word (thaan, than, " +
             "gaz, meter) is a unit, not part of the product name: \"char thaan mozgi\", not \"char mozgi thaan\". (6) A dictated customer order is written like " +
             "\"Ayesha, 2 lawn suit, 03001234567, Gulberg Lahore\". Commands keep their typed form (\"orders today\", \"mark 3 shipped\", \"stock Kurti 20\", " +
-            "\"delivery 250\", \"catalog\" for any request to see/show the catalog). (7) A product's catalog price is only a default: the seller often sells one order at a different price. To change what ONE " +
+            "\"delivery 250\", \"catalog\" for any request to see/show the catalog). A seller who wants to create/add a discount, in any wording or just describing it " +
+            "(\"naya discount banain\", \"ye ek naya discount hai jo product ke liye hoga\"), gives the command \"create discount\" (action command); only when they also said the code and the value " +
+            "write \"create discount: CODE, 10 percent\" or \"create discount: CODE, Rs.50 flat\" (append \", expires N days\" if said). (7) A product's catalog price is only a default: the seller often sells one order at a different price. To change what ONE " +
             "customer was charged use three steps: \"edit order <order id>\", \"price <item number> = <amount>\", \"done\" (item numbers are the 1) 2) numbers " +
             "in the order list above; \"qty <item number> = <n>\", \"remove <item number>\", \"delivery <amount>\", \"phone <digits>\" and \"address <text>\" are the other edits you can put between edit order and done). " +
             "Never touch the catalog price for this. (8) NAMES: when the seller names a person, match it against the saved customers (spelling, Urdu script and phonetic " +
@@ -483,7 +486,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             ["intent"] = new JsonObject
             {
                 ["type"] = "string",
-                ["enum"] = new JsonArray { "new_order", "status_update", "customer_feedback", "support_query", "add_products", "off_topic", "unclear" }
+                ["enum"] = new JsonArray { "new_order", "status_update", "customer_feedback", "support_query", "add_products", "create_discount", "off_topic", "unclear" }
             },
             ["new_products"] = new JsonObject
             {

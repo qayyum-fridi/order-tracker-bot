@@ -325,6 +325,22 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task DescribedNewDiscount_AiCreateDiscountIntent_StartsDiscountFlow()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "create_discount" });
+
+        await engine.HandleIncomingMessageAsync(Phone, "ye ek naya discount hai jo ke product ke liye istemal hoga.", default);
+
+        Assert.Equal(ConversationState.AwaitingDiscountDetails, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sentMessages, m => m.Contains("create discount: EID10"));
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("sirf orders/sales"));
+    }
+
+    [Fact]
     public async Task DiscountList_WhenEmpty_ShowsHowToCreateOne()
     {
         using var db = _dbFactory.CreateContext();
