@@ -11,7 +11,9 @@ public enum CommandKind
     OrdersToday,
     PendingOrders,
     TodaysSummary,
+    Profit,
     Catalog,
+    CatalogFilter,
     AddProduct,
     AddProductsBulk,
     ShareCatalog,
@@ -374,6 +376,19 @@ public static class CommandParser
         ("today", new(NotLetter + @"(?:today|aaj|آج)" + NotLetterAfter, Opts)),
     };
 
+    // "profit" (last 30 days), "profit today|yesterday|week|month|last month", "munafa", "منافع". Text = period key ("today", "yesterday", "lastmonth", "7d", "30d").
+    // Anything else after the word (e.g. "profit margin on kurti") is not a profit command.
+    private static readonly Regex ProfitLead = new(@"^(?:profit(?:\s+report)?|munafa|nafa|منافع|نفع)(?:\s+(?<p>.+))?$", Opts);
+
+    private static ParsedCommand? TryParseProfit(string message)
+    {
+        var m = ProfitLead.Match(message);
+        if (!m.Success) return null;
+        if (!m.Groups["p"].Success) return new ParsedCommand { Kind = CommandKind.Profit, Text = "30d" };
+        var period = ExportPeriodWords.FirstOrDefault(p => p.Pattern.IsMatch(m.Groups["p"].Value)).Period;
+        return period is null ? null : new ParsedCommand { Kind = CommandKind.Profit, Text = period };
+    }
+
     // Expenses: "expense 500 packaging", "kharcha Rs 1,200 rent", "expense packaging 500". Text = note (may be empty), Amount = value.
     private const string ExpenseWord = @"(?:expenses?|kharcha|kharch|kharcay|خرچہ|خرچ)";
     private const string ExpenseAmount = @"(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d{1,2})?)";
@@ -529,8 +544,32 @@ public static class CommandParser
     // "Polo Shirt - 500, cost 300, stock 10": the first number is the sale price, the rest are comma/semicolon/pipe separated details.
     private static readonly Regex ProductWithDetails = new(@"^([^\d,;:|\n]{2,50}?)\s*[-–=]\s*(?:rs\.?\s*)?(\d{1,7}(?:\.\d+)?)\s*[,;|]\s*(.+)$", Opts);
     private static readonly Regex KnownDetail = new(
-        @"^(?<key>cost price|purchase price|kharid price|buying price|cost|purchase|kharid|khareed|stock|quantity|qty|tadad|maal|colour|color|rang|size|category|sku)\b\s*[:=]?\s*(?<val>.+)$", Opts);
+        @"^(?<key>cost price|purchase price|kharid price|buying price|cost|purchase|kharid|khareed|stock|quantity|qty|tadad|maal|colour|color|rang|size|category|qism|kism|sku)\b\s*[:=]?\s*(?<val>.+)$", Opts);
     private static readonly Regex AttributeDetail = new(@"^(?<key>[^\d:=]{2,30}?)\s*:\s*(?<val>.+)$", Opts);
+
+    // The words sellers use for who supplied/made/sorted a product, folded onto one stored name so "vendor: X" and "supplier: X" group together.
+    private static readonly Dictionary<string, string> DetailAliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["category"] = "category", ["categories"] = "category", ["qism"] = "category", ["kism"] = "category",
+        ["vendor"] = "vendor", ["vendors"] = "vendor", ["supplier"] = "vendor", ["suppliers"] = "vendor", ["wholesaler"] = "vendor", ["wholesalers"] = "vendor",
+        ["dealer"] = "vendor", ["dealers"] = "vendor",
+        ["manufacturer"] = "manufacturer", ["manufacturers"] = "manufacturer", ["maker"] = "manufacturer", ["makers"] = "manufacturer", ["mfg"] = "manufacturer",
+        ["company"] = "manufacturer", ["companies"] = "manufacturer", ["factory"] = "manufacturer",
+        ["department"] = "department", ["dept"] = "department", ["section"] = "department",
+        ["brand"] = "brand",
+    };
+
+    /// <summary>"Supplier" -> "vendor", "Dept" -> "department"; any other name is returned as written (trimmed).</summary>
+    public static string CanonicalDetailName(string name)
+    {
+        var trimmed = name.Trim();
+        return DetailAliases.TryGetValue(trimmed, out var canonical) ? canonical : trimmed;
+    }
+
+    // "products vendor Ali Traders", "catalog category Shirts", "products by department": list the catalog filtered on one detail.
+    // Without a value it lists the values in use. Text = canonical field, Text2 = value (null = list values).
+    private static readonly Regex CatalogFilter = new(
+        @"^(?:products?|catalog|items?)\s+(?:by\s+|ka\s+)?(?<f>categor(?:y|ies)|qism|kism|vendors?|suppliers?|wholesalers?|dealers?|manufacturers?|makers?|mfg|company|companies|factory|department|dept|section|brand)s?\b\s*[:=]?\s*(?<v>.*)$", Opts);
 
     private static bool TryParseProductDetails(string rest, out ProductExtras? extras)
     {
@@ -559,14 +598,16 @@ public static class CommandParser
                         break;
                     case "color" or "colour" or "rang": color = value; break;
                     case "size": size = value; break;
-                    case "category": category = value; break;
+                    case "category" or "qism" or "kism": category = value; break;
                     default: sku = value; break;
                 }
             }
             else if (AttributeDetail.Match(part) is { Success: true } attribute)
             {
                 // Any other detail must be written "name: value" so ordinary words are never mistaken for an attribute.
-                (attributes ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))[attribute.Groups["key"].Value.Trim()] = attribute.Groups["val"].Value.Trim();
+                var name = CanonicalDetailName(attribute.Groups["key"].Value);
+                if (name == "category") category = attribute.Groups["val"].Value.Trim();
+                else (attributes ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))[name] = attribute.Groups["val"].Value.Trim();
             }
             else return false;
             any = true;
@@ -679,7 +720,36 @@ public static class CommandParser
         });
     }
 
+    // Words a speaker (or a speech-to-text transcript) puts in front of a command: "acha, orders today", "bhai suno order 3 shipped".
+    // Not "zara": it is also a common first name ("Zara ka order").
+    private static readonly Regex LeadingFiller = new(
+        @"^(?:(?:assalam(?:u|o)?\s*(?:o\s*)?alaikum|asalam\s*o\s*alaikum|salam|hello(?:\s+bot)?|hey|hi|acha|accha|achha|bhai(?:jan)?|jee|ji|umm+|um+|uh+|hmm+|suno|yaar|please|plz|dekho|okay\s+so|ok\s+so|haan\s+to|bot|اچھا|بھائی|سنو|جی|سلام|ہیلو)(?![\p{L}\p{N}])[\s,.:!-]*)+", Opts);
+    private static readonly Regex TrailingPunctuation = new(@"[\s.!?,;:…،۔؟]+$", RegexOptions.Compiled);
+
+    // A spoken negation, question or plan ("deliver nahi hua", "kab ship hoga", "kya deliver ho gaya", "abhi tak pending hai"): it reports or asks
+    // about a status, it does not set one.
+    private static readonly Regex NotAStatusChange = new(
+        @"(?<![\p{L}\p{N}])(?:nahi|nahin|nai|nhi|nah|mat|na\s+hua|na\s+hui|kab|kya|kyun|kyu|kaise|kahan|kaha|kidhar|kitne|when|why|not|abhi\s+tak|hoga|hogi|hongay|honge|chahiye|should|was|has|did|will)(?![\p{L}\p{N}])|\?|؟|نہیں|نہ|کب|کیا|کیوں|کہاں|گا(?![\p{L}])|گی(?![\p{L}])", Opts);
+
+    /// <summary>
+    /// Parses a typed or transcribed message into a command. Leading fillers ("acha", "bhai", "please") and trailing sentence punctuation
+    /// (speech-to-text ends sentences with "." or "?") are ignored; a question mark also stops a status question from being read as an update.
+    /// </summary>
     public static ParsedCommand? TryParse(string rawMessage)
+    {
+        var text = rawMessage.Trim();
+        var filler = LeadingFiller.Match(text);
+        if (filler.Success && filler.Length < text.Length) text = text[filler.Length..].Trim();
+
+        var parsed = ParseCore(text, wasQuestion: false);
+        if (parsed is not null) return parsed;
+
+        var bare = TrailingPunctuation.Replace(text, "");
+        if (bare.Length == 0 || bare.Length == text.Length) return null;
+        return ParseCore(bare, wasQuestion: text[bare.Length..].Contains('?') || text[bare.Length..].Contains('؟'));
+    }
+
+    private static ParsedCommand? ParseCore(string rawMessage, bool wasQuestion)
     {
         var message = NormalizeDigits(rawMessage.Trim());
         // A tapped button keeps its emoji ("📋 Menu", "⚙️ Business Setup") — parse the words.
@@ -706,6 +776,11 @@ public static class CommandParser
         if (TodaysSummary.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.TodaysSummary };
         if (YesterdaysSummary.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.TodaysSummary, Text = "yesterday" };
         if (LastMonthSummary.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.TodaysSummary, Text = "lastmonth" };
+        if ((m = CatalogFilter.Match(message)).Success)
+        {
+            var value = m.Groups["v"].Value.Trim();
+            return new ParsedCommand { Kind = CommandKind.CatalogFilter, Text = CanonicalDetailName(m.Groups["f"].Value), Text2 = value.Length == 0 ? null : value };
+        }
         if (Catalog.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Catalog };
         if (ShareCatalog.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ShareCatalog };
         if ((m = MenuCategory.Match(message)).Success)
@@ -766,6 +841,7 @@ public static class CommandParser
         if (DeliveryShow.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DeliveryCharge };
         if ((m = Shortcuts.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.Shortcuts, Text = m.Groups["v"].Value.ToLowerInvariant() is "on" or "chalu" ? "on" : "off" };
+        if (TryParseProfit(message) is { } profit) return profit;
         if ((m = ExportLead.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.Export, Export = ParseExportRequest(m.Groups["what"].Success ? m.Groups["what"].Value : null) };
         if ((m = ExportTrail.Match(message)).Success && ParseExportRequest(m.Groups["what"].Value) is { Datasets.Count: > 0 } trailing)
@@ -809,7 +885,7 @@ public static class CommandParser
         if (TryParseForwardedQuery(message, out var asker, out var question))
             return new ParsedCommand { Kind = CommandKind.ForwardedQuery, Text = asker, Text2 = question };
 
-        if (TryParseCustomerUpdate(message) is { } customerUpdate) return customerUpdate;
+        if (!wasQuestion && TryParseCustomerUpdate(message) is { } customerUpdate) return customerUpdate;
         if ((m = CustomerDetail.Match(message)).Success)
         {
             var arg = m.Groups[1].Value.Trim();
@@ -850,7 +926,7 @@ public static class CommandParser
         if ((m = TrackingLookup.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.TrackingLookup, Text = m.Groups[1].Value.Trim() };
 
-        if ((m = FuzzyStatusUpdate.Match(message)).Success)
+        if (!wasQuestion && !NotAStatusChange.IsMatch(message) && (m = FuzzyStatusUpdate.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.FuzzyStatusUpdate, Text = m.Groups[1].Value.Trim(), Text2 = FuzzyStatusKeyword(m.Groups[2].Value) };
 
         if ((m = CustomerOrderLookup.Match(message)).Success)

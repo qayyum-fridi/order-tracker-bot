@@ -21,7 +21,7 @@ public partial class ConversationEngine
         "• \"payment cod\" / \"payment jazzcash\"\n" +
         "Mukammal ho to \"done\". Ghalti ho jaye to baad mein \"undo\".";
 
-    private sealed record EditSnapshotItem(int? ProductId, string Name, decimal UnitPrice, int Quantity);
+    private sealed record EditSnapshotItem(int? ProductId, string Name, decimal UnitPrice, int Quantity, decimal? UnitCost = null);
     private sealed record EditSnapshot(List<EditSnapshotItem> Items, decimal Subtotal, decimal DiscountAmount, decimal DeliveryCharge,
         decimal Total, OrderPaymentMethod PaymentMethod, string? CustomerName, string? CustomerPhone, string? CustomerAddress);
 
@@ -165,7 +165,7 @@ public partial class ConversationEngine
                 if (entry is null) return (false, $"\"{change.Text}\" catalog mein nahi mila. Pehle add karein: \"{change.Text} - price\"");
                 var line = new PendingOrderItemData { ProductName = entry.Product.Name, Quantity = change.Quantity ?? 1 };
                 ApplyCatalogEntry(line, entry);
-                order.Items.Add(new OrderItem { ProductId = entry.Product.Id, ProductNameSnapshot = entry.Product.Name, UnitPrice = line.UnitPrice, Quantity = line.Quantity });
+                order.Items.Add(new OrderItem { ProductId = entry.Product.Id, ProductNameSnapshot = entry.Product.Name, UnitPrice = line.UnitPrice, UnitCost = entry.Product.CostPrice, Quantity = line.Quantity });
                 return (true, $"{entry.Product.Name} x{line.Quantity} add kar diya ({Formatters.Money(line.UnitPrice)} each).");
             }
             case "phone":
@@ -200,7 +200,7 @@ public partial class ConversationEngine
     }
 
     private static EditSnapshot Snapshot(Order order) => new(
-        order.Items.OrderBy(i => i.Id).Select(i => new EditSnapshotItem(i.ProductId, i.ProductNameSnapshot, i.UnitPrice, i.Quantity)).ToList(),
+        order.Items.OrderBy(i => i.Id).Select(i => new EditSnapshotItem(i.ProductId, i.ProductNameSnapshot, i.UnitPrice, i.Quantity, i.UnitCost)).ToList(),
         order.Subtotal, order.DiscountAmount, order.DeliveryCharge, order.Total, order.PaymentMethod,
         order.Customer?.Name, order.Customer?.Phone, order.Customer?.Address);
 
@@ -218,7 +218,7 @@ public partial class ConversationEngine
             _db.OrderItems.Remove(item);
         }
         foreach (var item in snapshot.Items)
-            order.Items.Add(new OrderItem { ProductId = item.ProductId, ProductNameSnapshot = item.Name, UnitPrice = item.UnitPrice, Quantity = item.Quantity });
+            order.Items.Add(new OrderItem { ProductId = item.ProductId, ProductNameSnapshot = item.Name, UnitPrice = item.UnitPrice, UnitCost = item.UnitCost, Quantity = item.Quantity });
         order.Subtotal = snapshot.Subtotal;
         order.DiscountAmount = snapshot.DiscountAmount;
         order.DeliveryCharge = snapshot.DeliveryCharge;

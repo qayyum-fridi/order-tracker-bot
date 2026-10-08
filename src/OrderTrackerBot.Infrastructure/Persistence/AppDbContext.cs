@@ -85,6 +85,7 @@ public class AppDbContext : DbContext, IAppDbContext
         modelBuilder.Entity<OrderItem>(e =>
         {
             e.Property(i => i.UnitPrice).HasColumnType("decimal(18,2)");
+            e.Property(i => i.UnitCost).HasColumnType("decimal(18,2)");
             e.HasOne(i => i.Order).WithMany(o => o.Items).HasForeignKey(i => i.OrderId).OnDelete(DeleteBehavior.Cascade);
         });
 

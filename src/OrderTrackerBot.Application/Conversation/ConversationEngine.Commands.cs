@@ -128,7 +128,7 @@ public partial class ConversationEngine
                 new MenuRow("discount performance", "Discount performance"),
                 new MenuRow("monthly net", "Monthly net"), new MenuRow("expenses", "Expenses"), BackToMenu
             }),
-            ["catalog"] = ("🛍️ Catalog", "🛍️ Catalog\n • naya product: Kurti - 1800\n • stock: \"stock Kurti 20\" / \"stock\"\n • weight/pack: Sugar 5 kg - 500\n • edit product: Kurti - 1900\n • delete product: Kurti\n • wholesale: Kaju - price tiers: 1kg=320, 10kg=300\n • ek saath kai products bhi bhej saktay hain", new[]
+            ["catalog"] = ("🛍️ Catalog", "🛍️ Catalog\n • naya product: Kurti - 1800\n • stock: \"stock Kurti 20\" / \"stock\"\n • weight/pack: Sugar 5 kg - 500\n • edit product: Kurti - 1900\n • delete product: Kurti\n • filter: \"products vendor Ali\" / \"products category Shirts\"\n • wholesale: Kaju - price tiers: 1kg=320, 10kg=300\n • ek saath kai products bhi bhej saktay hain", new[]
             {
                 new MenuRow("catalog", "View catalog"), new MenuRow("share catalog", "Share catalog"),
                 new MenuRow("add product", "Add product"), new MenuRow("add product (detailed)", "Add product (form)"), BackToMenu
@@ -329,6 +329,12 @@ public partial class ConversationEngine
                 return;
             case CommandKind.TodaysSummary:
                 await HandleTodaysSummaryAsync(seller, cmd.Text, ct);
+                return;
+            case CommandKind.Profit:
+                await HandleProfitAsync(seller, cmd.Text, ct);
+                return;
+            case CommandKind.CatalogFilter:
+                await HandleCatalogFilterAsync(seller, cmd.Text!, cmd.Text2, ct);
                 return;
             case CommandKind.Catalog:
                 await HandleCatalogAsync(seller, ct);
@@ -550,6 +556,51 @@ public partial class ConversationEngine
             "Price badalne ke liye: edit product: Kurti - 1900", ct);
     }
 
+    /// <summary>The value a product carries for category / vendor / manufacturer / department / brand; attributes saved under an older spelling ("Supplier") count too.</summary>
+    private static string? ProductDetail(Product product, string field) =>
+        field == "category"
+            ? product.Category
+            : ProductAttributes(product).Where(a => CommandParser.CanonicalDetailName(a.Key) == field).Select(a => a.Value).FirstOrDefault();
+
+    /// <summary>Attributes that have no column of their own ("fabric: cotton; brand: Lucky") for the catalog export.</summary>
+    private static string? OtherProductDetails(Product product)
+    {
+        var other = ProductAttributes(product).Where(a => CommandParser.CanonicalDetailName(a.Key) is not ("vendor" or "manufacturer" or "department" or "category")).ToList();
+        return other.Count == 0 ? null : string.Join("; ", other.Select(a => $"{a.Key}: {a.Value}"));
+    }
+
+    /// <summary>"products vendor Ali" lists the matching products; "products vendor" lists the vendors in use.</summary>
+    private async Task HandleCatalogFilterAsync(Seller seller, string field, string? value, CancellationToken ct)
+    {
+        var products = await _db.Products.AsNoTracking().Where(p => p.SellerId == seller.Id && p.IsActive).OrderBy(p => p.Id).ToListAsync(ct);
+        var withDetail = products.Select(p => (Product: p, Detail: ProductDetail(p, field)?.Trim())).Where(x => !string.IsNullOrEmpty(x.Detail)).ToList();
+        var label = char.ToUpperInvariant(field[0]) + field[1..];
+
+        if (withDetail.Count == 0)
+        {
+            await ReplyAsync(seller, $"{label} abhi kisi product par likha hua nahi.\n\nProduct ke saath likhein, e.g. Polo Shirt - 500, {field}: Ali Traders", ct);
+            return;
+        }
+
+        var values = withDetail.GroupBy(x => x.Detail!, StringComparer.OrdinalIgnoreCase).Select(g => $"• {g.Key} ({g.Count()})").ToList();
+        if (value is null)
+        {
+            await ReplyAsync(seller, $"🏷️ {label} ({values.Count}):\n\n{string.Join("\n", values)}\n\nEk ki products dekhne ke liye likhein: products {field} <naam>", ct);
+            return;
+        }
+
+        var matches = withDetail.Where(x => x.Detail!.Equals(value, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (matches.Count == 0) matches = withDetail.Where(x => x.Detail!.Contains(value, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (matches.Count == 0)
+        {
+            await ReplyAsync(seller, $"\"{value}\" {field} wala koi product nahi mila.\n\n{label}:\n{string.Join("\n", values)}", ct);
+            return;
+        }
+
+        var lines = matches.Select((x, i) => $"{i + 1} {Formatters.ProductLabel(x.Product)} - {Formatters.Money(x.Product.Price)}" + (x.Product.StockQty is { } q ? $" (stock {q})" : ""));
+        await ReplyAsync(seller, $"🛍️ {label}: {matches[0].Detail} ({matches.Count} products):\n\n{string.Join("\n", lines)}", ct);
+    }
+
     private async Task HandleShareCatalogAsync(Seller seller, CancellationToken ct)
     {
         var products = await _db.Products.Where(p => p.SellerId == seller.Id && p.IsActive).OrderBy(p => p.Id).ToListAsync(ct);
@@ -678,17 +729,18 @@ public partial class ConversationEngine
     /// <summary>Cost, stock and attributes the model read for one new product (color/size go to their own fields); null when there is none.</summary>
     private static ProductExtras? ExtrasOf(AiNewProduct p)
     {
-        string? color = null, size = null;
+        string? color = null, size = null, category = null;
         var other = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (name, value) in p.Attributes)
         {
             if (name.Equals("color", StringComparison.OrdinalIgnoreCase) || name.Equals("colour", StringComparison.OrdinalIgnoreCase) || name.Equals("rang", StringComparison.OrdinalIgnoreCase)) color = value;
             else if (name.Equals("size", StringComparison.OrdinalIgnoreCase)) size = value;
-            else other[name] = value;
+            else if (CommandParser.CanonicalDetailName(name) == "category") category = value;
+            else other[CommandParser.CanonicalDetailName(name)] = value;
         }
-        return p.Cost is null && p.Stock is null && color is null && size is null && other.Count == 0
+        return p.Cost is null && p.Stock is null && color is null && size is null && category is null && other.Count == 0
             ? null
-            : new ProductExtras(p.Cost, p.Stock, null, size, color, null, other.Count == 0 ? null : other);
+            : new ProductExtras(p.Cost, p.Stock, category, size, color, null, other.Count == 0 ? null : other);
     }
 
     /// <summary>What was said later wins over what was said earlier.</summary>
@@ -709,6 +761,7 @@ public partial class ConversationEngine
         if (e.Stock is { } stock) parts.Add($"stock {stock}");
         if (e.Color is not null) parts.Add($"color: {e.Color}");
         if (e.Size is not null) parts.Add($"size: {e.Size}");
+        if (e.Category is not null) parts.Add($"category: {e.Category}");
         if (e.Attributes is not null) parts.AddRange(e.Attributes.Select(a => $"{a.Key}: {a.Value}"));
         return parts.Count == 0 ? "" : $" ({string.Join(", ", parts)})";
     }
@@ -812,6 +865,7 @@ public partial class ConversationEngine
         var parts = new List<string>();
         if (product.CostPrice is { } cost) parts.Add($"cost {Formatters.Money(cost)}");
         if (product.StockQty is { } stock) parts.Add($"stock {stock}");
+        if (!string.IsNullOrWhiteSpace(product.Category)) parts.Add($"category: {product.Category}");
         parts.AddRange(ProductAttributes(product).Select(a => $"{a.Key}: {a.Value}"));
         return parts.Count == 0 ? "" : $" ({string.Join(", ", parts)})";
     }

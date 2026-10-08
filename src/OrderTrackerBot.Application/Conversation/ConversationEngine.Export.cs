@@ -170,9 +170,11 @@ public partial class ConversationEngine
         var sheet = new ExportSheet("Catalog", new[]
         {
             Col("Product", typeof(string)), Col("Price", typeof(decimal)), Col("Cost price", typeof(decimal)), Col("Unit", typeof(string)), Col("Pack size", typeof(decimal)),
-            Col("Category", typeof(string)), Col("Size", typeof(string)), Col("Color", typeof(string)), Col("SKU", typeof(string)),
+            Col("Category", typeof(string)), Col("Vendor", typeof(string)), Col("Manufacturer", typeof(string)), Col("Department", typeof(string)),
+            Col("Size", typeof(string)), Col("Color", typeof(string)), Col("SKU", typeof(string)), Col("Other details", typeof(string)),
             Col("Stock", typeof(int)), Col("Active", typeof(string)), Col("Added on", typeof(DateTime))
-        }, products.Select(p => new object?[] { p.Name, p.Price, p.CostPrice, p.UnitType, p.UnitQty, p.Category, p.Size, p.Color, p.Sku,
+        }, products.Select(p => new object?[] { p.Name, p.Price, p.CostPrice, p.UnitType, p.UnitQty, p.Category,
+            ProductDetail(p, "vendor"), ProductDetail(p, "manufacturer"), ProductDetail(p, "department"), p.Size, p.Color, p.Sku, OtherProductDetails(p),
             p.StockQty, p.IsActive ? "Yes" : "No", local(p.CreatedAt) }).ToList());
         return ("Catalog", new List<ExportSheet> { sheet });
     }

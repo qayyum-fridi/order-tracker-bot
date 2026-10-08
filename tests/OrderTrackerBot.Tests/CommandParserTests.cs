@@ -49,6 +49,75 @@ public class CommandParserTests
         Assert.Equal(expected, parsed!.Kind);
     }
 
+    [Theory]
+    [InlineData("Orders today.", CommandKind.OrdersToday)]
+    [InlineData("orders today?", CommandKind.OrdersToday)]
+    [InlineData("aaj ke orders!", CommandKind.OrdersToday)]
+    [InlineData("acha orders today", CommandKind.OrdersToday)]
+    [InlineData("bhai suno, pending orders.", CommandKind.PendingOrders)]
+    [InlineData("assalam o alaikum catalog", CommandKind.Catalog)]
+    [InlineData("please undo...", CommandKind.Undo)]
+    [InlineData("آج کے آرڈرز۔", CommandKind.OrdersToday)]
+    public void IgnoresSpokenFillerAndSentencePunctuation(string message, CommandKind expected)
+    {
+        Assert.Equal(expected, CommandParser.TryParse(message)?.Kind);
+    }
+
+    [Fact]
+    public void FillerIsStrippedBeforeACustomerName()
+    {
+        var parsed = CommandParser.TryParse("acha Sara ka order deliver ho gaya.");
+        Assert.Equal(CommandKind.FuzzyStatusUpdate, parsed!.Kind);
+        Assert.Equal("Sara", parsed.Text);
+    }
+
+    [Fact]
+    public void FirstNameThatLooksLikeAFillerIsKept()
+    {
+        Assert.Equal("Zara", CommandParser.TryParse("Zara ka order deliver ho gaya")!.Text);
+    }
+
+    [Fact]
+    public void OrderMarkedDeliveredKeepsItsNumberWithFillerAndPunctuation()
+    {
+        var parsed = CommandParser.TryParse("bhai order 12 deliver ho gaya.");
+        Assert.Equal(CommandKind.MarkStatus, parsed!.Kind);
+        Assert.Equal(12, parsed.Number);
+        Assert.Equal("delivered", parsed.Text);
+    }
+
+    [Theory]
+    [InlineData("Sara ka order deliver nahi hua")]
+    [InlineData("Sara ka order abhi tak pending hai")]
+    [InlineData("Bilal ka order kab ship hoga")]
+    [InlineData("Bilal ka order ship kab hoga?")]
+    [InlineData("kya Hassan ka order deliver ho gaya")]
+    [InlineData("Hassan ka order deliver ho gaya?")]
+    [InlineData("Ayesha ka order wapas nahi aaya")]
+    [InlineData("Sara ka order cancel mat karo")]
+    public void StatusQuestionsAndNegationsAreNotStatusUpdates(string message)
+    {
+        Assert.NotEqual(CommandKind.FuzzyStatusUpdate, CommandParser.TryParse(message)?.Kind);
+    }
+
+    [Theory]
+    [InlineData("Sara ka order deliver ho gaya", "deliver")]
+    [InlineData("Bilal ka order ship kar diya.", "ship")]
+    [InlineData("Ayesha ka order wapas aa gaya", "return")]
+    public void StatementsStillUpdateTheStatus(string message, string expectedKeyword)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.Equal(CommandKind.FuzzyStatusUpdate, parsed!.Kind);
+        Assert.Equal(expectedKeyword, parsed.Text2);
+    }
+
+    [Fact]
+    public void QuestionAboutACustomerFieldIsNotAnUpdate()
+    {
+        Assert.NotEqual(CommandKind.CustomerUpdate, CommandParser.TryParse("Sara ka address Lahore?")?.Kind);
+        Assert.Equal(CommandKind.CustomerUpdate, CommandParser.TryParse("Sara ka address Lahore")?.Kind);
+    }
+
     [Fact]
     public void ParsesMarkStatus_WithOrderNumberAndKeyword()
     {

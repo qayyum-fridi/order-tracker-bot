@@ -1131,6 +1131,78 @@ public class ConversationEngineTests : IDisposable
         Assert.Contains(_sentMessages, m => m.Contains("Aaj koi order nahi aaya"));
     }
 
+    [Theory]
+    [InlineData("profit", "30d")]
+    [InlineData("profit today", "today")]
+    [InlineData("Profit last month", "lastmonth")]
+    [InlineData("profit week", "7d")]
+    [InlineData("munafa", "30d")]
+    public void Parses_Profit(string text, string period)
+    {
+        var cmd = CommandParser.TryParse(text)!;
+        Assert.Equal(CommandKind.Profit, cmd.Kind);
+        Assert.Equal(period, cmd.Text);
+    }
+
+    [Fact]
+    public void ProfitMarginQuestion_IsNotAProfitCommand() =>
+        Assert.NotEqual(CommandKind.Profit, CommandParser.TryParse("profit margin on kurti")?.Kind);
+
+    [Fact]
+    public async Task Profit_UsesSnapshotCost_FallsBackToProductCost_AndSkipsOrdersWithoutCost()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var seller = await db.Sellers.FirstAsync();
+        var customer = new OrderTrackerBot.Domain.Entities.Customer { SellerId = seller.Id, Name = "Sara", Phone = "03001112222" };
+        var withCost = new OrderTrackerBot.Domain.Entities.Product { SellerId = seller.Id, Name = "Kurti", Price = 400, CostPrice = 200 };
+        var noCost = new OrderTrackerBot.Domain.Entities.Product { SellerId = seller.Id, Name = "Dupatta", Price = 300 };
+        db.AddRange(customer, withCost, noCost);
+        await db.SaveChangesAsync();
+
+        OrderTrackerBot.Domain.Entities.Order Make(OrderStatus status, decimal subtotal, decimal discount, params OrderTrackerBot.Domain.Entities.OrderItem[] items)
+        {
+            var o = new OrderTrackerBot.Domain.Entities.Order { SellerId = seller.Id, CustomerId = customer.Id, Status = status, Subtotal = subtotal, DiscountAmount = discount, DeliveryCharge = 200, Total = subtotal - discount + 200 };
+            foreach (var i in items) o.Items.Add(i);
+            return o;
+        }
+        // Snapshot cost 300 x2 @500, Rs.100 discount: sales 900, cost 600.
+        db.Orders.Add(Make(OrderStatus.Pending, 1000, 100, new OrderTrackerBot.Domain.Entities.OrderItem { ProductNameSnapshot = "Suit", UnitPrice = 500, UnitCost = 300, Quantity = 2 }));
+        // No snapshot (older order): falls back to the product's current cost 200: sales 400, cost 200.
+        db.Orders.Add(Make(OrderStatus.Delivered, 400, 0, new OrderTrackerBot.Domain.Entities.OrderItem { ProductId = withCost.Id, ProductNameSnapshot = "Kurti", UnitPrice = 400, Quantity = 1 }));
+        // Cost unknown anywhere: left out and reported.
+        db.Orders.Add(Make(OrderStatus.Pending, 300, 0, new OrderTrackerBot.Domain.Entities.OrderItem { ProductId = noCost.Id, ProductNameSnapshot = "Dupatta", UnitPrice = 300, Quantity = 1 }));
+        // Cancelled: ignored entirely.
+        db.Orders.Add(Make(OrderStatus.Cancelled, 5000, 0, new OrderTrackerBot.Domain.Entities.OrderItem { ProductNameSnapshot = "Suit", UnitPrice = 5000, UnitCost = 1, Quantity = 1 }));
+        await db.SaveChangesAsync();
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "profit", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Orders: 2") && m.Contains("Sales (delivery ke baghair): Rs.1,300")
+            && m.Contains("Cost: Rs.800") && m.Contains("Profit: Rs.500 (38.5%)") && m.Contains("1 order(s) shamil nahi"));
+    }
+
+    [Fact]
+    public async Task Profit_WithNoCostAnywhere_ExplainsHowToAddIt()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var seller = await db.Sellers.FirstAsync();
+        var customer = new OrderTrackerBot.Domain.Entities.Customer { SellerId = seller.Id, Name = "Sara", Phone = "03001112222" };
+        db.Customers.Add(customer);
+        await db.SaveChangesAsync();
+        var order = new OrderTrackerBot.Domain.Entities.Order { SellerId = seller.Id, CustomerId = customer.Id, Subtotal = 500, Total = 500 };
+        order.Items.Add(new() { ProductNameSnapshot = "Suit", UnitPrice = 500, Quantity = 1 });
+        db.Orders.Add(order);
+        await db.SaveChangesAsync();
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "profit", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("cost save nahi hai") && m.Contains("cost 1200"));
+    }
+
     [Fact]
     public async Task OrdersYesterday_ListsOnlyYesterdaysOrders()
     {

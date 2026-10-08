@@ -854,6 +854,105 @@ public class MockupFeatureTests : IDisposable
         Assert.Equal(isProduct, CommandParser.TryParseProductLine(line, out ProductLine? _));
 
     [Theory]
+    [InlineData("supplier", "vendor")]
+    [InlineData("Wholesaler", "vendor")]
+    [InlineData("maker", "manufacturer")]
+    [InlineData("Company", "manufacturer")]
+    [InlineData("dept", "department")]
+    [InlineData("qism", "category")]
+    [InlineData(" fabric ", "fabric")]
+    public void CanonicalDetailName_FoldsSynonyms_AndLeavesOtherNamesAlone(string written, string expected) =>
+        Assert.Equal(expected, CommandParser.CanonicalDetailName(written));
+
+    [Fact]
+    public void ProductLine_SynonymsLandOnOneStoredName_AndCategoryHasItsOwnField()
+    {
+        Assert.True(CommandParser.TryParseProductLine("Polo Shirt - 500, supplier: Ali Traders, maker: Lucky, dept: Men, fabric: cotton, qism: Shirts", out ProductLine? line));
+        var extras = line!.Extras!;
+        Assert.Equal("Shirts", extras.Category);
+        Assert.Equal("Ali Traders", extras.Attributes!["vendor"]);
+        Assert.Equal("Lucky", extras.Attributes["manufacturer"]);
+        Assert.Equal("Men", extras.Attributes["department"]);
+        Assert.Equal("cotton", extras.Attributes["fabric"]);
+        Assert.False(extras.Attributes.ContainsKey("supplier"));
+    }
+
+    [Theory]
+    [InlineData("products vendor Ali Traders", "vendor", "Ali Traders")]
+    [InlineData("products by category Shirts", "category", "Shirts")]
+    [InlineData("catalog supplier: Ali", "vendor", "Ali")]
+    [InlineData("products department Men", "department", "Men")]
+    [InlineData("products vendor", "vendor", null)]
+    [InlineData("products categories", "category", null)]
+    public void CatalogFilter_ParsesFieldAndValue(string text, string field, string? value)
+    {
+        var cmd = CommandParser.TryParse(text);
+        Assert.Equal(CommandKind.CatalogFilter, cmd?.Kind);
+        Assert.Equal((field, value), (cmd!.Text, cmd.Text2));
+    }
+
+    [Theory]
+    [InlineData("catalog")]
+    [InlineData("products")]
+    [InlineData("Kurti - 1800")]
+    public void CatalogFilter_DoesNotHijackPlainCatalogOrProductLines(string text) =>
+        Assert.NotEqual(CommandKind.CatalogFilter, CommandParser.TryParse(text)?.Kind);
+
+    [Fact]
+    public async Task ProductsWithVendorAndCategory_AreSavedUnderOneName_AndCanBeFiltered()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Polo Shirt - 500, category: Shirts, supplier: Ali Traders, department: Men", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Check Shirt - 700, category: Shirts, vendor: ali traders", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Lawn Suit - 3500, category: Suits, vendor: Noor Textiles", default);
+
+        var polo = await db.Products.AsNoTracking().SingleAsync(p => p.Name == "Polo Shirt");
+        Assert.Equal("Shirts", polo.Category);
+        Assert.Contains("\"vendor\"", polo.AttributesJson);
+        Assert.DoesNotContain("supplier", polo.AttributesJson);
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "products vendor Ali Traders", default);
+        Assert.Contains(_sent, m => m.Contains("Polo Shirt") && m.Contains("Check Shirt") && !m.Contains("Lawn Suit") && m.Contains("2 products"));
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "products category Suits", default);
+        Assert.Contains(_sent, m => m.Contains("Lawn Suit") && !m.Contains("Polo Shirt"));
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "products vendor", default);
+        Assert.Contains(_sent, m => m.Contains("Ali Traders (2)") && m.Contains("Noor Textiles (1)"));
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "products vendor Nobody", default);
+        Assert.Contains(_sent, m => m.Contains("\"Nobody\" vendor wala koi product nahi mila") && m.Contains("Noor Textiles"));
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "products manufacturer", default);
+        Assert.Contains(_sent, m => m.Contains("Manufacturer abhi kisi product par likha hua nahi"));
+    }
+
+    [Fact]
+    public async Task SpokenProductCategory_GoesToTheCategoryField()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts = { new AiNewProduct { Name = "Polo Shirt", Price = 500, Attributes = { ["category"] = "Shirts", ["supplier"] = "Ali Traders" } } }
+        });
+
+        await engine.HandleIncomingMessageAsync(Phone, "mere paas polo shirt hai 500 ki, shirts category, supplier Ali Traders", default);
+
+        var polo = await db.Products.AsNoTracking().SingleAsync(p => p.Name == "Polo Shirt");
+        Assert.Equal("Shirts", polo.Category);
+        Assert.Contains("\"vendor\"", polo.AttributesJson);
+    }
+
+    [Theory]
     [InlineData("suit 5000", false)]
     [InlineData("suit 5000 bas ho gaya", true)]
     public async Task VoiceNote_DoneStep_OnlyEndsSetup_WhenTheSellerSaidTheyAreFinished(string spoken, bool setupEnds)

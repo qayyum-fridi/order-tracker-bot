@@ -55,6 +55,8 @@ public class OrderItem
     public int? ProductId { get; set; }
     public required string ProductNameSnapshot { get; set; }
     public decimal UnitPrice { get; set; }
+    /// <summary>Product cost copied at order time so later cost changes don't rewrite past profit. Null = unknown (profit falls back to the product's current cost).</summary>
+    public decimal? UnitCost { get; set; }
     public int Quantity { get; set; } = 1;
 
     public decimal LineTotal => UnitPrice * Quantity;

@@ -642,13 +642,15 @@ public partial class ConversationEngine
 
         foreach (var item in pending.Items)
         {
-            var productId = item.ProductId
-                ?? (await _db.Products.FirstOrDefaultAsync(p => p.SellerId == seller.Id && p.Name == item.ProductName, ct))?.Id;
+            var product = item.ProductId is { } pid
+                ? await _db.Products.FirstOrDefaultAsync(p => p.SellerId == seller.Id && p.Id == pid, ct)
+                : await _db.Products.FirstOrDefaultAsync(p => p.SellerId == seller.Id && p.Name == item.ProductName, ct);
             order.Items.Add(new OrderItem
             {
-                ProductId = productId,
+                ProductId = item.ProductId ?? product?.Id,
                 ProductNameSnapshot = item.ProductName,
                 UnitPrice = item.UnitPrice,
+                UnitCost = product?.CostPrice,
                 Quantity = item.Quantity
             });
         }
