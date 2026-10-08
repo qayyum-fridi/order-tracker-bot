@@ -148,6 +148,15 @@ shared-state action: confirm with the user and get SSH/host details first.
   Excel only, no CSV (CSV loses leading-zero phone numbers and Urdu text unless handled, and can't hold several sheets); strings are written as
   string cells so buyer-supplied text can't become formulas. Order period filters use the seller's timezone; customers/spend are aggregated in memory
   (Sqlite can't SUM decimal). Expired-trial sellers are blocked by billing like every other command.
+- Import from an old system (`ConversationEngine.Import.cs`, `DataExchangeGuide.cs`, `Infrastructure/Export/ImportXlsxReader.cs`): `import` / "Purana data" (the third start-of-onboarding button, replacing
+  "Language badlein" — typed "change language" still works) offers three template files (`import template customers|catalog|all`); each is an .xlsx whose first tab is **Guide**
+  (what each column is, REQUIRED/Optional, example; bilingual, text pre-wrapped into short rows because cells don't wrap). **Every `export` file also ends with a Guide tab** built by the same
+  `DataExchangeGuide.BuildGuideSheet` from the sheets it holds — a test fails if any exported column has no guide row, so add a `GuideColumn` there when adding an export column. The seller sends the
+  filled file back as a WhatsApp *document* (`WhatsAppWebhookPayload.ExtractDocumentMessages` -> `HandleDocumentMessageAsync`; allowed when idle or at onboarding start/catalog steps; .xlsx only, 5 MB, 5000 rows). Only the
+  `Customers` and `Catalog` sheets are read (so an export file from another account imports as is; calculated columns are ignored). The bot shows a summary (new / already there / bad rows with row numbers), and saves after YES
+  (`AwaitingImportConfirmation`; the media id is re-downloaded on YES instead of storing rows). **New rows only**: customers match on the last 10 digits of the phone (name when there is no phone; Excel's lost leading 0 and +92/0092/92
+  forms are normalised), products on name + unit + pack size; existing ones are skipped, never overwritten, so re-sending a file is safe. One `ActionType.DataImported` log makes "undo" remove the new rows (ones that got orders meanwhile are
+  hidden/deactivated instead). Orders, discounts and loyalty rules are export-only for now (their Guide says so) — importing open orders is the next step. No schema change, so no migration.
 - Shortcuts (`ConversationEngine.Shortcuts.cs`): after a turn that replied, ended in `Idle` and sent no interactive message, the engine adds a 3-button
   quick bar (Menu / Naya order / Orders today; labels are parseable commands). Per-seller `shortcut off|on` lives in `SessionContextData`;
   global flag `Features:ShortcutButtons` (engine built without `FeatureOptions` = off, so unit tests stay quiet). "/" commands: `CommandParser.SlashCommands`,

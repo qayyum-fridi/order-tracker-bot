@@ -152,6 +152,9 @@ public partial class ConversationEngine
             case ActionType.ExpenseAdded:
                 await UndoExpenseAsync(seller, last, ct);
                 return;
+            case ActionType.DataImported:
+                await UndoDataImportAsync(seller, last, ct);
+                return;
             case ActionType.ProductPriceChanged:
             {
                 using var doc = JsonDocument.Parse(last.PayloadJson);
