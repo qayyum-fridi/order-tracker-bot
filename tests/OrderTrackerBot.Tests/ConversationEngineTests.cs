@@ -850,6 +850,27 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task MidOnboardingStockCommand_SetsStock_AndCatalogStepStaysOpen()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+        await engine.HandleIncomingMessageAsync(Phone, "start", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
+        await engine.HandleIncomingMessageAsync(Phone, "skip", default);
+        await engine.HandleIncomingMessageAsync(Phone, "10 ke qareeb", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Kurti - 1800", default);
+        _sentMessages.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "stock Kurti 20", default);
+
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("pehle catalog complete karein"));
+        Assert.Equal(20, (await db.Products.SingleAsync()).StockQty);
+        Assert.Equal(ConversationState.OnboardingAddProduct, (await db.Sessions.FirstAsync()).State);
+    }
+
+    [Fact]
     public async Task CatalogSizeStep_OffersQuickActionsList_AlongsideTheProductPrompt()
     {
         using var db = _dbFactory.CreateContext();

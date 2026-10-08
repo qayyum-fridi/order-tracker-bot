@@ -248,7 +248,7 @@ public partial class ConversationEngine
                 if (CommandParser.TryParse(message) is { } parsed)
                 {
                     if (parsed.Kind is CommandKind.Help or CommandKind.Menu or CommandKind.ConnectInstagram or CommandKind.ImportCatalogSheet
-                        or CommandKind.BusinessSetup or CommandKind.NewOrderHelp or CommandKind.Guide)
+                        or CommandKind.BusinessSetup or CommandKind.NewOrderHelp or CommandKind.Guide or CommandKind.Stock)
                     {
                         await ExecuteCommandAsync(seller, session, ctx, parsed, ct);
                         return;
