@@ -17,6 +17,8 @@ public partial class ConversationEngine
     private (DateTime Start, DateTime End, string Label) ExpensePeriod(Seller seller, string? period)
     {
         var now = DateTime.UtcNow;
+        if (period is not (null or "today" or "lastmonth" or "month") && ReportPeriods.Resolve(period, seller.TimeZoneId, now) is { } resolved)
+            return (resolved.StartUtc, resolved.EndUtc, PeriodLabel(seller, period).ToLowerInvariant());
         return period switch
         {
             "today" => (SellerClock.StartOfLocalDayUtc(seller.TimeZoneId, now), DateTime.MaxValue, "aaj"),
@@ -90,7 +92,7 @@ public partial class ConversationEngine
 
     private async Task HandleMonthlyNetAsync(Seller seller, string? period, CancellationToken ct)
     {
-        var (start, end, label) = ExpensePeriod(seller, period == "lastmonth" ? "lastmonth" : "month");
+        var (start, end, label) = ExpensePeriod(seller, period ?? "month");
 
         var orders = await _db.Orders.AsNoTracking()
             .Where(o => o.SellerId == seller.Id && o.CreatedAt >= start && o.CreatedAt < end
@@ -108,7 +110,7 @@ public partial class ConversationEngine
         var hint = expenses.Count == 0 ? "\n\nKharcha likhein, jaise: \"expense 500 packaging\"" : "\n\nProduct cost ke baad margin: \"profit month\"";
 
         await ReplyAsync(seller,
-            $"📊 Monthly Net — {label}\n\n" +
+            $"📊 {(period is null or "month" or "lastmonth" ? "Monthly Net" : "Net")} — {label}\n\n" +
             $"Sales: {Formatters.Money(sales)} ({orders.Count} orders)\n" +
             $"Kharcha: {Formatters.Money(spent)} ({expenses.Count})\n" +
             $"{(net < 0 ? "🔻" : "✅")} Net: {Formatters.Money(net)}" + topLines + hint, ct);

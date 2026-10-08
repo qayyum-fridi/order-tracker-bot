@@ -1,3 +1,4 @@
+using OrderTrackerBot.Application.Time;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
@@ -49,7 +50,11 @@ public partial class ConversationEngine
                 SetState(session, ConversationState.Idle);
                 ctx.RuntimeFilterCommand = null;
                 var now = DateTime.UtcNow;
-                if (choice.Contains("30") || choice.Contains("last"))
+                // The three standard buttons keep their week-over-week comparison; any other period phrase gets its own window.
+                if (ReportPeriods.TryParseKey(message, now, out var trendKey) && trendKey is not ("7d" or "30d" or "thismonth" or "thisweek")
+                    && ReportPeriods.Resolve(trendKey, seller.TimeZoneId, now) is { } trendWindow)
+                    await SendTrendingProductsAsync(seller, trendWindow.StartUtc, PeriodLabel(seller, trendKey), ct, trendWindow.EndUtc);
+                else if (choice.Contains("30") || choice.Contains("last"))
                     await SendTrendingProductsAsync(seller, now.AddDays(-30), "Last 30 Days", ct, compareLabel: "pichle 30 din");
                 else if (choice.Contains("month") || choice == "2")
                     await SendTrendingProductsAsync(seller, now.AddMonths(-1), "This Month", ct, compareLabel: "last month");
@@ -61,6 +66,8 @@ public partial class ConversationEngine
             case "slow":
             {
                 var days = choice.StartsWith("14") || choice == "2" ? 14 : choice.StartsWith("30") || choice == "3" ? 30 : 7;
+                if (ReportPeriods.TryParseKey(message, DateTime.UtcNow, out var slowKey) && ReportPeriods.Resolve(slowKey, seller.TimeZoneId, DateTime.UtcNow) is { } slowWindow)
+                    days = Math.Max(1, (int)Math.Ceiling((DateTime.UtcNow - slowWindow.StartUtc).TotalDays));
                 await SendSlowMoversAsync(seller, days, ct);
                 SetState(session, ConversationState.Idle);
                 ctx.RuntimeFilterCommand = null;
@@ -87,9 +94,17 @@ public partial class ConversationEngine
     private async Task HandleCustomDateRangeAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         SetState(session, ConversationState.Idle);
+        // Any period phrase: "1 May se 15 May", "pichle 3 mahine", "last quarter", "5 May", "this year".
+        if (ReportPeriods.TryParseKey(message, DateTime.UtcNow, out var periodKey)
+            && ReportPeriods.Resolve(periodKey, seller.TimeZoneId, DateTime.UtcNow) is { } customWindow)
+        {
+            await SendTrendingProductsAsync(seller, customWindow.StartUtc, PeriodLabel(seller, periodKey), ct, customWindow.EndUtc);
+            return;
+        }
+
         if (!TryParseDateRange(message, out var from, out var to))
         {
-            await ReplyAsync(seller, "Date range samajh nahi aayi — format try karein: \"1 May se 15 May\"", ct);
+            await ReplyAsync(seller, "Date range samajh nahi aayi — try karein: \"1 May se 15 May\", \"pichle 3 mahine\" ya \"last quarter\"", ct);
             return;
         }
 

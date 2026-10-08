@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using OrderTrackerBot.Application.Time;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -390,7 +391,10 @@ public static class CommandParser
         var m = ProfitLead.Match(message);
         if (!m.Success) return null;
         if (!m.Groups["p"].Success) return new ParsedCommand { Kind = CommandKind.Profit, Text = "30d" };
-        var period = ExportPeriodWords.FirstOrDefault(p => p.Pattern.IsMatch(m.Groups["p"].Value)).Period;
+        // A whole period phrase first ("last week", "this quarter", "1 May se 15 May"), then the older keyword scan.
+        var period = ReportPeriods.TryParseKey(m.Groups["p"].Value, DateTime.UtcNow, out var phraseKey)
+            ? phraseKey
+            : ExportPeriodWords.FirstOrDefault(p => p.Pattern.IsMatch(m.Groups["p"].Value)).Period;
         return period is null ? null : new ParsedCommand { Kind = CommandKind.Profit, Text = period };
     }
 
@@ -422,13 +426,73 @@ public static class CommandParser
         return null;
     }
 
+    // "For how long": any report followed or preceded by a period phrase, in English / Roman Urdu / Urdu script —
+    // "orders last quarter", "pichle hafte ka profit", "kharcha 1 May se 15 May", "aaj 2pm se 6pm ke orders", "کل کے آرڈرز".
+    // The period itself is understood by ReportPeriods; ParsedCommand.Text carries its key. A phrase that is not entirely a period
+    // (a customer's name, an order number) is left alone, so "Ayesha ka order" and "orders 12" are never taken for reports.
+    private static readonly (Regex Words, CommandKind Kind)[] PeriodReportWords =
+    {
+        (new(@"^(?:orders?|order\s+list|آرڈرز?)$", Opts), CommandKind.OrdersToday),
+        (new(@"^(?:summary|reconciliation|hisab|hisaab|sales?|bikri|خلاصہ|حساب|فروخت|سیلز)$", Opts), CommandKind.TodaysSummary),
+        (new(@"^(?:profit|munafa|nafa|منافع|نفع)$", Opts), CommandKind.Profit),
+        (new(@"^(?:expenses?|kharcha|kharche|kharch|اخراجات|خرچہ|خرچ)$", Opts), CommandKind.ExpenseList),
+        (new(@"^net$", Opts), CommandKind.MonthlyNet),
+        (new(@"^(?:customers|گاہک|کسٹمرز)$", Opts), CommandKind.CustomerList),
+        (new(@"^(?:discounts?|discount\s+(?:report|performance)|coupons?|ڈسکاؤنٹس?)$", Opts), CommandKind.DiscountPerformance),
+        (new(@"^(?:trending(?:\s+products?)?|top\s+products?|best\s*sellers?|best\s+selling(?:\s+products?)?)$", Opts), CommandKind.TrendingProducts),
+        (new(@"^(?:slow\s+movers?|slow\s+products?)$", Opts), CommandKind.SlowMovers),
+    };
+    private static readonly Regex PeriodReportTail = new(
+        @"(?:\s+(?:the|thay|tha|thi|hain|hai|aaye|aae|hue|hui|batao|bataein|bataiye|btao|dikhao|dikhana|dikhain|dekhao|dekhein|show|please|plz|بتاؤ|بتائیں|دکھاؤ|دکھائیں|تھے|تھا|ہیں|ہے|آئے|ہوئے))+$", Opts);
+    private static readonly HashSet<string> OfTokens = new(StringComparer.OrdinalIgnoreCase) { "ka", "ke", "ki", "kay", "کا", "کے", "کی" };
+    private static readonly HashSet<string> HowManyTokens = new(StringComparer.OrdinalIgnoreCase) { "kitne", "kitni", "kitna", "کتنے", "کتنی", "کتنا" };
+
+    private static CommandKind? PeriodReportKind(string words) =>
+        PeriodReportWords.Where(w => w.Words.IsMatch(words)).Select(w => (CommandKind?)w.Kind).FirstOrDefault();
+
+    private static ParsedCommand? TryParsePeriodReport(string message)
+    {
+        var text = PeriodReportTail.Replace(message.Trim(), "").Trim();
+        var tokens = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length < 2 || tokens.Length > 10) return null;
+        var now = DateTime.UtcNow;
+
+        for (var i = 1; i < tokens.Length; i++)
+        {
+            // "<report> <period>": orders last quarter
+            if (PeriodReportKind(string.Join(' ', tokens[..i])) is { } leading
+                && ReportPeriods.TryParseKey(string.Join(' ', tokens[i..]), now, out var leadingKey))
+                return new ParsedCommand { Kind = leading, Text = leadingKey };
+
+            // "<period> ka/ke/ki [kitne] <report>": pichle hafte ka profit
+            if (!OfTokens.Contains(tokens[i])) continue;
+            var next = i + 1;
+            if (next < tokens.Length && HowManyTokens.Contains(tokens[next])) next++;
+            if (next >= tokens.Length) continue;
+            if (PeriodReportKind(string.Join(' ', tokens[next..])) is { } trailing
+                && ReportPeriods.TryParseKey(string.Join(' ', tokens[..i]), now, out var trailingKey))
+                return new ParsedCommand { Kind = trailing, Text = trailingKey };
+        }
+
+        return null;
+    }
+
     public static ExportRequest ParseExportRequest(string? what)
     {
         var text = what ?? "";
         var datasets = ExportAll.IsMatch(text)
             ? ExportDatasetWords.Select(d => d.Name).ToList()
             : ExportDatasetWords.Where(d => d.Pattern.IsMatch(text)).Select(d => d.Name).ToList();
-        var period = ExportPeriodWords.FirstOrDefault(p => p.Pattern.IsMatch(text)).Period;
+        // A whole period phrase ("last quarter", "this year", "1 May se 15 May", "aaj 2pm se 6pm") once the dataset words are taken out;
+        // otherwise the older keyword scan ("30 days", "last month", "today", "kal").
+        var rest = text;
+        foreach (var d in ExportDatasetWords) rest = d.Pattern.Replace(rest, " ");
+        rest = ExportAll.Replace(rest, " ");
+        rest = Regex.Replace(rest, @"[,&]|(?<![\p{L}\p{N}])(?:and|aur|اور)(?![\p{L}\p{N}])", " ");
+        rest = Regex.Replace(rest, @"\s+", " ").Trim();
+        var period = rest.Length > 0 && ReportPeriods.TryParseKey(rest, DateTime.UtcNow, out var phraseKey)
+            ? phraseKey
+            : ExportPeriodWords.FirstOrDefault(p => p.Pattern.IsMatch(text)).Period;
         return new ExportRequest(datasets, period);
     }
 
@@ -856,6 +920,7 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.Export, Export = ParseExportRequest(m.Groups["what"].Success ? m.Groups["what"].Value : null) };
         if ((m = ExportTrail.Match(message)).Success && ParseExportRequest(m.Groups["what"].Value) is { Datasets.Count: > 0 } trailing)
             return new ParsedCommand { Kind = CommandKind.Export, Export = trailing };
+        if (TryParsePeriodReport(message) is { } periodReport) return periodReport;
         if ((m = RemoveBranding.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.RemoveBranding, Text = BrandingKind(m.Groups["k"].Value) };
         if ((m = BrandingHelp.Match(message)).Success)

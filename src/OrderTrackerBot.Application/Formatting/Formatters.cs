@@ -87,9 +87,15 @@ public static class Formatters
             : $"{index}. {order.Customer?.Name} - {ItemsSummary(order)} - {Money(order.Total)} - {status}";
     }
 
-    public static string OrdersToday(string language, IReadOnlyList<Order> orders, string? period = null)
+    public static string OrdersToday(string language, IReadOnlyList<Order> orders, string? period = null, string? periodLabel = null, bool deliveryDue = false)
     {
         var lang = Lang.Normalize(language);
+        // Any period beyond today / yesterday / last month (this week, last quarter, 1 May - 15 May, tomorrow...) is labelled by its own name.
+        var custom = periodLabel is not null && period is not (null or "yesterday" or "lastmonth");
+        if (custom && orders.Count == 0)
+            return deliveryDue ? $"📅 {periodLabel}: koi delivery due nahi."
+                : lang == Lang.UrduScript ? $"📦 {periodLabel}: کوئی آرڈر نہیں۔" : $"📦 {periodLabel}: koi order nahi mila.";
+
         if (orders.Count == 0)
             return (lang, period) switch
             {
@@ -104,7 +110,10 @@ public static class Formatters
                 _ => "📦 Aaj koi order nahi aaya abhi tak."
             };
 
-        var header = (lang, period) switch
+        var header = custom
+            ? deliveryDue ? $"📅 Delivery due — {periodLabel} ({orders.Count}):"
+                : lang == Lang.UrduScript ? $"📦 {periodLabel} کے آرڈرز ({orders.Count}):" : $"📦 Orders — {periodLabel} ({orders.Count}):"
+            : (lang, period) switch
         {
             (Lang.UrduScript, "yesterday") => $"📦 کل کے آرڈرز ({orders.Count}):",
             (Lang.UrduScript, "lastmonth") => $"📦 پچھلے مہینے کے آرڈرز ({orders.Count}):",

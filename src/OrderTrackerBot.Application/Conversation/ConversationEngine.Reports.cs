@@ -1,3 +1,4 @@
+using OrderTrackerBot.Application.Time;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
@@ -48,11 +49,18 @@ public partial class ConversationEngine
         await ReplyAsync(seller, string.Join("\n", lines), ct);
     }
 
-    private async Task HandleDiscountPerformanceAsync(Seller seller, CancellationToken ct)
+    private async Task HandleDiscountPerformanceAsync(Seller seller, string? period, CancellationToken ct)
     {
+        // Optional period ("discounts last month", "discount report 1 May se 15 May"): only orders placed in it count.
+        var window = period is null ? null : ReportPeriods.Resolve(period, seller.TimeZoneId, DateTime.UtcNow);
+        var from = window?.StartUtc ?? DateTime.MinValue;
+        var to = window?.EndUtc ?? DateTime.MaxValue;
+        var inPeriod = window is null ? "" : $" — {PeriodLabel(seller, period)}";
+
         // Aggregated in memory: Sqlite can't SUM decimal columns server-side.
         var usage = (await _db.Orders
-                .Where(o => o.SellerId == seller.Id && o.DiscountCode != null && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
+                .Where(o => o.SellerId == seller.Id && o.DiscountCode != null && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned
+                            && o.CreatedAt >= from && o.CreatedAt < to)
                 .Select(o => new { Code = o.DiscountCode!, o.DiscountAmount, o.Total })
                 .ToListAsync(ct))
             .GroupBy(o => o.Code.ToUpperInvariant())
@@ -76,14 +84,14 @@ public partial class ConversationEngine
             {
                 var active = r.Discount is { IsActive: true } d && (d.ExpiresAt is null || d.ExpiresAt > now) ? "" : " (inactive)";
                 return r.Stats is null
-                    ? $"• {r.Code}{active} — abhi tak use nahi hua"
+                    ? $"• {r.Code}{active} — {(window is null ? "abhi tak use nahi hua" : "is period mein use nahi hua")}"
                     : $"• {r.Code}{active} — {r.Stats.Orders} orders, sales {Formatters.Money(r.Stats.Revenue)}, discount diya {Formatters.Money(r.Stats.Given)}";
             });
 
         var totalRevenue = usage.Sum(u => u.Revenue);
         var totalGiven = usage.Sum(u => u.Given);
         await ReplyAsync(seller,
-            $"🎟️ Discount Performance:\n\n{string.Join("\n", rows)}\n\n" +
+            $"🎟️ Discount Performance{inPeriod}:\n\n{string.Join("\n", rows)}\n\n" +
             $"Total: {usage.Sum(u => u.Orders)} orders, {Formatters.Money(totalRevenue)} sales, {Formatters.Money(totalGiven)} discount.", ct);
     }
 }

@@ -168,6 +168,84 @@ public class CommandParserTests
         Assert.Equal(period, parsed.Text);
     }
 
+    [Theory]
+    // orders
+    [InlineData("orders last quarter", CommandKind.OrdersToday, "lastquarter")]
+    [InlineData("orders this week", CommandKind.OrdersToday, "thisweek")]
+    [InlineData("orders is hafte", CommandKind.OrdersToday, "thisweek")]
+    [InlineData("pichle hafte ke orders", CommandKind.OrdersToday, "lastweek")]
+    [InlineData("آرڈرز پچھلے ہفتے", CommandKind.OrdersToday, "lastweek")]
+    [InlineData("پچھلے مہینے کے آرڈرز", CommandKind.OrdersToday, "lastmonth")]
+    [InlineData("orders this year", CommandKind.OrdersToday, "thisyear")]
+    [InlineData("orders last 15 days", CommandKind.OrdersToday, "15d")]
+    [InlineData("pichle 3 mahine ke orders", CommandKind.OrdersToday, "3m")]
+    [InlineData("orders tomorrow", CommandKind.OrdersToday, "tomorrow")]
+    [InlineData("agle din ke orders", CommandKind.OrdersToday, "tomorrow")]
+    [InlineData("orders parso", CommandKind.OrdersToday, "d-2")]
+    [InlineData("orders 1 May 2026 se 15 May 2026", CommandKind.OrdersToday, "range:2026-05-01..2026-05-15")]
+    [InlineData("1 مئی 2026 سے 15 مئی 2026 تک کے آرڈرز", CommandKind.OrdersToday, "range:2026-05-01..2026-05-15")]
+    // summary / sales
+    [InlineData("summary last year", CommandKind.TodaysSummary, "lastyear")]
+    [InlineData("sales this quarter", CommandKind.TodaysSummary, "thisquarter")]
+    [InlineData("pichle saal ki sales", CommandKind.TodaysSummary, "lastyear")]
+    [InlineData("سیلز پچھلے ہفتے", CommandKind.TodaysSummary, "lastweek")]
+    // profit
+    [InlineData("profit last week", CommandKind.Profit, "lastweek")]
+    [InlineData("profit last quarter", CommandKind.Profit, "lastquarter")]
+    [InlineData("munafa is saal", CommandKind.Profit, "thisyear")]
+    [InlineData("pichle hafte ka profit", CommandKind.Profit, "lastweek")]
+    [InlineData("منافع پچھلے سال", CommandKind.Profit, "lastyear")]
+    // expenses / net
+    [InlineData("expenses last quarter", CommandKind.ExpenseList, "lastquarter")]
+    [InlineData("kharcha pichle hafte", CommandKind.ExpenseList, "lastweek")]
+    [InlineData("kal ka kharcha", CommandKind.ExpenseList, "yesterday")]
+    [InlineData("اخراجات پچھلے مہینے", CommandKind.ExpenseList, "lastmonth")]
+    [InlineData("net last quarter", CommandKind.MonthlyNet, "lastquarter")]
+    // customers / discounts / products
+    [InlineData("customers last month", CommandKind.CustomerList, "lastmonth")]
+    [InlineData("pichle hafte ke customers", CommandKind.CustomerList, "lastweek")]
+    [InlineData("گاہک پچھلے مہینے", CommandKind.CustomerList, "lastmonth")]
+    [InlineData("discounts last month", CommandKind.DiscountPerformance, "lastmonth")]
+    [InlineData("discount report this year", CommandKind.DiscountPerformance, "thisyear")]
+    [InlineData("ڈسکاؤنٹس پچھلے مہینے", CommandKind.DiscountPerformance, "lastmonth")]
+    [InlineData("trending products last 30 days", CommandKind.TrendingProducts, "30d")]
+    [InlineData("trending products pichle hafte", CommandKind.TrendingProducts, "lastweek")]
+    [InlineData("slow movers 14 din", CommandKind.SlowMovers, "14d")]
+    public void ReportsTakeAnyPeriod_InEnglishRomanUrduAndUrduScript(string message, CommandKind kind, string key)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.NotNull(parsed);
+        Assert.Equal(kind, parsed!.Kind);
+        Assert.Equal(key, parsed.Text);
+    }
+
+    [Theory]
+    [InlineData("Ayesha ka order")]
+    [InlineData("orders 12")]
+    [InlineData("customers list")]
+    [InlineData("customer Hassan")]
+    [InlineData("expense 500 packaging")]
+    [InlineData("Hassan ke orders")]
+    public void NamesAndNumbers_AreNotTakenForAPeriod(string message)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.True(parsed is null || parsed.Text is null || parsed.Kind is not (CommandKind.OrdersToday or CommandKind.CustomerList or CommandKind.ExpenseList),
+            $"{message} -> {parsed?.Kind} {parsed?.Text}");
+    }
+
+    [Theory]
+    [InlineData("export orders last quarter", "orders", "lastquarter")]
+    [InlineData("export orders this year", "orders", "thisyear")]
+    [InlineData("export orders 1 May 2026 se 15 May 2026", "orders", "range:2026-05-01..2026-05-15")]
+    [InlineData("export orders pichle hafte", "orders", "lastweek")]
+    [InlineData("export orders 30 days", "orders", "30d")]
+    public void ExportTakesAnyPeriod(string message, string datasets, string period)
+    {
+        var export = CommandParser.TryParse(message)!.Export!;
+        Assert.Equal(datasets, string.Join(",", export.Datasets));
+        Assert.Equal(period, export.Period);
+    }
+
     [Fact]
     public void OrderNumberAlone_StillShowsTheOrder_NotTheStatusPicker() =>
         Assert.Equal(CommandKind.OrderDetail, CommandParser.TryParse("order 13")!.Kind);

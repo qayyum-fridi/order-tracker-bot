@@ -216,14 +216,19 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "\"Ayesha, 2 lawn suit, 03001234567, Gulberg Lahore\". Commands keep their typed form (\"orders today\", \"mark 3 shipped\", \"stock Kurti 20\", " +
             "\"delivery 250\", \"catalog\" for any request to see/show the catalog). A seller who wants to create/add a discount, in any wording or just describing it " +
             "(\"naya discount banain\", \"ye ek naya discount hai jo product ke liye hoga\"), gives the command \"create discount\" (action command); only when they also said the code and the value " +
-            "write \"create discount: CODE, 10 percent\" or \"create discount: CODE, Rs.50 flat\" (append \", expires N days\" if said). " +
+            "write \"create discount: CODE, 10 percent\" or \"create discount: CODE, Rs.50 flat\" (append \", expires <duration or date>\" if said, e.g. \"expires 15 days\"). " +
             "ORDER STATUS: the only statuses are pending, shipped, delivered, returned, cancelled (plus paid for payment). The command is \"mark <order id> <status>\" using the real id from the " +
             "latest orders list above (\"Order #13 Hassan\" -> 13; the numbers in the examples are NOT real). Map the seller's words by meaning: shipped = bhej diya / courier ko de diya / dispatch / ship kar do; " +
             "delivered = complete / completed / mukammal / ho chuka / customer ko mil gaya / pohanch gaya (an order that is \"complete\" is DELIVERED, never shipped); returned = wapas aa gaya; " +
             "paid = payment aa gayi; cancelled = \"cancel order <id>\". Never choose shipped unless they said it was sent/dispatched. If several orders match the name, ask which one. If they want to change an order's status but did not say which status, or you are not sure which one they mean, " +
             "return the command \"status <order id>\" (just \"status\" when no order is clear): the bot then shows the seller the possible statuses to pick from. " +
-            "REPORT QUESTIONS: a question about how many orders or how much sales came on a day (\"kal ke kitne orders the?\", \"aaj kitni sales hui\") is a command, not a reply: " +
-            "\"orders today\", \"orders yesterday\", \"orders last month\", \"today's summary\", \"yesterday's summary\". (7) A product's catalog price is only a default: the seller often sells one order at a different price. To change what ONE " +
+            "REPORT QUESTIONS: a question about how many orders, sales, profit, expenses, customers or discounts for some time (\"kal ke kitne orders the?\", \"aaj kitni sales hui\") is a command, not a reply: " +
+            "\"<report> <period>\" with report = orders | summary | profit | expenses | net | customers | discounts | trending products | slow movers, and period written in English: " +
+            "today, yesterday, tomorrow (\"agla din\", \"aane wala kal\"), day before yesterday (parso), this week, last week, this month, last month, this quarter (\"sehmahi\", \"quarterly\"), last quarter, " +
+            "this year (\"saal\", \"yearly\"), last year, \"last 15 days\", \"last 3 months\", a date range (\"1 May 2026 to 15 May 2026\"), one date (\"5 May\") and, for one day, a time window (\"today 2pm to 6pm\"). " +
+            "Note \"kal\" is yesterday unless the seller says it is the coming day. Examples: \"pichle hafte ka profit\" -> \"profit last week\"; \"پچھلے مہینے کے آرڈرز\" -> \"orders last month\"; " +
+            "\"is saal ke customers\" -> \"customers this year\"; \"1 se 15 May tak kharcha\" -> \"expenses 1 May to 15 May\". If the period is unclear, ask which period. " +
+            "A discount's validity is a duration or date: \"create discount: EID10, 10 percent, expires 2 weeks\" (also 15 days, 3 months, 31 Dec, month end). (7) A product's catalog price is only a default: the seller often sells one order at a different price. To change what ONE " +
             "customer was charged use three steps: \"edit order <order id>\", \"price <item number> = <amount>\", \"done\" (item numbers are the 1) 2) numbers " +
             "in the order list above; \"qty <item number> = <n>\", \"remove <item number>\", \"delivery <amount>\", \"phone <digits>\" and \"address <text>\" are the other edits you can put between edit order and done). " +
             "Never touch the catalog price for this. (8) NAMES: when the seller names a person, match it against the saved customers (spelling, Urdu script and phonetic " +
