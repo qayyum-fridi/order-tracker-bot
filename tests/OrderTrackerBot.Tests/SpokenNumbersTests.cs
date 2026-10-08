@@ -82,4 +82,103 @@ public class SpokenNumbersTests
         Assert.False(ConversationEngine.IsFaithfulRewrite("pichla order edit karo", "edit order 106", known));
         Assert.False(ConversationEngine.IsFaithfulRewrite("pichla order edit karo", "edit order 105"));
     }
+
+    // ---- Pakistani seller phrasing (cases from a review round) ----
+
+    private static string? Why(string transcript, string rewrite) => ConversationEngine.WhyUnfaithful(transcript, rewrite);
+
+    [Fact]
+    public void Case_FractionalScales_AndATakenBackAmount()
+    {
+        const string t = "bhai suno us ka bil sadhe teen hazar nahi dedh hazar banta tha tum ne galti se teen hazar panch sau likh diya hai use sahi kar do";
+        Assert.Equal(new long[] { 1500, 3500 }, Words(t));
+        Assert.Equal(new long[] { 3500 }, SpokenNumbers.RetractedAmounts(t).ToArray());
+        Assert.Null(Why(t, "bill 1500"));                       // the corrected amount alone is faithful
+        Assert.Null(Why(t, "bill 3500 aur 1500"));
+        Assert.NotNull(Why(t, "bill 3500"));                    // dropping the amount the seller kept is not
+    }
+
+    [Fact]
+    public void Case_EkDoTeen_IsThreeCounts_NotOneHundredTwentyThree()
+    {
+        const string t = "ek do teen piece bache hain bas black wale ke aur haan bill mein nau nau nau balance add kar dena purana";
+        Assert.Empty(SpokenNumbers.DictatedDigitAmounts(t));
+        Assert.NotNull(Why(t, "balance 123 add karo"));          // invented
+        Assert.NotNull(Why(t, "balance 999 add karo"));          // no id word before "nau nau nau": ambiguous, so it fails safe
+        Assert.Equal(new long[] { 123 }, SpokenNumbers.DictatedDigitAmounts("order ek do teen").ToArray()); // after an id word it is an id
+    }
+
+    [Fact]
+    public void Case_HardSpellings_And_AGluedWordFailsSafe()
+    {
+        const string t = "unasi hazar ka maal bhej diya hai pacheess sau advanced aya tha baqi unhattar hazar pansau bacha hai";
+        Assert.Equal(new long[] { 2500, 69000, 79000 }, Words(t));          // "pansau" (glued) is not read: 69,000 not 69,500
+        Assert.Null(Why(t, "maal 79000 advance 2500 baqi 69000"));
+        Assert.NotNull(Why(t, "maal 79000 advance 2500 baqi 69500"));      // rejected rather than guessed
+    }
+
+    [Fact]
+    public void Case_OrderIdNextToAnAmount()
+    {
+        const string t = "order id ek sau panch ka total banta hai do hazar char sau paanch rupay chalis rupay delivery alag se hai";
+        Assert.Equal(new long[] { 105, 2405 }, Words(t));
+        Assert.Null(Why(t, "order 105 total 2405 delivery 40"));
+    }
+
+    [Fact]
+    public void Case_MixedEnglishAndUrduMultipliers() =>
+        Assert.Equal(new long[] { 5000, 340000 }, Words("five thousand ka advance aya hai aur baqi teen lakh forty thousand ka check check bounce ho gaya hai"));
+
+    [Fact]
+    public void Case_SpokenAccountNumber_IsNotAnAmount_AndIsMasked()
+    {
+        const string t = "bhai account number likho double zero triple nine zero ek char";
+        Assert.Empty(SpokenNumbers.Amounts(t));
+        var masked = SpokenNumbers.MaskSpokenDigits(t);
+        Assert.Contains("<phone>", masked);
+        Assert.DoesNotContain("double", masked);
+        Assert.StartsWith("bhai account number likho", masked);
+    }
+
+    [Fact]
+    public void Case_SelfCorrection_MayDropTheTakenBackAmount()
+    {
+        const string t = "shipped mark karo order number char sau das... nahi nahi char sau das nahi order char sau bees tha";
+        Assert.Equal(new long[] { 410, 420 }, Words(t));
+        Assert.Equal(new long[] { 410 }, SpokenNumbers.RetractedAmounts(t).ToArray());
+        Assert.Null(Why(t, "mark shipped order 420"));
+        Assert.NotNull(Why(t, "mark shipped order 410"));       // the final value was lost
+
+        const string digits = "mark order 410 nahi 420 shipped";
+        Assert.Null(Why(digits, "mark shipped order 420"));       // digit runs follow the same rule
+    }
+
+    [Fact]
+    public void NoReplacement_MeansNoRetraction() =>
+        Assert.Empty(SpokenNumbers.RetractedAmounts("price 500 nahi chahiye order 12 ka total 5000"));
+
+    [Fact]
+    public void Case_BigAndSmallAmounts_NothingInvented()
+    {
+        const string t = "ek lakh bees hazar ka sofa hai us par do sau rupay discount de do bas";
+        Assert.Equal(new long[] { 200, 120000 }, Words(t));
+        Assert.Null(Why(t, "sofa 120000 discount 200"));
+        Assert.NotNull(Why(t, "sofa 119800"));
+    }
+
+    [Theory]
+    [InlineData("bhai unko bolo sath hazar bhejien pure saat hazar ka maal tha baqi ka sath bad mein dekhein ge", new long[] { 7000, 60000 })]
+    [InlineData("uske sath hazar rupay dena", new long[0])]                // "with a thousand rupees", not 60,000
+    [InlineData("tumhare ke sath hazar bhejna", new long[0])]
+    [InlineData("baqi ka sath bad mein", new long[0])]
+    public void Case_SathAsSixtyOrAsWith(string t, long[] expected) => Assert.Equal(expected, Words(t));
+
+    [Fact]
+    public void Case_UrduScriptWithDigits()
+    {
+        const string t = "میرا آرڈر نمبر 501 ہے اور اس کا بل تین ہزار نو سو نوے روپے بنتا ہے";
+        Assert.Equal(new long[] { 501 }, SpokenNumbers.DigitAmounts(t).ToArray());
+        Assert.Equal(new long[] { 3990 }, Words(t));
+        Assert.Null(Why(t, "order 501 bill 3990"));
+    }
 }

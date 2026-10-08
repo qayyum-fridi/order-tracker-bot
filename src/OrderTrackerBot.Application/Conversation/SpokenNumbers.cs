@@ -77,27 +77,53 @@ public static class SpokenNumbers
     private static string AsciiDigits(string s) =>
         new(s.Select(c => char.IsDigit(c) ? (char)('0' + (int)char.GetNumericValue(c)) : c).ToArray());
 
-    /// <summary>Amounts (100..999,999) written as 3-6 digit numbers ("3500", "3,500", Urdu digits).</summary>
-    public static IReadOnlySet<long> DigitAmounts(string text)
+    /// <summary>An amount found in a transcript: its value and the first/last token it covers (token positions, inclusive).</summary>
+    public readonly record struct AmountSpan(long Value, int Start, int End);
+
+    // "ke sath hazar" = "with a thousand", not 60,000: a particle right before "sath/saath" means it is the word "with".
+    private static readonly HashSet<string> SixtyWords = new(StringComparer.OrdinalIgnoreCase) { "sath", "saath", "ساٹھ" };
+    private static readonly HashSet<string> SixtyBlockers = new(StringComparer.OrdinalIgnoreCase)
     {
-        var result = new HashSet<long>();
-        foreach (Match m in Regex.Matches(GroupedDigits.Replace(AsciiDigits(text), ""), @"(?<!\d)\d{3,6}(?!\d)"))
-            if (long.TryParse(m.Value, NumberStyles.None, CultureInfo.InvariantCulture, out var v) && v is >= MinAmount and <= MaxAmount) result.Add(v);
-        return result;
+        "ke", "ki", "ka", "ko", "se", "mein", "me", "par", "pe", "uske", "iske", "unke", "inke", "mere", "tere", "apke", "aapke", "hamare", "humare",
+        "us", "is", "un", "in", "hum", "wo", "woh", "ap", "aap", "tum", "sab"
+    };
+
+    // Words that say "an id / code / number follows", so a run of single digits is an identifier and not three separate counts.
+    private static readonly HashSet<string> IdMarkers = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "order", "id", "number", "no", "nambar", "numbar", "account", "code", "tracking", "phone", "mobile", "cnic", "card", "otp", "pin", "receipt", "invoice",
+        "آرڈر", "نمبر", "اکاؤنٹ", "کوڈ", "آئی"
+    };
+
+    // "410 nahi, 420": the seller took the first amount back.
+    private static readonly HashSet<string> RetractionMarkers = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "nahi", "nahin", "nahee", "nai", "no", "matlab", "sorry", "galat", "نہیں", "نہی", "مطلب", "غلط"
+    };
+
+    private static string Normalize(string text) => GroupedDigits.Replace(AsciiDigits(text), "");
+
+    private static List<string> Tokens(string text) => Token.Matches(Normalize(text)).Select(m => m.Value).ToList();
+
+    private static List<AmountSpan> DigitSpans(IReadOnlyList<string> tokens)
+    {
+        var spans = new List<AmountSpan>();
+        for (var i = 0; i < tokens.Count; i++)
+            if (tokens[i].Length is >= 3 and <= 6 && tokens[i].All(char.IsDigit)
+                && long.TryParse(tokens[i], NumberStyles.None, CultureInfo.InvariantCulture, out var v) && v >= MinAmount)
+                spans.Add(new AmountSpan(v, i, i));
+        return spans;
     }
 
-    /// <summary>
-    /// Amounts spoken in words, e.g. "teen sau" 300, "do hazar paanch sau" 2500, "dhai hazar" 2500, "sadhe teen hazar" 3500,
-    /// "three thousand five hundred", "تین ہزار پانچ سو". Only phrases containing sau/hazar/lakh (or hundred/thousand) count,
-    /// so everyday words such as "kar do" are never read as a number.
-    /// </summary>
-    public static IReadOnlySet<long> WordAmounts(string text)
+    private static List<AmountSpan> WordSpans(IReadOnlyList<string> tokens)
     {
-        var result = new HashSet<long>();
+        var spans = new List<AmountSpan>();
         decimal total = 0, current = 0;
         var sawMultiplier = false;
         var sawNumber = false;
         var half = false;
+        var start = -1;
+        var last = -1;
         decimal? lastPlain = null; // value of the previous plain number word (not a multiplier), to tell "twenty five" from "do paanch"
 
         void Flush()
@@ -105,23 +131,26 @@ public static class SpokenNumbers
             if (sawMultiplier && sawNumber)
             {
                 var value = total + current;
-                if (value >= MinAmount && value <= MaxAmount && value == decimal.Truncate(value)) result.Add((long)value);
+                if (value >= MinAmount && value <= MaxAmount && value == decimal.Truncate(value)) spans.Add(new AmountSpan((long)value, start, last));
             }
-            total = 0; current = 0; sawMultiplier = false; sawNumber = false; half = false; lastPlain = null;
+            total = 0; current = 0; sawMultiplier = false; sawNumber = false; half = false; lastPlain = null; start = -1;
         }
 
         // Two plain numbers in a row are separate numbers ("kar do paanch sau" = do, then 500), except English "twenty five".
         void StartsNewNumber(decimal value)
         {
-            if (lastPlain is { } last && !(last >= 20 && last < 100 && last % 10 == 0 && value is >= 1 and < 10)) Flush();
+            if (lastPlain is { } prev && !(prev >= 20 && prev < 100 && prev % 10 == 0 && value is >= 1 and < 10)) Flush();
         }
 
-        foreach (Match m in Token.Matches(AsciiDigits(text)))
+        void Take(int index) { if (start < 0) start = index; last = index; }
+
+        for (var i = 0; i < tokens.Count; i++)
         {
-            var word = m.Value;
+            var word = tokens[i];
             if (Multipliers.TryGetValue(word, out var multiplier))
             {
                 if (!sawNumber && !sawMultiplier) continue; // a bare "sau" / "hazar" says nothing
+                Take(i);
                 sawMultiplier = true;
                 lastPlain = null;
                 if (multiplier == 100) current = (current == 0 ? 1 : current) * 100;
@@ -129,12 +158,19 @@ public static class SpokenNumbers
             }
             else if (word.Equals("sadhe", StringComparison.OrdinalIgnoreCase) || word == "ساڑھے")
             {
+                Take(i);
                 half = true;
                 sawNumber = true;
+            }
+            else if (SixtyWords.Contains(word)
+                     && !(i + 1 < tokens.Count && Multipliers.ContainsKey(tokens[i + 1]) && !(i > 0 && SixtyBlockers.Contains(tokens[i - 1]))))
+            {
+                Flush(); // "sath" is 60 only as "sath hazar" and not after "ke/uske/...": otherwise it is the word "with"
             }
             else if (Words.TryGetValue(word, out var value))
             {
                 StartsNewNumber(value);
+                Take(i);
                 current += value + (half ? 0.5m : 0);
                 half = false;
                 sawNumber = true;
@@ -143,6 +179,7 @@ public static class SpokenNumbers
             else if (word.All(char.IsDigit) && word.Length <= 3 && decimal.TryParse(word, NumberStyles.None, CultureInfo.InvariantCulture, out var digits))
             {
                 StartsNewNumber(digits);
+                Take(i);
                 current += digits;
                 sawNumber = true;
                 lastPlain = digits;
@@ -153,40 +190,118 @@ public static class SpokenNumbers
             }
         }
         Flush();
-        return result;
+        return spans;
+    }
+
+    /// <summary>Runs of single digits (as words or characters, with "double"/"triple" repeating the next digit): token range plus the digit string.</summary>
+    private static List<(int Start, int End, string Digits)> DigitRuns(IReadOnlyList<string> tokens)
+    {
+        var runs = new List<(int, int, string)>();
+        var digits = new System.Text.StringBuilder();
+        var start = -1;
+
+        void Flush(int end)
+        {
+            if (digits.Length > 0) runs.Add((start, end, digits.ToString()));
+            digits.Clear();
+            start = -1;
+        }
+
+        static int? Single(string token) =>
+            Words.TryGetValue(token, out var w) && w is >= 0 and <= 9 && w == decimal.Truncate(w) ? (int)w
+            : token.Length == 1 && char.IsDigit(token[0]) ? token[0] - '0' : null;
+
+        for (var i = 0; i < tokens.Count; i++)
+        {
+            var repeat = tokens[i].Equals("double", StringComparison.OrdinalIgnoreCase) ? 2 : tokens[i].Equals("triple", StringComparison.OrdinalIgnoreCase) ? 3 : 1;
+            var digitIndex = repeat > 1 ? i + 1 : i;
+            if (digitIndex < tokens.Count && Single(tokens[digitIndex]) is { } digit)
+            {
+                if (start < 0) start = i;
+                digits.Append(digit.ToString()[0], repeat);
+                i = digitIndex;
+            }
+            else Flush(i - 1);
+        }
+        Flush(tokens.Count - 1);
+        return runs;
+    }
+
+    private static List<AmountSpan> DictatedSpans(IReadOnlyList<string> tokens)
+    {
+        var spans = new List<AmountSpan>();
+        foreach (var (start, end, digits) in DigitRuns(tokens))
+        {
+            if (digits.Length is < 3 or > 6 || !long.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out var v) || v < MinAmount) continue;
+            // "order nau nau nau" is an id; "ek do teen piece" is three separate counts and must not become 123.
+            var hasMarker = Enumerable.Range(Math.Max(0, start - 3), start - Math.Max(0, start - 3)).Any(k => IdMarkers.Contains(tokens[k]));
+            if (hasMarker) spans.Add(new AmountSpan(v, start, end));
+        }
+        return spans;
+    }
+
+    /// <summary>Amounts (100..999,999) written as 3-6 digit numbers ("3500", "3,500", Urdu digits).</summary>
+    public static IReadOnlySet<long> DigitAmounts(string text) => DigitSpans(Tokens(text)).Select(s => s.Value).ToHashSet();
+
+    /// <summary>
+    /// Amounts spoken in words, e.g. "teen sau" 300, "do hazar paanch sau" 2500, "dhai hazar" 2500, "sadhe teen hazar" 3500,
+    /// "three thousand five hundred", "تین ہزار پانچ سو". Only phrases containing sau/hazar/lakh (or hundred/thousand) count,
+    /// so everyday words such as "kar do" are never read as a number. "sath/saath" counts as 60 only in "sath hazar" and never after
+    /// "ke/uske/..." ("uske sath hazar rupay" = with a thousand rupees).
+    /// </summary>
+    public static IReadOnlySet<long> WordAmounts(string text) => WordSpans(Tokens(text)).Select(s => s.Value).ToHashSet();
+
+    /// <summary>
+    /// Ids dictated one digit at a time ("order nau nau nau" = 999, "order one zero five" = 105; "double"/"triple" repeat a digit):
+    /// 3-6 digits, and only right after an id word (order, id, number, account, ...), so "ek do teen piece" stays three counts.
+    /// These only widen what the seller is taken to have said; they are never required to survive a rewrite. Longer runs are phone/account numbers, never amounts.
+    /// </summary>
+    public static IReadOnlySet<long> DictatedDigitAmounts(string text) => DictatedSpans(Tokens(text)).Select(s => s.Value).ToHashSet();
+
+    /// <summary>Every amount in the text, however it was written (digits, number words, or an id dictated digit by digit).</summary>
+    public static IReadOnlySet<long> Amounts(string text)
+    {
+        var tokens = Tokens(text);
+        var all = new HashSet<long>(DigitSpans(tokens).Select(s => s.Value));
+        all.UnionWith(WordSpans(tokens).Select(s => s.Value));
+        all.UnionWith(DictatedSpans(tokens).Select(s => s.Value));
+        return all;
     }
 
     /// <summary>
-    /// Ids dictated one digit at a time ("nau nau nau" = 999, "one zero five" = 105): three to six single-digit words in a row.
-    /// These only widen what the seller is taken to have said; they are never required to survive a rewrite.
+    /// Amounts the seller took back: an amount followed within two words by "nahi/matlab/sorry/galat" and then, within five words, a different amount
+    /// ("char sau das nahi, char sau bees"). A rewrite may leave these out. A plain "500 nahi chahiye" with no replacement is not a retraction.
     /// </summary>
-    public static IReadOnlySet<long> DictatedDigitAmounts(string text)
+    public static IReadOnlySet<long> RetractedAmounts(string text)
     {
-        var result = new HashSet<long>();
-        var run = new System.Text.StringBuilder();
-
-        void Flush()
+        var tokens = Tokens(text);
+        var spans = DigitSpans(tokens).Concat(WordSpans(tokens)).OrderBy(s => s.Start).ToList();
+        var retracted = new HashSet<long>();
+        foreach (var span in spans)
         {
-            if (run.Length is >= 3 and <= 6 && long.TryParse(run.ToString(), NumberStyles.None, CultureInfo.InvariantCulture, out var v) && v >= MinAmount) result.Add(v);
-            run.Clear();
+            var marker = Enumerable.Range(span.End + 1, 2).FirstOrDefault(k => k < tokens.Count && RetractionMarkers.Contains(tokens[k]), -1);
+            if (marker < 0) continue;
+            if (spans.Any(t => t.Value != span.Value && t.Start > marker && t.Start <= marker + 5)) retracted.Add(span.Value);
         }
-
-        foreach (Match m in Token.Matches(AsciiDigits(text)))
-        {
-            if (Words.TryGetValue(m.Value, out var w) && w is >= 0 and <= 9 && w == decimal.Truncate(w)) run.Append((int)w);
-            else if (m.Value.Length == 1 && char.IsDigit(m.Value[0])) run.Append(m.Value[0]);
-            else Flush();
-        }
-        Flush();
-        return result;
+        return retracted;
     }
 
-    /// <summary>Every amount in the text, however it was written (digits, number words, or dictated digit by digit).</summary>
-    public static IReadOnlySet<long> Amounts(string text)
+    /// <summary>The text with the given digit amounts blanked out (used so a retracted amount need not survive a rewrite).</summary>
+    public static string RemoveDigitAmounts(string text, IReadOnlySet<long> amounts) =>
+        amounts.Aggregate(AsciiDigits(text), (current, a) => Regex.Replace(current, $@"(?<![\d,]){a}(?![\d,])", " "));
+
+    /// <summary>Hides phone/account numbers dictated as words ("zero three zero zero ...", "double zero triple nine ...") when 7 or more digits run together.</summary>
+    public static string MaskSpokenDigits(string text, int minDigits = 7)
     {
-        var all = new HashSet<long>(DigitAmounts(text));
-        all.UnionWith(WordAmounts(text));
-        all.UnionWith(DictatedDigitAmounts(text));
-        return all;
+        var matches = Token.Matches(AsciiDigits(text)).ToList();
+        var runs = DigitRuns(matches.Select(m => m.Value).ToList()).Where(r => r.Digits.Length >= minDigits).OrderByDescending(r => r.Start).ToList();
+        var result = text;
+        foreach (var (start, end, _) in runs)
+        {
+            var from = matches[start].Index;
+            var to = matches[end].Index + matches[end].Length;
+            result = result[..from] + "<phone>" + result[to..];
+        }
+        return result;
     }
 }

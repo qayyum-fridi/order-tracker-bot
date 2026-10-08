@@ -78,18 +78,18 @@ Store `(u, s, p, P, decision, user reaction)`. See §6 for how (not) to use reac
 
 Purpose: the LLM rewrites a voice transcript into typed commands; money-sized numbers must not be lost or invented. Implemented in `ConversationEngine.IsFaithfulRewrite` + `SpokenNumbers`.
 
-Definitions. `Dig(x)` = amounts 100…999,999 written as 3–6 digits (incl. `3,500` and Urdu digits); `Word(x)` = amounts spelled in words; `Dict(x)` = amounts dictated digit by digit (3–6 single-digit words in a row, e.g. "nau nau nau" = 999); `Amt(x) = Dig ∪ Word ∪ Dict`. `K` = numbers the model was shown: ids, totals and item unit prices of the seller's 5 most recent orders, and catalog product prices.
+Definitions. `Dig(x)` = amounts 100…999,999 written as 3–6 digits (incl. `3,500` and Urdu digits); `Word(x)` = amounts spelled in words; `Dict(x)` = ids dictated digit by digit (3–6 single digits, `double`/`triple` repeat a digit, and only right after an id word such as order/id/number/account — so "ek do teen piece" is three counts, not 123; 7+ digits are phone/account numbers, never amounts); `Amt(x) = Dig ∪ Word ∪ Dict`; `Ret(x)` = amounts the seller took back (an amount, then within two words nahi/matlab/sorry/galat, then within five words a *different* amount). `K` = numbers the model was shown: ids, totals and item unit prices of the seller's 5 most recent orders, and catalog product prices.
 
 A rewrite `r` of transcript `t` is accepted only if **all** hold:
 1. **Length:** `|r| ≤ max(200, 3·|t|)` and non-empty.
 2. **Digit-run retention:** every run of ≥3 digits in `t` (per-digit multiset, any length incl. phone numbers) survives in `r`.
-3. **Spoken retention:** `Word(t) ⊆ Amt(r)`.
+3. **Spoken retention:** `Word(t) \ Ret(t) ⊆ Amt(r)` (and rule 2 ignores digit runs in `Ret(t)`), so a rewrite that keeps only the corrected amount ("410 nahi, 420" → 420) is accepted.
 4. **No invention:** `Amt(r) ⊆ Amt(t) ∪ K`.
 Otherwise the rewrite is **discarded and the raw transcript is used** (not a clarification).
 
 `Word` covers: English ("three thousand five hundred", "twenty five hundred"); Roman Urdu 0–99 plus sau/hazar/lakh, with `dedh` (1.5), `dhai` (2.5), `sadhe X` (X+0.5), e.g. "sadhe teen hazar" = 3500; Urdu script ("تین ہزار پانچ سو", "ڈھائی ہزار"). Only phrases containing a multiplier (sau/hazar/lakh/hundred/thousand) count, so "kar do" is never a number; two plain numbers in a row are separate ("kar do paanch sau" → 500); a bare "sau" is ignored.
 
-Known limits: (a) unknown number spellings fail safe (may reject a correct rewrite, never accept a wrong one); Roman Urdu spelling varies and the table is hand-built; (b) 7+ digit runs (phones) are protected only by rule 2 — invention of a phone number is not detected; (c) amounts <100 or >999,999 are unchecked; (d) it is **not known** whether the ASR model emits digits or words for Urdu speech — to be measured on real voice notes; (e) a lexicon fuzzy-matcher must reject ambiguous collisions (e.g. a consonant skeleton maps both "saat" 7 and "saath" 60 to "st") — for money, ambiguity must fail safe; phonetic algorithms designed for English (Double Metaphone) are not a good fit.
+`sath`/`saath` counts as 60 only in "sath hazar" and never right after a particle (ke, uske, mere, …): "uske sath hazar rupay" (with a thousand rupees) is not 60,000. Glued forms such as "pansau" are not read (fail safe). Known limits: (a) unknown number spellings fail safe (may reject a correct rewrite, never accept a wrong one); Roman Urdu spelling varies and the table is hand-built; (b) 7+ digit runs (phones) are protected only by rule 2 — invention of a phone number is not detected; (c) amounts <100 or >999,999 are unchecked; (d) it is **not known** whether the ASR model emits digits or words for Urdu speech — to be measured on real voice notes; (e) a retraction can be mis-detected ("500 nahi chahiye … total 5000" is excluded by the five-word window, but other phrasings may slip through; the cost is that a dropped amount is not caught); (f) a lexicon fuzzy-matcher must reject ambiguous collisions (e.g. a consonant skeleton maps both "saat" 7 and "saath" 60 to "st") — for money, ambiguity must fail safe; phonetic algorithms designed for English (Double Metaphone) are not a good fit.
 
 ## 5. Making new capabilities cheap (registry — proposed)
 

@@ -43,7 +43,7 @@ internal static class VoiceTranscriptAnalyzer
     }
 
     /// <summary>Phone-length digit runs are hidden so a report can be shared without customer numbers.</summary>
-    public static string Mask(string text) => LongDigits.Replace(text, "<phone>");
+    public static string Mask(string text) => SpokenNumbers.MaskSpokenDigits(LongDigits.Replace(text, "<phone>"));
 
     private static int Distance(string a, string b)
     {

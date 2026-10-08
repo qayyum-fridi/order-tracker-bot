@@ -169,7 +169,7 @@ public partial class ConversationEngine
     /// ("teen sau", "three thousand", "تین ہزار") shows up in the rewrite, as digits or words; (3) the rewrite invents no amount (100-999,999)
     /// that the seller did not say — except <paramref name="knownNumbers"/>, ids and prices the model was shown (so "last order" can become "edit order 105").
     /// Small numbers may change on purpose ("4 lawn suits at 3500" -> "Lawn Suit - 3500", "pehla" -> "1"); the "Samjha" echo shows the result.
-    /// Phone-length digit runs (7+) are only protected by rule (1).
+    /// An amount the seller took back ("410 nahi, 420") need not survive. Phone-length digit runs (7+) are only protected by rule (1).
     /// </summary>
     public static bool IsFaithfulRewrite(string transcript, string? rewritten, IReadOnlySet<long>? knownNumbers = null) =>
         WhyUnfaithful(transcript, rewritten, knownNumbers) is null;
@@ -179,11 +179,14 @@ public partial class ConversationEngine
     {
         if (string.IsNullOrWhiteSpace(rewritten)) return "empty rewrite";
         if (rewritten.Length > Math.Max(200, transcript.Length * 3)) return "rewrite too long";
+        // Amounts the seller took back ("410 nahi, 420") need not survive the rewrite.
+        var retracted = SpokenNumbers.RetractedAmounts(transcript);
         var kept = LongNumberDigits(rewritten);
-        if (!LongNumberDigits(transcript).All(d => kept.GetValueOrDefault(d.Key) >= d.Value)) return "a 3+ digit run from the transcript was dropped";
+        var needed = retracted.Count == 0 ? transcript : SpokenNumbers.RemoveDigitAmounts(transcript, retracted);
+        if (!LongNumberDigits(needed).All(d => kept.GetValueOrDefault(d.Key) >= d.Value)) return "a 3+ digit run from the transcript was dropped";
 
         var rewrittenAmounts = SpokenNumbers.Amounts(rewritten);
-        if (SpokenNumbers.WordAmounts(transcript).FirstOrDefault(a => !rewrittenAmounts.Contains(a)) is var missing and > 0)
+        if (SpokenNumbers.WordAmounts(transcript).Where(a => !retracted.Contains(a)).FirstOrDefault(a => !rewrittenAmounts.Contains(a)) is var missing and > 0)
             return $"spoken amount {missing} is missing from the rewrite";
 
         var said = SpokenNumbers.Amounts(transcript);
