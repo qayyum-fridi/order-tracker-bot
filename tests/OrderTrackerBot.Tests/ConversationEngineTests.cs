@@ -53,6 +53,13 @@ public class ConversationEngineTests : IDisposable
         _sender.Setup(s => s.SendTextMessageAsync(Phone, It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .Callback<string, string, CancellationToken>((_, text, _) => _sentMessages.Add(text))
             .Returns(Task.CompletedTask);
+        // Clarifications are tap lists / buttons: their body counts as a sent message unless a test captures them itself.
+        _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, body, _, _, _) => _sentMessages.Add(body))
+            .Returns(Task.CompletedTask);
+        _sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, body, _, _) => _sentMessages.Add(body))
+            .Returns(Task.CompletedTask);
     }
 
     private ConversationEngine CreateEngine(AppDbContext db) =>
@@ -326,6 +333,35 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task Clarification_WithLongOptions_IsATapList_WhoseRowsAreTheirNumbers()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        IReadOnlyList<MenuSection>? sent = null;
+        _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, _, _, sections, _) => sent = sections)
+            .Returns(Task.CompletedTask);
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis
+            {
+                IsOrderAttempt = false,
+                ClarificationQuestion = "Mujhe samajh nahi aaya 🤔 Kya aap:",
+                ClarificationOptions = { "Naya order add karna chahte hain", "Kisi order ka status update karna chahte hain" }
+            });
+
+        await engine.HandleIncomingMessageAsync(Phone, "wo waala order kal tak bhej dena", default);
+
+        var rows = sent!.SelectMany(s => s.Rows).ToList();
+        Assert.Equal(new[] { "1", "2", "menu" }, rows.Select(r => r.Id));
+        Assert.All(rows, r => Assert.True(r.Title.Length <= 24, r.Title));
+
+        await engine.HandleIncomingMessageAsync(Phone, "2", default); // the tapped row arrives as its id
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sentMessages, m => m.Contains("mark 3 shipped"));
+    }
+
+    [Fact]
     public async Task DescribedNewDiscount_AiCreateDiscountIntent_StartsDiscountFlow()
     {
         using var db = _dbFactory.CreateContext();
@@ -373,14 +409,19 @@ public class ConversationEngineTests : IDisposable
         var engine = CreateEngine(db);
         _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiMessageAnalysis { Intent = "off_topic" });
+        IReadOnlyList<string>? buttons = null;
+        _sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, body, b, _) => { _sentMessages.Add(body); buttons = b; })
+            .Returns(Task.CompletedTask);
 
         await engine.HandleIncomingMessageAsync(Phone, "ye ek naya discount hai jo ke product ke liye istemal hoga.", default);
 
         Assert.Equal(ConversationState.AwaitingClarificationChoice, (await db.Sessions.FirstAsync()).State);
-        Assert.Contains(_sentMessages, m => m.Contains("Discount ke baare mein") && m.Contains("1️⃣ create discount"));
+        Assert.Contains(_sentMessages, m => m.Contains("Discount ke baare mein"));
+        Assert.Equal(new[] { "create discount", "discount list", "discount performance" }, buttons); // one tap each, no typing
         Assert.DoesNotContain(_sentMessages, m => m.Contains("sirf orders/sales"));
 
-        await engine.HandleIncomingMessageAsync(Phone, "1", default);
+        await engine.HandleIncomingMessageAsync(Phone, "create discount", default); // the tapped button arrives as its label
 
         Assert.Equal(ConversationState.AwaitingDiscountDetails, (await db.Sessions.FirstAsync()).State);
         Assert.Contains(_sentMessages, m => m.Contains("create discount: EID10"));

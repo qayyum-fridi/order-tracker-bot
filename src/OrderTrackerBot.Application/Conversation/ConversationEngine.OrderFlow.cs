@@ -771,8 +771,9 @@ public partial class ConversationEngine
     {
         ctx.ClarificationOptions = options;
         SetState(session, ConversationState.AwaitingClarificationChoice);
-        var numbered = string.Join("\n", options.Select((o, i) => $"{i + 1}️⃣ {o}"));
-        await ReplyAsync(seller, $"{question}\n\n{numbered}\n\nReply number se, ya \"help\" likhein.", ct);
+        // A tap sends the command itself when the option is one ("create discount"), otherwise its number (handled by HandleClarificationChoiceAsync).
+        var choices = options.Select((o, i) => new ChoiceOption(o, CommandParser.TryParse(o) is not null ? o : (i + 1).ToString())).ToList();
+        await SendChoicesAsync(seller.WhatsAppPhoneNumber, question, choices, ct);
     }
 
     private async Task HandleClarificationChoiceAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
