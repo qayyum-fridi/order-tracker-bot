@@ -216,7 +216,11 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "\"Ayesha, 2 lawn suit, 03001234567, Gulberg Lahore\". Commands keep their typed form (\"orders today\", \"mark 3 shipped\", \"stock Kurti 20\", " +
             "\"delivery 250\", \"catalog\" for any request to see/show the catalog). A seller who wants to create/add a discount, in any wording or just describing it " +
             "(\"naya discount banain\", \"ye ek naya discount hai jo product ke liye hoga\"), gives the command \"create discount\" (action command); only when they also said the code and the value " +
-            "write \"create discount: CODE, 10 percent\" or \"create discount: CODE, Rs.50 flat\" (append \", expires N days\" if said). (7) A product's catalog price is only a default: the seller often sells one order at a different price. To change what ONE " +
+            "write \"create discount: CODE, 10 percent\" or \"create discount: CODE, Rs.50 flat\" (append \", expires N days\" if said). " +
+            "ORDER STATUS: the only statuses are pending, shipped, delivered, returned, cancelled (plus paid for payment). The command is \"mark <order id> <status>\" using the real id from the " +
+            "latest orders list above (\"Order #13 Hassan\" -> 13; the numbers in the examples are NOT real). Map the seller's words by meaning: shipped = bhej diya / courier ko de diya / dispatch / ship kar do; " +
+            "delivered = complete / completed / mukammal / ho chuka / customer ko mil gaya / pohanch gaya (an order that is \"complete\" is DELIVERED, never shipped); returned = wapas aa gaya; " +
+            "paid = payment aa gayi; cancelled = \"cancel order <id>\". Never choose shipped unless they said it was sent/dispatched. If several orders match the name, ask which one. (7) A product's catalog price is only a default: the seller often sells one order at a different price. To change what ONE " +
             "customer was charged use three steps: \"edit order <order id>\", \"price <item number> = <amount>\", \"done\" (item numbers are the 1) 2) numbers " +
             "in the order list above; \"qty <item number> = <n>\", \"remove <item number>\", \"delivery <amount>\", \"phone <digits>\" and \"address <text>\" are the other edits you can put between edit order and done). " +
             "Never touch the catalog price for this. (8) NAMES: when the seller names a person, match it against the saved customers (spelling, Urdu script and phonetic " +

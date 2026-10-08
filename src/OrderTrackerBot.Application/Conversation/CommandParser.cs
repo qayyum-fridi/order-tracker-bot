@@ -479,9 +479,11 @@ public static class CommandParser
     private static readonly Regex MarkAllPendingShipped = new(@"^mark\s+all\s+pending\s+as\s+shipped$", Opts);
     // "mark 3 shipped" / "mark 3 bhej diya" / "آرڈر 3 شپ ہو گیا": the verb phrase is mapped by StatusFromPhrase.
     private static readonly Regex MarkStatus = new(@"^(?:mark|order|آرڈر)\s+(\d+)\s+(.+)$", Opts);
-    private const string DoneWords = @"(?:\s+(?:ho\s*(?:gaya|gya|gaye|gai|gayi)|kar\s+(?:diya|dia|do)|ہو\s+گیا(?:\s+ہے)?|کر\s+(?:دیا|دو)))?";
+    private const string DoneWords = @"(?:\s+(?:ho\s*(?:gaya|gya|gaye|gai|gayi)|kar\s+(?:diya|dia|do|dein|den)|ہو\s+گیا(?:\s+ہے)?|کر\s+(?:دیا|دو|دیں)))?";
     private static readonly Regex ShippedPhrase = new(@"^(?:shipped?" + DoneWords + @"|bhej\s*(?:diya|dia|di|do)|شپ" + DoneWords + @"|بھیج\s+(?:دیا|دو))$", Opts);
-    private static readonly Regex DeliveredPhrase = new(@"^(?:deliver(?:ed)?" + DoneWords + @"|(?:pohanch|pahunch|pohnch)\s+gaya|ڈیلیور" + DoneWords + @"|پہنچ\s+گیا)$", Opts);
+    private static readonly Regex DeliveredPhrase = new(@"^(?:deliver(?:ed)?" + DoneWords + @"|(?:pohanch|pahunch|pohnch)\s+gaya|ڈیلیور" + DoneWords + @"|پہنچ\s+گیا"
+        // "complete" is the seller's word for the final state: delivered.
+        + @"|(?:complete(?:d)?|mukammal|mukamal)" + DoneWords + @"|(?:مکمل|کمپلیٹ(?:ڈ)?)" + DoneWords + @")$", Opts);
     private static readonly Regex PaidPhrase = new(@"^(?:paid" + DoneWords + @"|payment\s+(?:aa|mil)\s+(?:gayi|gai)|پیڈ" + DoneWords + @"|ادائیگی\s+ہو\s+گئی)$", Opts);
     private static readonly Regex PendingPhrase = new(@"^(?:pending|پینڈنگ)$", Opts);
     private static readonly Regex ReturnedPhrase = new(@"^(?:return(?:ed)?" + DoneWords + @"|(?:wapas|wapis|waapas)(?:\s+(?:aa|a|aya|agaya|aa\s*gaya|aa\s*gya|ho\s*gaya|ho\s*gya|kar\s+diya))?|واپس(?:\s+(?:آ\s+گیا|آیا|ہو\s+گیا))?|ریٹرن)$", Opts);

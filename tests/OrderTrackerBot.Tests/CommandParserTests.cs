@@ -128,6 +128,19 @@ public class CommandParserTests
         Assert.Equal("shipped", parsed.Text);
     }
 
+    [Theory]
+    [InlineData("mark 13 completed")]
+    [InlineData("order 13 complete ho gaya")]
+    [InlineData("mark 13 mukammal")]
+    [InlineData("آرڈر 13 مکمل ہو گیا")]
+    public void CompleteWording_MeansDelivered_NotShipped(string message)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.Equal(CommandKind.MarkStatus, parsed!.Kind);
+        Assert.Equal(13, parsed.Number);
+        Assert.Equal("delivered", parsed.Text);
+    }
+
     [Fact]
     public void ParsesAddProduct_WithNameAndPrice()
     {
