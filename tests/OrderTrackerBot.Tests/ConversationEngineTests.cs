@@ -303,6 +303,11 @@ public class ConversationEngineTests : IDisposable
 
     [Theory]
     [InlineData("add discount", "create discount: EID10")]
+    [InlineData("ek HBL 50 ka discount naya bana dein", "create discount: EID10")]
+    [InlineData("Naya discount banain.", "create discount: EID10")]
+    [InlineData("نیا ڈسکاؤنٹ بنائیں۔", "create discount: EID10")]
+    [InlineData("discount bana do", "create discount: EID10")]
+    [InlineData("ڈسکاؤنٹ نیا بنا دیں", "create discount: EID10")]
     [InlineData("New Product", "Kurti - 1800")]
     [InlineData("add payment", "add payment: jazzcash")]
     [InlineData("create loyalty", "create loyalty: 5 orders")]

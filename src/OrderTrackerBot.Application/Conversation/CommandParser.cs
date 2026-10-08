@@ -655,6 +655,9 @@ public static class CommandParser
     private static readonly Regex DetailedForm = new(@"^(?:add\s+)?(product|customer|order)\s*\(\s*detailed\s*\)$|^new\s+(order)\s*\(\s*detailed\s*\)$", Opts);
     private static readonly Regex NewOrderHelp = new(@"^(?:new|naya|nya|add|create|make)\s+orders?$|^نیا\s+آرڈر$|^(?:naya\s+)?orders?\s+(?:add|darj|likhna|karna|dalna)(?:\s+(?:karna|karni|hai|karein|krna))*$", Opts);
     private static readonly Regex HowTo =new(@"^(?:add|new|create|make)\s+(discount|product|payment|loyalty|tracking)s?$", Opts);
+    // Spoken/Roman Urdu "[ek HBL 50 ka] discount naya bana dein" / "ڈسکاؤنٹ نیا بنا دیں": same as "create discount" with no details.
+    private static readonly Regex NaturalCreateDiscount = new(
+        @"^(?:[^\n,:]{0,40}?\s)?(?:(?:naya|nya|new|نیا)\s+)?(?:discount|ڈسکاؤنٹ)\s+(?:(?:naya|nya|new|نیا)\s+)?(?:bana\w*(?:\s+(?:do|dein|den|dijiye|karo))?|add\s+kar\w*|بنا\w*(?:\s*(?:دیں|دو))?)[.!۔\s]*$", Opts);
 
     private static readonly Regex SafepayId = new(@"^safepay\s+id:\s*(.+)$", Opts);
 
@@ -964,6 +967,9 @@ public static class CommandParser
 
         if ((m = HowTo.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.HowTo, Text = m.Groups[1].Value.ToLowerInvariant() };
+
+        if (NaturalCreateDiscount.IsMatch(message))
+            return new ParsedCommand { Kind = CommandKind.HowTo, Text = "discount" };
 
         var lines = message.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (lines.Length == 1 && TryParseProductLine(lines[0], out ProductLine? line))
