@@ -255,6 +255,12 @@ public partial class ConversationEngine
             case CommandKind.Export:
                 await HandleExportAsync(seller, cmd.Export!, ct);
                 return;
+            case CommandKind.ImportHelp:
+                await HandleImportHelpAsync(seller, ct);
+                return;
+            case CommandKind.ImportTemplate:
+                await HandleImportTemplateAsync(seller, cmd.Text, ct);
+                return;
             case CommandKind.BrandingHelp:
                 await HandleBrandingHelpAsync(seller, cmd.Text, ct);
                 return;

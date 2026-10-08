@@ -26,7 +26,7 @@ public partial class ConversationEngine
     {
         ConversationState.Idle => "Setup shuru karne ke liye \"start\" likhein (ya bol dein).",
         ConversationState.OnboardingLanguage or ConversationState.AwaitingLanguageChoice => "Apni zubaan chunein: Roman Urdu, English ya اردو (neeche buttons hain).",
-        ConversationState.OnboardingStartChoice => "Chunein: \"Setup shuru karein\", \"Guide dekhein\" ya \"Baad mein karunga\".",
+        ConversationState.OnboardingStartChoice => "Chunein: \"Setup shuru karein\", \"Guide dekhein\" ya \"Purana data\" (purane system se customers/products laane ke liye).",
         ConversationState.OnboardingBusinessName => "Apni dukaan ka naam batayein, jaise \"Ayesha Collections\".",
         ConversationState.OnboardingOptionalDetails => "Shehar, karobar ki qisam aur Instagram handle ek saath bhejein, jaise \"Lahore, Clothing, @ayesha.collections\" — ya \"skip\" likhein.",
         ConversationState.OnboardingCatalogSize => "Batayein aapke paas kitne products hain: \"10 ke qareeb\", ya button dabayein.",
@@ -43,7 +43,8 @@ public partial class ConversationEngine
             or ConversationState.AwaitingSupportQueryPick => "Upar diye options mein se number bhejein (1 ya 2) — bolte waqt \"pehla\" / \"dusra\" bhi chalta hai.",
         ConversationState.AwaitingCancelConfirmation or ConversationState.AwaitingBulkStatusConfirmation or ConversationState.AwaitingDuplicateOrderConfirmation
             or ConversationState.AwaitingCodCollectedConfirmation or ConversationState.AwaitingResetConfirmation or ConversationState.AwaitingDeleteCustomerConfirmation
-            or ConversationState.AwaitingLoyaltyDiscountConfirmation or ConversationState.AwaitingSupportReplyConfirmation => "YES ya NO likhein (bol kar \"haan\" / \"nahi\" bhi chalta hai).",
+            or ConversationState.AwaitingLoyaltyDiscountConfirmation or ConversationState.AwaitingSupportReplyConfirmation
+            or ConversationState.AwaitingImportConfirmation => "YES ya NO likhein (bol kar \"haan\" / \"nahi\" bhi chalta hai).",
         ConversationState.AwaitingVoiceConfirmation => "Aapki voice se jo actions samjhe, woh upar likhe hain — chalane ke liye YES, rokne ke liye NO.",
         ConversationState.AwaitingOrderEdit => OrderEditHelp,
         ConversationState.AwaitingDiscountDetails => "Discount code likhein, jaise \"create discount: EID10, 10 percent, expires 15 days\".",

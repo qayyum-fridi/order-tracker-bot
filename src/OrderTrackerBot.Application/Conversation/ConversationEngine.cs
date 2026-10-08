@@ -26,6 +26,7 @@ public partial class ConversationEngine
     private readonly ICatalogSheetImporter? _catalogSheets;
     private readonly IReceiptPdfGenerator? _receiptPdf;
     private readonly IExportFileWriter? _exportWriter;
+    private readonly IImportFileReader? _importReader;
     private readonly FeatureOptions _features;
     private readonly IIssueReporter? _issues;
     private readonly IAudioTranscriber? _transcriber;
@@ -36,7 +37,7 @@ public partial class ConversationEngine
     public ConversationEngine(IAppDbContext db, IAiOrderAssistant ai, IWhatsAppSender sender, IFounderAlertNotifier founderAlerts,
         BillingOptions? billing = null, IWhatsAppMediaClient? media = null, IInstagramClient? instagram = null, ICatalogSheetImporter? catalogSheets = null,
         IReceiptPdfGenerator? receiptPdf = null, IExportFileWriter? exportWriter = null, FeatureOptions? features = null,
-        IIssueReporter? issues = null, IAudioTranscriber? transcriber = null)
+        IIssueReporter? issues = null, IAudioTranscriber? transcriber = null, IImportFileReader? importReader = null)
     {
         _db = db;
         _ai = ai;
@@ -51,6 +52,7 @@ public partial class ConversationEngine
         _exportWriter = exportWriter;
         _issues = issues;
         _transcriber = transcriber;
+        _importReader = importReader;
         // Unconfigured (e.g. unit tests) means off; the app registers FeatureOptions with its real defaults.
         _features = features ?? new FeatureOptions { ShortcutButtons = false };
     }
@@ -108,7 +110,7 @@ public partial class ConversationEngine
         // hatch): otherwise the very next message after opening it would fall to HandleOnboardingAsync's
         // default case and restart onboarding from scratch instead of reaching that handler.
         if (OnboardingStates.Contains(session.State)
-            || (!seller.OnboardingComplete && session.State != ConversationState.AwaitingGuideStep))
+            || (!seller.OnboardingComplete && session.State is not (ConversationState.AwaitingGuideStep or ConversationState.AwaitingImportConfirmation)))
         {
             await HandleOnboardingAsync(seller, session, ctx, message, ct);
             await PersistAsync(session, ctx, ct);
@@ -211,6 +213,9 @@ public partial class ConversationEngine
                 break;
             case ConversationState.AwaitingSupportQueryPick:
                 await HandleSupportQueryPickAsync(seller, session, ctx, message, ct);
+                break;
+            case ConversationState.AwaitingImportConfirmation:
+                await HandleImportConfirmationAsync(seller, session, ctx, message, ct);
                 break;
             default:
                 await HandleIdleAsync(seller, session, ctx, message, ct);

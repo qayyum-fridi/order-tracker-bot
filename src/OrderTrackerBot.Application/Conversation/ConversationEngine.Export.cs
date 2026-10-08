@@ -71,6 +71,8 @@ public partial class ConversationEngine
             return;
         }
 
+        // The Guide tab goes last so the file opens on the data; it explains every column of the sheets above.
+        sheets.Add(DataExchangeGuide.BuildGuideSheet(sheets.ToList(), template: false));
         var bytes = _exportWriter.WriteXlsx(sheets);
         var today = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
         var fileName = $"{SafeFileStem(seller.BusinessName)}-export-{today:yyyy-MM-dd}.xlsx";
@@ -78,6 +80,7 @@ public partial class ConversationEngine
             $"📊 Export — {string.Join(", ", summary)}", ct);
         await ReplyAsync(seller, sent
             ? "✅ Excel file ready — file par tap kar ke download karein; Excel ya Google Sheets mein khulti hai.\n" +
+              "Aakhri tab \"Guide\" har column ka matlab batata hai.\n" +
               "Is mein customers ke phone/address bhi hain, isay sirf apne paas rakhein."
             : "⚠️ Export file bhej nahi saka — thori der baad dobara try karein.", ct);
     }

@@ -8,7 +8,8 @@ namespace OrderTrackerBot.Application.Conversation;
 // Screens 0 / 0b / 10e: post-language start choice, "change language" anytime, and the Business Setup summary.
 public partial class ConversationEngine
 {
-    private static readonly string[] StartChoiceButtons = { "Setup shuru karein", "Pehle guide dekhein", "🌐 Language badlein" };
+    // "Language badlein" was the third button; the seller has just picked a language, so that slot now offers moving data over (typing "change language" still works).
+    private static readonly string[] StartChoiceButtons = { "Setup shuru karein", "Pehle guide dekhein", "📥 Purana data" };
     private static readonly string[] BusinessNameButtons = { "📖 Guide dekhein", "🌐 Language badlein", "Baad mein karunga" };
     private static readonly string[] AfterLanguageButtons = { "📋 Menu", "📦 New Order", "📖 Guide" };
     private static readonly string[] BusinessSetupButtons = { "Business Info", "Payment Method", "Language" };
@@ -48,6 +49,18 @@ public partial class ConversationEngine
         {
             SetState(session, ConversationState.OnboardingLanguage);
             await AskLanguageAsync(seller, ct);
+            return;
+        }
+
+        // "Purana data" (or typing import / import template customers): explain, offer the template files, and stay on this choice.
+        // The seller then sends the filled file, or taps "Setup shuru karein" to carry on.
+        if (choice is "purana data" or "puraana data" || CommandParser.TryParse(message) is { Kind: CommandKind.ImportHelp or CommandKind.ImportTemplate })
+        {
+            var import = CommandParser.TryParse(message);
+            if (import is { Kind: CommandKind.ImportTemplate })
+                await HandleImportTemplateAsync(seller, import.Text, ct);
+            else
+                await HandleImportHelpAsync(seller, ct);
             return;
         }
 

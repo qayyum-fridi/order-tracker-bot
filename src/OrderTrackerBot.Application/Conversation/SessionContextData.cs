@@ -64,6 +64,11 @@ public sealed class SessionContextData
     /// <summary>The one-time explanation of the quick-action buttons has been shown.</summary>
     public bool ShortcutIntroShown { get; set; }
 
+    /// <summary>WhatsApp media id of the uploaded import file, re-downloaded on YES so the parsed rows needn't be stored.</summary>
+    public string? PendingImportMediaId { get; set; }
+    /// <summary>The state the upload arrived in (a mid-onboarding seller goes back there after YES/NO).</summary>
+    public ConversationState? ImportReturnState { get; set; }
+
     public List<int>? LastListOrderIds { get; set; }
     public List<int>? LastListCustomerIds { get; set; }
     public int CustomerListPage { get; set; }

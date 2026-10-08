@@ -20,7 +20,7 @@ public sealed class ExportXlsxWriter : IExportFileWriter
         }
 
         using var stream = new MemoryStream();
-        MiniExcel.SaveAs(stream, workbook, configuration: new OpenXmlConfiguration { AutoFilter = true, FastMode = true, EnableAutoWidth = true });
+        MiniExcel.SaveAs(stream, workbook, configuration: new OpenXmlConfiguration { AutoFilter = true, FastMode = true, EnableAutoWidth = true, MinWidth = 18, MaxWidth = 100 });
         return stream.ToArray();
     }
 }

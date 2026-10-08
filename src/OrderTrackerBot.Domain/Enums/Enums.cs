@@ -38,7 +38,9 @@ public enum ConversationState
     AwaitingPaymentMethodInput,
     AwaitingOrderEdit,
     /// <summary>Voice note read as risky actions (price edit, cancel, status change...); waiting for YES/NO before running them.</summary>
-    AwaitingVoiceConfirmation
+    AwaitingVoiceConfirmation,
+    /// <summary>A customers/catalog file was uploaded and checked; waiting for YES before anything is saved.</summary>
+    AwaitingImportConfirmation
 }
 
 public enum OrderStatus
@@ -87,7 +89,8 @@ public enum ActionType
     ProductPriceChanged,
     OrderEdited,
     CustomerUpdated,
-    ExpenseAdded
+    ExpenseAdded,
+    DataImported
 }
 
 public enum SubscriptionPlan
