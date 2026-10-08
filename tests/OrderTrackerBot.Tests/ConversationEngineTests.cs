@@ -487,6 +487,47 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task StatusPicker_ListsTheStatusesAnOrderCanMoveTo_AsRunnableRows()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var pendingIds = await SeedTwoPendingOrdersAsync(db);
+        var engine = CreateEngine(db);
+        string? body = null;
+        IReadOnlyList<MenuSection>? sent = null;
+        _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, text, _, sections, _) => { body = text; sent = sections; })
+            .Returns(Task.CompletedTask);
+        var id = pendingIds[0];
+
+        await engine.HandleIncomingMessageAsync(Phone, $"status {id}", default);
+
+        var rows = sent!.SelectMany(s => s.Rows).ToList();
+        Assert.Contains($"Order #{id}", body);
+        Assert.Contains(rows, r => r.Id == $"mark {id} shipped");
+        Assert.Contains(rows, r => r.Id == $"mark {id} delivered");
+        Assert.Contains(rows, r => r.Id == $"cancel order {id}");
+        Assert.DoesNotContain(rows, r => r.Id == $"mark {id} returned"); // a pending order was never sent out
+        Assert.All(rows, r => Assert.NotNull(CommandParser.TryParse(r.Id)));
+        Assert.All(rows, r => Assert.True(r.Title.Length <= 24, r.Title));
+    }
+
+    [Fact]
+    public async Task StatusPicker_ForACancelledOrder_SaysItCannotChange()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var pendingIds = await SeedTwoPendingOrdersAsync(db);
+        (await db.Orders.FirstAsync(o => o.Id == pendingIds[0])).Status = OrderStatus.Cancelled;
+        await db.SaveChangesAsync();
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, $"status {pendingIds[0]}", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("CANCELLED") && m.Contains("change nahi ho sakta"));
+    }
+
+    [Fact]
     public async Task MarkByNumber_WithNoRecentList_UsesRealOrderId()
     {
         using var db = _dbFactory.CreateContext();

@@ -225,6 +225,9 @@ public partial class ConversationEngine
             case CommandKind.MonthlyNet:
                 await HandleMonthlyNetAsync(seller, cmd.Text, ct);
                 return;
+            case CommandKind.StatusPicker:
+                await HandleStatusPickerAsync(seller, ctx, cmd.Number, ct);
+                return;
             case CommandKind.OrderDetail:
                 await HandleOrderDetailAsync(seller, ctx, cmd.Number!.Value, ct);
                 return;

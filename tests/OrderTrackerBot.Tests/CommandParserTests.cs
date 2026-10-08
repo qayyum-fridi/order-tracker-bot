@@ -141,6 +141,24 @@ public class CommandParserTests
         Assert.Equal("delivered", parsed.Text);
     }
 
+    [Theory]
+    [InlineData("status", null)]
+    [InlineData("update status", null)]
+    [InlineData("status 13", 13)]
+    [InlineData("order 13 status", 13)]
+    [InlineData("mark 13", 13)]
+    [InlineData("اسٹیٹس 13", 13)]
+    public void StatusPicker_ParsedWithOrOutAnOrderNumber(string message, int? number)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.Equal(CommandKind.StatusPicker, parsed!.Kind);
+        Assert.Equal(number, parsed.Number);
+    }
+
+    [Fact]
+    public void OrderNumberAlone_StillShowsTheOrder_NotTheStatusPicker() =>
+        Assert.Equal(CommandKind.OrderDetail, CommandParser.TryParse("order 13")!.Kind);
+
     [Fact]
     public void ParsesAddProduct_WithNameAndPrice()
     {

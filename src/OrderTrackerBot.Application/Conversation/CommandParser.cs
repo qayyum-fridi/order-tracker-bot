@@ -71,6 +71,7 @@ public enum CommandKind
     DeliveryCharge,
     EditOrder,
     OrderDetail,
+    StatusPicker,
     Stock,
     Expense,
     ExpenseList,
@@ -240,6 +241,8 @@ public static class CommandParser
     private static readonly Regex StockSet = new(@"^(?:stock|اسٹاک)\s*:?\s*(?<name>[^\d].*?)\s*[=:]?\s*(?<sign>\+)?\s*(?<n>\d{1,6})$|^(?<name>[^\d].*?)\s+(?:ka\s+|ki\s+)?(?:stock|اسٹاک)\s*[=:]?\s*(?<sign>\+)?\s*(?<n>\d{1,6})$", Opts);
 
     // "order 12" / "#12" shows one order in full.
+    // "status" / "status 13" / "update status 13" / "order 13 status" / "mark 13" (no status said): show the statuses the order can move to as a pick-list.
+    private static readonly Regex StatusPicker = new(@"^(?:(?:update|change)\s+)?(?:status|اسٹیٹس)(?:\s+(?:update|change))?(?:\s+#?(?<n>\d+))?$|^(?:order|آرڈر|mark|update)\s*#?(?<n>\d+)\s*(?:status|اسٹیٹس)?(?:\s+(?:update|change))?$", Opts);
     private static readonly Regex OrderDetail = new(@"^(?:order|آرڈر)\s*#?(?<n>\d+)$|^#(?<n>\d+)$", Opts);
 
     // Part payments: "order 12 advance 500", "12 paid 1000", "advance 500 order 12" add to what the buyer has paid so far.
@@ -907,6 +910,9 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.EditProduct, Text = m.Groups[1].Value.Trim(), Amount = decimal.Parse(m.Groups[2].Value) };
 
         if (MarkAllPendingShipped.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.MarkAllPendingShipped };
+
+        if ((m = StatusPicker.Match(message)).Success && !OrderDetail.IsMatch(message))
+            return new ParsedCommand { Kind = CommandKind.StatusPicker, Number = m.Groups["n"].Success ? int.Parse(m.Groups["n"].Value) : null };
 
         if ((m = MarkStatus.Match(message)).Success && StatusFromPhrase(m.Groups[2].Value) is { } markStatus)
             return new ParsedCommand { Kind = CommandKind.MarkStatus, Number = int.Parse(m.Groups[1].Value), Text = markStatus };
