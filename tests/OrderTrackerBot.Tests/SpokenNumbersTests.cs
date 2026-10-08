@@ -154,6 +154,19 @@ public class SpokenNumbersTests
     }
 
     [Fact]
+    public void Case_CancelMatKarna_SorryOtherOrder_DropsTheTakenBackId()
+    {
+        const string t = "Bhai order 204 cancel mat karna... sorry order id 105 cancel kar do";
+        Assert.Equal(new long[] { 204 }, SpokenNumbers.RetractedAmounts(t).ToArray());
+        Assert.Null(Why(t, "cancel order 105"));
+        Assert.NotNull(Why(t, "cancel order 204"));              // acting on the id the seller took back loses 105
+    }
+
+    [Fact]
+    public void Mat_WithoutAReplacementAmount_RetractsNothing() =>
+        Assert.Empty(SpokenNumbers.RetractedAmounts("order 204 cancel mat karna"));
+
+    [Fact]
     public void NoReplacement_MeansNoRetraction() =>
         Assert.Empty(SpokenNumbers.RetractedAmounts("price 500 nahi chahiye order 12 ka total 5000"));
 
@@ -181,4 +194,53 @@ public class SpokenNumbersTests
         Assert.Equal(new long[] { 3990 }, Words(t));
         Assert.Null(Why(t, "order 501 bill 3990"));
     }
+}
+
+public class ParserOverlapTests
+{
+    [Theory]
+    [InlineData("bill kitna hua order id 501 ka?", 501)]
+    [InlineData("bill kitna hua order 12", 12)]
+    [InlineData("order #7 ka bill kya banta hai", 7)]
+    public void BillQuestion_WithAnOrderNumber_ShowsThatOrder_NotAReceipt(string text, int number)
+    {
+        var parsed = CommandParser.TryParse(text)!;
+        Assert.Equal(CommandKind.OrderDetail, parsed.Kind);
+        Assert.Equal(number, parsed.Number);
+    }
+
+    [Theory]
+    [InlineData("bill kitna hua order id panch sau ek ka?")]   // the number is spoken in words: left to the AI, never a receipt for "kitna hua…"
+    [InlineData("total bill kya hai")]
+    public void BillQuestion_WithoutADigitOrderNumber_IsNotAReceipt(string text) =>
+        Assert.NotEqual(CommandKind.Receipt, CommandParser.TryParse(text)?.Kind);
+
+    [Theory]
+    [InlineData("bill 12", 12, null)]
+    [InlineData("receipt", null, null)]
+    [InlineData("receipt 12", 12, null)]
+    [InlineData("Ayesha ki receipt", null, "Ayesha")]
+    [InlineData("bill Ayesha", null, "Ayesha")]
+    public void ReceiptRequests_AreUnchanged(string text, int? number, string? name)
+    {
+        var parsed = CommandParser.TryParse(text)!;
+        Assert.Equal(CommandKind.Receipt, parsed.Kind);
+        Assert.Equal(number, parsed.Number);
+        Assert.Equal(name, parsed.Text);
+    }
+
+    [Theory]
+    [InlineData("Purana data")]
+    [InlineData("Purana data system se data aana hai excel file bhej raha hoon")]
+    [InlineData("Purana data system se yahan lekar aana hai")]
+    [InlineData("old system se data laana hai")]
+    public void ImportHelp_IsTriggeredBySentencesThatStartLikeIt(string text) =>
+        Assert.Equal(CommandKind.ImportHelp, CommandParser.TryParse(text)?.Kind);
+
+    [Theory]
+    [InlineData("purana data delete karo")]
+    [InlineData("purana data ka total kitna hai")]
+    [InlineData("purana data hata do system se")]
+    public void ImportHelp_IsNotTriggeredWithoutAnImportIntent_OrWithADestructiveWord(string text) =>
+        Assert.NotEqual(CommandKind.ImportHelp, CommandParser.TryParse(text)?.Kind);
 }

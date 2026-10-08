@@ -98,7 +98,7 @@ public static class SpokenNumbers
     // "410 nahi, 420": the seller took the first amount back.
     private static readonly HashSet<string> RetractionMarkers = new(StringComparer.OrdinalIgnoreCase)
     {
-        "nahi", "nahin", "nahee", "nai", "no", "matlab", "sorry", "galat", "نہیں", "نہی", "مطلب", "غلط"
+        "nahi", "nahin", "nahee", "nai", "no", "mat", "matlab", "sorry", "galat", "نہیں", "نہی", "مت", "مطلب", "غلط"
     };
 
     private static string Normalize(string text) => GroupedDigits.Replace(AsciiDigits(text), "");
@@ -269,7 +269,7 @@ public static class SpokenNumbers
     }
 
     /// <summary>
-    /// Amounts the seller took back: an amount followed within two words by "nahi/matlab/sorry/galat" and then, within five words, a different amount
+    /// Amounts the seller took back: an amount followed within five words by "nahi/mat/matlab/sorry/galat" and then, within five words, a different amount
     /// ("char sau das nahi, char sau bees"). A rewrite may leave these out. A plain "500 nahi chahiye" with no replacement is not a retraction.
     /// </summary>
     public static IReadOnlySet<long> RetractedAmounts(string text)
@@ -279,7 +279,7 @@ public static class SpokenNumbers
         var retracted = new HashSet<long>();
         foreach (var span in spans)
         {
-            var marker = Enumerable.Range(span.End + 1, 2).FirstOrDefault(k => k < tokens.Count && RetractionMarkers.Contains(tokens[k]), -1);
+            var marker = Enumerable.Range(span.End + 1, 5).FirstOrDefault(k => k < tokens.Count && RetractionMarkers.Contains(tokens[k]), -1);
             if (marker < 0) continue;
             if (spans.Any(t => t.Value != span.Value && t.Start > marker && t.Start <= marker + 5)) retracted.Add(span.Value);
         }
