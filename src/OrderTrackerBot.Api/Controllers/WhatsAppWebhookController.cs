@@ -10,18 +10,13 @@ namespace OrderTrackerBot.Api.Controllers;
 [Route("webhook/whatsapp")]
 public class WhatsAppWebhookController : ControllerBase
 {
-    private readonly ConversationEngine _engine;
     private readonly WhatsAppOptions _options;
     private readonly ILogger<WhatsAppWebhookController> _logger;
-    private readonly IIssueReporter _issues;
-    private readonly WebhookMessageGate _gate;
+    private readonly WebhookWorkQueue _queue;
 
-    public WhatsAppWebhookController(ConversationEngine engine, IOptions<WhatsAppOptions> options, ILogger<WhatsAppWebhookController> logger, IIssueReporter issues,
-        WebhookMessageGate gate)
+    public WhatsAppWebhookController(IOptions<WhatsAppOptions> options, ILogger<WhatsAppWebhookController> logger, WebhookWorkQueue queue)
     {
-        _gate = gate;
-        _issues = issues;
-        _engine = engine;
+        _queue = queue;
         _options = options.Value;
         _logger = logger;
     }
@@ -39,7 +34,11 @@ public class WhatsAppWebhookController : ControllerBase
         return StatusCode(StatusCodes.Status403Forbidden);
     }
 
-    /// <summary>Inbound message/status notifications from the Cloud API.</summary>
+    /// <summary>
+    /// Inbound message/status notifications from the Cloud API. Validates the signature, hands each message to the background
+    /// worker (<see cref="WebhookWorkerService"/>) and answers 200 at once, so a slow AI call never makes Meta time out and retry
+    /// and a dropped connection never cancels a message half-way. A full queue answers 503 so Meta retries later.
+    /// </summary>
     [HttpPost]
     public async Task<IActionResult> Receive(CancellationToken ct)
     {
@@ -58,90 +57,40 @@ public class WhatsAppWebhookController : ControllerBase
         var payload = System.Text.Json.JsonSerializer.Deserialize<WhatsAppWebhookPayload>(rawBody);
         if (payload is null) return Ok();
 
+        var accepted = true;
+
         foreach (var (from, text, messageId) in payload.ExtractTextMessages())
-        {
-            try
-            {
-                await _gate.RunOnceAsync(from, messageId, () => _engine.HandleIncomingMessageAsync(from, text, ct), ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to process inbound WhatsApp message from {From}", from);
-                await _issues.ReportAsync(IssueCodes.InboundMessageFailed, from, null, ex, ct);
-                await _engine.SendSystemErrorAsync(from, IssueCodes.InboundMessageFailed.Code, ct);
-            }
-        }
+            accepted &= Enqueue(from, messageId, IssueCodes.InboundMessageFailed, null, true,
+                (engine, token) => engine.HandleIncomingMessageAsync(from, text, token));
 
         foreach (var (from, mediaId, caption, messageId) in payload.ExtractImageMessages())
-        {
-            try
-            {
-                await _gate.RunOnceAsync(from, messageId, () => _engine.HandleImageMessageAsync(from, mediaId, caption, ct), ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to process screenshot from {From}", from);
-                await _issues.ReportAsync(IssueCodes.ScreenshotFailed, from, null, ex, ct);
-                await _engine.SendSystemErrorAsync(from, IssueCodes.ScreenshotFailed.Code, ct);
-            }
-        }
+            accepted &= Enqueue(from, messageId, IssueCodes.ScreenshotFailed, null, true,
+                (engine, token) => engine.HandleImageMessageAsync(from, mediaId, caption, token));
 
         foreach (var (from, mediaId, messageId) in payload.ExtractAudioMessages())
-        {
-            try
-            {
-                await _gate.RunOnceAsync(from, messageId, () => _engine.HandleAudioMessageAsync(from, mediaId, ct), ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to process voice note from {From}", from);
-                await _issues.ReportAsync(IssueCodes.VoiceNoteFailed, from, null, ex, ct);
-                await _engine.SendSystemErrorAsync(from, IssueCodes.VoiceNoteFailed.Code, ct);
-            }
-        }
+            accepted &= Enqueue(from, messageId, IssueCodes.VoiceNoteFailed, null, true,
+                (engine, token) => engine.HandleAudioMessageAsync(from, mediaId, token));
 
         foreach (var (from, mediaId, fileName, mimeType, messageId) in payload.ExtractDocumentMessages())
-        {
-            try
-            {
-                await _gate.RunOnceAsync(from, messageId, () => _engine.HandleDocumentMessageAsync(from, mediaId, fileName, mimeType, ct), ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to process document from {From}", from);
-                await _issues.ReportAsync(IssueCodes.UnsupportedMediaReplyFailed, from, "media type: document", ex, ct);
-                await _engine.SendSystemErrorAsync(from, IssueCodes.UnsupportedMediaReplyFailed.Code, ct);
-            }
-        }
+            accepted &= Enqueue(from, messageId, IssueCodes.UnsupportedMediaReplyFailed, "media type: document", true,
+                (engine, token) => engine.HandleDocumentMessageAsync(from, mediaId, fileName, mimeType, token));
 
         foreach (var (from, json, messageId) in payload.ExtractFlowSubmissions())
-        {
-            try
-            {
-                await _gate.RunOnceAsync(from, messageId, () => _engine.HandleFlowSubmissionAsync(from, json, ct), ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to process WhatsApp Flow submission from {From}", from);
-                await _issues.ReportAsync(IssueCodes.FlowSubmissionFailed, from, null, ex, ct);
-                await _engine.SendSystemErrorAsync(from, IssueCodes.FlowSubmissionFailed.Code, ct);
-            }
-        }
+            accepted &= Enqueue(from, messageId, IssueCodes.FlowSubmissionFailed, null, true,
+                (engine, token) => engine.HandleFlowSubmissionAsync(from, json, token));
 
         foreach (var (from, type, messageId) in payload.ExtractUnsupportedMessages())
-        {
-            try
-            {
-                await _gate.RunOnceAsync(from, messageId, () => _engine.HandleUnsupportedMediaAsync(from, type, ct), ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to reply to unsupported {Type} message from {From}", type, from);
-                await _issues.ReportAsync(IssueCodes.UnsupportedMediaReplyFailed, from, $"media type: {type}", ex, ct);
-            }
-        }
+            accepted &= Enqueue(from, messageId, IssueCodes.UnsupportedMediaReplyFailed, $"media type: {type}", false,
+                (engine, token) => engine.HandleUnsupportedMediaAsync(from, type, token));
 
-        // Meta expects a fast 200 regardless of downstream processing outcome, or it will retry/disable the webhook.
-        return Ok();
+        return accepted ? Ok() : StatusCode(StatusCodes.Status503ServiceUnavailable);
+    }
+
+    private bool Enqueue(string from, string? messageId, IssueCode failureCode, string? failureDetail, bool notifySeller,
+        Func<ConversationEngine, CancellationToken, Task> handle)
+    {
+        if (_queue.TryEnqueue(new WebhookWork(from, messageId, failureCode, failureDetail, notifySeller, handle))) return true;
+        _logger.LogError("Webhook queue is full; asking Meta to retry the message from {From}", from);
+        return false;
     }
 }

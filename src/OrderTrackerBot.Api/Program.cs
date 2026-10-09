@@ -12,6 +12,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddHostedService<OrderTrackerBot.Api.ScheduledMessagesService>();
+builder.Services.AddHostedService<OrderTrackerBot.Api.WebhookWorkerService>(); // handles queued WhatsApp messages after the webhook has answered 200
 
 var backupOptions = builder.Configuration.GetSection(BackupOptions.SectionName).Get<BackupOptions>();
 if (backupOptions is { Enabled: true, IsConfigured: true } &&

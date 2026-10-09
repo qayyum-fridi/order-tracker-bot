@@ -82,7 +82,7 @@ public static class DependencyInjection
 
         services.AddSingleton<IReceiptPdfGenerator, Pdf.ReceiptPdfGenerator>();
         services.AddSingleton<WhatsApp.WebhookMessageGate>();
-        services.AddSingleton<IExportFileWriter, Export.ExportXlsxWriter>();
+        services.AddSingleton<WhatsApp.WebhookWorkQueue>();        services.AddSingleton<IExportFileWriter, Export.ExportXlsxWriter>();
         services.AddSingleton<IImportFileReader, Export.ImportXlsxReader>();
         services.AddScoped<ConversationEngine>();
 
