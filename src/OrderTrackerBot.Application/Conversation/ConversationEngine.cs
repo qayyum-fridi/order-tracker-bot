@@ -365,8 +365,11 @@ public sealed class FeatureOptions
 {
     public const string SectionName = "Features";
 
-    /// <summary>Quick-action buttons (Menu / New order / Orders today) after finished replies.</summary>
+    /// <summary>Quick-action buttons (Guide / New order / Orders today) after finished replies.</summary>
     public bool ShortcutButtons { get; set; } = true;
+
+    /// <summary>Public link to the illustrated English/Urdu guide, sent with the Guide command. Empty = no link.</summary>
+    public string GuideUrl { get; set; } = "";
 }
 
 public sealed class BillingOptions

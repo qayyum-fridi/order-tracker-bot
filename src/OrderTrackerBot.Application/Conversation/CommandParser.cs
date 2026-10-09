@@ -132,7 +132,7 @@ public static class CommandParser
     private static readonly Regex Start = new(@"^start$", Opts);
     private static readonly Regex Greeting = new(@"^(hi|hello|hey|salam|assalam[u]?\s*alaikum|asalam[u]?\s*alaikum)$", Opts);
     private static readonly Regex Help = new(@"^(help|مدد)$", Opts);
-    private static readonly Regex Guide = new(@"^(guide|gaid|guide\s+dekhein|guide\s+dekhna|poora\s+guide)$", Opts);
+    private static readonly Regex Guide = new(@"^(guide|gaid|guide\s+dekhein|guide\s+dekhna|poora\s+guide|گائیڈ|گائڈ|گائیڈ\s+دیکھیں)$", Opts);
     private static readonly Regex GuideLater = new(@"^baad\s+mein$", Opts);
     private static readonly Regex ChangeLanguage = new(@"^(change\s+language|language(\s+(badlein|badlo|change))?|zabaan\s+badlein|language\s+badal(na|ein)?|زبان\s+بدلیں)$", Opts);
     private static readonly Regex BusinessSetup = new(@"^(business\s+setup|setup|settings)$", Opts);

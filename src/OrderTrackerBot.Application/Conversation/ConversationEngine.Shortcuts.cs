@@ -9,11 +9,12 @@ namespace OrderTrackerBot.Application.Conversation;
 // Button labels are real commands — a tapped button arrives as that text.
 public partial class ConversationEngine
 {
+    // Guide is always the first button: it is the way back to the illustrated and step-by-step guides.
     private static string[] ShortcutLabels(string language) => Lang.Normalize(language) switch
     {
-        Lang.UrduScript => new[] { "📋 مینو", "➕ نیا آرڈر", "📦 آج کے آرڈرز" },
-        Lang.English => new[] { "📋 Menu", "➕ New order", "📦 Orders today" },
-        _ => new[] { "📋 Menu", "➕ Naya order", "📦 Orders today" }
+        Lang.UrduScript => new[] { "📖 گائیڈ", "➕ نیا آرڈر", "📦 آج کے آرڈرز" },
+        Lang.English => new[] { "📖 Guide", "➕ New order", "📦 Orders today" },
+        _ => new[] { "📖 Guide", "➕ Naya order", "📦 Orders today" }
     };
 
     private async Task TrySendShortcutBarAsync(string phone, CancellationToken ct)
@@ -39,6 +40,6 @@ public partial class ConversationEngine
         ctx.ShortcutsOff = value == "off";
         await ReplyAsync(seller, ctx.ShortcutsOff
             ? "✅ Shortcut buttons band kar diye. Dobara chalane ke liye likhein: \"shortcut on\""
-            : "✅ Shortcut buttons chalu — ab har jawab ke neeche Menu / Naya order / Orders today milenge.", ct);
+            : "✅ Shortcut buttons chalu — ab har jawab ke neeche Guide / Naya order / Orders today milenge.", ct);
     }
 }
