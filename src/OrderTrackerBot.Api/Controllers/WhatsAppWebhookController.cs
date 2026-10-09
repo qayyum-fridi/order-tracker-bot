@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using OrderTrackerBot.Application.Abstractions;
-using OrderTrackerBot.Application.Conversation;
 using OrderTrackerBot.Infrastructure.WhatsApp;
 
 namespace OrderTrackerBot.Api.Controllers;
@@ -12,11 +10,11 @@ public class WhatsAppWebhookController : ControllerBase
 {
     private readonly WhatsAppOptions _options;
     private readonly ILogger<WhatsAppWebhookController> _logger;
-    private readonly WebhookWorkQueue _queue;
+    private readonly WebhookInbox _inbox;
 
-    public WhatsAppWebhookController(IOptions<WhatsAppOptions> options, ILogger<WhatsAppWebhookController> logger, WebhookWorkQueue queue)
+    public WhatsAppWebhookController(IOptions<WhatsAppOptions> options, ILogger<WhatsAppWebhookController> logger, WebhookInbox inbox)
     {
-        _queue = queue;
+        _inbox = inbox;
         _options = options.Value;
         _logger = logger;
     }
@@ -35,9 +33,9 @@ public class WhatsAppWebhookController : ControllerBase
     }
 
     /// <summary>
-    /// Inbound message/status notifications from the Cloud API. Validates the signature, hands each message to the background
-    /// worker (<see cref="WebhookWorkerService"/>) and answers 200 at once, so a slow AI call never makes Meta time out and retry
-    /// and a dropped connection never cancels a message half-way. A full queue answers 503 so Meta retries later.
+    /// Inbound message/status notifications from the Cloud API. Validates the signature, records each message durably
+    /// (<see cref="WebhookInbox"/>), hands it to the background worker and answers 200 at once — so a slow AI call never makes Meta
+    /// time out and retry, and a restart cannot lose an accepted message. A full queue answers 503 so Meta retries later.
     /// </summary>
     [HttpPost]
     public async Task<IActionResult> Receive(CancellationToken ct)
@@ -57,40 +55,34 @@ public class WhatsAppWebhookController : ControllerBase
         var payload = System.Text.Json.JsonSerializer.Deserialize<WhatsAppWebhookPayload>(rawBody);
         if (payload is null) return Ok();
 
+        var messages = new List<WebhookMessage>();
+        foreach (var (from, text, id) in payload.ExtractTextMessages())
+            messages.Add(new WebhookMessage(IdOrNew(id), WebhookMessageKind.Text, from, Text: text));
+        foreach (var (from, mediaId, caption, id) in payload.ExtractImageMessages())
+            messages.Add(new WebhookMessage(IdOrNew(id), WebhookMessageKind.Image, from, MediaId: mediaId, Caption: caption));
+        foreach (var (from, mediaId, id) in payload.ExtractAudioMessages())
+            messages.Add(new WebhookMessage(IdOrNew(id), WebhookMessageKind.Audio, from, MediaId: mediaId));
+        foreach (var (from, mediaId, fileName, mimeType, id) in payload.ExtractDocumentMessages())
+            messages.Add(new WebhookMessage(IdOrNew(id), WebhookMessageKind.Document, from, MediaId: mediaId, FileName: fileName, MimeType: mimeType));
+        foreach (var (from, json, id) in payload.ExtractFlowSubmissions())
+            messages.Add(new WebhookMessage(IdOrNew(id), WebhookMessageKind.Flow, from, Json: json));
+        foreach (var (from, type, id) in payload.ExtractUnsupportedMessages())
+            messages.Add(new WebhookMessage(IdOrNew(id), WebhookMessageKind.Unsupported, from, Type: type));
+
         var accepted = true;
-
-        foreach (var (from, text, messageId) in payload.ExtractTextMessages())
-            accepted &= Enqueue(from, messageId, IssueCodes.InboundMessageFailed, null, true,
-                (engine, token) => engine.HandleIncomingMessageAsync(from, text, token));
-
-        foreach (var (from, mediaId, caption, messageId) in payload.ExtractImageMessages())
-            accepted &= Enqueue(from, messageId, IssueCodes.ScreenshotFailed, null, true,
-                (engine, token) => engine.HandleImageMessageAsync(from, mediaId, caption, token));
-
-        foreach (var (from, mediaId, messageId) in payload.ExtractAudioMessages())
-            accepted &= Enqueue(from, messageId, IssueCodes.VoiceNoteFailed, null, true,
-                (engine, token) => engine.HandleAudioMessageAsync(from, mediaId, token));
-
-        foreach (var (from, mediaId, fileName, mimeType, messageId) in payload.ExtractDocumentMessages())
-            accepted &= Enqueue(from, messageId, IssueCodes.UnsupportedMediaReplyFailed, "media type: document", true,
-                (engine, token) => engine.HandleDocumentMessageAsync(from, mediaId, fileName, mimeType, token));
-
-        foreach (var (from, json, messageId) in payload.ExtractFlowSubmissions())
-            accepted &= Enqueue(from, messageId, IssueCodes.FlowSubmissionFailed, null, true,
-                (engine, token) => engine.HandleFlowSubmissionAsync(from, json, token));
-
-        foreach (var (from, type, messageId) in payload.ExtractUnsupportedMessages())
-            accepted &= Enqueue(from, messageId, IssueCodes.UnsupportedMediaReplyFailed, $"media type: {type}", false,
-                (engine, token) => engine.HandleUnsupportedMediaAsync(from, type, token));
+        foreach (var message in messages)
+        {
+            // Not tied to the request token: once Meta's payload is read, recording it must not be cancelled by a dropped connection.
+            var result = await _inbox.AcceptAsync(message, CancellationToken.None);
+            if (result == InboxResult.QueueFull)
+            {
+                _logger.LogError("Webhook queue is full; asking Meta to retry the message from {From}", message.From);
+                accepted = false;
+            }
+        }
 
         return accepted ? Ok() : StatusCode(StatusCodes.Status503ServiceUnavailable);
     }
 
-    private bool Enqueue(string from, string? messageId, IssueCode failureCode, string? failureDetail, bool notifySeller,
-        Func<ConversationEngine, CancellationToken, Task> handle)
-    {
-        if (_queue.TryEnqueue(new WebhookWork(from, messageId, failureCode, failureDetail, notifySeller, handle))) return true;
-        _logger.LogError("Webhook queue is full; asking Meta to retry the message from {From}", from);
-        return false;
-    }
+    private static string IdOrNew(string? id) => string.IsNullOrWhiteSpace(id) ? $"noid-{Guid.NewGuid():N}" : id;
 }

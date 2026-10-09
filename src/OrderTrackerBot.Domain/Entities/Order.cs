@@ -164,6 +164,16 @@ public class MessageLog
 }
 
 /// <summary>Claim row per processed WhatsApp message id (PK) so Meta's redeliveries are dropped across restarts and instances.</summary>
+/// <summary>A WhatsApp message accepted by the webhook (Meta already got its 200) but not finished yet. Deleted when handling ends; re-queued after a restart.</summary>
+public class PendingWebhookMessage
+{
+    [System.ComponentModel.DataAnnotations.Key]
+    public required string MessageId { get; set; }
+    public required string Sender { get; set; }
+    public required string PayloadJson { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
 public class ProcessedWebhookMessage
 {
     public required string MessageId { get; set; }
