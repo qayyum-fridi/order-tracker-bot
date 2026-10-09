@@ -233,4 +233,9 @@ shared-state action: confirm with the user and get SSH/host details first.
   HTTP in `GoogleDriveBackupStorage`, OAuth refresh token) when the newest Drive backup is older than `IntervalHours`; prunes to `KeepCount`. `BackupStartup.RestoreIfNeededAsync` runs in `Program.cs` before
   the DB is opened: corrupt/missing file -> newest healthy backup (damaged file kept as `.corrupt-*`), alerts OTB-5002/5003/5004. Data written after the last backup is lost on restore. Runtime corruption
   is only caught at the next start. WAL is enabled at startup (`Database:SqliteWal`). `Orders(SellerId, CreatedAt)` index added — Sqlite gets it from the patcher, **no SQL Server migration yet**.
+- Error log (`Infrastructure/Alerts/ErrorLog.cs`, `ErrorLogWriter.cs`, `ErrorMailer.cs`, `Api/ErrorLogService.cs`; README "Error log"): `IssueReporter` adds every issue (not subject to the webhook cooldown) to
+  `ErrorLogBuffer`; `ErrorLogService` flushes every `ErrorLog:FlushMinutes` via `ErrorLogWriter` -> daily CSV in `ErrorLog:Directory` (`/data/logs`), mirrored to the Drive subfolder `error-logs`
+  (`IDriveLogStore`, implemented by `GoogleDriveBackupStorage`, needs the Backup credentials), and Errors (not warnings) emailed as a digest (min 10 min apart) over SMTP when `ErrorLog:SmtpUser/SmtpPassword/EmailTo`
+  are set. The same SMTP settings power `NewSellerEmailNotifier` (`INewSellerNotifier`, called once from `LoadOrCreateSellerAsync` when a seller row is first created; background send, never awaited by the engine).
+  Failures there are logged only, never reported through `IIssueReporter`. CSV cells are always quoted and a leading `= + - @` is prefixed with `'`.
 - The WhatsApp list body (help) must stay ≤ 1024 chars — a test enforces it; keep `HelpText` curated rather than exhaustive.

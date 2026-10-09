@@ -34,10 +34,28 @@ public static class DependencyInjection
         // Google Drive backups: Sqlite only, and only when switched on with complete credentials (see README "Backups").
         services.Configure<BackupOptions>(configuration.GetSection(BackupOptions.SectionName));
         var backup = configuration.GetSection(BackupOptions.SectionName).Get<BackupOptions>() ?? new BackupOptions();
+        if (backup.IsConfigured)
+            services.AddHttpClient<GoogleDriveBackupStorage>(c => c.Timeout = TimeSpan.FromMinutes(5));
         if (backup.Enabled && backup.IsConfigured && provider.Equals("Sqlite", StringComparison.OrdinalIgnoreCase))
         {
-            services.AddHttpClient<IBackupStorage, GoogleDriveBackupStorage>(c => c.Timeout = TimeSpan.FromMinutes(5));
+            services.AddTransient<IBackupStorage>(sp => sp.GetRequiredService<GoogleDriveBackupStorage>());
             services.AddTransient<SqliteBackupManager>();
+        }
+
+        // Daily error log (CSV) -> Drive subfolder + emailed error digest. Needs Drive credentials / SMTP only for those two parts.
+        services.Configure<ErrorLogOptions>(configuration.GetSection(ErrorLogOptions.SectionName));
+        var errorLog = configuration.GetSection(ErrorLogOptions.SectionName).Get<ErrorLogOptions>() ?? new ErrorLogOptions();
+        if (errorLog.EmailConfigured)
+        {
+            services.AddSingleton<IErrorMailer, SmtpErrorMailer>();
+            services.AddSingleton<INewSellerNotifier, NewSellerEmailNotifier>(); // "new registration" email, same SMTP settings
+        }
+        if (errorLog.Enabled)
+        {
+            services.AddSingleton<ErrorLogBuffer>();
+            services.AddSingleton<IErrorLogSink>(sp => sp.GetRequiredService<ErrorLogBuffer>());
+            services.AddSingleton<ErrorLogWriter>();
+            if (backup.IsConfigured) services.AddTransient<IDriveLogStore>(sp => sp.GetRequiredService<GoogleDriveBackupStorage>());
         }
 
         services.Configure<WhatsAppOptions>(configuration.GetSection(WhatsAppOptions.SectionName));

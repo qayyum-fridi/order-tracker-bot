@@ -221,6 +221,21 @@ One-time setup (about 10 minutes):
 The `drive.file` scope only lets the bot see files it created itself, so it cannot read the rest of the Drive. Manual restore:
 download a `.db.gz` from the folder, `gunzip` it, stop the app and replace the `.db` file.
 
+## Error log (CSV, Google Drive, email)
+
+With `ErrorLog:Enabled=true` (on in `docker-compose.yml`) every reported issue (`OTB-xxxx`, see below) becomes a row in a daily file
+`errors-YYYY-MM-DD.csv` (Pakistan date) in `/data/logs` (the data volume): time (UTC and local), code, severity, seller business name and phone,
+problem, detail, error. Every occurrence is kept, even ones the founder webhook skips because of its 10-minute cooldown.
+
+- **Drive:** when the Drive backup credentials are set (`BACKUP_FOLDER_ID` etc.), each day's file is uploaded every 5 minutes to the `error-logs`
+  subfolder of the backup folder, replacing the same file as it grows. Open it in Google Sheets.
+- **Email:** set `ERRORLOG_EMAIL_TO`, `ERRORLOG_SMTP_USER` and `ERRORLOG_SMTP_PASSWORD` in `.env`. For Gmail the password is an
+  **app password** (Google account -> Security -> 2-Step Verification on -> App passwords), not the normal password; the sender is the SMTP user.
+  Only **errors** are emailed (warnings stay in the file), as one digest per 10 minutes at most.
+- A failed upload or email is retried on the next flush and never creates a new issue (no loops).
+- **New seller email:** with the same SMTP settings, `ERRORLOG_EMAIL_TO` also gets one email per brand-new seller the moment their number first
+  messages the bot (phone, time, total sellers). It is sent in the background, so it never delays the seller's reply; a failure is only logged.
+
 ## Alerts and issue codes
 
 Every failure is logged as `[OTB-xxxx] ...` and, when `FounderAlerts:WebhookUrl` is set (e.g. an n8n webhook that

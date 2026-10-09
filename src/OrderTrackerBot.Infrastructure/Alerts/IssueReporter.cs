@@ -22,13 +22,16 @@ public class IssueReporter : IIssueReporter
     private readonly FounderAlertOptions _options;
     private readonly IServiceScopeFactory _scopes;
     private readonly ILogger<IssueReporter> _logger;
+    private readonly IErrorLogSink? _errorLog;
 
-    public IssueReporter(HttpClient httpClient, IOptions<FounderAlertOptions> options, IServiceScopeFactory scopes, ILogger<IssueReporter> logger)
+    public IssueReporter(HttpClient httpClient, IOptions<FounderAlertOptions> options, IServiceScopeFactory scopes, ILogger<IssueReporter> logger,
+        IErrorLogSink? errorLog = null)
     {
         _httpClient = httpClient;
         _options = options.Value;
         _scopes = scopes;
         _logger = logger;
+        _errorLog = errorLog;
     }
 
     public async Task ReportAsync(IssueCode code, string? sellerPhone, string? detail = null, Exception? exception = null, CancellationToken cancellationToken = default)
@@ -39,9 +42,14 @@ public class IssueReporter : IIssueReporter
             _logger.Log(code.Severity == IssueSeverity.Error ? LogLevel.Error : LogLevel.Warning, exception,
                 "[{Code}] {Title} | seller={Phone} | {Detail}", code.Code, code.Title, sellerPhone ?? "-", detail ?? error ?? "-");
 
-            if (string.IsNullOrWhiteSpace(_options.WebhookUrl) || !ShouldSend(code, sellerPhone)) return;
+            var postToWebhook = !string.IsNullOrWhiteSpace(_options.WebhookUrl) && ShouldSend(code, sellerPhone);
+            if (!postToWebhook && _errorLog is null) return;
 
             var (sellerId, businessName) = await LookupSellerAsync(sellerPhone, cancellationToken);
+            // Every occurrence goes to the error log; only the webhook is rate-limited by the cooldown.
+            _errorLog?.Add(new ErrorLogEntry(DateTime.UtcNow, code.Code, code.Title, code.Severity, sellerPhone, businessName, detail, error));
+            if (!postToWebhook) return;
+
             var text = $"{(code.Severity == IssueSeverity.Error ? "🚨" : "⚠️")} [{code.Code}] {code.Title}\n" +
                        $"Seller: {businessName ?? "unknown"}{(sellerPhone is null ? "" : $" ({sellerPhone})")}\n" +
                        (string.IsNullOrEmpty(detail) ? "" : $"Detail: {Truncate(detail, 300)}\n") +

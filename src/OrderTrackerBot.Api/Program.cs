@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Infrastructure;
+using OrderTrackerBot.Infrastructure.Alerts;
 using OrderTrackerBot.Infrastructure.Backup;
 using OrderTrackerBot.Infrastructure.Persistence;
 
@@ -16,6 +17,9 @@ var backupOptions = builder.Configuration.GetSection(BackupOptions.SectionName).
 if (backupOptions is { Enabled: true, IsConfigured: true } &&
     string.Equals(builder.Configuration["Database:Provider"], "Sqlite", StringComparison.OrdinalIgnoreCase))
     builder.Services.AddHostedService<OrderTrackerBot.Api.BackupService>();
+
+if (builder.Configuration.GetSection(ErrorLogOptions.SectionName).Get<ErrorLogOptions>() is { Enabled: true })
+    builder.Services.AddHostedService<OrderTrackerBot.Api.ErrorLogService>();
 
 var app = builder.Build();
 

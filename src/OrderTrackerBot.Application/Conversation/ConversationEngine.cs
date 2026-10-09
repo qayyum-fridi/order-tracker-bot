@@ -29,6 +29,7 @@ public partial class ConversationEngine
     private readonly IImportFileReader? _importReader;
     private readonly FeatureOptions _features;
     private readonly IIssueReporter? _issues;
+    private readonly INewSellerNotifier? _newSellers;
     private readonly IAudioTranscriber? _transcriber;
     private readonly MessageLoggingSender _turn;
     private Seller? _turnSeller;
@@ -37,8 +38,10 @@ public partial class ConversationEngine
     public ConversationEngine(IAppDbContext db, IAiOrderAssistant ai, IWhatsAppSender sender, IFounderAlertNotifier founderAlerts,
         BillingOptions? billing = null, IWhatsAppMediaClient? media = null, IInstagramClient? instagram = null, ICatalogSheetImporter? catalogSheets = null,
         IReceiptPdfGenerator? receiptPdf = null, IExportFileWriter? exportWriter = null, FeatureOptions? features = null,
-        IIssueReporter? issues = null, IAudioTranscriber? transcriber = null, IImportFileReader? importReader = null)
+        IIssueReporter? issues = null, IAudioTranscriber? transcriber = null, IImportFileReader? importReader = null,
+        INewSellerNotifier? newSellers = null)
     {
+        _newSellers = newSellers;
         _db = db;
         _ai = ai;
         _turn = new MessageLoggingSender(sender, db);
@@ -237,6 +240,8 @@ public partial class ConversationEngine
             seller.Session = new ConversationSession { State = ConversationState.Idle };
             _db.Sellers.Add(seller);
             await _db.SaveChangesAsync(ct);
+            if (_newSellers is not null)
+                await _newSellers.SellerRegisteredAsync(phone, await _db.Sellers.CountAsync(ct), ct);
         }
 
         _translator.Seller = seller;

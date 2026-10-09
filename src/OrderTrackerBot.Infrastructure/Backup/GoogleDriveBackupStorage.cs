@@ -6,7 +6,7 @@ using Microsoft.Extensions.Options;
 namespace OrderTrackerBot.Infrastructure.Backup;
 
 /// <summary>Google Drive v3 over plain HTTP (no SDK): OAuth refresh-token exchange, multipart upload, list, download, delete.</summary>
-public sealed class GoogleDriveBackupStorage : IBackupStorage
+public sealed class GoogleDriveBackupStorage : IBackupStorage, IDriveLogStore
 {
     private const string TokenUrl = "https://oauth2.googleapis.com/token";
     private const string FilesUrl = "https://www.googleapis.com/drive/v3/files";
@@ -73,6 +73,63 @@ public sealed class GoogleDriveBackupStorage : IBackupStorage
         using var request = await AuthorizedAsync(HttpMethod.Delete, $"{FilesUrl}/{Uri.EscapeDataString(file.Id)}", cancellationToken);
         using var response = await _http.SendAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, "delete", cancellationToken);
+    }
+
+    private string? _logFolderId;
+
+    public async Task UploadOrReplaceAsync(string folderName, string fileName, string localPath, CancellationToken cancellationToken)
+    {
+        var folderId = _logFolderId ??= await FindOrCreateFolderAsync(folderName, cancellationToken);
+        var bytes = await File.ReadAllBytesAsync(localPath, cancellationToken);
+        var existingId = await FindIdAsync($"'{folderId}' in parents and name = '{fileName}' and trashed = false", cancellationToken);
+
+        if (existingId is not null)
+        {
+            using var update = await AuthorizedAsync(HttpMethod.Patch,
+                $"https://www.googleapis.com/upload/drive/v3/files/{Uri.EscapeDataString(existingId)}?uploadType=media", cancellationToken);
+            update.Content = new ByteArrayContent(bytes);
+            update.Content.Headers.ContentType = new MediaTypeHeaderValue("text/csv");
+            using var updated = await _http.SendAsync(update, cancellationToken);
+            await EnsureSuccessAsync(updated, "log update", cancellationToken);
+            return;
+        }
+
+        var metadata = JsonSerializer.Serialize(new { name = fileName, parents = new[] { folderId } });
+        using var body = new MultipartContent("related");
+        body.Add(new StringContent(metadata, Encoding.UTF8, "application/json"));
+        var file = new ByteArrayContent(bytes);
+        file.Headers.ContentType = new MediaTypeHeaderValue("text/csv");
+        body.Add(file);
+        using var create = await AuthorizedAsync(HttpMethod.Post, UploadUrl, cancellationToken);
+        create.Content = body;
+        using var created = await _http.SendAsync(create, cancellationToken);
+        await EnsureSuccessAsync(created, "log upload", cancellationToken);
+    }
+
+    private async Task<string> FindOrCreateFolderAsync(string name, CancellationToken cancellationToken)
+    {
+        var existing = await FindIdAsync(
+            $"'{_options.FolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and name = '{name}' and trashed = false", cancellationToken);
+        if (existing is not null) return existing;
+
+        var metadata = JsonSerializer.Serialize(new { name, mimeType = "application/vnd.google-apps.folder", parents = new[] { _options.FolderId } });
+        using var request = await AuthorizedAsync(HttpMethod.Post, $"{FilesUrl}?fields=id", cancellationToken);
+        request.Content = new StringContent(metadata, Encoding.UTF8, "application/json");
+        using var response = await _http.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, "folder create", cancellationToken);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+        return json.RootElement.GetProperty("id").GetString()!;
+    }
+
+    private async Task<string?> FindIdAsync(string query, CancellationToken cancellationToken)
+    {
+        using var request = await AuthorizedAsync(HttpMethod.Get,
+            $"{FilesUrl}?q={Uri.EscapeDataString(query)}&pageSize=1&fields=files(id)", cancellationToken);
+        using var response = await _http.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, "find", cancellationToken);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+        var files = json.RootElement.GetProperty("files");
+        return files.GetArrayLength() == 0 ? null : files[0].GetProperty("id").GetString();
     }
 
     private async Task<HttpRequestMessage> AuthorizedAsync(HttpMethod method, string url, CancellationToken cancellationToken)
