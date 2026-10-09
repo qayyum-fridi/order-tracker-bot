@@ -67,7 +67,10 @@ if (!string.IsNullOrWhiteSpace(testToken))
         }
         catch (Exception ex)
         {
-            return Results.Ok(new { sent = false, error = $"{ex.GetType().Name}: {ex.Message}" });
+            var chain = new List<string>();
+            for (Exception? e = ex; e is not null && chain.Count < 5; e = e.InnerException)
+                chain.Add($"{e.GetType().Name}: {e.Message}");
+            return Results.Ok(new { sent = false, error = chain });
         }
     });
 }
