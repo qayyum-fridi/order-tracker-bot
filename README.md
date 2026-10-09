@@ -221,6 +221,14 @@ One-time setup (about 10 minutes):
 The `drive.file` scope only lets the bot see files it created itself, so it cannot read the rest of the Drive. Manual restore:
 download a `.db.gz` from the folder, `gunzip` it, stop the app and replace the `.db` file.
 
+## Free first 100 sellers and hourly media limits
+
+`BILLING_FREE_SELLER_LIMIT` (default 100): the first N sellers (by registration order) are free with no time limit and never see a trial, plan or
+subscription message. Seller N+1 onwards gets the normal 14-day trial and plans (keep `BILLING_ENABLED=true`). Set it to 0 to turn the free tier off.
+
+`MEDIA_VOICE_PER_HOUR` / `MEDIA_IMAGE_PER_HOUR` (default 10 each, 0 = unlimited): per seller, per rolling hour, to keep OpenAI cost down. Over the
+limit the seller is told to type instead or retry in N minutes, and no paid call is made. Logo/banner pictures are not counted.
+
 ## Error log (CSV, Google Drive, email)
 
 With `ErrorLog:Enabled=true` (on in `docker-compose.yml`) every reported issue (`OTB-xxxx`, see below) becomes a row in a daily file

@@ -160,8 +160,10 @@ public partial class ConversationEngine
     private Task HandleMenuCategoryAsync(Seller seller, string category, CancellationToken ct)
     {
         var (title, body, rows) = MenuCategories[category];
+        // Free sellers never see the plan/subscribe entry.
+        var shown = BillingApplies(seller) ? rows : rows.Where(r => r.Id != "subscribe").ToArray();
         return _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, body, "Options dekhein",
-            new[] { new MenuSection(title, rows) }, ct);
+            new[] { new MenuSection(title, shown) }, ct);
     }
 
     private async Task ExecuteCommandAsync(Seller seller, ConversationSession session, SessionContextData ctx, ParsedCommand cmd, CancellationToken ct)
@@ -290,6 +292,9 @@ public partial class ConversationEngine
                 var currentSummary = BusinessInfoSummary(seller);
                 await ReplyAsync(seller,
                     (currentSummary.Length > 0 ? $"📋 Abhi ka record: {currentSummary}\n\n" : "") + BusinessInfoPrompt, ct);
+                return;
+            case CommandKind.Subscribe when !BillingApplies(seller):
+                await ReplyAsync(seller, "🎁 Aapko koi plan ya payment ki zaroorat nahi — aapka account free hai.", ct);
                 return;
             case CommandKind.Subscribe:
                 await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, $"💳 Plans:\n\n{PlansText}\n\nPlan chunein:", PlanButtons, ct);

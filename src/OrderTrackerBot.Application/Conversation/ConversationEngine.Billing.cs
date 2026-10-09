@@ -20,20 +20,27 @@ public partial class ConversationEngine
         CommandKind.DiscountPerformance
     };
 
+    /// <summary>
+    /// False when billing is off, or when this seller is one of the first <see cref="BillingOptions.FreeSellerLimit"/> sellers
+    /// (by id): they are free for good and never see a trial, plan, reminder or Pro-only message.
+    /// </summary>
+    private bool BillingApplies(Seller seller) =>
+        _billing.Enabled && !(_billing.FreeSellerLimit > 0 && seller.Id > 0 && seller.Id <= _billing.FreeSellerLimit);
+
     private bool HasAccess(Seller seller, DateTime now) =>
-        !_billing.Enabled
+        !BillingApplies(seller)
         || seller.SubscriptionActiveUntil > now
         || seller.TrialEndsAt is null
         || seller.TrialEndsAt > now;
 
     private void StartTrial(Seller seller)
     {
-        if (_billing.Enabled && seller.TrialEndsAt is null)
+        if (BillingApplies(seller) && seller.TrialEndsAt is null)
             seller.TrialEndsAt = DateTime.UtcNow.Date.AddDays(_billing.TrialDays);
     }
 
     private string TrialStartedText(Seller seller) =>
-        _billing.Enabled && seller.TrialEndsAt is { } end
+        BillingApplies(seller) && seller.TrialEndsAt is { } end
             ? $"\n🎁 Aapka {_billing.TrialDays}-din FREE trial shuru ho gaya (koi card nahi chahiye).\nTrial khatam: {end:d MMMM}\n"
             : "";
 
@@ -46,7 +53,7 @@ public partial class ConversationEngine
     /// <summary>Returns true when the message was fully handled by billing (plan choice, "paid", or access paused).</summary>
     private async Task<bool> TryHandleBillingAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
-        if (!_billing.Enabled) return false;
+        if (!BillingApplies(seller)) return false;
         var now = DateTime.UtcNow;
         StartTrial(seller); // sellers onboarded before billing existed start their trial on their next message
 
@@ -103,7 +110,7 @@ public partial class ConversationEngine
     }
 
     private bool IsBlockedByPlan(Seller seller, CommandKind kind) =>
-        _billing.Enabled && seller.Plan == SubscriptionPlan.Basic && seller.SubscriptionActiveUntil > DateTime.UtcNow
+        BillingApplies(seller) && seller.Plan == SubscriptionPlan.Basic && seller.SubscriptionActiveUntil > DateTime.UtcNow
         && ProOnlyCommands.Contains(kind);
 
     private Task SendProOnlyAsync(Seller seller, CancellationToken ct) =>

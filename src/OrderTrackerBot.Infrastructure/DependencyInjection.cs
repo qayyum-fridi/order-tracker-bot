@@ -31,6 +31,10 @@ public static class DependencyInjection
         });
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
 
+        // Hourly caps on paid voice-note / screenshot calls (per seller, in memory). 0 = unlimited.
+        services.AddSingleton(configuration.GetSection(MediaLimitOptions.SectionName).Get<MediaLimitOptions>() ?? new MediaLimitOptions());
+        services.AddSingleton<MediaRateLimiter>();
+
         // Google Drive backups: Sqlite only, and only when switched on with complete credentials (see README "Backups").
         services.Configure<BackupOptions>(configuration.GetSection(BackupOptions.SectionName));
         var backup = configuration.GetSection(BackupOptions.SectionName).Get<BackupOptions>() ?? new BackupOptions();

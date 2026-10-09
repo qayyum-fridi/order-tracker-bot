@@ -49,7 +49,7 @@ public partial class ConversationEngine
                     }
                 }
 
-                if (_billing.Enabled && seller.SubscriptionActiveUntil is null && seller.TrialReminderSentAt is null
+                if (BillingApplies(seller) && seller.SubscriptionActiveUntil is null && seller.TrialReminderSentAt is null
                     && seller.TrialEndsAt is { } end && end > utcNow && end - utcNow <= TimeSpan.FromDays(2))
                 {
                     var id = seller.Id;

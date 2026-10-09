@@ -30,6 +30,7 @@ public partial class ConversationEngine
     private readonly FeatureOptions _features;
     private readonly IIssueReporter? _issues;
     private readonly INewSellerNotifier? _newSellers;
+    private readonly MediaRateLimiter? _mediaLimiter;
     private readonly IAudioTranscriber? _transcriber;
     private readonly MessageLoggingSender _turn;
     private Seller? _turnSeller;
@@ -39,9 +40,10 @@ public partial class ConversationEngine
         BillingOptions? billing = null, IWhatsAppMediaClient? media = null, IInstagramClient? instagram = null, ICatalogSheetImporter? catalogSheets = null,
         IReceiptPdfGenerator? receiptPdf = null, IExportFileWriter? exportWriter = null, FeatureOptions? features = null,
         IIssueReporter? issues = null, IAudioTranscriber? transcriber = null, IImportFileReader? importReader = null,
-        INewSellerNotifier? newSellers = null)
+        INewSellerNotifier? newSellers = null, MediaRateLimiter? mediaLimiter = null)
     {
         _newSellers = newSellers;
+        _mediaLimiter = mediaLimiter;
         _db = db;
         _ai = ai;
         _turn = new MessageLoggingSender(sender, db);
@@ -373,6 +375,8 @@ public sealed class BillingOptions
 
     public bool Enabled { get; set; } = true;
     public int TrialDays { get; set; } = 14;
+    /// <summary>The first N sellers (by id) are free with no time limit and never see plans or trial messages. 0 = off.</summary>
+    public int FreeSellerLimit { get; set; }
     public decimal BasicPrice { get; set; } = 300;
     public decimal ProPrice { get; set; } = 600;
     /// <summary>JazzCash/Easypaisa number sellers pay the subscription to.</summary>
