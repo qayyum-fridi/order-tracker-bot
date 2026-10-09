@@ -198,6 +198,29 @@ dotnet ef migrations add <Name> \
   --output-dir Persistence/Migrations
 ```
 
+## Backups (Google Drive) and auto-restore
+
+With `Backup:Enabled=true` (Sqlite only) the app uploads a gzip snapshot of the database to a Drive folder every
+`IntervalHours` (default 6, so a restore loses at most ~6 h) and keeps the newest `KeepCount` (default 40). On every start,
+**before the database is opened**, it checks the file with `PRAGMA integrity_check`; if the file is corrupt or missing it is
+replaced by the newest backup that downloads and passes its own integrity check (the damaged file is kept next to it as
+`<db>.corrupt-<time>`) and the founder gets alert `OTB-5003`. Other codes: `OTB-5002` backup failed (alerted at most every 6 h),
+`OTB-5004` corrupt and no usable backup. A healthy database never contacts Drive at start. A fresh install with no backups just
+creates a new database. The database also runs in WAL mode (`Database:SqliteWal`, default on).
+
+One-time setup (about 10 minutes):
+
+1. [Google Cloud Console](https://console.cloud.google.com) -> new project -> enable **Google Drive API**.
+2. OAuth consent screen -> External -> add yourself as a user -> **Publish app** (status "In production"). Left in "Testing", Google expires the refresh token after 7 days and backups silently stop.
+3. Credentials -> Create OAuth client ID -> *Web application* -> authorised redirect URI `https://developers.google.com/oauthplayground`. Note the client id and secret.
+4. Open the [OAuth Playground](https://developers.google.com/oauthplayground) -> gear icon -> tick *Use your own OAuth credentials* and paste both -> in Step 1 enter the scope `https://www.googleapis.com/auth/drive.file` -> Authorize -> *Exchange authorization code for tokens* -> copy the **Refresh token**.
+5. In Drive create a folder (e.g. `order-bot-backups`); its id is the last part of the folder URL.
+6. On the server put these in `.env` next to `docker-compose.yml` and run `docker compose up -d`:
+   `BACKUP_ENABLED=true`, `BACKUP_FOLDER_ID=...`, `BACKUP_CLIENT_ID=...`, `BACKUP_CLIENT_SECRET=...`, `BACKUP_REFRESH_TOKEN=...`
+
+The `drive.file` scope only lets the bot see files it created itself, so it cannot read the rest of the Drive. Manual restore:
+download a `.db.gz` from the folder, `gunzip` it, stop the app and replace the `.db` file.
+
 ## Alerts and issue codes
 
 Every failure is logged as `[OTB-xxxx] ...` and, when `FounderAlerts:WebhookUrl` is set (e.g. an n8n webhook that

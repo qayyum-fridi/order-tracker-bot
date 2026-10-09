@@ -6,6 +6,7 @@ using OrderTrackerBot.Application.Ai;
 using OrderTrackerBot.Application.Conversation;
 using OrderTrackerBot.Infrastructure.Ai;
 using OrderTrackerBot.Infrastructure.Alerts;
+using OrderTrackerBot.Infrastructure.Backup;
 using OrderTrackerBot.Infrastructure.Catalog;
 using OrderTrackerBot.Infrastructure.Instagram;
 using OrderTrackerBot.Infrastructure.Persistence;
@@ -29,6 +30,15 @@ public static class DependencyInjection
                 options.UseSqlServer(connectionString);
         });
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
+
+        // Google Drive backups: Sqlite only, and only when switched on with complete credentials (see README "Backups").
+        services.Configure<BackupOptions>(configuration.GetSection(BackupOptions.SectionName));
+        var backup = configuration.GetSection(BackupOptions.SectionName).Get<BackupOptions>() ?? new BackupOptions();
+        if (backup.Enabled && backup.IsConfigured && provider.Equals("Sqlite", StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddHttpClient<IBackupStorage, GoogleDriveBackupStorage>(c => c.Timeout = TimeSpan.FromMinutes(5));
+            services.AddTransient<SqliteBackupManager>();
+        }
 
         services.Configure<WhatsAppOptions>(configuration.GetSection(WhatsAppOptions.SectionName));
         services.Configure<WhatsAppTemplatesOptions>(configuration.GetSection(WhatsAppTemplatesOptions.SectionName));

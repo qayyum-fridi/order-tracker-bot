@@ -78,6 +78,7 @@ public class AppDbContext : DbContext, IAppDbContext
             e.Property(o => o.SalesTaxRate).HasColumnType("decimal(5,2)");
             e.Property(o => o.TaxWithheld).HasColumnType("decimal(18,2)");
             e.HasIndex(o => new { o.SellerId, o.ReceiptNumber }).IsUnique();
+            e.HasIndex(o => new { o.SellerId, o.CreatedAt }); // date-range reports (today, weekly, export, profit)
             e.HasOne(o => o.Seller).WithMany(s => s.Orders).HasForeignKey(o => o.SellerId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(o => o.Customer).WithMany(c => c.Orders).HasForeignKey(o => o.CustomerId).OnDelete(DeleteBehavior.Restrict);
         });

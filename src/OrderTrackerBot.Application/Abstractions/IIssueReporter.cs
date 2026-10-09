@@ -24,6 +24,9 @@ public static class IssueCodes
     public static readonly IssueCode VoiceNoteFailed = new("OTB-1005", "Voice note processing failed", IssueSeverity.Error);
     public static readonly IssueCode InstagramCommentFailed = new("OTB-4001", "Instagram comment processing failed", IssueSeverity.Error);
     public static readonly IssueCode ScheduledJobFailed = new("OTB-5001", "Scheduled job run failed", IssueSeverity.Error);
+    public static readonly IssueCode BackupFailed = new("OTB-5002", "Database backup to Google Drive failed", IssueSeverity.Error);
+    public static readonly IssueCode DatabaseRestored = new("OTB-5003", "Database was corrupt or missing and was restored from backup", IssueSeverity.Error);
+    public static readonly IssueCode DatabaseRestoreFailed = new("OTB-5004", "Database is corrupt and no usable backup could be restored", IssueSeverity.Error);
 }
 
 /// <summary>Tells the founder which seller hit which problem. Implementations must never throw.</summary>

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Infrastructure;
+using OrderTrackerBot.Infrastructure.Backup;
 using OrderTrackerBot.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -10,6 +11,11 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddHostedService<OrderTrackerBot.Api.ScheduledMessagesService>();
+
+var backupOptions = builder.Configuration.GetSection(BackupOptions.SectionName).Get<BackupOptions>();
+if (backupOptions is { Enabled: true, IsConfigured: true } &&
+    string.Equals(builder.Configuration["Database:Provider"], "Sqlite", StringComparison.OrdinalIgnoreCase))
+    builder.Services.AddHostedService<OrderTrackerBot.Api.BackupService>();
 
 var app = builder.Build();
 
@@ -24,6 +30,8 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
+await OrderTrackerBot.Api.BackupStartup.RestoreIfNeededAsync(app);
+
 if (app.Configuration.GetValue("Database:AutoMigrate", true))
 {
     using var scope = app.Services.CreateScope();
@@ -34,6 +42,7 @@ if (app.Configuration.GetValue("Database:AutoMigrate", true))
     {
         db.Database.EnsureCreated();
         SqliteSchemaPatcher.Apply(db);
+        if (app.Configuration.GetValue("Database:SqliteWal", true)) SqliteTuning.EnableWal(db);
     }
     else
         db.Database.Migrate();
