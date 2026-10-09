@@ -21,23 +21,32 @@ public partial class ConversationEngine
 
     private async Task HandleCustomerListAsync(Seller seller, SessionContextData ctx, CancellationToken ct, int page = 0)
     {
-        var customers = (await SellerCustomers(seller).ToListAsync(ct))
-            .OrderByDescending(ActiveOrderCount).ThenBy(c => c.Name).ToList();
+        // Count, sort and page in the database: only the customers on this page (10) are loaded, never every customer with all their orders.
+        var all = _db.Customers.Where(c => c.SellerId == seller.Id && c.DeletedAt == null);
+        var total = await all.CountAsync(ct);
 
-        if (customers.Count == 0)
+        if (total == 0)
         {
             await ReplyAsync(seller, "Abhi koi customer nahi hai. Pehla order save karte hi customer list ban jati hai.", ct);
             return;
         }
 
-        if (page * CustomerPageSize >= customers.Count) page = 0;
-        var shown = customers.Skip(page * CustomerPageSize).Take(CustomerPageSize).ToList();
+        if (page * CustomerPageSize >= total) page = 0;
+        var shown = await all
+            .Select(c => new
+            {
+                c.Id, c.Name, c.Phone,
+                Active = c.Orders.Count(o => o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
+            })
+            .OrderByDescending(x => x.Active).ThenBy(x => x.Name).ThenBy(x => x.Id)
+            .Skip(page * CustomerPageSize).Take(CustomerPageSize)
+            .ToListAsync(ct);
         ctx.CustomerListPage = page;
         ctx.LastListCustomerIds = shown.Select(c => c.Id).ToList();
-        var lines = shown.Select((c, i) => $"{i + 1} {c.Name} - {c.Phone ?? "—"} - {ActiveOrderCount(c)} orders");
-        var hasMore = customers.Count > (page + 1) * CustomerPageSize;
+        var lines = shown.Select((c, i) => $"{i + 1} {c.Name} - {c.Phone ?? "—"} - {c.Active} orders");
+        var hasMore = total > (page + 1) * CustomerPageSize;
         await ReplyAsync(seller,
-            $"👥 Aapke Customers ({customers.Count} total){(page > 0 ? $" — page {page + 1}" : "")}:\n\n{string.Join("\n", lines)}\n\n" +
+            $"👥 Aapke Customers ({total} total){(page > 0 ? $" — page {page + 1}" : "")}:\n\n{string.Join("\n", lines)}\n\n" +
             "\"customer 1\" ya naam likh kar detail dekhein." + (hasMore ? $" \"more\" agle {CustomerPageSize} ke liye." : ""), ct);
     }
 
@@ -50,9 +59,14 @@ public partial class ConversationEngine
         if (customer is null)
         {
             var wanted = cmd.Text!.ToLower();
-            customer = (await SellerCustomers(seller).ToListAsync(ct))
-                .OrderByDescending(ActiveOrderCount)
-                .FirstOrDefault(c => c.Name.ToLower().Contains(wanted) || (c.Phone ?? "").Contains(wanted));
+            // Find the best match in the database (most active orders first), then load just that customer with their orders.
+            var matchId = await _db.Customers
+                .Where(c => c.SellerId == seller.Id && c.DeletedAt == null && (c.Name.ToLower().Contains(wanted) || (c.Phone ?? "").Contains(wanted)))
+                .OrderByDescending(c => c.Orders.Count(o => o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned))
+                .ThenBy(c => c.Id)
+                .Select(c => (int?)c.Id).FirstOrDefaultAsync(ct);
+            if (matchId is { } id)
+                customer = await SellerCustomers(seller).FirstOrDefaultAsync(c => c.Id == id, ct);
         }
 
         if (customer is null)
