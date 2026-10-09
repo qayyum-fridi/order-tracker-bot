@@ -309,6 +309,8 @@ public partial class ConversationEngine
                 await StartPaymentMethodInputAsync(seller, session, ct);
                 return;
             case CommandKind.Guide:
+                if (!string.IsNullOrWhiteSpace(_features.GuideUrl))
+                    await ReplyAsync(seller, $"📖 Tasveeron wali guide (English / اردو):\n{_features.GuideUrl}", ct);
                 await StartGuideAsync(seller, session, ctx, cmd.Text, ct);
                 return;
             case CommandKind.GuideLater:

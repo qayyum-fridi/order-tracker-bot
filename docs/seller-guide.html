@@ -1,0 +1,325 @@
+<title>Order Tracker Seller Guide</title>
+<style>
+/* Layout: one column of numbered steps; each step is a phone-sized chat picture beside its instruction. */
+/* Palette: paper, ink, a WhatsApp-leaning green accent, sand for quiet surfaces. */
+:root {
+  --bg: #f6f2ea; --fg: #1d2a27; --muted: #5d6b67; --accent: #137a5f; --sand: #ebe3d2; --line: #d9cfbb;
+  --chat: #e4ddd0; --bubble-out: #d8f5c8; --bubble-in: #ffffff; --chip: #ffffff;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111b19; --fg: #e8efeb; --muted: #9fb0aa; --accent: #5fd0a8; --sand: #1d2b28; --line: #2c3d39;
+    --chat: #0c1412; --bubble-out: #1f4a3a; --bubble-in: #1b2825; --chip: #1b2825;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111b19; --fg: #e8efeb; --muted: #9fb0aa; --accent: #5fd0a8; --sand: #1d2b28; --line: #2c3d39;
+  --chat: #0c1412; --bubble-out: #1f4a3a; --bubble-in: #1b2825; --chip: #1b2825;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 "Noto Sans", system-ui, sans-serif; padding-inline: 16px; padding-block: 24px 48px; }
+.wrap { max-width: 760px; margin: 0 auto; min-width: 0; }
+h1, h2 { font-family: "Fraunces", Georgia, serif; font-weight: 600; line-height: 1.15; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(30px, 6vw, 44px); }
+h2 { font-size: 22px; }
+p { margin: 0; max-width: 65ch; }
+.urdu { font-family: "Noto Naskh Arabic", "Noto Sans Arabic", serif; direction: rtl; line-height: 1.9; }
+.top { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 28px; }
+.kicker { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; background: var(--sand); }
+.toggle button { font: inherit; font-size: 15px; border: 0; background: transparent; color: var(--fg); padding: 8px 16px; border-radius: 999px; cursor: pointer; min-height: 40px; }
+.toggle button[aria-pressed="true"] { background: var(--accent); color: var(--bg); }
+.toggle button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.intro { padding: 20px 0 8px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.intro p + p { margin-top: 8px; color: var(--muted); }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 28px; }
+.step { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 24px; align-items: start; padding-block: 24px; border-bottom: 1px solid var(--line); }
+.step:nth-child(even) .phone { order: -1; }
+.step-text { display: grid; gap: 12px; min-width: 0; }
+.step-text ol, .step-text ul { margin: 0; padding-inline-start: 20px; }
+.step-text li + li { margin-top: 6px; }
+code { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 14px; background: var(--sand); padding: 1px 6px; border-radius: 6px; overflow-wrap: anywhere; }
+.phone { width: 260px; max-width: 100%; border-radius: 28px; border: 1px solid var(--line); background: var(--chat); padding: 14px 12px 16px; display: grid; gap: 8px; align-content: start; }
+.phone .head { font-size: 13px; color: var(--muted); text-align: center; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.bubble { max-width: 86%; padding: 8px 11px; border-radius: 12px; font-size: 14px; line-height: 1.45; background: var(--bubble-in); color: var(--fg); white-space: pre-line; box-shadow: 0 1px 0 rgba(0,0,0,.06); }
+.bubble.out { justify-self: end; background: var(--bubble-out); border-bottom-right-radius: 3px; }
+.bubble.in { justify-self: start; border-bottom-left-radius: 3px; }
+.btns { display: grid; gap: 4px; justify-self: stretch; }
+.btn { font-size: 13px; text-align: center; padding: 7px 8px; border-radius: 10px; background: var(--chip); color: var(--accent); border: 1px solid var(--line); }
+.bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.bar .btn { font-size: 12px; padding: 7px 4px; }
+.bar .btn.hot { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.note { font-size: 14px; color: var(--muted); }
+.urdu .bubble, .urdu.phone .bubble { direction: rtl; font-family: "Noto Naskh Arabic", serif; }
+.urdu .btn { direction: rtl; font-family: "Noto Naskh Arabic", serif; }
+.foot { margin-top: 28px; padding: 18px; border-radius: 16px; background: var(--sand); }
+.foot h2 { font-size: 19px; margin-bottom: 8px; }
+.foot ul { margin: 0; padding-inline-start: 20px; display: grid; gap: 6px; }
+[hidden] { display: none !important; }
+@media (max-width: 600px) {
+  .step { grid-template-columns: minmax(0, 1fr); }
+  .step:nth-child(even) .phone { order: 0; }
+  .phone { width: 100%; max-width: 300px; justify-self: center; }
+}
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <span class="kicker" id="kicker">Seller guide · Order Tracker</span>
+    <div class="toggle" role="group" aria-label="Language">
+      <button type="button" data-lang="en" aria-pressed="true">English</button>
+      <button type="button" data-lang="ur" aria-pressed="false">اردو</button>
+    </div>
+  </div>
+
+  <!-- ENGLISH -->
+  <main id="en" lang="en">
+    <header class="intro">
+      <h1>Run your orders from WhatsApp</h1>
+      <p>Send the bot a message in plain words. It saves the order, tracks status and sends your daily summary.</p>
+      <p>Stuck at any step? Tap <strong>📖 Guide</strong> under any reply, or type <code>kya karun</code>.</p>
+    </header>
+
+    <ol class="steps">
+      <li class="step">
+        <div class="step-text">
+          <h2>1. Start setup</h2>
+          <p>Send <code>start</code>. Answer a few questions: shop name, city, and how many products you sell.</p>
+          <p class="note">Add products as <code>Lawn Suit - 3500</code>, one per line. Send <code>done</code> when finished.</p>
+        </div>
+        <div class="phone" aria-label="Chat: start setup">
+          <div class="head">Order Tracker</div>
+          <div class="bubble out">start</div>
+          <div class="bubble in">Welcome! Setup shuru karein?</div>
+          <div class="btns"><div class="btn">Setup shuru karein</div><div class="btn">Guide dekhein</div></div>
+        </div>
+      </li>
+
+      <li class="step">
+        <div class="step-text">
+          <h2>2. Save a new order</h2>
+          <p>Copy the customer's message or type it. The bot reads the name, items, phone and address.</p>
+          <ul><li>Example: <code>Ayesha, 2 suit, 03001234567</code></li><li>Check the draft, then send <code>YES</code>.</li></ul>
+        </div>
+        <div class="phone" aria-label="Chat: save an order">
+          <div class="head">Order Tracker</div>
+          <div class="bubble out">Ayesha, 2 suit, 03001234567</div>
+          <div class="bubble in">Order draft ✅<br>Ayesha · 2 × Suit<br>Total Rs 7,000<br>Confirm? YES / cancel</div>
+          <div class="bubble out">YES</div>
+          <div class="bubble in">Order #12 saved ✅</div>
+        </div>
+      </li>
+
+      <li class="step">
+        <div class="step-text">
+          <h2>3. See today's orders</h2>
+          <p>Type <code>orders today</code> or <code>pending orders</code> for the full list.</p>
+          <p class="note">Open one order with <code>order 12</code>.</p>
+        </div>
+        <div class="phone" aria-label="Chat: orders today">
+          <div class="head">Order Tracker</div>
+          <div class="bubble out">orders today</div>
+          <div class="bubble in">📦 Today: 3 orders<br>#12 Ayesha · Pending<br>#13 Bilal · Shipped<br>#14 Sara · Paid</div>
+        </div>
+      </li>
+
+      <li class="step">
+        <div class="step-text">
+          <h2>4. Update status and payment</h2>
+          <p>Use one line per change:</p>
+          <ul>
+            <li><code>mark 12 shipped</code> · <code>mark 12 delivered</code></li>
+            <li><code>mark 12 paid</code> · <code>order 12 advance 500</code></li>
+            <li><code>mark 12 returned</code></li>
+          </ul>
+        </div>
+        <div class="phone" aria-label="Chat: mark shipped">
+          <div class="head">Order Tracker</div>
+          <div class="bubble out">mark 12 shipped</div>
+          <div class="bubble in">Order #12 → Shipped 🚚<br>Customer ko tracking bhejein: <code>add tracking: TCS, 1234</code></div>
+        </div>
+      </li>
+
+      <li class="step">
+        <div class="step-text">
+          <h2>5. Use the quick buttons</h2>
+          <p>After most replies the bot shows three buttons. Tap one instead of typing.</p>
+          <ul>
+            <li><strong>📖 Guide</strong> — opens this guide and the step-by-step lessons</li>
+            <li><strong>➕ New order</strong> — starts a new order</li>
+            <li><strong>📦 Orders today</strong> — shows today's list</li>
+          </ul>
+          <p class="note">Turn buttons off with <code>shortcut off</code>, back on with <code>shortcut on</code>.</p>
+        </div>
+        <div class="phone" aria-label="Chat: quick buttons">
+          <div class="head">Order Tracker</div>
+          <div class="bubble in">Order #12 saved ✅</div>
+          <div class="bubble in" style="padding-bottom:6px">⚡ Quick actions</div>
+          <div class="bar"><div class="btn hot">📖 Guide</div><div class="btn">➕ New order</div><div class="btn">📦 Orders today</div></div>
+        </div>
+      </li>
+
+      <li class="step">
+        <div class="step-text">
+          <h2>6. Get help any time</h2>
+          <ul>
+            <li><code>guide</code> — step-by-step lessons</li>
+            <li><code>help</code> — command list</li>
+            <li><code>menu</code> — all features by category</li>
+            <li><code>kya karun</code> — what to do right now</li>
+          </ul>
+        </div>
+        <div class="phone" aria-label="Chat: help">
+          <div class="head">Order Tracker</div>
+          <div class="bubble out">kya karun</div>
+          <div class="bubble in">ℹ️ Order draft confirm karne ke liye YES likhein. Rokne ke liye "cancel".</div>
+        </div>
+      </li>
+    </ol>
+
+    <section class="foot">
+      <h2>Money and records</h2>
+      <ul>
+        <li>Expenses: <code>expense 500 packaging</code> · <code>monthly net</code></li>
+        <li>Receipts: <code>receipt 12</code> · Excel export: <code>export</code></li>
+        <li>Undo the last action: <code>undo</code></li>
+      </ul>
+    </section>
+  </main>
+
+  <!-- URDU -->
+  <main id="ur" lang="ur" class="urdu" hidden>
+    <header class="intro">
+      <h1>واٹس ایپ سے اپنے آرڈر چلائیں</h1>
+      <p>بوٹ کو آسان الفاظ میں پیغام بھیجیں۔ وہ آرڈر محفوظ کرے گا، اسٹیٹس دیکھے گا اور روزانہ کا خلاصہ بھیجے گا۔</p>
+      <p>کسی بھی مرحلے پر اٹکیں تو کسی بھی جواب کے نیچے <strong>📖 گائیڈ</strong> دبائیں، یا لکھیں <code>kya karun</code>۔</p>
+    </header>
+
+    <ol class="steps">
+      <li class="step">
+        <div class="step-text">
+          <h2>1۔ سیٹ اپ شروع کریں</h2>
+          <p>لکھیں <code>start</code>۔ دکان کا نام، شہر اور پروڈکٹس کی تعداد بتائیں۔</p>
+          <p>پروڈکٹ اس طرح لکھیں: <code>Lawn Suit - 3500</code>، ہر لائن میں ایک۔ ختم ہو جائے تو <code>done</code> لکھیں۔</p>
+        </div>
+        <div class="phone" aria-label="چیٹ: سیٹ اپ">
+          <div class="head">Order Tracker</div>
+          <div class="bubble out">start</div>
+          <div class="bubble in">خوش آمدید! سیٹ اپ شروع کریں؟</div>
+          <div class="btns"><div class="btn">سیٹ اپ شروع کریں</div><div class="btn">گائیڈ دیکھیں</div></div>
+        </div>
+      </li>
+
+      <li class="step">
+        <div class="step-text">
+          <h2>2۔ نیا آرڈر محفوظ کریں</h2>
+          <p>گاہک کا پیغام کاپی کریں یا خود لکھیں۔ بوٹ نام، آئٹمز، فون اور پتا خود پہچان لے گا۔</p>
+          <ul><li>مثال: <code>Ayesha, 2 suit, 03001234567</code></li><li>ڈرافٹ دیکھیں، پھر <code>YES</code> لکھیں۔</li></ul>
+        </div>
+        <div class="phone" aria-label="چیٹ: آرڈر محفوظ کرنا">
+          <div class="head">Order Tracker</div>
+          <div class="bubble out">Ayesha, 2 suit, 03001234567</div>
+          <div class="bubble in">آرڈر کا ڈرافٹ ✅<br>Ayesha · 2 × Suit<br>کل Rs 7,000<br>تصدیق؟ YES / cancel</div>
+          <div class="bubble out">YES</div>
+          <div class="bubble in">آرڈر #12 محفوظ ✅</div>
+        </div>
+      </li>
+
+      <li class="step">
+        <div class="step-text">
+          <h2>3۔ آج کے آرڈرز دیکھیں</h2>
+          <p>پوری فہرست کے لیے <code>orders today</code> یا <code>pending orders</code> لکھیں۔</p>
+          <p>ایک آرڈر کی تفصیل کے لیے <code>order 12</code> لکھیں۔</p>
+        </div>
+        <div class="phone" aria-label="چیٹ: آج کے آرڈرز">
+          <div class="head">Order Tracker</div>
+          <div class="bubble out">orders today</div>
+          <div class="bubble in">📦 آج: 3 آرڈر<br>#12 Ayesha · پینڈنگ<br>#13 Bilal · شپ ہو گیا<br>#14 Sara · ادا شدہ</div>
+        </div>
+      </li>
+
+      <li class="step">
+        <div class="step-text">
+          <h2>4۔ اسٹیٹس اور ادائیگی بدلیں</h2>
+          <p>ہر تبدیلی کے لیے ایک لائن:</p>
+          <ul>
+            <li><code>mark 12 shipped</code> · <code>mark 12 delivered</code></li>
+            <li><code>mark 12 paid</code> · <code>order 12 advance 500</code></li>
+            <li><code>mark 12 returned</code></li>
+          </ul>
+        </div>
+        <div class="phone" aria-label="چیٹ: شپ ہونا">
+          <div class="head">Order Tracker</div>
+          <div class="bubble out">mark 12 shipped</div>
+          <div class="bubble in">آرڈر #12 → شپ ہو گیا 🚚<br>گاہک کو ٹریکنگ بھیجیں: <code>add tracking: TCS, 1234</code></div>
+        </div>
+      </li>
+
+      <li class="step">
+        <div class="step-text">
+          <h2>5۔ فوری بٹن استعمال کریں</h2>
+          <p>زیادہ تر جوابات کے نیچے بوٹ تین بٹن دکھاتا ہے۔ لکھنے کے بجائے ایک دبائیں۔</p>
+          <ul>
+            <li><strong>📖 گائیڈ</strong> — یہ گائیڈ اور مرحلہ وار سبق</li>
+            <li><strong>➕ نیا آرڈر</strong> — نیا آرڈر شروع کریں</li>
+            <li><strong>📦 آج کے آرڈرز</strong> — آج کی فہرست</li>
+          </ul>
+          <p>بٹن بند کرنے کے لیے <code>shortcut off</code>، دوبارہ کھولنے کے لیے <code>shortcut on</code>۔</p>
+        </div>
+        <div class="phone" aria-label="چیٹ: فوری بٹن">
+          <div class="head">Order Tracker</div>
+          <div class="bubble in">آرڈر #12 محفوظ ✅</div>
+          <div class="bubble in">⚡ فوری بٹن</div>
+          <div class="bar"><div class="btn hot">📖 گائیڈ</div><div class="btn">➕ نیا آرڈر</div><div class="btn">📦 آج کے آرڈرز</div></div>
+        </div>
+      </li>
+
+      <li class="step">
+        <div class="step-text">
+          <h2>6۔ کسی بھی وقت مدد لیں</h2>
+          <ul>
+            <li><code>guide</code> — مرحلہ وار سبق</li>
+            <li><code>help</code> — کمانڈز کی فہرست</li>
+            <li><code>menu</code> — تمام فیچرز زمرے کے مطابق</li>
+            <li><code>kya karun</code> — ابھی کیا کرنا ہے</li>
+          </ul>
+        </div>
+        <div class="phone" aria-label="چیٹ: مدد">
+          <div class="head">Order Tracker</div>
+          <div class="bubble out">kya karun</div>
+          <div class="bubble in">ℹ️ ڈرافٹ کی تصدیق کے لیے YES لکھیں۔ رکنے کے لیے "cancel"۔</div>
+        </div>
+      </li>
+    </ol>
+
+    <section class="foot">
+      <h2>پیسہ اور ریکارڈ</h2>
+      <ul>
+        <li>خرچہ: <code>expense 500 packaging</code> · <code>monthly net</code></li>
+        <li>رسید: <code>receipt 12</code> · ایکسل: <code>export</code></li>
+        <li>آخری عمل واپس لیں: <code>undo</code></li>
+      </ul>
+    </section>
+  </main>
+</div>
+
+<script>
+(function () {
+  var buttons = document.querySelectorAll('[data-lang]');
+  var kicker = document.getElementById('kicker');
+  function show(lang) {
+    document.getElementById('en').hidden = lang !== 'en';
+    document.getElementById('ur').hidden = lang !== 'ur';
+    kicker.textContent = lang === 'ur' ? 'سیلر گائیڈ · آرڈر ٹریکر' : 'Seller guide · Order Tracker';
+    buttons.forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.lang === lang)); });
+    try { localStorage.setItem('guideLang', lang); } catch (e) { /* private window: ignore */ }
+  }
+  buttons.forEach(function (b) { b.addEventListener('click', function () { show(b.dataset.lang); }); });
+  var saved = null;
+  try { saved = localStorage.getItem('guideLang'); } catch (e) { /* ignore */ }
+  show(saved === 'ur' ? 'ur' : 'en');
+})();
+</script>
