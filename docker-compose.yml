@@ -30,6 +30,7 @@ services:
       Backup__RefreshToken: "${BACKUP_REFRESH_TOKEN:-}"
       ErrorLog__Enabled: "${ERRORLOG_ENABLED:-true}"
       ErrorLog__Directory: "/data/logs"
+      ErrorLog__TestToken: "${ERRORLOG_TEST_TOKEN:-}"
       ErrorLog__EmailTo: "${ERRORLOG_EMAIL_TO:-}"
       ErrorLog__SmtpUser: "${ERRORLOG_SMTP_USER:-}"
       ErrorLog__SmtpPassword: "${ERRORLOG_SMTP_PASSWORD:-}"

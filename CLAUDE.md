@@ -237,5 +237,6 @@ shared-state action: confirm with the user and get SSH/host details first.
   `ErrorLogBuffer`; `ErrorLogService` flushes every `ErrorLog:FlushMinutes` via `ErrorLogWriter` -> daily CSV in `ErrorLog:Directory` (`/data/logs`), mirrored to the Drive subfolder `error-logs`
   (`IDriveLogStore`, implemented by `GoogleDriveBackupStorage`, needs the Backup credentials), and Errors (not warnings) emailed as a digest (min 10 min apart) over SMTP when `ErrorLog:SmtpUser/SmtpPassword/EmailTo`
   are set. The same SMTP settings power `NewSellerEmailNotifier` (`INewSellerNotifier`, called once from `LoadOrCreateSellerAsync` when a seller row is first created; background send, never awaited by the engine).
+  `POST /internal/test-error` (header `X-Test-Token`, only mapped when `ErrorLog:TestToken` is set) raises one dummy OTB-1001 for end-to-end checks.
   Failures there are logged only, never reported through `IIssueReporter`. CSV cells are always quoted and a leading `= + - @` is prefixed with `'`.
 - The WhatsApp list body (help) must stay ≤ 1024 chars — a test enforces it; keep `HelpText` curated rather than exhaustive.

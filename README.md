@@ -233,6 +233,9 @@ problem, detail, error. Every occurrence is kept, even ones the founder webhook 
   **app password** (Google account -> Security -> 2-Step Verification on -> App passwords), not the normal password; the sender is the SMTP user.
   Only **errors** are emailed (warnings stay in the file), as one digest per 10 minutes at most.
 - A failed upload or email is retried on the next flush and never creates a new issue (no loops).
+- **Test it:** set `ERRORLOG_TEST_TOKEN=<random string>` in `.env`, recreate the container, then
+  `curl -X POST http://127.0.0.1:8091/internal/test-error -H "X-Test-Token: <the token>"` reports one dummy `OTB-1001` error through the whole path
+  (CSV within 5 minutes, Drive, email). Without the token the endpoint does not exist; remove the token when done.
 - **New seller email:** with the same SMTP settings, `ERRORLOG_EMAIL_TO` also gets one email per brand-new seller the moment their number first
   messages the bot (phone, time, total sellers). It is sent in the background, so it never delays the seller's reply; a failure is only logged.
 

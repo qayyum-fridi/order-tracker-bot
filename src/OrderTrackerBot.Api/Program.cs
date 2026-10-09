@@ -34,6 +34,23 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
+// Manual check of the error log / Drive / email path. Mapped only when ErrorLog:TestToken is set; wrong or missing token looks like a 404.
+var testToken = app.Configuration["ErrorLog:TestToken"];
+if (!string.IsNullOrWhiteSpace(testToken))
+{
+    app.MapPost("/internal/test-error", async (HttpRequest request, OrderTrackerBot.Application.Abstractions.IIssueReporter reporter) =>
+    {
+        var given = request.Headers["X-Test-Token"].ToString();
+        if (!System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+                System.Text.Encoding.UTF8.GetBytes(given), System.Text.Encoding.UTF8.GetBytes(testToken)))
+            return Results.NotFound();
+
+        await reporter.ReportAsync(OrderTrackerBot.Application.Abstractions.IssueCodes.InboundMessageFailed, null,
+            "Dummy error to test the error log (triggered manually)", new InvalidOperationException("dummy test error"));
+        return Results.Ok(new { reported = true, note = "Appears in the CSV/Drive within ErrorLog:FlushMinutes; emailed within ~10 minutes." });
+    });
+}
+
 await OrderTrackerBot.Api.BackupStartup.RestoreIfNeededAsync(app);
 
 if (app.Configuration.GetValue("Database:AutoMigrate", true))
