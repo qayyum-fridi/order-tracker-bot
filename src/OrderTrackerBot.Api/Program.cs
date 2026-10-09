@@ -49,6 +49,27 @@ if (!string.IsNullOrWhiteSpace(testToken))
             "Dummy error to test the error log (triggered manually)", new InvalidOperationException("dummy test error"));
         return Results.Ok(new { reported = true, note = "Appears in the CSV/Drive within ErrorLog:FlushMinutes; emailed within ~10 minutes." });
     });
+
+    // Sends one email right now and returns the SMTP outcome, so a wrong password or blocked port shows up immediately.
+    app.MapPost("/internal/test-email", async (HttpRequest request, OrderTrackerBot.Infrastructure.Alerts.IErrorMailer? mailer) =>
+    {
+        var given = request.Headers["X-Test-Token"].ToString();
+        if (!System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+                System.Text.Encoding.UTF8.GetBytes(given), System.Text.Encoding.UTF8.GetBytes(testToken)))
+            return Results.NotFound();
+        if (mailer is null)
+            return Results.Ok(new { sent = false, reason = "Email is not configured: set ErrorLog:EmailTo, ErrorLog:SmtpUser and ErrorLog:SmtpPassword." });
+
+        try
+        {
+            await mailer.SendAsync("[Order Tracker] Test email", "This is a test email from the Order Tracker bot. If you can read it, email alerts work.", CancellationToken.None);
+            return Results.Ok(new { sent = true });
+        }
+        catch (Exception ex)
+        {
+            return Results.Ok(new { sent = false, error = $"{ex.GetType().Name}: {ex.Message}" });
+        }
+    });
 }
 
 await OrderTrackerBot.Api.BackupStartup.RestoreIfNeededAsync(app);
