@@ -115,9 +115,14 @@ public partial class ConversationEngine
             return await SellerCustomers(seller).FirstOrDefaultAsync(c => c.Id == ids[n - 1], ct);
 
         var wanted = text.ToLower();
-        var all = await SellerCustomers(seller).ToListAsync(ct);
-        return all.FirstOrDefault(c => c.Name.ToLower() == wanted || c.Phone == text)
-               ?? all.OrderByDescending(ActiveOrderCount).FirstOrDefault(c => c.Name.ToLower().Contains(wanted));
+        var live = _db.Customers.Where(c => c.SellerId == seller.Id && c.DeletedAt == null);
+        // An exact name/phone wins; otherwise the partial match with the most active orders. Both are decided in SQL.
+        var id = await live.Where(c => c.Name.ToLower() == wanted || c.Phone == text)
+                     .OrderBy(c => c.Id).Select(c => (int?)c.Id).FirstOrDefaultAsync(ct)
+                 ?? await live.Where(c => c.Name.ToLower().Contains(wanted))
+                     .OrderByDescending(c => c.Orders.Count(o => o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned))
+                     .ThenBy(c => c.Id).Select(c => (int?)c.Id).FirstOrDefaultAsync(ct);
+        return id is { } found ? await SellerCustomers(seller).FirstOrDefaultAsync(c => c.Id == found, ct) : null;
     }
 
     // Screen 6f: soft delete with confirm; restorable for 30 days, then purged along with its orders.
@@ -192,9 +197,13 @@ public partial class ConversationEngine
     private async Task HandleCustomerSearchAsync(Seller seller, string query, CancellationToken ct)
     {
         var wanted = query.ToLower();
-        var matches = (await SellerCustomers(seller).ToListAsync(ct))
-            .Where(c => c.Name.ToLower().Contains(wanted) || (c.Phone ?? "").Contains(wanted))
-            .OrderByDescending(ActiveOrderCount).Take(5).ToList();
+        // Pick the best 5 ids in SQL, then load only those customers (with orders, for the spend total).
+        var topIds = await _db.Customers
+            .Where(c => c.SellerId == seller.Id && c.DeletedAt == null && (c.Name.ToLower().Contains(wanted) || (c.Phone ?? "").Contains(wanted)))
+            .OrderByDescending(c => c.Orders.Count(o => o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned))
+            .ThenBy(c => c.Id).Select(c => c.Id).Take(5).ToListAsync(ct);
+        var loaded = await SellerCustomers(seller).Where(c => topIds.Contains(c.Id)).ToListAsync(ct);
+        var matches = topIds.Select(id => loaded.First(c => c.Id == id)).ToList();
 
         if (matches.Count == 0)
         {
