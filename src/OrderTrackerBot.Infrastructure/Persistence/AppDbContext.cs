@@ -65,6 +65,7 @@ public class AppDbContext : DbContext, IAppDbContext
 
         modelBuilder.Entity<Customer>(e =>
         {
+            e.HasIndex(c => new { c.SellerId, c.Name }); // customer list / name lookup per seller
             e.HasOne(c => c.Seller).WithMany(s => s.Customers).HasForeignKey(c => c.SellerId).OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -79,6 +80,7 @@ public class AppDbContext : DbContext, IAppDbContext
             e.Property(o => o.TaxWithheld).HasColumnType("decimal(18,2)");
             e.HasIndex(o => new { o.SellerId, o.ReceiptNumber }).IsUnique();
             e.HasIndex(o => new { o.SellerId, o.CreatedAt }); // date-range reports (today, weekly, export, profit)
+            e.HasIndex(o => new { o.SellerId, o.Status });    // status filters (pending/shipped/unpaid lists, counts)
             e.HasOne(o => o.Seller).WithMany(s => s.Orders).HasForeignKey(o => o.SellerId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(o => o.Customer).WithMany(c => c.Orders).HasForeignKey(o => o.CustomerId).OnDelete(DeleteBehavior.Restrict);
         });
