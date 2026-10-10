@@ -31,6 +31,8 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<SupportQuery> SupportQueries => Set<SupportQuery>();
     public DbSet<SellerBranding> SellerBrandings => Set<SellerBranding>();
     public DbSet<Expense> Expenses => Set<Expense>();
+    public DbSet<Loss> Losses => Set<Loss>();
+    public DbSet<WageEntry> WageEntries => Set<WageEntry>();
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -150,5 +152,7 @@ public class AppDbContext : DbContext, IAppDbContext
         modelBuilder.Entity<SupportQuery>(e => e.HasIndex(q => new { q.SellerId, q.Number }));
         modelBuilder.Entity<SellerBranding>(e => e.HasIndex(b => b.SellerId).IsUnique());
         modelBuilder.Entity<Expense>(e => e.HasIndex(x => new { x.SellerId, x.CreatedAt }));
+        modelBuilder.Entity<Loss>(e => e.HasIndex(x => new { x.SellerId, x.CreatedAt }));
+        modelBuilder.Entity<WageEntry>(e => e.HasIndex(x => new { x.SellerId, x.CreatedAt }));
     }
 }
