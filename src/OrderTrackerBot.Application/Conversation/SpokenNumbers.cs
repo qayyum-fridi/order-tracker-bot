@@ -76,8 +76,8 @@ public static class SpokenNumbers
     {
         ["sadhe"] = 0.5m, ["saadhe"] = 0.5m, ["sadhay"] = 0.5m, ["saadhay"] = 0.5m, ["sarhay"] = 0.5m, ["sarhe"] = 0.5m, ["sarhey"] = 0.5m,
         ["ساڑھے"] = 0.5m,
-        ["sawa"] = 0.25m,
-        ["paune"] = -0.25m, ["pauney"] = -0.25m,
+        ["sawa"] = 0.25m, ["سوا"] = 0.25m,
+        ["paune"] = -0.25m, ["pauney"] = -0.25m, ["پونے"] = -0.25m,
     };
     public static IEnumerable<string> NumberWords => Words.Keys;
     public static IEnumerable<string> MultiplierWords => Multipliers.Keys;
