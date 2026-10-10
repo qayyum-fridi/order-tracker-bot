@@ -301,6 +301,13 @@ public static class CommandParser
     /// <summary>Parses one change typed while editing a saved order.</summary>
     public static bool TryParseOrderEdit(string message, out OrderEditInstruction instruction)
     {
+        // Digits too big for int/decimal ("price 1 = 99999999999999999999999") are not an edit: the parser never throws on typed text.
+        try { return TryParseOrderEditCore(message, out instruction); }
+        catch (OverflowException) { instruction = null!; return false; }
+    }
+
+    private static bool TryParseOrderEditCore(string message, out OrderEditInstruction instruction)
+    {
         var text = NormalizeDigits(LeadingSymbols.Replace(message.Trim(), "").Trim());
         Match m;
         instruction = new OrderEditInstruction("done");
@@ -649,8 +656,25 @@ public static class CommandParser
     private static readonly HashSet<string> BookkeepingWords = new(StringComparer.OrdinalIgnoreCase)
     {
         "price", "prices", "discount", "discounts", "qty", "quantity", "stock", "delivery", "advance", "cost", "total", "amount", "rate",
-        "keemat", "kam", "less", "dc", "tadaad", "paid", "payment", "expense", "expenses", "kharcha", "loss", "nuqsan", "wage", "salary", "tankhwah", "customer", "phone", "address", "city"
+        "keemat", "kam", "less", "dc", "tadaad", "paid", "payment", "expense", "expenses", "kharcha", "loss", "nuqsan", "wage", "salary", "tankhwah", "customer", "phone", "address", "city",
+        "order", "orders", "report", "reports"
     };
+    // Address fragments typed as "Sector F-10" or "House 500, Street 10": a single word, or a word plus a letter/number.
+    private static readonly HashSet<string> AddressWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "house", "ghar", "street", "gali", "sector", "block", "plot", "flat", "road", "phase", "floor", "mohalla", "colony", "near", "no"
+    };
+    private static readonly Regex AddressNumber = new(@"^(?:[a-z]|\d+)$", Opts);
+    private static bool IsAddressFragment(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length switch
+        {
+            1 => AddressWords.Contains(parts[0]),
+            2 => AddressWords.Contains(parts[0]) && AddressNumber.IsMatch(parts[1]),
+            _ => false,
+        };
+    }
     // Weight/pack products: "Sugar 5 kg - 500", "Rice 10kg - 1200", "Eggs 1 dozen - 400".
     private static readonly Regex UnitProductLine = new(@"^([^\d,:\n]{2,50}?)\s+(\d+(?:\.\d+)?)\s*([a-z]+)\s*[-–=]\s*(\d{1,7}(?:\.\d+)?)$", Opts);
     private static readonly Regex NameWithUnit = new(@"^(.+?)\s+(\d+(?:\.\d+)?)\s*([a-z]+)$", Opts);
@@ -772,6 +796,7 @@ public static class CommandParser
         if (!m.Success || m.Groups[1].Value.Trim().Length == 0) return false;
         // "Price -500", "Qty -1": a bookkeeping word with a number is a failed instruction (the minus sign is not a separator), not a product.
         if (BookkeepingWords.Contains(m.Groups[1].Value.Trim())) return false;
+        if (IsAddressFragment(m.Groups[1].Value.Trim())) return false;
         product = new ProductLine(m.Groups[1].Value.Trim(), decimal.Parse(m.Groups[2].Value), "piece", 1);
         return true;
     }
@@ -873,6 +898,13 @@ public static class CommandParser
     /// (speech-to-text ends sentences with "." or "?") are ignored; a question mark also stops a status question from being read as an update.
     /// </summary>
     public static ParsedCommand? TryParse(string rawMessage)
+    {
+        // Digits too big for int/decimal ("Order 9999999999") are not a command: the parser never throws on typed text.
+        try { return TryParseCommand(rawMessage); }
+        catch (OverflowException) { return null; }
+    }
+
+    private static ParsedCommand? TryParseCommand(string rawMessage)
     {
         var text = rawMessage.Trim();
         var filler = LeadingFiller.Match(text);
@@ -1144,7 +1176,7 @@ public static class CommandParser
         foreach (var part in parts)
         {
             if (TryParseProductLine(part, out ProductLine? _)) normalized.Add(part);
-            else if (SpacedPriceLine.Match(part) is { Success: true } m) normalized.Add($"{m.Groups[1].Value.Trim()} - {m.Groups[2].Value}");
+            else if (SpacedPriceLine.Match(part) is { Success: true } m && !IsAddressFragment(m.Groups[1].Value.Trim())) normalized.Add($"{m.Groups[1].Value.Trim()} - {m.Groups[2].Value}");
             else return null;
         }
         return string.Join("\n", normalized);
