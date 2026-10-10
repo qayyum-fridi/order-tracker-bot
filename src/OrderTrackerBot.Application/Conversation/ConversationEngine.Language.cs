@@ -74,7 +74,8 @@ public partial class ConversationEngine
     private async Task<bool> TryOnboardingShortcutAsync(Seller seller, ConversationSession session, string message, CancellationToken ct)
     {
         var choice = ButtonWords(message);
-        if (choice is "guide dekhein" or "guide")
+        // "Pehle guide dekhein" is the start-step button label; sellers type it back when they reply to the question.
+        if (choice is "guide dekhein" or "guide" or "pehle guide dekhein")
         {
             await ReplyAsync(seller, string.Join("\n\n", GuideFullSteps), ct);
             await AskBusinessNameAsync(seller, session, ct);

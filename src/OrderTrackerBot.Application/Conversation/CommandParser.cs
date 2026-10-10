@@ -801,6 +801,19 @@ public static class CommandParser
         return true;
     }
 
+    /// <summary>"Lawn 400": a name and a price with no separator. Used only while the catalog is being set up, where a bare name and number is a product.</summary>
+    public static bool TryParseSpacedProductLine(string line, out ProductLine? product)
+    {
+        product = null;
+        var m = SpacedPriceLine.Match(line.Trim());
+        if (!m.Success) return false;
+        var name = m.Groups[1].Value.Trim();
+        // "stock Kurti 20" is a command: a command word starting the name disqualifies it.
+        if (BookkeepingWords.Contains(name.Split(' ')[0]) || IsAddressFragment(name)) return false;
+        product = new ProductLine(name, decimal.Parse(m.Groups[2].Value), "piece", 1);
+        return true;
+    }
+
     /// <summary>"Sugar 5 kg" -> (Sugar, kg, 5); a name without a recognised unit is a single piece.</summary>
     public static ProductLine SplitUnit(string name, decimal price)
     {
@@ -1226,8 +1239,11 @@ public static class CommandParser
         return d[a.Length, b.Length];
     }
 
-    private static readonly Regex ConfirmYes = new(@"^(yes|y|ha|haan|han|ji|ji haan|ok|okay|👍\S*|✅|ہاں|جی)[.!]*$", Opts);
-    private static readonly Regex ConfirmNo = new(@"^(no|n|nahi|نہیں)$", Opts);
+    // Explicit approval: only when the bot has just asked for one (the caller decides which question is pending).
+    private static readonly Regex ConfirmYes = new(@"^(yes|y|ha|haan|han|hanji|ha\s+ji|han\s+ji|han\s+g|ha\s+g|ji|ji\s+haan|jee|jee\s+haan|ہاں|جی|جی\s+ہاں)[.!]*$", Opts);
+    private static readonly Regex ConfirmNo = new(@"^(no|n|nahi|nahin|nhi|nai|نہیں)$", Opts);
+    // Agreement that is not an explicit yes: "ok", "theek hai", a thumb or a tick. Only the order-placement question accepts it.
+    private static readonly Regex Acknowledgement = new(@"^(ok|okay|theek\s+hai|thik\s+hai|👍\S*|✅)[.!]*$", Opts);
 
     // "What do I do / say now?" — answered with a tip for the current step in ANY state (the plain words help / guide / menu keep their old meaning).
     private static readonly Regex GuidanceRequest = new(
@@ -1236,5 +1252,6 @@ public static class CommandParser
     public static bool IsGuidanceRequest(string message) => GuidanceRequest.IsMatch(message.Trim());
 
     public static bool IsAffirmative(string message) => ConfirmYes.IsMatch(message.Trim());
+    public static bool IsAcknowledgement(string message) => Acknowledgement.IsMatch(message.Trim());
     public static bool IsNegative(string message) => ConfirmNo.IsMatch(message.Trim());
 }

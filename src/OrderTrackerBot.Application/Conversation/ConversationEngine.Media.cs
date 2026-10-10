@@ -148,10 +148,27 @@ public partial class ConversationEngine
             var steps = result.Actions.Count == result.Steps.Count
                 ? ValidateVoiceSteps(seller.Session!.State, seller, result.Steps, result.Actions)
                 : result.Steps.Select(s => s.Trim()).ToList();
-            if (steps.Count > 0 && IsFaithfulRewrite(transcript, string.Join("\n", steps), KnownVoiceNumbers(recent, catalog))) return (steps, null, Array.Empty<string>());
+            if (steps.Count > 0)
+            {
+                // A rewrite that changes what was said is not run, and neither is the raw transcript: the seller is asked again.
+                if (WhyUnfaithful(transcript, string.Join("\n", steps), KnownVoiceNumbers(recent, catalog)) is null) return (steps, null, Array.Empty<string>());
+                return (Array.Empty<string>(), UnfaithfulQuestion, Array.Empty<string>());
+            }
         }
-        return (new[] { transcript }, null, Array.Empty<string>());
+        // The AI was unavailable: the transcript goes to the deterministic engine, as before.
+        if (result is null) return (new[] { transcript }, null, Array.Empty<string>());
+        // The AI answered without a usable step: the transcript runs only when it reads as a plain command or answer.
+        if (CommandParser.TryParse(transcript) is not null || CommandParser.IsAffirmative(transcript) || CommandParser.IsNegative(transcript))
+            return (new[] { transcript }, null, Array.Empty<string>());
+        return (Array.Empty<string>(), ParserFailureQuestion, Array.Empty<string>());
     }
+
+    // Three different outcomes, three different replies: a rewrite that changed the meaning, a transcript nothing could read, and (above) a rewrite
+    // that was used. None of them runs a step.
+    private const string UnfaithfulQuestion =
+        "Yeh poori tarah samajh nahi aaya — rakam, quantity ya \"nahi\" wali baat alag alag likh kar dobara bhejein.";
+    private const string ParserFailureQuestion =
+        "Samajh nahi aaya. Dobara bolein, ya likh kar bhejein (jaise \"Kurti - 1800\" ya \"order confirm\").";
 
     /// <summary>Ids, totals and prices the model was shown for this voice note: a rewrite may legitimately use them ("pichla order" -> "edit order 105").</summary>
     private static IReadOnlySet<long> KnownVoiceNumbers(IEnumerable<Order> recent, IEnumerable<CatalogEntry> catalog)
@@ -195,24 +212,102 @@ public partial class ConversationEngine
     {
         if (string.IsNullOrWhiteSpace(rewritten)) return "empty rewrite";
         if (rewritten.Length > Math.Max(200, transcript.Length * 3)) return "rewrite too long";
-        // Amounts the seller took back ("410 nahi, 420") need not survive the rewrite.
+        // Amounts the seller took back ("410 nahi, 420") or refused ("paanch hazaar mat karna") need not survive the rewrite, and must not be set.
         var retracted = SpokenNumbers.RetractedAmounts(transcript);
-        var kept = LongNumberDigits(rewritten);
-        var needed = retracted.Count == 0 ? transcript : SpokenNumbers.RemoveDigitAmounts(transcript, retracted);
-        if (!LongNumberDigits(needed).All(d => kept.GetValueOrDefault(d.Key) >= d.Value)) return "a 3+ digit run from the transcript was dropped";
+        var negated = SpokenNumbers.NegatedAmounts(transcript);
+        var dropped = new HashSet<long>(retracted.Concat(negated));
+        var needed = dropped.Count == 0 ? transcript : SpokenNumbers.RemoveDigitAmounts(transcript, dropped);
+        var kept = DigitRuns(rewritten);
+        if (!DigitRuns(needed).All(kept.Contains)) return "a 3+ digit run from the transcript was dropped or changed";
 
         var rewrittenAmounts = SpokenNumbers.Amounts(rewritten);
-        if (SpokenNumbers.WordAmounts(transcript).Where(a => !retracted.Contains(a)).FirstOrDefault(a => !rewrittenAmounts.Contains(a)) is var missing and > 0)
+        if (SpokenNumbers.WordAmounts(transcript).Where(a => !dropped.Contains(a)).FirstOrDefault(a => !rewrittenAmounts.Contains(a)) is var missing and > 0)
             return $"spoken amount {missing} is missing from the rewrite";
+        if (rewrittenAmounts.FirstOrDefault(negated.Contains) is var refused and > 0)
+            return $"amount {refused} was refused by the seller";
 
         var said = SpokenNumbers.Amounts(transcript);
         if (rewrittenAmounts.FirstOrDefault(a => !said.Contains(a) && !(knownNumbers?.Contains(a) ?? false)) is var invented and > 0)
             return $"amount {invented} appears in the rewrite but was not said";
+
+        // Counts below 100 ("teen piece" -> "quantity 5"). A count the seller took back ("teen nahi, do") may not come back.
+        var counts = SpokenNumbers.SmallCounts(transcript);
+        var refusedCounts = SpokenNumbers.RetractedCounts(transcript).Concat(SpokenNumbers.NegatedCounts(transcript)).ToHashSet();
+        foreach (var count in CountsInRewrite(rewritten))
+        {
+            if (refusedCounts.Contains(count)) return $"count {count} was refused by the seller";
+            if (!counts.Contains(count) && !(knownNumbers?.Contains(count) ?? false)) return $"count {count} appears in the rewrite but was not said";
+        }
+
+        // "Kurti nahi, Lawn chahiye": an item the seller refused may not come back in the rewrite without a negation.
+        var rewriteWords = WordsOf(rewritten).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (!rewriteWords.Any(RefusalWords.Contains) && NegatedItemWords(transcript).FirstOrDefault(rewriteWords.Contains) is { } refusedItem)
+            return $"'{refusedItem}' was refused in the transcript but is in the rewrite";
+
+        // "se kam", "se zyada", "3500 tak": the comparator is part of the price.
+        if (Comparator.IsMatch(transcript) && !RewriteComparator.IsMatch(rewritten)) return "a comparator (se kam / se zyada / tak) was dropped";
+        // "aur delivery", "delivery alag", "including delivery": the rewrite must still say what happens to delivery.
+        if (DeliveryWord.IsMatch(transcript) && !DeliveryWord.IsMatch(rewritten)) return "the delivery part of the transcript was dropped";
+        if (InclusionWord.IsMatch(transcript) && !InclusionWord.IsMatch(rewritten)) return "'including' / 'included' was dropped";
+
+        // "Haan lekin quantity do kar do", "haan, theek hai... nahi ruko": a bare yes keeps the approval and drops the condition, the hesitation or the refusal.
+        if (BareAffirmation.IsMatch(rewritten.Trim()) && ReversalWord.IsMatch(transcript))
+            return "a bare yes drops a condition, hesitation or refusal the seller added";
         return null;
     }
 
-    private static Dictionary<int, int> LongNumberDigits(string text) =>
-        Regex.Matches(text, @"\d{3,}").SelectMany(m => m.Value).GroupBy(c => (int)char.GetNumericValue(c)).ToDictionary(g => g.Key, g => g.Count());
+    private static readonly Regex BareAffirmation = new(@"^(yes|y|ha|haan|han|hanji|ji|jee|ok|okay|theek hai|thik hai)[.!]*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex ReversalWord = new(@"(?:\b(?:lekin|magar|par|but|however|nahi|nahin|nahee|mat|na|no|ruk|ruko|rukna|pehle|phir|cancel|agar|shayad|soch|sochta|sochna|sochun|dekhta|dekhti|dekhungi|hmm|hmmm|baad|abhi|wait|if|maybe)\b)|\?|\.\.\.|…", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex Comparator = new(@"\bse\s+(?:kam|kum|zyada|zyaada|ziada|upar|neeche|less|more)\b|\b(?:less|more)\s+than\b|\b(?:under|below|above|over|upto|up\s+to)\b|(?:\d|\b(?:hazaar|hazar|hajar|sau|lakh|k)\b)\s+tak\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex RewriteComparator = new(@"\b(?:under|below|above|over|less|more|upto|up\s+to|max|maximum|min|minimum|kam|zyada|tak)\b|<|>|≤|≥", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex DeliveryWord = new(@"\b(?:delivery|shipping|courier|postage)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex InclusionWord = new(@"\b(?:including|included|inclusive|incl|shamil)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    // A count or index in a rewrite: 1-99 and not an id or index ("1 = 3", "remove 2", "order 12", "#7" are checked against ids and the amount rules instead).
+    private static readonly Regex RewriteCount = new(@"(?<![\w#.])(?<!\b(?:remove|item|order|receipt|status|id|number|tracking)\s)(\d{1,2})(?![\w.])(?!\s*=)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    private static IEnumerable<int> CountsInRewrite(string rewritten) =>
+        RewriteCount.Matches(rewritten).Select(m => int.Parse(m.Groups[1].Value)).Where(n => n > 0);
+
+    private static readonly HashSet<string> RefusalWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "mat", "nahi", "nahin", "nahee", "nai", "na", "no", "never", "نہیں", "مت"
+    };
+
+    // Words that are never the item a seller refused ("Kurti nahi" refuses the kurti, not "bhai" or "do").
+    private static readonly HashSet<string> NonItemWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "bhai", "ji", "haan", "han", "ha", "yar", "ok", "lekin", "aur", "ka", "ki", "ke", "ko", "mein", "me", "se", "to", "hi", "ye", "yeh", "wo", "woh",
+        "wala", "wali", "wale", "chahiye", "karo", "karna", "kar", "do", "dena", "likho", "likhna", "bolna", "bhejo", "bhej", "hai", "hain", "ho",
+        "sirf", "abhi", "ab", "sab", "bas", "price", "rate", "ruk", "ruko", "rukna", "jao", "theek", "thik", "pehle", "phir", "ya", "sau", "hazar",
+        "hazaar", "hajar", "lakh", "k", "tak", "kal", "aaj", "order", "orders", "id", "number", "nambar", "numbar", "tracking", "receipt"
+    };
+
+    private static string[] WordsOf(string text) =>
+        Regex.Split(text.ToLowerInvariant(), @"[^\p{L}\p{N}]+").Where(w => w.Length > 0).ToArray();
+
+    /// <summary>Words the seller refused: the one or two words right before a negation, minus numbers and filler ("Kurti nahi" -> kurti).
+    /// A word the seller says again after the negation ("cancel mat karna... cancel kar do") was not refused.</summary>
+    private static IEnumerable<string> NegatedItemWords(string transcript)
+    {
+        var words = WordsOf(transcript);
+        for (var i = 0; i < words.Length; i++)
+        {
+            if (!RefusalWords.Contains(words[i])) continue;
+            for (var j = Math.Max(0, i - 2); j < i; j++)
+            {
+                var word = words[j];
+                if (RefusalWords.Contains(word) || NonItemWords.Contains(word) || SpokenNumbers.IsNumberWord(word) || word.All(char.IsDigit)) continue;
+                if (words.Skip(i + 1).Contains(word, StringComparer.OrdinalIgnoreCase)) continue;
+                yield return word;
+            }
+        }
+    }
+
+    // Runs of 3+ digits as whole numbers: "3,500" and "3500" match, while "5300" does not match "3500" (a digit count would accept both).
+    private static HashSet<string> DigitRuns(string text) =>
+        Regex.Matches(Regex.Replace(text, @"(?<=\d)[,-](?=\d)", ""), @"\d{3,}").Select(m => m.Value).ToHashSet();
+
 
     /// <summary>English description of what the bot is waiting for, given to the AI so a spoken answer is read in context.</summary>
     private static string DescribeVoiceSituation(Seller seller, SessionContextData ctx)

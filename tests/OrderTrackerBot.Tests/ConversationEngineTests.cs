@@ -600,11 +600,23 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Theory]
-    [InlineData("👍")]
-    [InlineData("ok")]
     [InlineData("Haan")]
+    [InlineData("hanji")]
+    [InlineData("jee")]
+    [InlineData("han g")]
+    public void ExplicitYesWords_AreYes(string reply) => Assert.True(CommandParser.IsAffirmative(reply));
+
+    // "ok" and a thumb are agreement, not an explicit yes: only the order-placement question accepts them (see HandleOrderConfirmationAsync).
+    [Theory]
+    [InlineData("ok")]
+    [InlineData("theek hai")]
+    [InlineData("👍")]
     [InlineData("✅")]
-    public void ShortAndEmojiReplies_CountAsYes(string reply) => Assert.True(CommandParser.IsAffirmative(reply));
+    public void Acknowledgements_AreNotYes(string reply)
+    {
+        Assert.False(CommandParser.IsAffirmative(reply));
+        Assert.True(CommandParser.IsAcknowledgement(reply));
+    }
 
     [Fact]
     public async Task ShareCatalog_ListsProductsReadyToForward()
@@ -1823,6 +1835,57 @@ public class ConversationEngineTests : IDisposable
 
         await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         Assert.Equal(ConversationState.OnboardingBusinessName, (await db.Sessions.FirstAsync()).State);
+    }
+
+    [Theory]
+    [InlineData("Pehle guide dekhein")]
+    [InlineData("Guide dekhein")]
+    [InlineData("📖 Guide dekhein")]
+    public async Task BusinessNameStep_TypedGuideRequest_ShowsGuide_AndIsNotSavedAsTheName(string typed)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+        await engine.HandleIncomingMessageAsync(Phone, "start", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
+        _sentMessages.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, typed, default);
+
+        Assert.Null((await db.Sellers.FirstAsync()).BusinessName);
+        Assert.Equal(ConversationState.OnboardingBusinessName, (await db.Sessions.FirstAsync()).State);
+        Assert.NotEmpty(_sentMessages);
+    }
+
+    [Theory]
+    [InlineData("Ok")]
+    [InlineData("theek hai")]
+    [InlineData("Shukriya!")]
+    public async Task AddProductStep_Acknowledgement_GetsANextStepReply_NotTheHelpDump(string reply)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+        await StartCatalogStepAsync(engine);
+
+        await engine.HandleIncomingMessageAsync(Phone, reply, default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Theek hai"));
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("samajh nahi aaya"));
+        Assert.Equal(ConversationState.OnboardingAddProduct, (await db.Sessions.FirstAsync()).State);
+    }
+
+    [Fact]
+    public async Task AddProductStep_NameAndPriceWithoutSeparator_SavesTheProduct()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+        await StartCatalogStepAsync(engine);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Lawn 400", default);
+
+        var product = await db.Products.SingleAsync(p => p.Name == "Lawn");
+        Assert.Equal(400m, product.Price);
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("naye products hain"));
     }
 
     [Fact]

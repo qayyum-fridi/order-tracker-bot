@@ -3,6 +3,7 @@ using OrderTrackerBot.Application.Ai;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using System.Text.RegularExpressions;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -410,6 +411,11 @@ public partial class ConversationEngine
         return false;
     }
 
+    // "Nahi bhai, cancel karo": a refusal followed by an instruction to cancel is a cancel. "cancel mat karna" (a negation after the phrase) is not.
+    private static readonly Regex NegatedCancelInstruction = new(
+        @"^(?:nahi|nahin|no)[\s,.!]*(?:bhai|yar|ji|sir|please|bas)?[\s,.!]*(?:cancel|chhoro|chhodo)\s+(?:karo|kar\s*do|kardo|kar\s+dein|karein|krdo|kr\s+do|kr\s+dein)[.!]*$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
     private static readonly HashSet<string> CancelWords = new(StringComparer.OrdinalIgnoreCase)
     {
         "cancel", "stop", "back", "no", "nahi", "nahin", "chhod do", "chhodo", "chhoro", "chhor do", "rehne do", "رہنے دو", "نہیں"
@@ -424,7 +430,7 @@ public partial class ConversationEngine
         if (session.State == ConversationState.AwaitingOrderConfirmation
             && (CommandParser.TryParseDeliveryAmount(trimmed, out _) || trimmed.Length <= 30 && CommandParser.TryFindAdvanceInOrderText(trimmed, out _))) return false;
         var command = CommandParser.TryParse(trimmed);
-        var isCancel = CancelWords.Contains(trimmed) || (command is null && OpensWithLeavePhrase(trimmed));
+        var isCancel = CancelWords.Contains(trimmed) || (command is null && (OpensWithLeavePhrase(trimmed) || NegatedCancelInstruction.IsMatch(trimmed)));
         var isCommand = command is not null && command.Kind is not (CommandKind.AddProduct or CommandKind.AddProductsBulk or CommandKind.MoreCustomers);
         if (!isCancel && !isCommand) return false;
 
@@ -444,7 +450,8 @@ public partial class ConversationEngine
 
     private async Task HandleOrderConfirmationAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
-        if (CommandParser.IsAffirmative(message))
+        // "Reply YES to save": an explicit yes, or "ok" / "theek hai" as agreement to exactly this question.
+        if (CommandParser.IsAffirmative(message) || CommandParser.IsAcknowledgement(message))
         {
             var pending = ctx.PendingOrder!;
             ctx.PendingOrder = null;
