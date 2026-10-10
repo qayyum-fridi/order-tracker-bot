@@ -846,6 +846,21 @@ public class ConversationEngineTests : IDisposable
         Assert.Contains(_sentMessages, m => m.Contains("koi customer nahi mila"));
     }
 
+    [Theory]
+    [InlineData("search customer: SARA")]
+    [InlineData("search customer: sAr")]
+    public async Task CustomerSearch_IgnoresCase(string command)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        await SeedTwoPendingOrdersAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, command, default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("1 customer mila") && m.Contains("Sara"));
+    }
+
     [Fact]
     public async Task CustomerFeedbackCommand_IsNotMistakenForCustomerDetail()
     {
