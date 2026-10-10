@@ -41,7 +41,7 @@ public static class SpokenNumbers
         Add(16, "solah", "sola"); Add(17, "satrah", "satra"); Add(18, "atharah", "athara"); Add(19, "unnees", "unnis", "unees");
         Add(20, "bees"); Add(21, "ikkees", "ikees"); Add(22, "baees", "bais"); Add(23, "teis", "tayees", "teyis"); Add(24, "chaubees", "chobees");
         Add(25, "pachees", "pachchis", "pacheess"); Add(26, "chhabbees", "chabbees"); Add(27, "sattaees", "sataees"); Add(28, "attaees", "athaees"); Add(29, "untees", "unatees");
-        Add(30, "tees", "tis"); Add(31, "ikatees", "iktees"); Add(32, "battees"); Add(33, "taintees", "tentees"); Add(34, "chauntees"); Add(35, "paintees", "pentees");
+        Add(30, "tees", "tis"); Add(31, "ikatees", "iktees"); Add(32, "battees"); Add(33, "taintees", "tentees"); Add(34, "chauntees"); Add(35, "paintees", "pentees", "paintis", "pentis", "پینتیس", "پنتیس");
         Add(36, "chhattees", "chattees"); Add(37, "saintees"); Add(38, "artees"); Add(39, "unchalees");
         Add(40, "chalees", "chalis"); Add(41, "iktalees"); Add(42, "bayalees"); Add(43, "taintalees", "tentalees"); Add(44, "chawalees"); Add(45, "paintalees", "pentalees");
         Add(46, "chhiyalees"); Add(47, "saintalees"); Add(48, "artalees"); Add(49, "unchaas");
