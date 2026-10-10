@@ -20,7 +20,8 @@ public sealed record SellerListItemDto(
     DateTime? TrialEndsAt,
     DateTime? SubscriptionActiveUntil,
     DateTime CreatedAt,
-    int OrderCount);
+    int OrderCount,
+    string Status);
 
 public sealed record SellerDetailDto(
     int Id,
@@ -43,7 +44,8 @@ public sealed record SellerDetailDto(
     int OrderCount,
     int ProductCount,
     int CustomerCount,
-    IReadOnlyList<OrderListItemDto> RecentOrders);
+    IReadOnlyList<OrderListItemDto> RecentOrders,
+    string Status);
 
 public sealed record OrderListItemDto(
     int Id,
@@ -65,3 +67,5 @@ public sealed record PagedResultDto<T>(
     int TotalCount);
 
 public sealed record UpdateSubscriptionRequest(string? Plan, DateTime? SubscriptionActiveUntil);
+
+public sealed record UpdateSellerStatusRequest(string? Status);
