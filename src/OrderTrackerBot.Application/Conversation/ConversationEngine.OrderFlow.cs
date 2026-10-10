@@ -530,6 +530,13 @@ public partial class ConversationEngine
                 return;
 
             case "MappedProductName":
+                // The reply offers "1" to add the unknown name as a new product: take it as that choice, not as a catalog search.
+                if (message.Trim() == "1")
+                {
+                    ctx.PendingMissingField = "NewProductPrice";
+                    await ReplyAsync(seller, $"{ctx.PendingNewProductName} ki price kya hai?", ct);
+                    return;
+                }
                 var catalog = await LoadCatalogAsync(seller, ct);
                 var mapped = FindCatalogEntry(catalog, message.Trim());
                 if (mapped is null)
