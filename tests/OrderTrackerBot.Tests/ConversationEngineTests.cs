@@ -1825,6 +1825,26 @@ public class ConversationEngineTests : IDisposable
         Assert.Equal(ConversationState.OnboardingBusinessName, (await db.Sessions.FirstAsync()).State);
     }
 
+    [Theory]
+    [InlineData("Pehle guide dekhein")]
+    [InlineData("Guide dekhein")]
+    [InlineData("📖 Guide dekhein")]
+    public async Task BusinessNameStep_TypedGuideRequest_ShowsGuide_AndIsNotSavedAsTheName(string typed)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+        await engine.HandleIncomingMessageAsync(Phone, "start", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
+        _sentMessages.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, typed, default);
+
+        Assert.Null((await db.Sellers.FirstAsync()).BusinessName);
+        Assert.Equal(ConversationState.OnboardingBusinessName, (await db.Sessions.FirstAsync()).State);
+        Assert.NotEmpty(_sentMessages);
+    }
+
     [Fact]
     public async Task ChangeLanguage_SwitchesLanguage_AndOffersNextActionButtons()
     {
