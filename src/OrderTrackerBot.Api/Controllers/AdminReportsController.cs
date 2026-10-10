@@ -38,7 +38,7 @@ public class AdminReportsController : ControllerBase
     [HttpGet("reports/daily")]
     public async Task<ActionResult<DailyReportDto>> Daily([FromQuery] string? from, [FromQuery] string? to, CancellationToken ct)
     {
-        if (!TryResolveRange(from, to, out var range, out var error)) return BadRequest(new { error });
+        if (!AdminDateRange.TryResolve(from, to, DefaultRangeDays, out var range, out var error)) return BadRequest(new { error });
 
         var inbound = await _db.MessageLogs.AsNoTracking()
             .Where(m => m.Direction == "inbound" && m.CreatedAt >= range.StartUtc && m.CreatedAt < range.EndUtc)
@@ -168,7 +168,7 @@ public class AdminReportsController : ControllerBase
     [HttpGet("issues/summary")]
     public async Task<ActionResult<IssueSummaryDto>> IssueSummary([FromQuery] string? from, [FromQuery] string? to, CancellationToken ct)
     {
-        if (!TryResolveRange(from, to, out var range, out var error)) return BadRequest(new { error });
+        if (!AdminDateRange.TryResolve(from, to, DefaultRangeDays, out var range, out var error)) return BadRequest(new { error });
 
         var counts = await _db.IssueRecords.AsNoTracking()
             .Where(i => i.CreatedAt >= range.StartUtc && i.CreatedAt < range.EndUtc)
@@ -202,7 +202,7 @@ public class AdminReportsController : ControllerBase
             _ => null,
         };
         if (severity is null) return BadRequest(new { error = "kind must be errors or issues." });
-        if (!TryResolveRange(from, to, out var range, out var error)) return BadRequest(new { error });
+        if (!AdminDateRange.TryResolve(from, to, DefaultRangeDays, out var range, out var error)) return BadRequest(new { error });
 
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
@@ -224,44 +224,7 @@ public class AdminReportsController : ControllerBase
     /// <summary>Cancelled and returned orders are not sales, so they are left out of revenue.</summary>
     private static bool IsSale(OrderRow order) => order.Status != OrderStatus.Cancelled && order.Status != OrderStatus.Returned;
 
-    private static DateOnly DayOf(DateTime utc) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), SellerZone));
-
-    /// <summary>Reads from/to (yyyy-MM-dd, Asia/Karachi days). Missing values default to the last 30 days.</summary>
-    private static bool TryResolveRange(string? from, string? to, out DateRange range, out string? error)
-    {
-        var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, SellerZone));
-        range = default;
-        error = null;
-
-        var toDay = today;
-        if (!string.IsNullOrWhiteSpace(to) && !DateOnly.TryParseExact(to, DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out toDay))
-        {
-            error = "to must be a date in yyyy-MM-dd format.";
-            return false;
-        }
-        var fromDay = toDay.AddDays(-(DefaultRangeDays - 1));
-        if (!string.IsNullOrWhiteSpace(from) && !DateOnly.TryParseExact(from, DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out fromDay))
-        {
-            error = "from must be a date in yyyy-MM-dd format.";
-            return false;
-        }
-        if (fromDay > toDay)
-        {
-            error = "from must be on or before to.";
-            return false;
-        }
-        if (toDay.DayNumber - fromDay.DayNumber + 1 > MaxRangeDays)
-        {
-            error = $"The range is limited to {MaxRangeDays} days.";
-            return false;
-        }
-
-        range = new DateRange(fromDay, toDay, ToUtc(fromDay), ToUtc(toDay.AddDays(1)));
-        return true;
-    }
-
-    private static DateTime ToUtc(DateOnly sellerDay) =>
-        TimeZoneInfo.ConvertTimeToUtc(sellerDay.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified), SellerZone);
+    private static DateOnly DayOf(DateTime utc) => AdminDateRange.DayOf(utc);
 
     /// <summary>The first reason a seller needs attention, or null. Same rules as the "stuck" filter in Setup.</summary>
     private static string? StuckReason(bool onboarded, DateTime createdAt, bool hasOrder, string? currentStep, DateTime? stepUpdatedAt, DateTime now)

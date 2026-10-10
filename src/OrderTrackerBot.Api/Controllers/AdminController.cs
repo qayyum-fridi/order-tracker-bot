@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Api.Admin;
+using OrderTrackerBot.Application.Conversation;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
 using OrderTrackerBot.Infrastructure.Persistence;
@@ -9,7 +10,8 @@ namespace OrderTrackerBot.Api.Controllers;
 
 /// <summary>
 /// Admin panel API: overview stats, the seller (user) list and detail, the order list, and setting a seller's plan.
-/// Every action requires the X-Admin-Api-Key header (see <see cref="AdminApiKeyFilter"/>).
+/// The optional from/to parameters (yyyy-MM-dd, Pakistan days, both or neither) limit results by when a seller joined
+/// or an order was placed. Every action requires the X-Admin-Api-Key header (see <see cref="AdminApiKeyFilter"/>).
 /// </summary>
 [ApiController]
 [Route("api/admin")]
@@ -27,12 +29,23 @@ public class AdminController : ControllerBase
         _logger = logger;
     }
 
-    /// <summary>Dashboard counters. Revenue excludes cancelled and returned orders; "last 24 hours" is UTC-based.</summary>
+    /// <summary>
+    /// Dashboard counters for the date range (all time when no range is sent). Revenue excludes cancelled and returned
+    /// orders. "Last 24 hours" is always the last 24 hours, whatever the range.
+    /// </summary>
     [HttpGet("stats")]
-    public async Task<ActionResult<AdminStatsDto>> GetStats(CancellationToken ct)
+    public async Task<ActionResult<AdminStatsDto>> GetStats([FromQuery] string? from, [FromQuery] string? to, CancellationToken ct)
     {
-        var sellers = _db.Sellers.AsNoTracking();
-        var orders = _db.Orders.AsNoTracking();
+        if (!AdminDateRange.TryResolveOptional(from, to, out var range, out var error)) return BadRequest(new { error });
+
+        IQueryable<Seller> sellers = _db.Sellers.AsNoTracking();
+        IQueryable<Order> orders = _db.Orders.AsNoTracking();
+        if (range is { } r)
+        {
+            sellers = sellers.Where(s => s.CreatedAt >= r.StartUtc && s.CreatedAt < r.EndUtc);
+            orders = orders.Where(o => o.CreatedAt >= r.StartUtc && o.CreatedAt < r.EndUtc);
+        }
+
         var since = DateTime.UtcNow.AddHours(-24);
         var sales = orders.Where(o => o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned);
 
@@ -40,7 +53,7 @@ public class AdminController : ControllerBase
         var onboarded = await sellers.CountAsync(s => s.OnboardingComplete, ct);
         var totalOrders = await orders.CountAsync(ct);
         var pendingOrders = await orders.CountAsync(o => o.Status == OrderStatus.Pending, ct);
-        var ordersLast24Hours = await orders.CountAsync(o => o.CreatedAt >= since, ct);
+        var ordersLast24Hours = await _db.Orders.AsNoTracking().CountAsync(o => o.CreatedAt >= since, ct);
         // Cast to double so SQLite (which can't SUM decimal) can aggregate; converted back below.
         var revenue = await sales.SumAsync(o => (double)o.Total, ct);
 
@@ -61,15 +74,18 @@ public class AdminController : ControllerBase
             sellersByPlan));
     }
 
-    /// <summary>Paged seller list, newest first. <paramref name="search"/> matches phone, business name or city.</summary>
+    /// <summary>Paged seller list, newest first. <paramref name="search"/> matches phone, business name or city. from/to limit by join date.</summary>
     [HttpGet("sellers")]
     public async Task<ActionResult<PagedResultDto<SellerListItemDto>>> ListSellers(
-        [FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default)
+        [FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int pageSize = 25,
+        [FromQuery] string? from = null, [FromQuery] string? to = null, CancellationToken ct = default)
     {
+        if (!AdminDateRange.TryResolveOptional(from, to, out var range, out var error)) return BadRequest(new { error });
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
 
         IQueryable<Seller> query = _db.Sellers.AsNoTracking();
+        if (range is { } r) query = query.Where(s => s.CreatedAt >= r.StartUtc && s.CreatedAt < r.EndUtc);
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();
@@ -97,10 +113,13 @@ public class AdminController : ControllerBase
         return Ok(new PagedResultDto<SellerListItemDto>(items, page, pageSize, total));
     }
 
-    /// <summary>One seller with counts and their 10 most recent orders.</summary>
+    /// <summary>One seller with counts and their 10 most recent orders (limited to from/to when sent).</summary>
     [HttpGet("sellers/{id:int}")]
-    public async Task<ActionResult<SellerDetailDto>> GetSeller(int id, CancellationToken ct)
+    public async Task<ActionResult<SellerDetailDto>> GetSeller(
+        int id, [FromQuery] string? from = null, [FromQuery] string? to = null, CancellationToken ct = default)
     {
+        if (!AdminDateRange.TryResolveOptional(from, to, out var range, out var error)) return BadRequest(new { error });
+
         var s = await _db.Sellers.AsNoTracking()
             .Where(x => x.Id == id)
             .Select(x => new
@@ -116,7 +135,9 @@ public class AdminController : ControllerBase
 
         if (s is null) return NotFound(new { error = "Seller not found." });
 
-        var recentOrders = await LoadOrdersAsync(_db.Orders.AsNoTracking().Where(o => o.SellerId == id), 0, 10, ct);
+        IQueryable<Order> recent = _db.Orders.AsNoTracking().Where(o => o.SellerId == id);
+        if (range is { } r) recent = recent.Where(o => o.CreatedAt >= r.StartUtc && o.CreatedAt < r.EndUtc);
+        var recentOrders = await LoadOrdersAsync(recent, 0, 10, ct);
 
         return Ok(new SellerDetailDto(
             s.Id, s.WhatsAppPhoneNumber, s.BusinessName, s.City, s.BusinessType, s.OnboardingComplete,
@@ -146,7 +167,7 @@ public class AdminController : ControllerBase
         await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Admin set seller {SellerId} to plan {Plan}, paid until {Until}", id, plan, seller.SubscriptionActiveUntil);
-        return await GetSeller(id, ct);
+        return await GetSeller(id, null, null, ct);
     }
 
     /// <summary>Sets a seller's account status. Disabled and Cancelled stop the bot from replying to that seller; Active restores it.</summary>
@@ -163,19 +184,53 @@ public class AdminController : ControllerBase
         await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Admin set seller {SellerId} status to {Status}", id, status);
-        return await GetSeller(id, ct);
+        return await GetSeller(id, null, null, ct);
     }
 
-    /// <summary>Paged order list, newest first. Optional filters: sellerId and status (Pending, Shipped, Delivered, Cancelled, Returned).</summary>
+    /// <summary>
+    /// Resets a seller's account the way the bot's "reset account" command does: deletes orders, products, customers,
+    /// discounts and other business data, clears the profile, and sends the seller back to onboarding. The seller record,
+    /// phone number, plan, account status and message history are kept. Needs the seller's phone number typed again.
+    /// </summary>
+    [HttpPost("sellers/{id:int}/reset")]
+    public async Task<ActionResult<SellerDetailDto>> ResetAccount(int id, [FromBody] ResetAccountRequest request, CancellationToken ct)
+    {
+        var seller = await _db.Sellers.FirstOrDefaultAsync(s => s.Id == id, ct);
+        if (seller is null) return NotFound(new { error = "Seller not found." });
+        if (!string.Equals(request.ConfirmPhone?.Trim(), seller.WhatsAppPhoneNumber, StringComparison.Ordinal))
+            return BadRequest(new { error = "Type the seller's phone number exactly to confirm the reset." });
+
+        await SellerAccountReset.ResetAsync(_db, seller, ct);
+
+        var session = await _db.Sessions.FirstOrDefaultAsync(x => x.SellerId == id, ct);
+        if (session is not null)
+        {
+            session.State = ConversationState.Idle;
+            session.ContextJson = null;
+            session.UpdatedAt = DateTime.UtcNow;
+        }
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogWarning("Admin reset seller {SellerId} ({Phone}) account", id, seller.WhatsAppPhoneNumber);
+        return await GetSeller(id, null, null, ct);
+    }
+
+    /// <summary>
+    /// Paged order list, newest first. Optional filters: sellerId, status (Pending, Shipped, Delivered, Cancelled, Returned)
+    /// and from/to (order date).
+    /// </summary>
     [HttpGet("orders")]
     public async Task<ActionResult<PagedResultDto<OrderListItemDto>>> ListOrders(
-        [FromQuery] int? sellerId, [FromQuery] string? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default)
+        [FromQuery] int? sellerId, [FromQuery] string? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 25,
+        [FromQuery] string? from = null, [FromQuery] string? to = null, CancellationToken ct = default)
     {
+        if (!AdminDateRange.TryResolveOptional(from, to, out var range, out var error)) return BadRequest(new { error });
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
 
         IQueryable<Order> query = _db.Orders.AsNoTracking();
         if (sellerId is { } sid) query = query.Where(o => o.SellerId == sid);
+        if (range is { } r) query = query.Where(o => o.CreatedAt >= r.StartUtc && o.CreatedAt < r.EndUtc);
         if (!string.IsNullOrWhiteSpace(status))
         {
             if (!Enum.TryParse<OrderStatus>(status, ignoreCase: true, out var parsed) || !Enum.IsDefined(parsed))

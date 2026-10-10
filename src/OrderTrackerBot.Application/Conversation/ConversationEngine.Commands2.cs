@@ -429,27 +429,7 @@ public partial class ConversationEngine
             return;
         }
 
-        _db.Orders.RemoveRange(await _db.Orders.Where(o => o.SellerId == seller.Id).ToListAsync(ct));
-        await _db.SaveChangesAsync(ct);
-        _db.Customers.RemoveRange(await _db.Customers.Where(c => c.SellerId == seller.Id).ToListAsync(ct));
-        _db.Products.RemoveRange(await _db.Products.Where(p => p.SellerId == seller.Id).ToListAsync(ct));
-        _db.Discounts.RemoveRange(await _db.Discounts.Where(d => d.SellerId == seller.Id).ToListAsync(ct));
-        _db.LoyaltyRules.RemoveRange(await _db.LoyaltyRules.Where(l => l.SellerId == seller.Id).ToListAsync(ct));
-        _db.PaymentMethods.RemoveRange(await _db.PaymentMethods.Where(p => p.SellerId == seller.Id).ToListAsync(ct));
-        _db.ActionLogs.RemoveRange(await _db.ActionLogs.Where(a => a.SellerId == seller.Id).ToListAsync(ct));
-        _db.MerchantFeedbacks.RemoveRange(await _db.MerchantFeedbacks.Where(f => f.SellerId == seller.Id).ToListAsync(ct));
-        _db.CustomerFeedbacks.RemoveRange(await _db.CustomerFeedbacks.Where(f => f.SellerId == seller.Id).ToListAsync(ct));
-        _db.SellerBrandings.RemoveRange(await _db.SellerBrandings.Where(b => b.SellerId == seller.Id).ToListAsync(ct));
-        _db.Expenses.RemoveRange(await _db.Expenses.Where(x => x.SellerId == seller.Id).ToListAsync(ct));
-        _db.Losses.RemoveRange(await _db.Losses.Where(x => x.SellerId == seller.Id).ToListAsync(ct));
-        _db.WageEntries.RemoveRange(await _db.WageEntries.Where(x => x.SellerId == seller.Id).ToListAsync(ct));
-
-        seller.BusinessName = null;
-        seller.City = null;
-        seller.BusinessType = null;
-        seller.InstagramHandle = null;
-        seller.OnboardingComplete = false;
-        seller.PreferredLanguage = Lang.RomanUrdu;
+        await SellerAccountReset.ResetAsync(_db, seller, ct);
         await ReplyAsync(seller, "✅ Account reset ho gaya.", ct);
         await StartOnboardingAsync(seller, session, ct);
     }

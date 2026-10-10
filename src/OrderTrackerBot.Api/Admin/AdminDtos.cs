@@ -69,3 +69,6 @@ public sealed record PagedResultDto<T>(
 public sealed record UpdateSubscriptionRequest(string? Plan, DateTime? SubscriptionActiveUntil);
 
 public sealed record UpdateSellerStatusRequest(string? Status);
+
+/// <summary>Resetting a seller needs their phone number typed again, so a misclick cannot wipe an account.</summary>
+public sealed record ResetAccountRequest(string? ConfirmPhone);
