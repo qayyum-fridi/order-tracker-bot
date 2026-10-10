@@ -1239,8 +1239,11 @@ public static class CommandParser
         return d[a.Length, b.Length];
     }
 
-    private static readonly Regex ConfirmYes = new(@"^(yes|y|ha|haan|han|ji|ji haan|ok|okay|👍\S*|✅|ہاں|جی)[.!]*$", Opts);
-    private static readonly Regex ConfirmNo = new(@"^(no|n|nahi|نہیں)$", Opts);
+    // Explicit approval: only when the bot has just asked for one (the caller decides which question is pending).
+    private static readonly Regex ConfirmYes = new(@"^(yes|y|ha|haan|han|hanji|ha\s+ji|han\s+ji|han\s+g|ha\s+g|ji|ji\s+haan|jee|jee\s+haan|ہاں|جی|جی\s+ہاں)[.!]*$", Opts);
+    private static readonly Regex ConfirmNo = new(@"^(no|n|nahi|nahin|nhi|nai|نہیں)$", Opts);
+    // Agreement that is not an explicit yes: "ok", "theek hai", a thumb or a tick. Only the order-placement question accepts it.
+    private static readonly Regex Acknowledgement = new(@"^(ok|okay|theek\s+hai|thik\s+hai|👍\S*|✅)[.!]*$", Opts);
 
     // "What do I do / say now?" — answered with a tip for the current step in ANY state (the plain words help / guide / menu keep their old meaning).
     private static readonly Regex GuidanceRequest = new(
@@ -1249,5 +1252,6 @@ public static class CommandParser
     public static bool IsGuidanceRequest(string message) => GuidanceRequest.IsMatch(message.Trim());
 
     public static bool IsAffirmative(string message) => ConfirmYes.IsMatch(message.Trim());
+    public static bool IsAcknowledgement(string message) => Acknowledgement.IsMatch(message.Trim());
     public static bool IsNegative(string message) => ConfirmNo.IsMatch(message.Trim());
 }

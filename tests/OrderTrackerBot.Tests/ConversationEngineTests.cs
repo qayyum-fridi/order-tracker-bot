@@ -600,11 +600,23 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Theory]
-    [InlineData("👍")]
-    [InlineData("ok")]
     [InlineData("Haan")]
+    [InlineData("hanji")]
+    [InlineData("jee")]
+    [InlineData("han g")]
+    public void ExplicitYesWords_AreYes(string reply) => Assert.True(CommandParser.IsAffirmative(reply));
+
+    // "ok" and a thumb are agreement, not an explicit yes: only the order-placement question accepts them (see HandleOrderConfirmationAsync).
+    [Theory]
+    [InlineData("ok")]
+    [InlineData("theek hai")]
+    [InlineData("👍")]
     [InlineData("✅")]
-    public void ShortAndEmojiReplies_CountAsYes(string reply) => Assert.True(CommandParser.IsAffirmative(reply));
+    public void Acknowledgements_AreNotYes(string reply)
+    {
+        Assert.False(CommandParser.IsAffirmative(reply));
+        Assert.True(CommandParser.IsAcknowledgement(reply));
+    }
 
     [Fact]
     public async Task ShareCatalog_ListsProductsReadyToForward()

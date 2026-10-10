@@ -1204,7 +1204,7 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
-    public async Task VoiceNote_RewriteThatDropsANumber_IsIgnored()
+    public async Task VoiceNote_RewriteThatDropsANumber_AsksAgainAndRunsNothing()
     {
         using var db = _dbFactory.CreateContext();
         const string spoken = "kurti 1800";
@@ -1214,7 +1214,70 @@ public class MockupFeatureTests : IDisposable
         await engine.HandleAudioMessageAsync(Phone, "voice-ctx");
 
         Assert.DoesNotContain(_sent, m => m.Contains("Samjha"));
-        Assert.Contains(_sent, m => m == $"🎤 Maine suna: \"{spoken}\"");
+        Assert.False(await db.Products.AnyAsync(p => p.Name == "Kurti"));
+        Assert.Contains(_sent, m => m.Contains($"Maine suna: \"{spoken}\"") && m.Contains("alag alag"));
+    }
+
+    // The guard's three outcomes: a faithful rewrite runs; a rewrite that changes what was said, and a transcript nothing could read, both ask again.
+    // An unavailable AI (no answer at all) keeps the old behaviour: the transcript goes to the deterministic engine.
+    [Fact]
+    public async Task VoiceNote_FaithfulRewrite_IsRun()
+    {
+        using var db = _dbFactory.CreateContext();
+        const string spoken = "Lawn Suit paanch hazaar";
+        var engine = await VoiceEngineAtAddProductAsync(db, spoken);
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), spoken, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "Lawn Suit - 5000" } });
+
+        await engine.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        Assert.Equal(5000m, (await db.Products.SingleAsync(p => p.Name == "Lawn Suit")).Price);
+    }
+
+    [Theory]
+    [InlineData("Lawn Suit paanch hazaar mat likhna", "Lawn Suit - 5000")]    // a refused amount comes back
+    [InlineData("Lawn Suit paanch hazaar se kam", "Lawn Suit - 5000")]        // a comparator is lost
+    [InlineData("Lawn Suit paanch hazaar aur delivery", "Lawn Suit - 5000")]  // the delivery part is lost
+    public async Task VoiceNote_RewriteThatChangesTheMeaning_IsNotRun_AndTheSellerIsAskedAgain(string spoken, string rewrite)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await VoiceEngineAtAddProductAsync(db, spoken);
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), spoken, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { rewrite } });
+
+        await engine.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        Assert.False(await db.Products.AnyAsync(p => p.Name == "Lawn Suit"));
+        Assert.DoesNotContain(_sent, m => m.Contains("Samjha"));
+        Assert.Contains(_sent, m => m.Contains($"Maine suna: \"{spoken}\"") && m.Contains("alag alag"));
+    }
+
+    [Fact]
+    public async Task VoiceNote_AiAnswersWithNothingUsable_AndTheTranscriptIsNotACommand_AsksAgain()
+    {
+        using var db = _dbFactory.CreateContext();
+        const string spoken = "bhai kuch bhi";
+        var engine = await VoiceEngineAtAddProductAsync(db, spoken);
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), spoken, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation());
+
+        await engine.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        Assert.False(await db.Products.AnyAsync());
+        Assert.Contains(_sent, m => m.Contains("Samajh nahi aaya"));
+    }
+
+    [Fact]
+    public async Task VoiceNote_AiUnavailable_TheDeterministicEngineStillReadsTheTranscript()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await VoiceEngineAtAddProductAsync(db, "Kurti 1800");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), "Kurti 1800", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((AiVoiceInterpretation?)null);
+
+        await engine.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        Assert.Equal(1800m, (await db.Products.SingleAsync(p => p.Name == "Kurti")).Price);
     }
 
     [Fact]

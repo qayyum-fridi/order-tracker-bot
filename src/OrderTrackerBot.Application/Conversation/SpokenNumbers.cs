@@ -355,6 +355,67 @@ public static class SpokenNumbers
         return negated;
     }
 
+    // "pehla wala" = 1, "doosra" = 2: a choice from a list the bot showed.
+    private static readonly Dictionary<string, int> Ordinals = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["pehla"] = 1, ["pehli"] = 1, ["پہلا"] = 1, ["پہلی"] = 1,
+        ["dusra"] = 2, ["doosra"] = 2, ["dosra"] = 2, ["dusri"] = 2, ["doosri"] = 2, ["دوسرا"] = 2, ["دوسری"] = 2,
+        ["teesra"] = 3, ["teesri"] = 3, ["تیسرا"] = 3,
+        ["chautha"] = 4, ["chauthi"] = 4, ["چوتھا"] = 4,
+    };
+
+    // Small counts (0-99, as words, digits or ordinals) that are not part of a spoken amount: "teen piece" is 3, "teen hazaar" is not a count.
+    private static List<(int Value, int Index)> SmallSpans(IReadOnlyList<string> tokens, IReadOnlyList<AmountSpan> amountSpans)
+    {
+        var spans = new List<(int, int)>();
+        for (var i = 0; i < tokens.Count; i++)
+        {
+            if (amountSpans.Any(a => i >= a.Start && i <= a.End)) continue;
+            var word = tokens[i];
+            if (Ordinals.TryGetValue(word, out var ordinal)) spans.Add((ordinal, i));
+            else if (word.Length <= 2 && word.All(char.IsDigit) && int.TryParse(word, NumberStyles.None, CultureInfo.InvariantCulture, out var digits)) spans.Add((digits, i));
+            else if (Words.TryGetValue(word, out var value) && value == decimal.Truncate(value) && value is >= 0 and <= 99) spans.Add(((int)value, i));
+        }
+        return spans;
+    }
+
+    /// <summary>The small counts the seller said (see <see cref="SmallSpans"/>), e.g. "teen piece chahiye" = {3}.</summary>
+    public static IReadOnlySet<int> SmallCounts(string text)
+    {
+        var tokens = Tokens(text);
+        return SmallSpans(tokens, WordSpans(tokens)).Select(s => s.Value).ToHashSet();
+    }
+
+    /// <summary>Counts the seller took back with a replacement ("teen nahi, do"): same rule as <see cref="RetractedAmounts"/>.</summary>
+    public static IReadOnlySet<int> RetractedCounts(string text)
+    {
+        var tokens = Tokens(text);
+        var spans = SmallSpans(tokens, WordSpans(tokens));
+        var retracted = new HashSet<int>();
+        foreach (var span in spans)
+        {
+            var marker = Enumerable.Range(span.Index + 1, 5).FirstOrDefault(k => k < tokens.Count && RetractionMarkers.Contains(tokens[k]), -1);
+            if (marker < 0) continue;
+            if (spans.Any(t => t.Value != span.Value && t.Index > marker && t.Index <= marker + RetractionWordHorizon)) retracted.Add(span.Value);
+        }
+        return retracted;
+    }
+
+    /// <summary>Counts refused without a replacement ("teen nahi chahiye"): a negation within three words after the count.</summary>
+    public static IReadOnlySet<int> NegatedCounts(string text)
+    {
+        var tokens = Tokens(text);
+        var spans = SmallSpans(tokens, WordSpans(tokens));
+        var retracted = RetractedCounts(text);
+        var negated = new HashSet<int>();
+        foreach (var span in spans)
+        {
+            if (retracted.Contains(span.Value)) continue;
+            if (Enumerable.Range(span.Index + 1, 3).Any(k => k < tokens.Count && NegationMarkers.Contains(tokens[k]))) negated.Add(span.Value);
+        }
+        return negated;
+    }
+
     /// <summary>The text with the given digit amounts blanked out (used so a retracted amount need not survive a rewrite).</summary>
     public static string RemoveDigitAmounts(string text, IReadOnlySet<long> amounts) =>
         amounts.Aggregate(AsciiDigits(text), (current, a) => Regex.Replace(current, $@"(?<![\d,]){a}(?![\d,])", " "));
