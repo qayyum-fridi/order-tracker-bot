@@ -28,6 +28,7 @@ public class Seller
     /// <summary>Free trial end; null until onboarding completes (trial starts then).</summary>
     public DateTime? TrialEndsAt { get; set; }
     public SubscriptionPlan Plan { get; set; } = SubscriptionPlan.Trial;
+    public SellerStatus Status { get; set; } = SellerStatus.Active;
     public DateTime? SubscriptionActiveUntil { get; set; }
     public DateTime? TrialReminderSentAt { get; set; }
     public DateTime? LastWeeklySummaryAt { get; set; }

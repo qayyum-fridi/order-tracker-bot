@@ -87,6 +87,13 @@ public partial class ConversationEngine
 
         _db.MessageLogs.Add(new MessageLog { Phone = fromPhoneNumber, Direction = "inbound", RawText = message });
         var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
+        if (seller.Status != SellerStatus.Active)
+        {
+            await ReplyAsync(seller, seller.Status == SellerStatus.Cancelled
+                ? "Aapka account band ho chuka hai. Dobara chalane ke liye humse rabta karein."
+                : "Aapka account abhi band hai. Madad ke liye humse rabta karein.", ct);
+            return;
+        }
         message = _translator.RestoreButtonLabel(message);
 
         var session = seller.Session!;
