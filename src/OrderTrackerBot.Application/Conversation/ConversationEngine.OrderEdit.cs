@@ -60,6 +60,14 @@ public partial class ConversationEngine
             $"{OrderEditSummary(order)}\n\n{OrderEditHelp}", ct);
     }
 
+    // Once an order has gone out, its items, rates and delivery charge are fixed: the receipt, the stock and the money must keep matching.
+    // Recording a payment stays allowed (COD cash often arrives after dispatch), and so do customer details and the payment method.
+    public static bool IsDispatched(Order order) => order.Status is OrderStatus.Shipped or OrderStatus.Delivered;
+
+    private static string DispatchedLockText(Order order) =>
+        $"Order #{order.Id} {Formatters.Status(order.Status)} hai — items, rate ya delivery nahi badal sakte. " +
+        $"Payment ke liye \"order {order.Id} advance 500\" likhein.";
+
     private Task<Order?> LoadOrderForEditAsync(Seller seller, int orderId, CancellationToken ct) =>
         _db.Orders.Include(o => o.Customer).Include(o => o.Items).FirstOrDefaultAsync(o => o.SellerId == seller.Id && o.Id == orderId, ct);
 
@@ -90,6 +98,12 @@ public partial class ConversationEngine
         {
             EndOrderEdit(session, ctx);
             await ReplyAsync(seller, $"✅ Order #{order.Id} save ho gaya.\n{OrderEditSummary(order)}", ct);
+            return;
+        }
+
+        if (IsDispatched(order) && change.Kind is ("qty" or "price" or "remove" or "add" or "delivery"))
+        {
+            await ReplyAsync(seller, DispatchedLockText(order), ct);
             return;
         }
 

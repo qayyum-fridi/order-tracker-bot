@@ -33,6 +33,11 @@ public partial class ConversationEngine
             await ReplyAsync(seller, $"Order #{number} nahi mila.", ct);
             return;
         }
+        if (IsDispatched(order))
+        {
+            await ReplyAsync(seller, $"Order #{order.Id} {Formatters.Status(order.Status)} hai — delivery nahi badal sakti. Payment ke liye \"order {order.Id} advance 500\" likhein.", ct);
+            return;
+        }
 
         order.Total = OrderTotal(order.Subtotal, order.DiscountAmount, amount);
         order.DeliveryCharge = amount;
