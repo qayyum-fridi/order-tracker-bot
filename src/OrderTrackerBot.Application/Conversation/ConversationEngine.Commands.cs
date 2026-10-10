@@ -734,6 +734,14 @@ public partial class ConversationEngine
             }).ToList();
         }
 
+        // A price said in words ("paintis sau" = 3500) is the seller's own words, so it counts. Only when it is the single amount in the
+        // message and there is one product waiting for a price, so the model never chooses which amount belongs to which product.
+        if (sourceText is not null && products.Count == 1 && products[0].Price is null && SpokenNumbers.WordAmounts(sourceText) is { Count: 1 } spoken)
+            products = new List<AiNewProduct>
+            {
+                new() { Name = products[0].Name, Price = spoken.Single(), Cost = products[0].Cost, Stock = products[0].Stock, Attributes = products[0].Attributes }
+            };
+
         var pendingExtras = ctx.PendingProductExtras ?? new Dictionary<string, ProductExtras>(StringComparer.OrdinalIgnoreCase);
         pendingExtras = new Dictionary<string, ProductExtras>(pendingExtras, StringComparer.OrdinalIgnoreCase);
 
@@ -769,8 +777,17 @@ public partial class ConversationEngine
             reply += "📦 Samajh gaya — yeh naye products hain, order nahi:\n" +
                      string.Join("\n", needPrice.Select(n => $"• {n}{(ctx.PendingProductExtras is { } extras && extras.FirstOrDefault(e => string.Equals(e.Key, n, StringComparison.OrdinalIgnoreCase)) is { Value: not null } found ? ExtrasText(found.Value) : "")}")) +
                      "\n\nBas har product ki sale price bata dein (misaal: 'Kurti - 1800' ya \"teenon ki 5000\") — jo kuch aap ne bataya hai (cost, stock) woh yaad hai.";
+        if (needPrice.Count > 0) reply += "\n\n" + PriceHowToText(needPrice[0]);
         await ReplyAsync(seller, reply.TrimEnd(), ct);
     }
+
+    /// <summary>Three ways to send a price, shown wherever the bot waits for one, so the seller knows the right input before trying.</summary>
+    private static string PriceHowToText(string name) =>
+        $"💡 *{name}* ki price bhejein:\n" +
+        $"✍️ Likh kar: {name} - 3500\n" +
+        "🎤 Bol kar: \"paintis sau\" (ya \"teen hazar paanch sau\")\n" +
+        "📷 Photo: pehle photo bhejein, phir price text mein likhein\n" +
+        "❌ Ruk jana ho to: cancel";
 
     /// <summary>Cost, stock and attributes the model read for one new product (color/size go to their own fields); null when there is none.</summary>
     private static ProductExtras? ExtrasOf(AiNewProduct p)
