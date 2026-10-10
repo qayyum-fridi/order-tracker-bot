@@ -5,6 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OrderTrackerBot.Application.Abstractions;
+using OrderTrackerBot.Domain.Entities;
+using OrderTrackerBot.Infrastructure.Persistence;
 
 namespace OrderTrackerBot.Infrastructure.Alerts;
 
@@ -43,10 +45,12 @@ public class IssueReporter : IIssueReporter
                 "[{Code}] {Title} | seller={Phone} | {Detail}", code.Code, code.Title, sellerPhone ?? "-", detail ?? error ?? "-");
 
             var postToWebhook = !string.IsNullOrWhiteSpace(_options.WebhookUrl) && ShouldSend(code, sellerPhone);
-            if (!postToWebhook && _errorLog is null) return;
 
             var (sellerId, businessName) = await LookupSellerAsync(sellerPhone, cancellationToken);
-            // Every occurrence goes to the error log; only the webhook is rate-limited by the cooldown.
+            // Every occurrence is kept in the database (for the admin panel) and the error log; only the webhook is rate-limited by the cooldown.
+            await SaveRecordAsync(code, sellerPhone, businessName, detail, error, cancellationToken);
+            if (!postToWebhook && _errorLog is null) return;
+
             _errorLog?.Add(new ErrorLogEntry(DateTime.UtcNow, code.Code, code.Title, code.Severity, sellerPhone, businessName, detail, error));
             if (!postToWebhook) return;
 
@@ -108,6 +112,34 @@ public class IssueReporter : IIssueReporter
         catch
         {
             return (0, null);
+        }
+    }
+
+    // A fresh scope, as in LookupSellerAsync. Skipped when no AppDbContext is registered (unit tests). Never throws.
+    private async Task SaveRecordAsync(IssueCode code, string? sellerPhone, string? businessName, string? detail, string? error, CancellationToken ct)
+    {
+        try
+        {
+            using var scope = _scopes.CreateScope();
+            var db = scope.ServiceProvider.GetService<AppDbContext>();
+            if (db is null) return;
+
+            db.IssueRecords.Add(new IssueRecord
+            {
+                CreatedAt = DateTime.UtcNow,
+                Code = code.Code,
+                Title = code.Title,
+                Severity = code.Severity.ToString(),
+                SellerPhone = sellerPhone,
+                BusinessName = businessName,
+                Detail = detail is null ? null : Truncate(detail, 1000),
+                Error = error,
+            });
+            await db.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not store issue {Code}", code.Code);
         }
     }
 

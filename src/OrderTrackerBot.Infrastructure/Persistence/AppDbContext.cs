@@ -24,6 +24,7 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<Campaign> Campaigns => Set<Campaign>();
     public DbSet<CampaignSend> CampaignSends => Set<CampaignSend>();
     public DbSet<MessageLog> MessageLogs => Set<MessageLog>();
+    public DbSet<IssueRecord> IssueRecords => Set<IssueRecord>();
     public DbSet<ProcessedWebhookMessage> ProcessedWebhookMessages => Set<ProcessedWebhookMessage>();
     public DbSet<PendingWebhookMessage> PendingWebhookMessages => Set<PendingWebhookMessage>();
     public DbSet<InstagramConnection> InstagramConnections => Set<InstagramConnection>();
@@ -123,6 +124,7 @@ public class AppDbContext : DbContext, IAppDbContext
         modelBuilder.Entity<CampaignSend>(e =>
             e.HasOne(s => s.Campaign).WithMany(c => c.Sends).HasForeignKey(s => s.CampaignId).OnDelete(DeleteBehavior.Cascade));
         modelBuilder.Entity<MessageLog>(e => e.HasIndex(m => new { m.Phone, m.CreatedAt }));
+        modelBuilder.Entity<IssueRecord>(e => e.HasIndex(i => new { i.Severity, i.CreatedAt })); // errors/issues lists and daily counts
         modelBuilder.Entity<PendingWebhookMessage>(e =>
         {
             e.HasKey(m => m.MessageId);

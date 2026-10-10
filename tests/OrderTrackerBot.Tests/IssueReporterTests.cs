@@ -140,6 +140,27 @@ public class IssueReporterTests : IDisposable
         Assert.Single(handler.Urls);
     }
 
+    [Fact]
+    public async Task Report_StoresEveryOccurrence_EvenWhenTheWebhookIsRateLimited()
+    {
+        var services = new ServiceCollection();
+        services.AddScoped<AppDbContext>(_ => _dbFactory.CreateContext());
+        using var provider = services.BuildServiceProvider();
+        var reporter = new IssueReporter(new HttpClient(_handler), Options.Create(new FounderAlertOptions { WebhookUrl = "http://alerts.test/hook" }),
+            provider.GetRequiredService<IServiceScopeFactory>(), NullLogger<IssueReporter>.Instance);
+
+        // The second report falls inside the webhook cooldown, but the database must still keep it.
+        await reporter.ReportAsync(IssueCodes.VoiceTranscriptionFailed, "923009990001", "first");
+        await reporter.ReportAsync(IssueCodes.VoiceTranscriptionFailed, "923009990001", "second");
+
+        using var db = _dbFactory.CreateContext();
+        var stored = db.IssueRecords.Where(i => i.SellerPhone == "923009990001").OrderBy(i => i.Id).ToList();
+        Assert.Equal(2, stored.Count);
+        Assert.Equal("OTB-3002", stored[0].Code);
+        Assert.Equal("Warning", stored[0].Severity);
+        Assert.Equal("second", stored[1].Detail);
+    }
+
     private sealed class CapturingHandler : HttpMessageHandler
     {
         public List<string> Bodies { get; } = new();
