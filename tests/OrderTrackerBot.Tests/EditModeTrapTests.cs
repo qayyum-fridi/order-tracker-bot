@@ -67,6 +67,10 @@ public class EditModeTrapTests : IDisposable
     [InlineData("ok")]
     [InlineData("theek hai")]
     [InlineData("shukriya")]
+    [InlineData("Achha ji")]
+    [InlineData("Theek ae")]
+    [InlineData("Jee bilkul")]
+    [InlineData("Changa ji")]
     public async Task Acknowledgement_StaysInEditMode_AndSaysHowToFinish(string reply)
     {
         using var db = _dbFactory.CreateContext();
@@ -105,6 +109,19 @@ public class EditModeTrapTests : IDisposable
 
         Assert.Equal(ConversationState.AwaitingOrderEdit, await StateAsync(db));
         Assert.Contains(_sent, m => m.Contains("\"jaari\"") && m.Contains("\"chhoro\""));
+    }
+
+    [Fact]
+    public async Task JaariRakho_AfterNahi_KeepsEditing()
+    {
+        using var db = _dbFactory.CreateContext();
+        var (engine, _) = await OpenEditAsync(db, 2000m);
+        await engine.HandleIncomingMessageAsync(Phone, "nahi", default);
+
+        await engine.HandleIncomingMessageAsync(Phone, "jaari rakho", default);
+
+        Assert.Equal(ConversationState.AwaitingOrderEdit, await StateAsync(db));
+        Assert.Contains(_sent, m => m.Contains("Edit jaari hai"));
     }
 
     [Fact]

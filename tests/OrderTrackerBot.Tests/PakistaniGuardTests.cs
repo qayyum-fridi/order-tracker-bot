@@ -19,6 +19,7 @@ public class PakistaniGuardTests
     [InlineData("cancel mat karna... sorry order id 105 cancel kar do", "cancel order 105")]
     // Comparators and modifiers survive
     [InlineData("Paanch hazaar se kam", "price under 5000")]
+    [InlineData("Panj hazaar ton ghatt rakhna", "price under 5000")]
     [InlineData("Teen hazaar tak kuch dikhao", "catalog under 3000")]
     [InlineData("Paanch hazaar including delivery", "price 5000 including delivery")]
     [InlineData("Bhai teen hazaar paanch sau ka order bana do, delivery alag hai", "price 3500 delivery separate")]
@@ -50,6 +51,8 @@ public class PakistaniGuardTests
     [InlineData("Haan bhai order kar do, delivery alag", "yes")]      // the delivery part is dropped
     // Comparators and modifiers dropped
     [InlineData("Paanch hazaar se kam", "price 5000")]
+    [InlineData("Panj hazaar ton ghatt rakhna", "price 5000")]
+    [InlineData("Panj hazaar na rakhna", "price 5000")]
     [InlineData("Paanch hazaar aur delivery", "price 5000")]
     [InlineData("Paanch hazaar including delivery", "price 5000 delivery 0")] // "including" is not "free"
     // Amounts
