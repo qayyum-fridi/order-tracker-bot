@@ -36,7 +36,7 @@ public static class SpokenNumbers
 
         // Roman Urdu 0-99 (spellings vary; the common ones)
         Add(0, "sifar", "sifr");
-        Add(1, "ek", "aik"); Add(2, "do"); Add(3, "teen"); Add(4, "char", "chaar"); Add(5, "paanch", "panch"); Add(6, "chhe", "chay", "chhay", "che", "chah");
+        Add(1, "ek", "aik"); Add(2, "do"); Add(3, "teen"); Add(4, "char", "chaar"); Add(5, "paanch", "panch", "panj"); Add(6, "chhe", "chay", "chhay", "che", "chah");
         Add(7, "saat"); Add(8, "aath", "ath"); Add(9, "nau"); Add(10, "das");
         Add(11, "gyarah", "gyara"); Add(12, "barah", "bara"); Add(13, "terah", "tera"); Add(14, "chaudah", "chaudha"); Add(15, "pandrah", "pandra");
         Add(16, "solah", "sola"); Add(17, "satrah", "satra"); Add(18, "atharah", "athara"); Add(19, "unnees", "unnis", "unees");
@@ -335,7 +335,7 @@ public static class SpokenNumbers
     // "mat karna" / "nahi chahiye": the seller does not want this amount.
     private static readonly HashSet<string> NegationMarkers = new(StringComparer.OrdinalIgnoreCase)
     {
-        "mat", "nahi", "nahin", "nahee", "nai", "مت", "نہیں"
+        "mat", "nahi", "nahin", "nahee", "nai", "na", "مت", "نہیں"
     };
 
     /// <summary>

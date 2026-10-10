@@ -156,9 +156,11 @@ public partial class ConversationEngine
 
     private const RegexOptions EditWordOptions = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled;
     // Replies to the last message: they confirm nothing, and they never approve the order.
-    private static readonly Regex EditAcknowledgement = new(@"^(ok|okay|shukriya|shukria|thanks|thank\s+you|ji|jee|acha|achha|accha|theek|thik)(\s+hai)?[.!]*$|^ٹھیک\s+ہے[.!]*$", EditWordOptions);
+    // Acknowledgements only: in edit mode they never save the order, so the Punjabi/Roman Urdu forms are safe to accept here.
+    private static readonly Regex EditAcknowledgement = new(
+        @"^(ok|okay|shukriya|shukria|shukriya\s+ji|thanks|thank\s+you|ji|jee|jee\s+bilkul|bilkul|acha|acha\s+ji|achha|achha\s+ji|accha|accha\s+ji|theek(\s+(hai|ae))?|thik(\s+hai)?|theek\s+ae|changa(\s+ji)?|sahi\s+ae|koi\s+gal\s+nai|chalo\s+ji)[.!]*$|^ٹھیک\s+ہے[.!]*$", EditWordOptions);
     // "jaari" = keep editing; "chhoro" / "cancel karo" = discard this edit. Only these answer the "jaari or chhoro?" question.
-    private static readonly Regex EditKeepWords = new(@"^(jaari|jari|jaari\s+rakhein|jari\s+rakhein|continue|rakhein|rakho)[.!]*$", EditWordOptions);
+    private static readonly Regex EditKeepWords = new(@"^(jaari|jari|jaari\s+rakho|jaari\s+rakhein|jari\s+rakho|jari\s+rakhein|edit\s+jaari\s+rakho|edit\s+jaari\s+rakhein|continue|rakhein|rakho)[.!]*$", EditWordOptions);
     private static readonly Regex EditDiscardWords = new(
         @"^(chhoro|chhodo|chhod\s+do|chhor\s+do|discard|cancel|cancel\s+karo|cancel\s+kar\s+do|cancel\s+kardo|cancel\s+karein|cancel\s+krdo|cancel\s+kar\s+dein|khatam\s+karo)[.!]*$", EditWordOptions);
     // "nahi cancel karo": a refusal in front of the instruction does not undo it. "nahi" after the instruction does.
