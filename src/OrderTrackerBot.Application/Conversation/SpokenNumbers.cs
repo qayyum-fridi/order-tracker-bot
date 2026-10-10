@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace OrderTrackerBot.Application.Conversation;
@@ -67,7 +68,17 @@ public static class SpokenNumbers
     }
 
     public static bool IsMultiplier(string word) => Multipliers.ContainsKey(word);
-    public static bool IsNumberWord(string word) => Words.ContainsKey(word) || word.Equals("sadhe", StringComparison.OrdinalIgnoreCase) || word == "ساڑھے";
+    public static bool IsNumberWord(string word) => Words.ContainsKey(word) || FractionWords.ContainsKey(word);
+
+    // "sadhe teen hazar" = 3,500; "sawa teen hazar" = 3,250; "paune chaar hazar" = 3,750. Spellings vary (saadhe, saṛhay, sāṛhe...).
+    // Only the spelling with its diacritics removed is listed: Normalize strips combining marks before tokenising.
+    private static readonly Dictionary<string, decimal> FractionWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["sadhe"] = 0.5m, ["saadhe"] = 0.5m, ["sadhay"] = 0.5m, ["saadhay"] = 0.5m, ["sarhay"] = 0.5m, ["sarhe"] = 0.5m, ["sarhey"] = 0.5m,
+        ["ساڑھے"] = 0.5m,
+        ["sawa"] = 0.25m,
+        ["paune"] = -0.25m, ["pauney"] = -0.25m,
+    };
     public static IEnumerable<string> NumberWords => Words.Keys;
     public static IEnumerable<string> MultiplierWords => Multipliers.Keys;
 
@@ -76,6 +87,29 @@ public static class SpokenNumbers
 
     private static string AsciiDigits(string s) =>
         new(s.Select(c => char.IsDigit(c) ? (char)('0' + (int)char.GetNumericValue(c)) : c).ToArray());
+
+    // "saṛhay" and "sāṛhe" are Latin letters with combining marks, which split a token: drop the marks so every spelling tokenises the same.
+    // Only Latin letters are decomposed; Urdu script is left alone, because its hamza and other marks are part of the letters.
+    private static string StripMarks(string s) =>
+        new(s.SelectMany(c => c < 'ɐ' || c is >= 'Ḁ' and <= 'ỿ'
+            ? c.ToString().Normalize(NormalizationForm.FormD).Where(d => d is < '̀' or > 'ͯ')
+            : new[] { c }).ToArray());
+
+    // "3.5 hazaar", "3.5k" and "3k" are one amount each, and a word count cannot read the decimal: rewrite them to digits before tokenising.
+    // Whole "3 hazar" is left to WordSpans, which already reads it.
+    private static readonly Regex DecimalThousand = new(@"(?<![\d.])(\d{1,3})\.(\d{1,2})\s*(?:k|hazar|hazaar|hajar)\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex WholeK = new(@"(?<![\d.])(\d{1,3})\s*k\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static string ExpandThousands(string text)
+    {
+        text = DecimalThousand.Replace(text, m =>
+        {
+            var whole = decimal.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
+            var fraction = decimal.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture) / (decimal)Math.Pow(10, m.Groups[2].Length);
+            return decimal.ToInt64((whole + fraction) * 1000m).ToString(CultureInfo.InvariantCulture);
+        });
+        return WholeK.Replace(text, m => (long.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture) * 1000).ToString(CultureInfo.InvariantCulture));
+    }
 
     /// <summary>An amount found in a transcript: its value and the first/last token it covers (token positions, inclusive).</summary>
     public readonly record struct AmountSpan(long Value, int Start, int End);
@@ -101,7 +135,7 @@ public static class SpokenNumbers
         "nahi", "nahin", "nahee", "nai", "no", "mat", "matlab", "sorry", "galat", "نہیں", "نہی", "مت", "مطلب", "غلط"
     };
 
-    private static string Normalize(string text) => GroupedDigits.Replace(AsciiDigits(text), "");
+    private static string Normalize(string text) => ExpandThousands(GroupedDigits.Replace(AsciiDigits(StripMarks(text)), ""));
 
     private static List<string> Tokens(string text) => Token.Matches(Normalize(text)).Select(m => m.Value).ToList();
 
@@ -121,7 +155,7 @@ public static class SpokenNumbers
         decimal total = 0, current = 0;
         var sawMultiplier = false;
         var sawNumber = false;
-        var half = false;
+        decimal fraction = 0; // "sadhe" / "sawa" / "paune" pending for the next plain number
         var start = -1;
         var last = -1;
         decimal? lastPlain = null; // value of the previous plain number word (not a multiplier), to tell "twenty five" from "do paanch"
@@ -133,7 +167,7 @@ public static class SpokenNumbers
                 var value = total + current;
                 if (value >= MinAmount && value <= MaxAmount && value == decimal.Truncate(value)) spans.Add(new AmountSpan((long)value, start, last));
             }
-            total = 0; current = 0; sawMultiplier = false; sawNumber = false; half = false; lastPlain = null; start = -1;
+            total = 0; current = 0; sawMultiplier = false; sawNumber = false; fraction = 0; lastPlain = null; start = -1;
         }
 
         // Two plain numbers in a row are separate numbers ("kar do paanch sau" = do, then 500), except English "twenty five".
@@ -153,13 +187,15 @@ public static class SpokenNumbers
                 Take(i);
                 sawMultiplier = true;
                 lastPlain = null;
-                if (multiplier == 100) current = (current == 0 ? 1 : current) * 100;
-                else { total += (current == 0 ? 1 : current) * multiplier; current = 0; }
+                var baseValue = current == 0 ? 1 + fraction : current; // "sadhe hazar" alone = 1.5 thousand
+                fraction = 0;
+                if (multiplier == 100) current = baseValue * 100;
+                else { total += baseValue * multiplier; current = 0; }
             }
-            else if (word.Equals("sadhe", StringComparison.OrdinalIgnoreCase) || word == "ساڑھے")
+            else if (FractionWords.TryGetValue(word, out var part))
             {
                 Take(i);
-                half = true;
+                fraction = part;
                 sawNumber = true;
             }
             else if (SixtyWords.Contains(word)
@@ -171,8 +207,8 @@ public static class SpokenNumbers
             {
                 StartsNewNumber(value);
                 Take(i);
-                current += value + (half ? 0.5m : 0);
-                half = false;
+                current += value + fraction;
+                fraction = 0;
                 sawNumber = true;
                 lastPlain = value;
             }
@@ -262,8 +298,10 @@ public static class SpokenNumbers
     public static IReadOnlySet<long> Amounts(string text)
     {
         var tokens = Tokens(text);
-        var all = new HashSet<long>(DigitSpans(tokens).Select(s => s.Value));
-        all.UnionWith(WordSpans(tokens).Select(s => s.Value));
+        var words = WordSpans(tokens);
+        // A digit run inside a spoken amount is part of it: "3 hazar 500" is 3500, not 3500 and 500.
+        var all = new HashSet<long>(DigitSpans(tokens).Where(d => !words.Any(w => d.Start >= w.Start && d.End <= w.End)).Select(s => s.Value));
+        all.UnionWith(words.Select(s => s.Value));
         all.UnionWith(DictatedSpans(tokens).Select(s => s.Value));
         return all;
     }
@@ -292,6 +330,29 @@ public static class SpokenNumbers
             if (spans.Any(t => t.Value != span.Value && t.Start > marker && t.Start <= marker + (wordStarts.Contains(t.Start) ? RetractionWordHorizon : RetractionDigitHorizon))) retracted.Add(span.Value);
         }
         return retracted;
+    }
+
+    // "mat karna" / "nahi chahiye": the seller does not want this amount.
+    private static readonly HashSet<string> NegationMarkers = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "mat", "nahi", "nahin", "nahee", "nai", "مت", "نہیں"
+    };
+
+    /// <summary>
+    /// Amounts the seller refused without naming a replacement: "Paanch hazaar mat karna" or "500 nahi chahiye" (a negation within three words after the amount).
+    /// A rewrite must not set one of them. Amounts taken back with a replacement are in <see cref="RetractedAmounts"/> instead.
+    /// </summary>
+    public static IReadOnlySet<long> NegatedAmounts(string text)
+    {
+        var tokens = Tokens(text);
+        var retracted = RetractedAmounts(text);
+        var negated = new HashSet<long>();
+        foreach (var span in DigitSpans(tokens).Concat(WordSpans(tokens)))
+        {
+            if (retracted.Contains(span.Value)) continue;
+            if (Enumerable.Range(span.End + 1, 3).Any(k => k < tokens.Count && NegationMarkers.Contains(tokens[k]))) negated.Add(span.Value);
+        }
+        return negated;
     }
 
     /// <summary>The text with the given digit amounts blanked out (used so a retracted amount need not survive a rewrite).</summary>

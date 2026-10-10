@@ -195,24 +195,37 @@ public partial class ConversationEngine
     {
         if (string.IsNullOrWhiteSpace(rewritten)) return "empty rewrite";
         if (rewritten.Length > Math.Max(200, transcript.Length * 3)) return "rewrite too long";
-        // Amounts the seller took back ("410 nahi, 420") need not survive the rewrite.
+        // Amounts the seller took back ("410 nahi, 420") or refused ("paanch hazaar mat karna") need not survive the rewrite, and must not be set.
         var retracted = SpokenNumbers.RetractedAmounts(transcript);
-        var kept = LongNumberDigits(rewritten);
-        var needed = retracted.Count == 0 ? transcript : SpokenNumbers.RemoveDigitAmounts(transcript, retracted);
-        if (!LongNumberDigits(needed).All(d => kept.GetValueOrDefault(d.Key) >= d.Value)) return "a 3+ digit run from the transcript was dropped";
+        var negated = SpokenNumbers.NegatedAmounts(transcript);
+        var dropped = new HashSet<long>(retracted.Concat(negated));
+        var needed = dropped.Count == 0 ? transcript : SpokenNumbers.RemoveDigitAmounts(transcript, dropped);
+        var kept = DigitRuns(rewritten);
+        if (!DigitRuns(needed).All(kept.Contains)) return "a 3+ digit run from the transcript was dropped or changed";
 
         var rewrittenAmounts = SpokenNumbers.Amounts(rewritten);
-        if (SpokenNumbers.WordAmounts(transcript).Where(a => !retracted.Contains(a)).FirstOrDefault(a => !rewrittenAmounts.Contains(a)) is var missing and > 0)
+        if (SpokenNumbers.WordAmounts(transcript).Where(a => !dropped.Contains(a)).FirstOrDefault(a => !rewrittenAmounts.Contains(a)) is var missing and > 0)
             return $"spoken amount {missing} is missing from the rewrite";
+        if (rewrittenAmounts.FirstOrDefault(negated.Contains) is var refused and > 0)
+            return $"amount {refused} was refused by the seller";
 
         var said = SpokenNumbers.Amounts(transcript);
         if (rewrittenAmounts.FirstOrDefault(a => !said.Contains(a) && !(knownNumbers?.Contains(a) ?? false)) is var invented and > 0)
             return $"amount {invented} appears in the rewrite but was not said";
+
+        // "Haan lekin quantity do kar do" rewritten as a bare "yes" keeps the approval and drops the change the seller added after "lekin".
+        if (BareAffirmation.IsMatch(rewritten.Trim()) && ReversalWord.IsMatch(transcript))
+            return "a bare yes drops a correction or refusal the seller added";
         return null;
     }
 
-    private static Dictionary<int, int> LongNumberDigits(string text) =>
-        Regex.Matches(text, @"\d{3,}").SelectMany(m => m.Value).GroupBy(c => (int)char.GetNumericValue(c)).ToDictionary(g => g.Key, g => g.Count());
+    private static readonly Regex BareAffirmation = new(@"^(yes|y|ha|haan|han|ji|ok|okay|theek hai|thik hai)[.!]*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex ReversalWord = new(@"\b(lekin|magar|par|but|however|nahi|nahin|mat|ruk|ruko|rukna|pehle|phir|cancel)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    // Runs of 3+ digits as whole numbers: "3,500" and "3500" match, while "5300" does not match "3500" (a digit count would accept both).
+    private static HashSet<string> DigitRuns(string text) =>
+        Regex.Matches(Regex.Replace(text, @"(?<=\d)[,-](?=\d)", ""), @"\d{3,}").Select(m => m.Value).ToHashSet();
+
 
     /// <summary>English description of what the bot is waiting for, given to the AI so a spoken answer is read in context.</summary>
     private static string DescribeVoiceSituation(Seller seller, SessionContextData ctx)
