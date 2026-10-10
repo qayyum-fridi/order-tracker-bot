@@ -387,6 +387,29 @@ public partial class ConversationEngine
             ? $"{item.Quantity}x {item.ProductName} - {Formatters.Money(item.UnitPrice * item.Quantity)}"
             : $"{item.ProductName} - {Formatters.Money(item.UnitPrice)}";
 
+    // Escape phrases that clear an order draft only when they OPEN the message ("khatam karo", "chhoro yaar", "shuru se karenge").
+    // A phrase followed by a negation ("cancel mat karna", "cancel nahi") is not an escape, and a phrase mid-sentence never is.
+    private static readonly string[] LeavePhrases =
+    {
+        "cancel", "back", "chhoro", "chhodo", "chhod do", "chhor do", "rehne do", "khatam karo", "khatam kar do", "shuru se"
+    };
+
+    private static readonly string[] NegationWords = { "mat", "nahi", "nahin", "not", "no", "na" };
+
+    private static bool OpensWithLeavePhrase(string text)
+    {
+        foreach (var phrase in LeavePhrases)
+        {
+            if (text.Equals(phrase, StringComparison.OrdinalIgnoreCase)) return true;
+            if (!text.StartsWith(phrase + " ", StringComparison.OrdinalIgnoreCase)) continue;
+            var rest = text[(phrase.Length + 1)..].Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            // "Cancel Fashion Boutique": capitalised words after the phrase are a name, not a command.
+            if (rest.Any(w => char.IsUpper(w[0]))) return false;
+            return !NegationWords.Contains(rest.FirstOrDefault() ?? "", StringComparer.OrdinalIgnoreCase);
+        }
+        return false;
+    }
+
     private static readonly HashSet<string> CancelWords = new(StringComparer.OrdinalIgnoreCase)
     {
         "cancel", "stop", "back", "no", "nahi", "nahin", "chhod do", "rehne do", "رہنے دو", "نہیں"
@@ -401,7 +424,7 @@ public partial class ConversationEngine
         if (session.State == ConversationState.AwaitingOrderConfirmation
             && (CommandParser.TryParseDeliveryAmount(trimmed, out _) || trimmed.Length <= 30 && CommandParser.TryFindAdvanceInOrderText(trimmed, out _))) return false;
         var command = CommandParser.TryParse(trimmed);
-        var isCancel = CancelWords.Contains(trimmed);
+        var isCancel = CancelWords.Contains(trimmed) || (command is null && OpensWithLeavePhrase(trimmed));
         var isCommand = command is not null && command.Kind is not (CommandKind.AddProduct or CommandKind.AddProductsBulk or CommandKind.MoreCustomers);
         if (!isCancel && !isCommand) return false;
 
