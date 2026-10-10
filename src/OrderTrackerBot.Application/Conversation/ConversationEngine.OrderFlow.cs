@@ -501,7 +501,7 @@ public partial class ConversationEngine
                 if (message.Trim() == "1")
                 {
                     ctx.PendingMissingField = "NewProductPrice";
-                    await ReplyAsync(seller, $"{ctx.PendingNewProductName} ki price kya hai?", ct);
+                    await ReplyAsync(seller, $"{ctx.PendingNewProductName} ki price kya hai?\n\n{PriceHowToText(ctx.PendingNewProductName!)}", ct);
                     return;
                 }
                 if (message.Trim() == "2")
@@ -534,7 +534,7 @@ public partial class ConversationEngine
                 if (message.Trim() == "1")
                 {
                     ctx.PendingMissingField = "NewProductPrice";
-                    await ReplyAsync(seller, $"{ctx.PendingNewProductName} ki price kya hai?", ct);
+                    await ReplyAsync(seller, $"{ctx.PendingNewProductName} ki price kya hai?\n\n{PriceHowToText(ctx.PendingNewProductName!)}", ct);
                     return;
                 }
                 var catalog = await LoadCatalogAsync(seller, ct);

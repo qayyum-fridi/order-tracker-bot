@@ -777,8 +777,17 @@ public partial class ConversationEngine
             reply += "📦 Samajh gaya — yeh naye products hain, order nahi:\n" +
                      string.Join("\n", needPrice.Select(n => $"• {n}{(ctx.PendingProductExtras is { } extras && extras.FirstOrDefault(e => string.Equals(e.Key, n, StringComparison.OrdinalIgnoreCase)) is { Value: not null } found ? ExtrasText(found.Value) : "")}")) +
                      "\n\nBas har product ki sale price bata dein (misaal: 'Kurti - 1800' ya \"teenon ki 5000\") — jo kuch aap ne bataya hai (cost, stock) woh yaad hai.";
+        if (needPrice.Count > 0) reply += "\n\n" + PriceHowToText(needPrice[0]);
         await ReplyAsync(seller, reply.TrimEnd(), ct);
     }
+
+    /// <summary>Three ways to send a price, shown wherever the bot waits for one, so the seller knows the right input before trying.</summary>
+    private static string PriceHowToText(string name) =>
+        $"💡 *{name}* ki price bhejein:\n" +
+        $"✍️ Likh kar: {name} - 3500\n" +
+        "🎤 Bol kar: \"paintis sau\" (ya \"teen hazar paanch sau\")\n" +
+        "📷 Photo: pehle photo bhejein, phir price text mein likhein\n" +
+        "❌ Ruk jana ho to: cancel";
 
     /// <summary>Cost, stock and attributes the model read for one new product (color/size go to their own fields); null when there is none.</summary>
     private static ProductExtras? ExtrasOf(AiNewProduct p)

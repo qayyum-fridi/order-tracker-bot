@@ -55,5 +55,18 @@ public class SpokenPriceTests : IDisposable
         Assert.DoesNotContain(_sent, m => m.Contains("sale price"));
     }
 
+    [Fact]
+    public async Task PriceAsked_ShowsTheHowToGuide()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "add_products", NewProducts = { new AiNewProduct { Name = "Lawn Suit" } } });
+
+        await CreateEngine(db).HandleIncomingMessageAsync(Phone, "lawn suit product hai", default);
+
+        Assert.Contains(_sent, m => m.Contains("Lawn Suit") && m.Contains("Likh kar: Lawn Suit - 3500") && m.Contains("paintis sau") && m.Contains("cancel"));
+    }
+
     public void Dispose() => _dbFactory.Dispose();
 }
