@@ -28,6 +28,8 @@ public interface IAppDbContext
     DbSet<SupportQuery> SupportQueries { get; }
     DbSet<SellerBranding> SellerBrandings { get; }
     DbSet<Expense> Expenses { get; }
+    DbSet<Loss> Losses { get; }
+    DbSet<WageEntry> WageEntries { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

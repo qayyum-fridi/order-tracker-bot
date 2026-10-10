@@ -98,6 +98,30 @@ public class Expense
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
+/// <summary>Stock written off (damaged, expired, stolen). UnitCost is copied from the product when logged, so later cost changes don't rewrite history.</summary>
+public class Loss
+{
+    public int Id { get; set; }
+    public int SellerId { get; set; }
+    public int? ProductId { get; set; }
+    public required string ProductName { get; set; }
+    public int Quantity { get; set; }
+    public decimal UnitCost { get; set; }
+    public string? Reason { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>Pay given to a worker ("Ali ki 5000 dihari"). Amount is the total paid; Days is set for daily-rate entries.</summary>
+public class WageEntry
+{
+    public int Id { get; set; }
+    public int SellerId { get; set; }
+    public required string WorkerName { get; set; }
+    public decimal Amount { get; set; }
+    public int? Days { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
 public class Customer
 {
     public int Id { get; set; }

@@ -99,10 +99,15 @@ public partial class ConversationEngine
                         && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
             .ToListAsync(ct);
         var expenses = await LoadExpensesAsync(seller, start, end, ct);
+        var wages = await LoadWagesAsync(seller, start, end, ct);
+        var losses = await LoadLossesAsync(seller, start, end, ct);
 
         var sales = orders.Sum(o => o.Total);
         var spent = expenses.Sum(x => x.Amount);
-        var net = sales - spent;
+        var wageTotal = wages.Sum(x => x.Amount);
+        var net = sales - spent - wageTotal;
+        var wageLine = wages.Count == 0 ? "" : $"Tankhwah: {Formatters.Money(wageTotal)} ({wages.Count})\n";
+        var lossLine = losses.Count == 0 ? "" : $"Nuqsan (cost, net mein shamil nahi): {Formatters.Money(losses.Sum(x => x.Quantity * x.UnitCost))} ({losses.Count})\n";
 
         var top = expenses.GroupBy(x => x.Category).Select(g => (Category: g.Key, Total: g.Sum(x => x.Amount)))
             .OrderByDescending(g => g.Total).Take(3).ToList();
@@ -113,6 +118,7 @@ public partial class ConversationEngine
             $"📊 {(period is null or "month" or "lastmonth" ? "Monthly Net" : "Net")} — {label}\n\n" +
             $"Sales: {Formatters.Money(sales)} ({orders.Count} orders)\n" +
             $"Kharcha: {Formatters.Money(spent)} ({expenses.Count})\n" +
+            wageLine + lossLine +
             $"{(net < 0 ? "🔻" : "✅")} Net: {Formatters.Money(net)}" + topLines + hint, ct);
     }
 }

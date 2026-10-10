@@ -77,6 +77,8 @@ public enum CommandKind
     Expense,
     ExpenseList,
     MonthlyNet,
+    Loss,
+    Wage,
     CustomerUpdate,
     OrderPayment,
     OrderDeliveryCharge,
@@ -430,6 +432,35 @@ public static class CommandParser
     private static readonly Regex ExpenseListLead = new(@"^(?:expenses?|kharche|kharcha|اخراجات)(?:\s+(?<p>today|aaj|آج|this\s+month|month|is\s+mahine|last\s+month|pichle\s+mahine|pichla\s+mah(?:ina)?))?$", Opts);
     // "monthly net", "net", "is mahine ka net", "last month net".
     private static readonly Regex MonthlyNetLead = new(@"^(?:(?:monthly|month|mahana|mahaana)\s+net|net|is\s+mahine\s+ka\s+net|ماہانہ\s+نیٹ)(?:\s+(?<last>last\s+month|pichle\s+mahine|pichla\s+mah(?:ina)?))?$|^(?<last>last\s+month|pichle\s+mahine\s+ka)\s+net$", Opts);
+
+    // Losses: "loss 2 Kurti damaged", "nuqsan 2 Kurti", "damage 1 Lawn Suit expired". Amount = quantity, Text = product, Text2 = reason (may be null).
+    private static readonly Regex LossLine = new(@"^(?:loss|nuqsan|nuksan|damage)\s*:?\s*(?<q>\d{1,6})\s+(?<name>[^\d].*?)(?:\s+(?<r>damaged|kharab|expired|chori|theft|lost|gum))?$", Opts);
+    // Wages: "Ali ki 5000 dihari" (one day's pay), "Ali ko 3 din 1500" (daily rate x days), "wage Ali 5000" / "salary Ali 5000" (flat).
+    // Text = worker, Amount = total paid, Number = days (daily-rate forms only).
+    private static readonly Regex WageDaily = new(@"^(?<name>[^\d,:]{2,40}?)\s+(?:ki|ka|ko|کی)\s+(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d{1,2})?)\s+(?:dihari|daily)$", Opts);
+    private static readonly Regex WageDays = new(@"^(?<name>[^\d,:]{2,40}?)\s+(?:ki|ka|ko|کی)\s+(?<d>\d{1,3})\s+(?:din|days?)\s+(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d{1,2})?)$", Opts);
+    private static readonly Regex WageFlat = new(@"^(?:wage|wages|salary|tankhwah|tankhah|تنخواہ)\s*:?\s*(?<name>[^\d,:]{2,40}?)\s+(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d{1,2})?)$", Opts);
+
+    private static ParsedCommand? TryParseLossOrWage(string message)
+    {
+        var m = LossLine.Match(message);
+        if (m.Success)
+            return new ParsedCommand { Kind = CommandKind.Loss, Amount = int.Parse(m.Groups["q"].Value), Text = m.Groups["name"].Value.Trim(), Text2 = m.Groups["r"].Success ? m.Groups["r"].Value.ToLowerInvariant() : null };
+
+        if ((m = WageDays.Match(message)).Success && TryParseMoney(m.Groups["a"].Value, out var rate))
+        {
+            var days = int.Parse(m.Groups["d"].Value);
+            return new ParsedCommand { Kind = CommandKind.Wage, Text = m.Groups["name"].Value.Trim(), Amount = rate * days, Number = days };
+        }
+        if ((m = WageDaily.Match(message)).Success && TryParseMoney(m.Groups["a"].Value, out var daily))
+            return new ParsedCommand { Kind = CommandKind.Wage, Text = m.Groups["name"].Value.Trim(), Amount = daily, Number = 1 };
+        if ((m = WageFlat.Match(message)).Success && TryParseMoney(m.Groups["a"].Value, out var flat))
+            return new ParsedCommand { Kind = CommandKind.Wage, Text = m.Groups["name"].Value.Trim(), Amount = flat };
+        return null;
+    }
+
+    private static bool TryParseMoney(string text, out decimal value) =>
+        decimal.TryParse(text.Replace(",", ""), System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out value);
 
     private static ParsedCommand? TryParseExpense(string message)
     {
@@ -902,6 +933,7 @@ public static class CommandParser
         if (CampaignStatus.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CampaignStatus };
         if (DiscountPerformance.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DiscountPerformance };
         if (TryParseExpense(message) is { } expense) return expense;
+        if (TryParseLossOrWage(message) is { } lossOrWage) return lossOrWage;
         if (StockList.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Stock };
         if ((m = StockOff.Match(message)).Success) return new ParsedCommand { Kind = CommandKind.Stock, Text = m.Groups["name"].Value.Trim(), Text2 = "off" };
         if ((m = StockSet.Match(message)).Success)
