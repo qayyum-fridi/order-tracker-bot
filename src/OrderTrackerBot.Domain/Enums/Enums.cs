@@ -95,6 +95,15 @@ public enum ActionType
     WageLogged
 }
 
+/// <summary>Admin-set account state. Disabled and Cancelled sellers get a fixed reply and nothing else is processed.
+/// "Expired" is not stored: it follows from TrialEndsAt / SubscriptionActiveUntil.</summary>
+public enum SellerStatus
+{
+    Active,
+    Disabled,
+    Cancelled
+}
+
 public enum SubscriptionPlan
 {
     Trial,

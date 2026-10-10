@@ -85,14 +85,14 @@ public class AdminController : ControllerBase
             .Select(s => new
             {
                 s.Id, s.WhatsAppPhoneNumber, s.BusinessName, s.City, s.BusinessType, s.OnboardingComplete,
-                s.Plan, s.TrialEndsAt, s.SubscriptionActiveUntil, s.CreatedAt,
+                s.Plan, s.Status, s.TrialEndsAt, s.SubscriptionActiveUntil, s.CreatedAt,
                 OrderCount = s.Orders.Count(),
             })
             .ToListAsync(ct);
 
         var items = rows.Select(r => new SellerListItemDto(
             r.Id, r.WhatsAppPhoneNumber, r.BusinessName, r.City, r.BusinessType, r.OnboardingComplete,
-            r.Plan.ToString(), r.TrialEndsAt, r.SubscriptionActiveUntil, r.CreatedAt, r.OrderCount)).ToList();
+            r.Plan.ToString(), r.TrialEndsAt, r.SubscriptionActiveUntil, r.CreatedAt, r.OrderCount, r.Status.ToString())).ToList();
 
         return Ok(new PagedResultDto<SellerListItemDto>(items, page, pageSize, total));
     }
@@ -107,7 +107,7 @@ public class AdminController : ControllerBase
             {
                 x.Id, x.WhatsAppPhoneNumber, x.BusinessName, x.City, x.BusinessType, x.OnboardingComplete,
                 x.PreferredLanguage, x.TimeZoneId, x.InstagramHandle, x.Ntn, x.Strn, x.DefaultDeliveryCharge,
-                x.SalesTaxRate, x.Plan, x.TrialEndsAt, x.SubscriptionActiveUntil, x.CreatedAt,
+                x.SalesTaxRate, x.Plan, x.Status, x.TrialEndsAt, x.SubscriptionActiveUntil, x.CreatedAt,
                 OrderCount = x.Orders.Count(),
                 ProductCount = x.Products.Count(),
                 CustomerCount = x.Customers.Count(),
@@ -122,7 +122,7 @@ public class AdminController : ControllerBase
             s.Id, s.WhatsAppPhoneNumber, s.BusinessName, s.City, s.BusinessType, s.OnboardingComplete,
             s.PreferredLanguage, s.TimeZoneId, s.InstagramHandle, s.Ntn, s.Strn, s.DefaultDeliveryCharge,
             s.SalesTaxRate, s.Plan.ToString(), s.TrialEndsAt, s.SubscriptionActiveUntil, s.CreatedAt,
-            s.OrderCount, s.ProductCount, s.CustomerCount, recentOrders));
+            s.OrderCount, s.ProductCount, s.CustomerCount, recentOrders, s.Status.ToString()));
     }
 
     /// <summary>
@@ -146,6 +146,23 @@ public class AdminController : ControllerBase
         await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Admin set seller {SellerId} to plan {Plan}, paid until {Until}", id, plan, seller.SubscriptionActiveUntil);
+        return await GetSeller(id, ct);
+    }
+
+    /// <summary>Sets a seller's account status. Disabled and Cancelled stop the bot from replying to that seller; Active restores it.</summary>
+    [HttpPut("sellers/{id:int}/status")]
+    public async Task<ActionResult<SellerDetailDto>> UpdateStatus(int id, [FromBody] UpdateSellerStatusRequest request, CancellationToken ct)
+    {
+        if (!Enum.TryParse<SellerStatus>(request.Status, ignoreCase: true, out var status) || !Enum.IsDefined(status))
+            return BadRequest(new { error = "Status must be one of: Active, Disabled, Cancelled." });
+
+        var seller = await _db.Sellers.FirstOrDefaultAsync(s => s.Id == id, ct);
+        if (seller is null) return NotFound(new { error = "Seller not found." });
+
+        seller.Status = status;
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation("Admin set seller {SellerId} status to {Status}", id, status);
         return await GetSeller(id, ct);
     }
 
