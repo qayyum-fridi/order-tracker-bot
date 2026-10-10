@@ -734,6 +734,14 @@ public partial class ConversationEngine
             }).ToList();
         }
 
+        // A price said in words ("paintis sau" = 3500) is the seller's own words, so it counts. Only when it is the single amount in the
+        // message and there is one product waiting for a price, so the model never chooses which amount belongs to which product.
+        if (sourceText is not null && products.Count == 1 && products[0].Price is null && SpokenNumbers.WordAmounts(sourceText) is { Count: 1 } spoken)
+            products = new List<AiNewProduct>
+            {
+                new() { Name = products[0].Name, Price = spoken.Single(), Cost = products[0].Cost, Stock = products[0].Stock, Attributes = products[0].Attributes }
+            };
+
         var pendingExtras = ctx.PendingProductExtras ?? new Dictionary<string, ProductExtras>(StringComparer.OrdinalIgnoreCase);
         pendingExtras = new Dictionary<string, ProductExtras>(pendingExtras, StringComparer.OrdinalIgnoreCase);
 
