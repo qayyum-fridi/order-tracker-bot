@@ -3,6 +3,7 @@ using Moq;
 using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Ai;
 using OrderTrackerBot.Application.Conversation;
+using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
 using OrderTrackerBot.Infrastructure.Persistence;
 using Xunit;
@@ -1051,6 +1052,49 @@ public class MockupFeatureTests : IDisposable
         Assert.Contains(_sent, m => m.Contains("kuch nahi badla"));
         Assert.Equal(1800m, (await db.OrderItems.AsNoTracking().FirstAsync(i => i.OrderId == order.Id)).UnitPrice);
         Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+    }
+
+    [Fact]
+    public async Task VoiceNote_RiskyYes_AfterTheOrdersChanged_RunsNothing()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var order = await SaveSaraKurtiOrderAsync(engine, db);
+        var voice = VoiceEngine(db, "sara ke kurti ki price pandrah sau lagao");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { $"edit order {order.Id}", "price 1 = 1500", "done" } });
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+        var seller = await db.Sellers.FirstAsync();
+        db.ActionLogs.Add(new ActionLog { SellerId = seller.Id, ActionType = ActionType.OrderEdited, PayloadJson = "{}" }); // another change lands before the seller says YES
+        await db.SaveChangesAsync();
+        await voice.HandleIncomingMessageAsync(Phone, "haan", default);
+
+        Assert.Contains(_sent, m => m.Contains("purani baat thi"));
+        Assert.Equal(1800m, (await db.OrderItems.AsNoTracking().FirstAsync(i => i.OrderId == order.Id)).UnitPrice);
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+    }
+
+    [Fact]
+    public async Task VoiceNote_RiskyYes_AfterTheWindow_RunsNothing()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var order = await SaveSaraKurtiOrderAsync(engine, db);
+        var voice = VoiceEngine(db, "sara ke kurti ki price pandrah sau lagao");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { $"edit order {order.Id}", "price 1 = 1500", "done" } });
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+        var session = await db.Sessions.FirstAsync();
+        var ctx = SessionContextData.FromJson(session.ContextJson);
+        ctx.PendingVoiceParkedAt = DateTime.UtcNow.AddHours(-1);
+        session.ContextJson = ctx.ToJson();
+        await db.SaveChangesAsync();
+        await voice.HandleIncomingMessageAsync(Phone, "haan", default);
+
+        Assert.Contains(_sent, m => m.Contains("purani baat thi"));
+        Assert.Equal(1800m, (await db.OrderItems.AsNoTracking().FirstAsync(i => i.OrderId == order.Id)).UnitPrice);
     }
 
     [Fact]

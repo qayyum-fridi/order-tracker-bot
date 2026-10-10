@@ -83,6 +83,8 @@ public partial class ConversationEngine
             var session = seller.Session!;
             var ctx = SessionContextData.FromJson(session.ContextJson);
             ctx.PendingVoiceSteps = steps.ToList();
+            ctx.PendingVoiceParkedAt = DateTime.UtcNow;
+            ctx.PendingVoiceLogId = await NewestActionLogIdAsync(seller.Id, ct);
             SetState(session, ConversationState.AwaitingVoiceConfirmation);
             await _sender.SendTextMessageAsync(fromPhoneNumber, $"{heard}\n\n⚠️ Yeh karoon? Reply YES ya NO.", ct);
             await PersistAsync(session, ctx, ct);
