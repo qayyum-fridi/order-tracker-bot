@@ -646,6 +646,11 @@ public static class CommandParser
     // "Lawn Suit - 3500" / "Lawn suite-3500" / "Kurti = 1800" with no command prefix. The name has no digits,
     // commas or colons, so real orders ("Sara, 1 kurti, 0300...") never match.
     private static readonly Regex BareProductLine = new(@"^([^\d,:\n]{2,50}?)\s*[-–=]\s*(\d{1,7}(?:\.\d+)?)$", Opts);
+    private static readonly HashSet<string> BookkeepingWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "price", "prices", "discount", "discounts", "qty", "quantity", "stock", "delivery", "advance", "cost", "total", "amount", "rate",
+        "keemat", "kam", "less", "dc", "tadaad", "paid", "payment", "expense", "expenses", "kharcha", "loss", "nuqsan", "wage", "salary", "tankhwah", "customer", "phone", "address", "city"
+    };
     // Weight/pack products: "Sugar 5 kg - 500", "Rice 10kg - 1200", "Eggs 1 dozen - 400".
     private static readonly Regex UnitProductLine = new(@"^([^\d,:\n]{2,50}?)\s+(\d+(?:\.\d+)?)\s*([a-z]+)\s*[-–=]\s*(\d{1,7}(?:\.\d+)?)$", Opts);
     private static readonly Regex NameWithUnit = new(@"^(.+?)\s+(\d+(?:\.\d+)?)\s*([a-z]+)$", Opts);
@@ -765,6 +770,8 @@ public static class CommandParser
 
         m = BareProductLine.Match(text);
         if (!m.Success || m.Groups[1].Value.Trim().Length == 0) return false;
+        // "Price -500", "Qty -1": a bookkeeping word with a number is a failed instruction (the minus sign is not a separator), not a product.
+        if (BookkeepingWords.Contains(m.Groups[1].Value.Trim())) return false;
         product = new ProductLine(m.Groups[1].Value.Trim(), decimal.Parse(m.Groups[2].Value), "piece", 1);
         return true;
     }
