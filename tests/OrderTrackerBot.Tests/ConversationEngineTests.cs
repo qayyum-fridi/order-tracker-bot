@@ -1863,6 +1863,20 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task AddProductStep_NameAndPriceWithoutSeparator_SavesTheProduct()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+        await StartCatalogStepAsync(engine);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Lawn 400", default);
+
+        var product = await db.Products.SingleAsync(p => p.Name == "Lawn");
+        Assert.Equal(400m, product.Price);
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("naye products hain"));
+    }
+
+    [Fact]
     public async Task ChangeLanguage_SwitchesLanguage_AndOffersNextActionButtons()
     {
         using var db = _dbFactory.CreateContext();

@@ -69,6 +69,25 @@ public class ParserJunkInputTests
         Assert.Equal(int.MaxValue, parsed?.Number);
     }
 
+    [Theory]
+    [InlineData("Price 500")]
+    [InlineData("Qty 2")]
+    [InlineData("House 500")]
+    [InlineData("Sector F 10")]
+    [InlineData("stock Kurti 20")]
+    public void SpacedLine_BookkeepingOrAddressWords_AreNotProducts(string line)
+    {
+        Assert.False(CommandParser.TryParseSpacedProductLine(line, out _));
+    }
+
+    [Fact]
+    public void SpacedLine_NameAndPrice_IsAProduct()
+    {
+        Assert.True(CommandParser.TryParseSpacedProductLine("Lawn 400", out var product));
+        Assert.Equal("Lawn", product!.Name);
+        Assert.Equal(400m, product.Price);
+    }
+
     [Fact]
     public void HugeNumberInOrderEdit_IsRejectedWithoutThrowing()
     {

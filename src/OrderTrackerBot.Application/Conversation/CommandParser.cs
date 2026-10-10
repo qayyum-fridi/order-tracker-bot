@@ -801,6 +801,19 @@ public static class CommandParser
         return true;
     }
 
+    /// <summary>"Lawn 400": a name and a price with no separator. Used only while the catalog is being set up, where a bare name and number is a product.</summary>
+    public static bool TryParseSpacedProductLine(string line, out ProductLine? product)
+    {
+        product = null;
+        var m = SpacedPriceLine.Match(line.Trim());
+        if (!m.Success) return false;
+        var name = m.Groups[1].Value.Trim();
+        // "stock Kurti 20" is a command: a command word starting the name disqualifies it.
+        if (BookkeepingWords.Contains(name.Split(' ')[0]) || IsAddressFragment(name)) return false;
+        product = new ProductLine(name, decimal.Parse(m.Groups[2].Value), "piece", 1);
+        return true;
+    }
+
     /// <summary>"Sugar 5 kg" -> (Sugar, kg, 5); a name without a recognised unit is a single piece.</summary>
     public static ProductLine SplitUnit(string name, decimal price)
     {

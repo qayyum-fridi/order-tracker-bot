@@ -20,7 +20,8 @@ public partial class ConversationEngine
     {
         if (PhoneNumber.IsMatch(line)) return null;
         var m = LooseProductLine.Match(line);
-        return m.Success ? CommandParser.SplitUnit(m.Groups[1].Value, decimal.Parse(m.Groups[2].Value)) : null;
+        if (m.Success) return CommandParser.SplitUnit(m.Groups[1].Value, decimal.Parse(m.Groups[2].Value));
+        return CommandParser.TryParseSpacedProductLine(line, out ProductLine? spaced) ? spaced : null;
     }
 
     /// <summary>
