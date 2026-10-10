@@ -108,6 +108,23 @@ public sealed class WebhookInbox
     /// Run once at start. Rows left from a crash/restart: a message that never began is queued again; one that had begun is not re-run
     /// (it may already have saved an order) — <paramref name="interrupted"/> tells the seller, then its row is removed.
     /// </summary>
+    /// <summary>
+    /// Deletes pending rows whose payload can no longer be read (corrupt, or written in an older format). They can never be handled, and
+    /// left in place they would be skipped on every start. Returns how many were removed.
+    /// </summary>
+    public async Task<int> DropUnreadableAsync(CancellationToken ct = default)
+    {
+        using var scope = _scopes.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+        var unreadable = (await db.PendingWebhookMessages.ToListAsync(ct))
+            .Where(r => WebhookMessage.TryDeserialize(r.PayloadJson) is null)
+            .Select(r => r.MessageId)
+            .ToList();
+        if (unreadable.Count == 0) return 0;
+        await db.PendingWebhookMessages.Where(m => unreadable.Contains(m.MessageId)).ExecuteDeleteAsync(ct);
+        return unreadable.Count;
+    }
+
     public async Task<(int Requeued, int Interrupted)> RecoverAsync(Func<WebhookMessage, Task> interrupted, CancellationToken ct = default)
     {
         int requeued = 0, cutOff = 0;

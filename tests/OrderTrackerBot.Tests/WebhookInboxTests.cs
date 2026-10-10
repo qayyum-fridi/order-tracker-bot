@@ -39,6 +39,21 @@ public class WebhookInboxTests : IDisposable
     }
 
     [Fact]
+    public async Task An_unreadable_pending_row_is_removed_and_readable_rows_stay()
+    {
+        await _inbox.AcceptAsync(Text("wamid.1"));
+        using (var db = _dbFactory.CreateContext())
+        {
+            db.PendingWebhookMessages.Add(new PendingWebhookMessage { MessageId = "wamid.bad", Sender = Phone, PayloadJson = "{not json" });
+            await db.SaveChangesAsync();
+        }
+
+        Assert.Equal(1, await _inbox.DropUnreadableAsync());
+
+        Assert.Equal(new[] { "wamid.1" }, await PendingIdsAsync());
+    }
+
+    [Fact]
     public async Task An_accepted_message_is_stored_and_queued()
     {
         Assert.Equal(InboxResult.Accepted, await _inbox.AcceptAsync(Text("wamid.1")));

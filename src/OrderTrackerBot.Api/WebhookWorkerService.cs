@@ -38,6 +38,9 @@ public sealed class WebhookWorkerService : BackgroundService
     {
         try
         {
+            var dropped = await _inbox.DropUnreadableAsync(stoppingToken);
+            if (dropped > 0)
+                _logger.LogWarning("Removed {Dropped} unreadable WhatsApp message rows left by an earlier run", dropped);
             var (requeued, interrupted) = await _inbox.RecoverAsync(AskToResendAsync, stoppingToken);
             if (requeued + interrupted > 0)
                 _logger.LogWarning("Recovered WhatsApp messages from the last run: {Requeued} queued again, {Interrupted} cut off mid-way (sellers asked to resend)", requeued, interrupted);
