@@ -268,20 +268,28 @@ public static class SpokenNumbers
         return all;
     }
 
+    /// <summary>How many words after the negation a corrected amount may appear. A correction spoken in words ("char sau bees") may follow a short
+    /// story; a correction written as digits must come right after, so an unrelated later number is not mistaken for one.</summary>
+    private const int RetractionWordHorizon = 20;
+    private const int RetractionDigitHorizon = 5;
+
     /// <summary>
-    /// Amounts the seller took back: an amount followed within five words by "nahi/mat/matlab/sorry/galat" and then, within five words, a different amount
-    /// ("char sau das nahi, char sau bees"). A rewrite may leave these out. A plain "500 nahi chahiye" with no replacement is not a retraction.
+    /// Amounts the seller took back: an amount followed within five words by "nahi/mat/matlab/sorry/galat" and then, within twenty words (a spoken amount) or five (digits), a different amount
+    /// ("char sau das nahi, char sau bees", or with a short story in between: "char sau das tha... nahi... aslam bhai ka phone aaya... char sau bees").
+    /// A rewrite may leave these out. A plain "500 nahi chahiye" with no replacement is not a retraction.
     /// </summary>
     public static IReadOnlySet<long> RetractedAmounts(string text)
     {
         var tokens = Tokens(text);
-        var spans = DigitSpans(tokens).Concat(WordSpans(tokens)).OrderBy(s => s.Start).ToList();
+        var wordSpans = WordSpans(tokens).ToList();
+        var wordStarts = wordSpans.Select(w => w.Start).ToHashSet();
+        var spans = DigitSpans(tokens).Concat(wordSpans).OrderBy(s => s.Start).ToList();
         var retracted = new HashSet<long>();
         foreach (var span in spans)
         {
             var marker = Enumerable.Range(span.End + 1, 5).FirstOrDefault(k => k < tokens.Count && RetractionMarkers.Contains(tokens[k]), -1);
             if (marker < 0) continue;
-            if (spans.Any(t => t.Value != span.Value && t.Start > marker && t.Start <= marker + 5)) retracted.Add(span.Value);
+            if (spans.Any(t => t.Value != span.Value && t.Start > marker && t.Start <= marker + (wordStarts.Contains(t.Start) ? RetractionWordHorizon : RetractionDigitHorizon))) retracted.Add(span.Value);
         }
         return retracted;
     }
