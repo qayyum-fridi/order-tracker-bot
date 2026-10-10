@@ -224,6 +224,12 @@ public partial class ConversationEngine
             case CommandKind.ExpenseList:
                 await HandleExpenseListAsync(seller, cmd.Text, ct);
                 return;
+            case CommandKind.Loss:
+                await HandleLossAsync(seller, cmd, ct);
+                return;
+            case CommandKind.Wage:
+                await HandleWageAsync(seller, cmd, ct);
+                return;
             case CommandKind.MonthlyNet:
                 await HandleMonthlyNetAsync(seller, cmd.Text, ct);
                 return;

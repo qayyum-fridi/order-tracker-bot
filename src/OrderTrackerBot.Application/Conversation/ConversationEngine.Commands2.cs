@@ -153,6 +153,12 @@ public partial class ConversationEngine
             case ActionType.ExpenseAdded:
                 await UndoExpenseAsync(seller, last, ct);
                 return;
+            case ActionType.LossLogged:
+                await UndoLossAsync(seller, last, ct);
+                return;
+            case ActionType.WageLogged:
+                await UndoWageAsync(seller, last, ct);
+                return;
             case ActionType.DataImported:
                 await UndoDataImportAsync(seller, last, ct);
                 return;
@@ -435,6 +441,8 @@ public partial class ConversationEngine
         _db.CustomerFeedbacks.RemoveRange(await _db.CustomerFeedbacks.Where(f => f.SellerId == seller.Id).ToListAsync(ct));
         _db.SellerBrandings.RemoveRange(await _db.SellerBrandings.Where(b => b.SellerId == seller.Id).ToListAsync(ct));
         _db.Expenses.RemoveRange(await _db.Expenses.Where(x => x.SellerId == seller.Id).ToListAsync(ct));
+        _db.Losses.RemoveRange(await _db.Losses.Where(x => x.SellerId == seller.Id).ToListAsync(ct));
+        _db.WageEntries.RemoveRange(await _db.WageEntries.Where(x => x.SellerId == seller.Id).ToListAsync(ct));
 
         seller.BusinessName = null;
         seller.City = null;

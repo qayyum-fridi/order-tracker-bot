@@ -90,7 +90,9 @@ public enum ActionType
     OrderEdited,
     CustomerUpdated,
     ExpenseAdded,
-    DataImported
+    DataImported,
+    LossLogged,
+    WageLogged
 }
 
 public enum SubscriptionPlan
