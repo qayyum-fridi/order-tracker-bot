@@ -42,6 +42,7 @@ services:
       Instagram__AppSecret: "${INSTAGRAM_APP_SECRET:-}"
       Instagram__PublicBaseUrl: "${PUBLIC_BASE_URL:-}"
       Instagram__VerifyToken: "${INSTAGRAM_VERIFY_TOKEN:-}"
+      Admin__ApiKey: "${ADMIN_API_KEY:-}"
     volumes:
       - order-tracker-db-data:/data
     networks:

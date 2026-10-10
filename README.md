@@ -103,6 +103,20 @@ All config lives under `appsettings.json` / environment variables (see
 | `Instagram:AppId` / `AppSecret` | the Meta app used for IG comment leads; the secret also verifies IG webhooks |
 | `Instagram:PublicBaseUrl` | public https URL of this API (connect link + OAuth redirect `<url>/instagram/callback`) |
 | `Instagram:VerifyToken` | IG webhook verify token (empty = reuse `WhatsApp:VerifyToken`) |
+| `Admin:ApiKey` | key for the admin panel API under `/api/admin` (header `X-Admin-Api-Key`); empty = API refuses every call |
+
+## Admin API (for the admin panel)
+
+Read and manage sellers and orders from the separate admin panel (`order-tracker-admin-panel`). Every call needs
+`X-Admin-Api-Key: <Admin:ApiKey>`. Without a configured key the API answers 503, and a wrong key answers 401.
+
+| Method and path | What it does |
+|---|---|
+| `GET /api/admin/stats` | counters: sellers, orders, pending, last 24 hours, revenue (excludes cancelled/returned), sellers by plan |
+| `GET /api/admin/sellers?search=&page=&pageSize=` | paged seller list, newest first |
+| `GET /api/admin/sellers/{id}` | one seller with counts and 10 most recent orders |
+| `PUT /api/admin/sellers/{id}/subscription` | body `{"plan":"Trial\|Basic\|Pro","subscriptionActiveUntil":"2027-01-31"}`; Basic/Pro need the date, Trial clears it |
+| `GET /api/admin/orders?sellerId=&status=&page=&pageSize=` | paged order list, newest first |
 
 ## Instagram comment leads setup (optional)
 
