@@ -204,6 +204,12 @@ public partial class ConversationEngine
             await ReplyAsync(seller, $"👍 Theek hai. {KeepEditingText}", ct);
             return true;
         }
+        // "haan" answers an order-placement question, and none is pending while editing: it saves nothing.
+        if (CommandParser.IsAffirmative(text))
+        {
+            await ReplyAsync(seller, $"Abhi order edit ho raha hai, is liye \"haan\" se save nahi hoga. {KeepEditingText}", ct);
+            return true;
+        }
         return await TryApplyEditCorrectionAsync(seller, session, ctx, order, text, ct);
     }
 

@@ -83,6 +83,19 @@ public class EditModeTrapTests : IDisposable
     }
 
     [Fact]
+    public async Task Haan_WhileEditing_DoesNotPlaceTheOrder()
+    {
+        using var db = _dbFactory.CreateContext();
+        var (engine, id) = await OpenEditAsync(db, 2000m);
+
+        await engine.HandleIncomingMessageAsync(Phone, "haan", default);
+
+        Assert.Equal(ConversationState.AwaitingOrderEdit, await StateAsync(db));
+        Assert.Equal(OrderStatus.Pending, (await db.Orders.AsNoTracking().FirstAsync(o => o.Id == id)).Status);
+        Assert.Contains(_sent, m => m.Contains("save nahi hoga") && m.Contains("done"));
+    }
+
+    [Fact]
     public async Task Nahi_AsksKeepOrDiscard_AndDoesNotAssume()
     {
         using var db = _dbFactory.CreateContext();
