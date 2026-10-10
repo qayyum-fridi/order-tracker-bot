@@ -389,7 +389,7 @@ public partial class ConversationEngine
 
     private static readonly HashSet<string> CancelWords = new(StringComparer.OrdinalIgnoreCase)
     {
-        "cancel", "stop", "back", "no", "nahi", "nahin", "chhod do", "rehne do", "رہنے دو", "نہیں"
+        "cancel", "stop", "back", "no", "nahi", "nahin", "chhod do", "chhodo", "chhoro", "chhor do", "rehne do", "رہنے دو", "نہیں"
     };
 
     // While an order is half-entered, a cancel word or any command (menu, help, catalog, ...) abandons the draft
@@ -498,20 +498,40 @@ public partial class ConversationEngine
         switch (ctx.PendingMissingField)
         {
             case "ProductChoice":
-                if (message.Trim() == "1")
+            {
+                // "1", or "2" optionally followed by the existing product's name ("2 lawn suit"): sellers often send both at once.
+                var choice = System.Text.RegularExpressions.Regex.Match(message.Trim(), @"^([12])(?:\s+(.+))?$");
+                if (choice.Success && choice.Groups[1].Value == "1" && !choice.Groups[2].Success)
                 {
                     ctx.PendingMissingField = "NewProductPrice";
                     await ReplyAsync(seller, $"{ctx.PendingNewProductName} ki price kya hai?\n\n{PriceHowToText(ctx.PendingNewProductName!)}", ct);
                     return;
                 }
-                if (message.Trim() == "2")
+                if (choice.Success && choice.Groups[1].Value == "2")
                 {
+                    if (choice.Groups[2].Success)
+                    {
+                        var choiceCatalog = await LoadCatalogAsync(seller, ct);
+                        var named = FindCatalogEntry(choiceCatalog, choice.Groups[2].Value);
+                        if (named is not null)
+                        {
+                            ApplyResolvedProductToPendingItem(pending, ctx.PendingNewProductName!, named);
+                            ctx.PendingNewProductName = null;
+                            ctx.PendingMissingField = null;
+                            await ContinueResolvingDraftAsync(seller, session, ctx, ct);
+                            return;
+                        }
+                        ctx.PendingMissingField = "MappedProductName";
+                        await ReplyAsync(seller, $"\"{choice.Groups[2].Value}\" catalog mein nahi mila. Kaunsa existing product hai? (naam batayein)", ct);
+                        return;
+                    }
                     ctx.PendingMissingField = "MappedProductName";
                     await ReplyAsync(seller, "Kaunsa existing product hai? (naam batayein)", ct);
                     return;
                 }
                 await ReplyAsync(seller, "Reply 1 ya 2.", ct);
                 return;
+            }
 
             case "NewProductPrice":
                 if (!decimal.TryParse(message.Trim().Replace("Rs.", "", StringComparison.OrdinalIgnoreCase).Replace(",", ""), out var price))
