@@ -138,9 +138,7 @@ public partial class ConversationEngine
             return;
         }
 
-        if (session.State is ConversationState.AwaitingOrderConfirmation or ConversationState.AwaitingOrderMissingFields
-                or ConversationState.AwaitingOrderGroupingChoice or ConversationState.AwaitingMultiOrderConfirmation
-            && await TryLeaveOrderDraftAsync(seller, session, ctx, message, ct))
+        if (await TryEscapeAsync(seller, session, ctx, message, ct))
         {
             await PersistAsync(session, ctx, ct);
             return;
