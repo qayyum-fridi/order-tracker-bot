@@ -87,6 +87,10 @@ public sealed class SessionContextData
     /// <summary>The saved order being edited ("edit order 12"), and whether its pre-edit snapshot is already in the undo log.</summary>
     public int? EditOrderId { get; set; }
     public bool EditSnapshotLogged { get; set; }
+    /// <summary>Set after a bare "nahi" in edit mode: the next word decides between editing on ("jaari") and discarding the edits ("chhoro").</summary>
+    public bool EditDiscardPending { get; set; }
+    /// <summary>The newest "order edited" undo entry before this edit started: a newer one belongs to this edit and is the only one "chhoro" may undo.</summary>
+    public int EditBaselineLogId { get; set; }
     public decimal? LoyaltyDiscountPercent { get; set; }
     /// <summary>Typed steps read from a voice note that are waiting for YES (risky actions), in the order they will run.</summary>
     public List<string>? PendingVoiceSteps { get; set; }
