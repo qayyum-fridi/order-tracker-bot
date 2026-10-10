@@ -99,13 +99,13 @@ public partial class ConversationEngine
         {
             new MenuRow("menu orders", "📦 Orders"),
             new MenuRow("menu reports", "📊 Reports"),
-            new MenuRow("menu catalog", "🛍️ Catalog"),
-            new MenuRow("menu payments", "💰 Payments"),
-            new MenuRow("menu discounts", "🎟️ Discounts"),
-            new MenuRow("menu customers", "👥 Customers"),
+            new MenuRow("menu catalog", "🛍️ Maal"),
+            new MenuRow("menu payments", "💰 Paisay"),
+            new MenuRow("menu discounts", "🎟️ Chhoot"),
+            new MenuRow("menu customers", "👥 Gahak"),
             new MenuRow("menu settings", "⚙️ Settings"),
-            new MenuRow("business setup", "⚙️ Business Setup"),
-            new MenuRow("change language", "🌐 Change Language")
+            new MenuRow("business setup", "⚙️ Dukaan setup"),
+            new MenuRow("change language", "🌐 Zaban badlein")
         })
     };
 
