@@ -287,7 +287,8 @@ public static class CommandParser
     private static readonly Regex EditOrder = new(@"^" + EditVerb + @"\s+order(?:\s*#?(?<n>\d+))?$|^order\s*#?(?<n>\d+)\s+" + EditVerb +
         @"$|^(?:edit|ایڈٹ)\s+آرڈر(?:\s*(?<n>\d+))?$|^آرڈر\s*(?<n>\d+)\s+(?:تبدیل|بدلیں|ایڈٹ|درست)(?:\s+کریں)?$", Opts);
 
-    private static readonly Regex EditDone = new(@"^(?:done|bas|save|ok|okay|theek\s+hai|ho\s+gaya|ٹھیک\s+ہے|ہو\s+گیا|بس)[.!]*$", Opts);
+    // "ok" and "theek hai" are agreement, not "save": in edit mode they keep the order open (see TryHandleEditModeWordsAsync).
+    private static readonly Regex EditDone = new(@"^(?:done|bas|save|ho\s+gaya|ہو\s+گیا|بس)[.!]*$", Opts);
     private static readonly Regex EditQty = new(@"^(?:(?:qty|quantity|tadaad|item)\s*#?(?<i>\d+)\s*(?:=|:|ko|to|->)?\s*|#?(?<i>\d+)\s*(?:=|ko|to|->)\s*)(?<q>\d+)$", Opts);
     private static readonly Regex EditPrice = new(@"^(?:price|rate|qeemat|قیمت)\s*#?(?<i>\d+)\s*(?:=|:|ko|to|->)?\s*(?:rs\.?\s*)?(?<a>\d+(?:\.\d+)?)$", Opts);
     private static readonly Regex EditRemove = new(@"^(?:remove|delete|hatao|hata\s+do|nikalo)\s*(?:item\s*)?#?(?<i>\d+)$|^(?:item\s*)?#?(?<i>\d+)\s+(?:hatao|hata\s+do|remove|nikalo)$", Opts);

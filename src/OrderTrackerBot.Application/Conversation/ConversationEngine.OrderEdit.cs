@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
@@ -54,6 +55,9 @@ public partial class ConversationEngine
 
         ctx.EditOrderId = order.Id;
         ctx.EditSnapshotLogged = false;
+        ctx.EditDiscardPending = false;
+        ctx.EditBaselineLogId = await _db.ActionLogs.Where(a => a.SellerId == seller.Id && a.OrderId == order.Id && a.ActionType == ActionType.OrderEdited)
+            .OrderByDescending(a => a.Id).Select(a => a.Id).FirstOrDefaultAsync(ct);
         SetState(session, ConversationState.AwaitingOrderEdit);
         await ReplyAsync(seller,
             (number is null ? "(Aakhri order)\n" : "") + (fromList ? $"(\"{number}\" aapki last list ka number tha)\n" : "") +
@@ -80,9 +84,15 @@ public partial class ConversationEngine
             await HandleIdleAsync(seller, session, ctx, message, ct);
             return;
         }
+        // A pending "jaari or chhoro?" question is answered by the next message, whatever it is.
+        var discardPending = ctx.EditDiscardPending;
+        ctx.EditDiscardPending = false;
 
         if (!CommandParser.TryParseOrderEdit(message, out var change))
         {
+            // Acknowledgements, refusals and cancels are read before anything else: they must never fall into the help text or leave edit mode by accident.
+            if (await TryHandleEditModeWordsAsync(seller, session, ctx, order, message, discardPending, ct)) return;
+
             // Anything else that is a real command leaves edit mode and runs ("undo", "menu", "orders today"...).
             if (CommandParser.TryParse(message) is { } command)
             {
@@ -139,7 +149,128 @@ public partial class ConversationEngine
     {
         ctx.EditOrderId = null;
         ctx.EditSnapshotLogged = false;
+        ctx.EditDiscardPending = false;
+        ctx.EditBaselineLogId = 0;
         SetState(session, ConversationState.Idle);
+    }
+
+    private const RegexOptions EditWordOptions = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled;
+    // Replies to the last message: they confirm nothing, and they never approve the order.
+    private static readonly Regex EditAcknowledgement = new(@"^(ok|okay|shukriya|shukria|thanks|thank\s+you|ji|jee|acha|achha|accha|theek|thik)(\s+hai)?[.!]*$|^ٹھیک\s+ہے[.!]*$", EditWordOptions);
+    // "jaari" = keep editing; "chhoro" / "cancel karo" = discard this edit. Only these answer the "jaari or chhoro?" question.
+    private static readonly Regex EditKeepWords = new(@"^(jaari|jari|jaari\s+rakhein|jari\s+rakhein|continue|rakhein|rakho)[.!]*$", EditWordOptions);
+    private static readonly Regex EditDiscardWords = new(
+        @"^(chhoro|chhodo|chhod\s+do|chhor\s+do|discard|cancel|cancel\s+karo|cancel\s+kar\s+do|cancel\s+kardo|cancel\s+karein|cancel\s+krdo|cancel\s+kar\s+dein|khatam\s+karo)[.!]*$", EditWordOptions);
+    // "nahi cancel karo": a refusal in front of the instruction does not undo it. "nahi" after the instruction does.
+    private static readonly Regex EditNegatedCancel = new(
+        @"^(nahi|nahin|no)[\s,.!]*(bhai|yar|ji|sir|please|bas)?[\s,.!]*(cancel|chhoro|chhodo)\b(?!.*\b(mat|nahi|nahin|na|nai)\b)", EditWordOptions);
+    // "cancel mat karo", "cancel nahi karna": a cancel with a negation after it keeps the draft open.
+    private static readonly Regex EditCancelRefused = new(@"\b(cancel|chhoro|chhodo|discard)\b.*\b(mat|nahi|nahin|na|nai)\b", EditWordOptions);
+    private static readonly Regex EditRefusal = new(@"^(nahi|nahin|nahee|nai|nhi|no)[.!]*$", EditWordOptions);
+
+    /// <summary>
+    /// The words that are not an edit instruction, read before the edit grammar and the command router: acknowledgements, refusals, cancels, and a
+    /// correction ("3500 nahi, 5300"). Returns false for anything else. Never approves an order.
+    /// </summary>
+    private async Task<bool> TryHandleEditModeWordsAsync(Seller seller, ConversationSession session, SessionContextData ctx, Order order, string message,
+        bool discardPending, CancellationToken ct)
+    {
+        var text = message.Trim();
+        if (discardPending)
+        {
+            if (EditKeepWords.IsMatch(text)) { await ReplyAsync(seller, KeepEditingText, ct); return true; }
+            if (EditDiscardWords.IsMatch(text) || EditNegatedCancel.IsMatch(text)) { await DiscardOrderEditAsync(seller, session, ctx, order, ct); return true; }
+        }
+
+        if (EditDiscardWords.IsMatch(text) || EditNegatedCancel.IsMatch(text))
+        {
+            await DiscardOrderEditAsync(seller, session, ctx, order, ct);
+            return true;
+        }
+        if (EditCancelRefused.IsMatch(text))
+        {
+            await ReplyAsync(seller, $"Theek hai — cancel nahi kiya. {KeepEditingText}", ct);
+            return true;
+        }
+        if (EditRefusal.IsMatch(text))
+        {
+            // "Nahi" can mean keep or drop the changes: ask, and do nothing until the seller says which.
+            ctx.EditDiscardPending = true;
+            await ReplyAsync(seller, "Kya karna hai?\n• \"jaari\" — edit jaari rakhein\n• \"chhoro\" — ye badlaav discard karein (order pehli halat mein)\nJo chunein, woh likh dein.", ct);
+            return true;
+        }
+        if (CommandParser.IsAcknowledgement(text) || EditAcknowledgement.IsMatch(text))
+        {
+            await ReplyAsync(seller, $"👍 Theek hai. {KeepEditingText}", ct);
+            return true;
+        }
+        // "haan" answers an order-placement question, and none is pending while editing: it saves nothing.
+        if (CommandParser.IsAffirmative(text))
+        {
+            await ReplyAsync(seller, $"Abhi order edit ho raha hai, is liye \"haan\" se save nahi hoga. {KeepEditingText}", ct);
+            return true;
+        }
+        return await TryApplyEditCorrectionAsync(seller, session, ctx, order, text, ct);
+    }
+
+    private const string KeepEditingText =
+        "Edit jaari hai — aur badlaav likhein (jaise \"1 = 3\"), ya \"done\" likh kar save karein.";
+
+    /// <summary>
+    /// "3500 nahi, 5300" while editing: the new amount replaces the one taken back, but only when exactly one field holds the old amount.
+    /// Otherwise the seller is asked which field, and nothing changes.
+    /// </summary>
+    private async Task<bool> TryApplyEditCorrectionAsync(Seller seller, ConversationSession session, SessionContextData ctx, Order order, string text, CancellationToken ct)
+    {
+        var retracted = SpokenNumbers.RetractedAmounts(text);
+        if (retracted.Count != 1) return false;
+        var replacements = SpokenNumbers.Amounts(text).Where(a => !retracted.Contains(a)).ToList();
+        if (replacements.Count != 1) return false;
+
+        var old = (decimal)retracted.Single();
+        var value = replacements[0];
+        var priceMatches = order.Items.OrderBy(i => i.Id).Select((item, index) => (Number: index + 1, Item: item))
+            .Where(x => x.Item.UnitPrice == old).ToList();
+        var deliveryMatches = order.DeliveryCharge == old;
+
+        var matches = priceMatches.Count + (deliveryMatches ? 1 : 0);
+        if (matches == 1)
+        {
+            var instruction = priceMatches.Count == 1 ? $"price {priceMatches[0].Number} = {value}" : $"delivery {value}";
+            await HandleOrderEditAsync(seller, session, ctx, instruction, ct);
+            return true;
+        }
+        if (matches == 0)
+        {
+            await ReplyAsync(seller, $"Rs.{old:0.##} is order mein kahin nahi milta. Likhein: \"price 1 = {value}\" (item ka rate) ya \"delivery {value}\".", ct);
+            return true;
+        }
+
+        var options = priceMatches.Select(x => $"• \"price {x.Number} = {value}\" — {x.Item.ProductNameSnapshot} ka rate")
+            .Concat(deliveryMatches ? new[] { $"• \"delivery {value}\" — delivery charge" } : Array.Empty<string>());
+        await ReplyAsync(seller, $"Kaunsi cheez badlni hai? Rs.{old:0.##} in mein se kahin hai:\n{string.Join("\n", options)}", ct);
+        return true;
+    }
+
+    /// <summary>"cancel karo" while editing: the edits go, the order stays. Cancelling the saved order needs its own "cancel order N".</summary>
+    private async Task DiscardOrderEditAsync(Seller seller, ConversationSession session, SessionContextData ctx, Order order, CancellationToken ct)
+    {
+        var edited = ctx.EditSnapshotLogged;
+        if (edited)
+        {
+            var log = await _db.ActionLogs.Where(a => a.SellerId == seller.Id && a.OrderId == order.Id && a.ActionType == ActionType.OrderEdited
+                    && !a.Undone && a.Id > ctx.EditBaselineLogId)
+                .OrderByDescending(a => a.Id).FirstOrDefaultAsync(ct);
+            if (log is not null)
+            {
+                log.Undone = true;
+                await UndoOrderEditAsync(seller, log, ct);
+            }
+        }
+        EndOrderEdit(session, ctx);
+        await ReplyAsync(seller,
+            (edited ? $"✖️ Edit cancel kar diya — Order #{order.Id} ke badlaav wapas ho gaye." : $"✖️ Edit band kar diya — Order #{order.Id} mein koi badlaav nahi hua.") +
+            $"\nOrder cancel nahi hua. Order cancel karne ke liye \"cancel order {order.Id}\" likhein.", ct);
     }
 
     private async Task<(bool Ok, string Message)> ApplyOrderEditAsync(Seller seller, Order order, OrderEditInstruction change, CancellationToken ct)
