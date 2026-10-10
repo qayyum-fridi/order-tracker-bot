@@ -94,6 +94,11 @@ public partial class ConversationEngine
         await ReplyAsync(seller, $"✅ Business info update ho gayi, shukriya — {BusinessInfoSummary(seller)}.", ct);
     }
     private static readonly Regex DoneOrSkip = new(@"^(done|skip)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    // "ok", "theek hai", "shukriya": a reply to the last message, not a product or an order.
+    private static readonly HashSet<string> AcknowledgementWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "ok", "okay", "k", "theek", "theek hai", "thik", "thik hai", "ji", "jee", "acha", "achha", "shukriya", "shukria", "thanks", "thank you"
+    };
     private static readonly string[] AddProductChoices = { "➕ Aur product", "📋 Catalog dekhein", "✅ Done" };
 
     // Row ids are real commands — a tapped row arrives as that text.
@@ -264,6 +269,12 @@ public partial class ConversationEngine
                 // Not a product line or command: if it's really a customer order (it names a buyer phone), take it instead of rejecting it.
                 // Without a phone, free text here is the seller describing their own stock ("mere paas 4 lawn suit hain, 3500"), never an order.
                 if (await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: true, ct)) return;
+
+                if (AcknowledgementWords.Contains(ButtonWords(message)))
+                {
+                    await ReplyAsync(seller, "👍 Theek hai. Product ka naam aur price bhejein (misaal: 'Kurti - 1800'), ya \"done\" likhein.", ct);
+                    return;
+                }
 
                 // "teen chadar aur do dupatte naye products hain": the seller is naming products (maybe without prices) — read it and ask for the prices.
                 var stockAnalysis = await _ai.AnalyzeMessageAsync(AiContext(seller, await LoadCatalogAsync(seller, ct), ctx), message, ct);

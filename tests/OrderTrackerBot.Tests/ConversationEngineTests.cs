@@ -1845,6 +1845,23 @@ public class ConversationEngineTests : IDisposable
         Assert.NotEmpty(_sentMessages);
     }
 
+    [Theory]
+    [InlineData("Ok")]
+    [InlineData("theek hai")]
+    [InlineData("Shukriya!")]
+    public async Task AddProductStep_Acknowledgement_GetsANextStepReply_NotTheHelpDump(string reply)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+        await StartCatalogStepAsync(engine);
+
+        await engine.HandleIncomingMessageAsync(Phone, reply, default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Theek hai"));
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("samajh nahi aaya"));
+        Assert.Equal(ConversationState.OnboardingAddProduct, (await db.Sessions.FirstAsync()).State);
+    }
+
     [Fact]
     public async Task ChangeLanguage_SwitchesLanguage_AndOffersNextActionButtons()
     {
