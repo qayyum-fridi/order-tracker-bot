@@ -460,7 +460,7 @@ public partial class ConversationEngine
                 await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, "📉 Kitne din se koi order nahi aaya?", new[] { "7 days", "14 days", "30 days" }, ct);
                 return;
             case CommandKind.ResetAccount:
-                await StartResetAsync(seller, session, ct);
+                await StartResetAsync(seller, session, ctx, ct);
                 return;
             case CommandKind.CustomerFeedbackList:
                 await HandleCustomerFeedbackListAsync(seller, ct);

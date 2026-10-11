@@ -413,22 +413,42 @@ public partial class ConversationEngine
         await ReplyAsync(seller, reply, ct);
     }
 
-    private async Task StartResetAsync(Seller seller, ConversationSession session, CancellationToken ct)
+    private async Task StartResetAsync(Seller seller, ConversationSession session, SessionContextData ctx, CancellationToken ct)
     {
         SetState(session, ConversationState.AwaitingResetConfirmation);
+        ctx.ResetAskedAt = _clock.GetUtcNow().UtcDateTime;
+        ctx.ResetGenerationId = Guid.NewGuid().ToString("N");
         await ReplyAsync(seller,
             "⚠️ Yeh aapka poora data (orders, products, customers, discounts) delete kar dega aur setup dobara shuru hoga.\nReply YES to confirm, ya koi bhi aur message cancel karne ke liye.", ct);
     }
 
-    private async Task HandleResetConfirmationAsync(Seller seller, ConversationSession session, string message, CancellationToken ct)
+    private async Task HandleResetConfirmationAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
+        var asked = ctx.ResetAskedAt;
+        var generation = ctx.ResetGenerationId;
+        ctx.ResetAskedAt = null;
+        ctx.ResetGenerationId = null;
+        SetState(session, ConversationState.Idle);
+
         if (!CommandParser.IsAffirmative(message))
         {
-            SetState(session, ConversationState.Idle);
             await ReplyAsync(seller, "Theek hai, kuch delete nahi kiya.", ct);
             return;
         }
+        if (!ResetConfirmation.IsValid(asked, generation, _clock.GetUtcNow().UtcDateTime))
+        {
+            await ReplyAsync(seller, "⚠️ Yeh reset ki purani confirmation thi, account delete nahi hua. Dobara \"reset account\" likhein.", ct);
+            return;
+        }
 
+        // Claim before wiping. The claim commits on its own, so a crash after it leaves the account untouched and the seller can ask again.
+        if (!await ResetConfirmation.TryClaimAsync(_db, session.Id, generation!, ct))
+        {
+            await ReplyAsync(seller, "Yeh confirmation pehle hi use ho chuki hai — account dobara delete nahi hoga.", ct);
+            return;
+        }
+
+        // The wipe is one SaveChanges, so it either fully applies or leaves the data as it was.
         await SellerAccountReset.ResetAsync(_db, seller, ct);
         await ReplyAsync(seller, "✅ Account reset ho gaya.", ct);
         await StartOnboardingAsync(seller, session, ct);
