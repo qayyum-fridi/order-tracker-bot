@@ -421,7 +421,7 @@ public partial class ConversationEngine
             "⚠️ Yeh aapka poora data (orders, products, customers, discounts) delete kar dega aur setup dobara shuru hoga.\nReply YES to confirm, ya koi bhi aur message cancel karne ke liye.", ct);
     }
 
-    // The YES must answer the question just asked: an old reset prompt left open does not wipe the account when a YES arrives much later.
+    // The YES must answer the question just asked: a prompt older than the window (boundary included) does not wipe the account.
     private static readonly TimeSpan ResetConfirmWindow = TimeSpan.FromMinutes(10);
 
     private async Task HandleResetConfirmationAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
@@ -435,9 +435,20 @@ public partial class ConversationEngine
             await ReplyAsync(seller, "Theek hai, kuch delete nahi kiya.", ct);
             return;
         }
-        if (asked is null || DateTime.UtcNow - asked.Value > ResetConfirmWindow)
+        if (asked is null || DateTime.UtcNow - asked.Value >= ResetConfirmWindow)
         {
             await ReplyAsync(seller, "⚠️ Yeh reset ki purani confirmation thi, account delete nahi hua. Dobara \"reset account\" likhein.", ct);
+            return;
+        }
+
+        // Consume the question in the database before wiping: only one YES can move the session out of AwaitingResetConfirmation,
+        // so a duplicate or concurrent YES (another app instance) finds nothing to do.
+        var claimed = await _db.Sessions
+            .Where(s => s.Id == session.Id && s.State == ConversationState.AwaitingResetConfirmation)
+            .ExecuteUpdateAsync(u => u.SetProperty(s => s.State, ConversationState.Idle), ct);
+        if (claimed == 0)
+        {
+            await ReplyAsync(seller, "Yeh confirmation pehle hi use ho chuki hai — account dobara delete nahi hoga.", ct);
             return;
         }
 

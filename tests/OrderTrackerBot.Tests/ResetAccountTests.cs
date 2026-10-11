@@ -66,6 +66,39 @@ public class ResetAccountTests : IDisposable
     }
 
     [Fact]
+    public async Task ResetAccount_YesAtExactlyTheWindow_WipesNothing()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "10 ke qareeb", "Kurti - 1800", "done" })
+            await engine.HandleIncomingMessageAsync(Phone, step, default);
+
+        await engine.HandleIncomingMessageAsync(Phone, "reset account", default);
+        var session = await db.Sessions.FirstAsync();
+        var ctx = SessionContextData.FromJson(session.ContextJson);
+        ctx.ResetAskedAt = DateTime.UtcNow.AddMinutes(-10);
+        session.ContextJson = ctx.ToJson();
+        await db.SaveChangesAsync();
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        Assert.True(await db.Products.AnyAsync());
+    }
+
+    [Fact]
+    public async Task ResetAccount_SecondYes_AfterASuccessfulReset_DoesNothing()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "10 ke qareeb", "Kurti - 1800", "done" })
+            await engine.HandleIncomingMessageAsync(Phone, step, default);
+        await engine.HandleIncomingMessageAsync(Phone, "reset account", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        Assert.Single(_sent, m => m.Contains("Account reset ho gaya"));
+    }
+
+    [Fact]
     public async Task ResetAccount_RemovesProductsThatHavePriceTiers()
     {
         using var db = _dbFactory.CreateContext();
