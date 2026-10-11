@@ -96,6 +96,8 @@ public sealed class SessionContextData
     public List<string>? PendingVoiceSteps { get; set; }
     /// <summary>When <see cref="PendingVoiceSteps"/> were parked (UTC). A YES after the window is not approval of those steps.</summary>
     public DateTime? PendingVoiceParkedAt { get; set; }
+    /// <summary>When "reset account" asked for YES (UTC). A YES after the window does not wipe the account.</summary>
+    public DateTime? ResetAskedAt { get; set; }
     /// <summary>Newest action-log id for the seller when the steps were parked. Any change since then (a new order, edit, undo...) makes the YES stale.</summary>
     public int PendingVoiceLogId { get; set; }
     public string? SelectedPlan { get; set; }

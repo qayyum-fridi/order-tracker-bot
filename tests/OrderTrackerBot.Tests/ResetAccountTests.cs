@@ -4,6 +4,7 @@ using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Ai;
 using OrderTrackerBot.Application.Conversation;
 using OrderTrackerBot.Domain.Entities;
+using OrderTrackerBot.Domain.Enums;
 using OrderTrackerBot.Infrastructure.Persistence;
 using Xunit;
 
@@ -41,6 +42,27 @@ public class ResetAccountTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
 
         Assert.Empty(await db.Products.AsNoTracking().ToListAsync());
+    }
+
+    [Fact]
+    public async Task ResetAccount_StaleYes_WipesNothing()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "10 ke qareeb", "Kurti - 1800", "done" })
+            await engine.HandleIncomingMessageAsync(Phone, step, default);
+
+        await engine.HandleIncomingMessageAsync(Phone, "reset account", default);
+        var session = await db.Sessions.FirstAsync();
+        var ctx = SessionContextData.FromJson(session.ContextJson);
+        ctx.ResetAskedAt = DateTime.UtcNow.AddHours(-1);
+        session.ContextJson = ctx.ToJson();
+        await db.SaveChangesAsync();
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        Assert.True(await db.Products.AnyAsync());
+        Assert.Contains(_sent, m => m.Contains("purani confirmation"));
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
     }
 
     [Fact]

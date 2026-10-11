@@ -112,7 +112,7 @@ public partial class ConversationEngine
         if (session.State != ConversationState.AwaitingResetConfirmation
             && CommandParser.TryParse(message)?.Kind == CommandKind.ResetAccount)
         {
-            await StartResetAsync(seller, session, ct);
+            await StartResetAsync(seller, session, ctx, ct);
             await PersistAsync(session, ctx, ct);
             return;
         }
@@ -191,7 +191,7 @@ public partial class ConversationEngine
                 await HandleDiscountDetailsAsync(seller, session, ctx, message, ct);
                 break;
             case ConversationState.AwaitingResetConfirmation:
-                await HandleResetConfirmationAsync(seller, session, message, ct);
+                await HandleResetConfirmationAsync(seller, session, ctx, message, ct);
                 break;
             case ConversationState.AwaitingBusinessInfo:
                 await HandleBusinessInfoAsync(seller, session, ctx, message, ct);
