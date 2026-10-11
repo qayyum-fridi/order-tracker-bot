@@ -98,6 +98,8 @@ public sealed class SessionContextData
     public DateTime? PendingVoiceParkedAt { get; set; }
     /// <summary>When "reset account" asked for YES (UTC). A YES after the window does not wipe the account.</summary>
     public DateTime? ResetAskedAt { get; set; }
+    /// <summary>Id of the open reset prompt. Created with the prompt, cleared when it is answered. A YES needs it to claim the reset.</summary>
+    public string? ResetGenerationId { get; set; }
     /// <summary>Newest action-log id for the seller when the steps were parked. Any change since then (a new order, edit, undo...) makes the YES stale.</summary>
     public int PendingVoiceLogId { get; set; }
     public string? SelectedPlan { get; set; }
