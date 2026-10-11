@@ -8,13 +8,6 @@ namespace OrderTrackerBot.Application.Conversation;
 // and a multi-step sequence stops as soon as a step that must open edit mode does not.
 public partial class ConversationEngine
 {
-    private static readonly HashSet<CommandKind> RiskyVoiceCommands = new()
-    {
-        CommandKind.MarkStatus, CommandKind.MarkAllPendingShipped, CommandKind.FuzzyStatusUpdate, CommandKind.CancelOrder,
-        CommandKind.DeleteProduct, CommandKind.DeleteCustomer, CommandKind.EditProduct, CommandKind.PriceTiers,
-        CommandKind.OrderPayment, CommandKind.OrderDeliveryCharge, CommandKind.CustomerUpdate, CommandKind.Broadcast
-    };
-
     /// <summary>
     /// True when the steps include a risky command, or edits inside "edit order" mode (price/qty/remove/phone/...). Only for a finished
     /// seller who is idle: mid-flow answers ("yes", "1") and an edit session the seller opened themselves run straight away.
@@ -33,7 +26,7 @@ public partial class ConversationEngine
                 if (CommandParser.TryParseOrderEdit(step, out var change) && change.Kind != "done") return true;
                 continue;
             }
-            if (command is not null && RiskyVoiceCommands.Contains(command.Kind)) return true;
+            if (command is not null && ActionRisk.RiskyCommands.Contains(command.Kind)) return true;
         }
         return false;
     }
