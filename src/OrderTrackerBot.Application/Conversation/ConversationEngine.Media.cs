@@ -183,13 +183,7 @@ public partial class ConversationEngine
         return StepsAreRisky(steps) ? TurnDecision.Reject(RejectedUnfaithful) : TurnDecision.Clarify(UnfaithfulQuestion);
     }
 
-    // Money or order-state words. A step that is not a parsed command (e.g. "price 5000") still counts as risky when it names one of these.
-    private static readonly Regex RiskyStepWord = new(
-        @"\b(price|rate|delivery|discount|cancel|edit|paid|advance|payment|cod|shipped|delivered|returned|status|customer|remove|add)\b",
-        RegexOptions.IgnoreCase);
-
-    private static bool StepsAreRisky(IEnumerable<string> steps) =>
-        steps.Any(s => RiskyStepWord.IsMatch(s) || CommandParser.TryParse(s) is { } command && RiskyVoiceCommands.Contains(command.Kind));
+    private static bool StepsAreRisky(IEnumerable<string> steps) => steps.Any(ActionRisk.IsRiskyStep);
 
     private const string RejectedUnfaithful =
         "Yeh poori tarah samajh nahi aaya, is liye kuch nahi badla. Ek baar likh kar bhejein, jo chahiye wo saaf alfaz mein.";

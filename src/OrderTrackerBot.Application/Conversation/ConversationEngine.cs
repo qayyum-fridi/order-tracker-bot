@@ -296,6 +296,9 @@ public partial class ConversationEngine
 
     private async Task PersistAsync(ConversationSession session, SessionContextData ctx, CancellationToken ct)
     {
+        // A draft's clock starts when it is first persisted, and stops when the draft is gone.
+        if (ctx.PendingOrder is null) ctx.PendingOrderAskedAt = null;
+        else ctx.PendingOrderAskedAt ??= _clock.GetUtcNow().UtcDateTime;
         session.ContextJson = ctx.ToJson();
         session.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);

@@ -43,6 +43,8 @@ public sealed class PendingOrderData
 public sealed class SessionContextData
 {
     public PendingOrderData? PendingOrder { get; set; }
+    /// <summary>When the draft was first shown for confirmation (UTC). Set by the engine on persist; cleared with the draft.</summary>
+    public DateTime? PendingOrderAskedAt { get; set; }
     public string? PendingMissingField { get; set; }
     public List<string>? ClarificationOptions { get; set; }
     public string? PendingNewProductName { get; set; }

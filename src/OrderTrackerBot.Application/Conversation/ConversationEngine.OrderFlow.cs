@@ -454,8 +454,15 @@ public partial class ConversationEngine
         if (CommandParser.IsAffirmative(message) || CommandParser.IsAcknowledgement(message))
         {
             var pending = ctx.PendingOrder!;
+            var asked = ctx.PendingOrderAskedAt;
             ctx.PendingOrder = null;
             SetState(session, ConversationState.Idle);
+            // An old draft is not saved by a late "ok": the seller must see it again and confirm.
+            if (!DraftConfirmation.IsFresh(asked, _clock.GetUtcNow().UtcDateTime))
+            {
+                await ReplyAsync(seller, "⚠️ Yeh order purana ho gaya hai, save nahi hua. Dobara order likhein, phir confirm karein.", ct);
+                return;
+            }
             var order = await SaveOrderFromDraftAsync(seller, pending, ct);
             await ReplyAsync(seller, SavedText(seller, order, pending), ct);
             await AfterOrderSavedAsync(seller, session, ctx, order, ct);
