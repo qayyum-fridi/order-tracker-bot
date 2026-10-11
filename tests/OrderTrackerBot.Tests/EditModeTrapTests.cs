@@ -236,6 +236,33 @@ public class EditModeTrapTests : IDisposable
     }
 
     [Theory]
+    [InlineData("2000 nahi, 1800 delivery")]
+    [InlineData("2000 nahi, 1800 discount")]
+    [InlineData("rate 2000 nahi, 1800 delivery samet")]
+    public async Task Correction_WhoseWordsNameAnotherField_AsksAndChangesNothing(string said)
+    {
+        using var db = _dbFactory.CreateContext();
+        var (engine, id) = await OpenEditAsync(db, 2000m);
+
+        await engine.HandleIncomingMessageAsync(Phone, said, default);
+
+        Assert.Equal(ConversationState.AwaitingOrderEdit, await StateAsync(db));
+        Assert.Contains(_sent, m => m.Contains("Kaunsi cheez badlni hai"));
+        Assert.Equal(2000m, (await db.Orders.Include(o => o.Items).AsNoTracking().FirstAsync(o => o.Id == id)).Items.Single().UnitPrice);
+    }
+
+    [Fact]
+    public async Task Correction_NamingTheSameField_StillApplies()
+    {
+        using var db = _dbFactory.CreateContext();
+        var (engine, id) = await OpenEditAsync(db, 2000m);
+
+        await engine.HandleIncomingMessageAsync(Phone, "rate 2000 nahi, 1800", default);
+
+        Assert.Equal(1800m, (await db.Orders.Include(o => o.Items).AsNoTracking().FirstAsync(o => o.Id == id)).Items.Single().UnitPrice);
+    }
+
+    [Theory]
     [InlineData("kya karun")]
     [InlineData("?")]
     public async Task Help_ShowsTheEditOptions_AndChangesNothing(string reply)

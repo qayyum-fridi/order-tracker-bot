@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
 
@@ -37,6 +38,12 @@ public partial class ConversationEngine
         return false;
     }
 
+    /// <summary>A parked YES is valid for this long; after that the seller must say the instruction again.</summary>
+    private static readonly TimeSpan VoiceConfirmWindow = TimeSpan.FromMinutes(10);
+
+    private async Task<int> NewestActionLogIdAsync(int sellerId, CancellationToken ct) =>
+        await _db.ActionLogs.Where(l => l.SellerId == sellerId).MaxAsync(l => (int?)l.Id, ct) ?? 0;
+
     /// <summary>Runs the steps one after another as separate typed messages; stops (and says so) if "edit order" did not open edit mode.</summary>
     private async Task RunVoiceStepsAsync(string fromPhoneNumber, IReadOnlyList<string> steps, CancellationToken ct)
     {
@@ -67,13 +74,27 @@ public partial class ConversationEngine
 
         var ctx = SessionContextData.FromJson(session.ContextJson);
         var steps = ctx.PendingVoiceSteps;
+        var parkedAt = ctx.PendingVoiceParkedAt;
+        var parkedLogId = ctx.PendingVoiceLogId;
         ctx.PendingVoiceSteps = null;
+        ctx.PendingVoiceParkedAt = null;
         SetState(session, ConversationState.Idle);
         await PersistAsync(session, ctx, ct);
 
         var message = (rawMessage ?? "").Trim();
         if (steps is { Count: > 0 } && CommandParser.IsAffirmative(message))
         {
+            // The YES approves what was read out, against the orders as they were then. If time passed or anything changed meanwhile, drop it.
+            var stale = parkedAt is null || DateTime.UtcNow - parkedAt.Value > VoiceConfirmWindow
+                        || parkedLogId != await NewestActionLogIdAsync(seller.Id, ct);
+            if (stale)
+            {
+                await _sender.SendTextMessageAsync(fromPhoneNumber,
+                    "⚠️ Yeh purani baat thi, is dauran order badal chuka hai. Kuch nahi chalaya — dobara bolein ya likh kar bhejein.", ct);
+                await _db.SaveChangesAsync(ct);
+                return true;
+            }
+
             await RunVoiceStepsAsync(fromPhoneNumber, steps, ct);
             return true;
         }

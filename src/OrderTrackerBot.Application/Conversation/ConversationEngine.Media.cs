@@ -51,16 +51,25 @@ public partial class ConversationEngine
             return;
         }
 
-        var (steps, question, options) = await InterpretVoiceAsync(seller, text, ct);
+        var decision = await InterpretVoiceAsync(seller, text, ct);
         var heard = $"🎤 Maine suna: \"{text}\"";
-        if (question is not null)
+        if (decision.Kind == DecisionKind.Clarify)
         {
             // Clear intent but a detail is missing (which order, the new price): ask for it instead of guessing or failing.
             // When the answers are a few known choices they come as tap buttons, so the seller need not speak again.
-            await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n❓ {question}", options.Select(o => new ChoiceOption(o, o)).ToList(), ct);
+            var options = decision.Options ?? Array.Empty<string>();
+            await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n❓ {decision.Message}", options.Select(o => new ChoiceOption(o, o)).ToList(), ct);
             await _db.SaveChangesAsync(ct);
             return;
         }
+        if (decision.Kind == DecisionKind.Reject)
+        {
+            // Unsafe to run and not safe to offer as choices: say nothing changed, and wait for the seller to type or speak it again.
+            await _sender.SendTextMessageAsync(fromPhoneNumber, $"{heard}\n\n{decision.Message}", ct);
+            await _db.SaveChangesAsync(ct);
+            return;
+        }
+        IReadOnlyList<string> steps = decision.Steps;
 
         // City / business type / handle are one answer ("Lahore, Clothing, @x"); separate steps would leave the first one to
         // complete the question and push the rest into the next onboarding step.
@@ -83,6 +92,8 @@ public partial class ConversationEngine
             var session = seller.Session!;
             var ctx = SessionContextData.FromJson(session.ContextJson);
             ctx.PendingVoiceSteps = steps.ToList();
+            ctx.PendingVoiceParkedAt = DateTime.UtcNow;
+            ctx.PendingVoiceLogId = await NewestActionLogIdAsync(seller.Id, ct);
             SetState(session, ConversationState.AwaitingVoiceConfirmation);
             await _sender.SendTextMessageAsync(fromPhoneNumber, $"{heard}\n\n⚠️ Yeh karoon? Reply YES ya NO.", ct);
             await PersistAsync(session, ctx, ct);
@@ -114,7 +125,7 @@ public partial class ConversationEngine
     /// ("pehla wala" -> "1", "haan kar do" -> "yes", "mere paas 4 lawn suit 3500" -> "Lawn Suit - 3500"). The rewrite still goes through the
     /// normal deterministic engine; the transcript itself is used when the AI is unavailable or the rewrite drops a number.
     /// </summary>
-    private async Task<(IReadOnlyList<string> Steps, string? Question, IReadOnlyList<string> Options)> InterpretVoiceAsync(Seller seller, string transcript, CancellationToken ct)
+    private async Task<TurnDecision> InterpretVoiceAsync(Seller seller, string transcript, CancellationToken ct)
     {
         var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
         var catalog = await LoadCatalogAsync(seller, ct);
@@ -141,7 +152,7 @@ public partial class ConversationEngine
             RecentExchanges = exchanges
         }, transcript, ct);
 
-        if (result?.Question is { } question && result.Steps.Count == 0) return (Array.Empty<string>(), question, result.Options);
+        if (result?.Question is { } question && result.Steps.Count == 0) return TurnDecision.Clarify(question, result.Options);
         if (result is { Steps.Count: > 0 })
         {
             // The model may only pick actions that make sense right now; anything else it made up is dropped (and the transcript is used if nothing is left).
@@ -151,17 +162,37 @@ public partial class ConversationEngine
             if (steps.Count > 0)
             {
                 // A rewrite that changes what was said is not run, and neither is the raw transcript: the seller is asked again.
-                if (WhyUnfaithful(transcript, string.Join("\n", steps), KnownVoiceNumbers(recent, catalog)) is null) return (steps, null, Array.Empty<string>());
-                return (Array.Empty<string>(), UnfaithfulQuestion, Array.Empty<string>());
+                return DecideRewrite(transcript, steps, KnownVoiceNumbers(recent, catalog));
             }
         }
         // The AI was unavailable: the transcript goes to the deterministic engine, as before.
-        if (result is null) return (new[] { transcript }, null, Array.Empty<string>());
+        if (result is null) return TurnDecision.Execute(new[] { transcript });
         // The AI answered without a usable step: the transcript runs only when it reads as a plain command or answer.
         if (CommandParser.TryParse(transcript) is not null || CommandParser.IsAffirmative(transcript) || CommandParser.IsNegative(transcript))
-            return (new[] { transcript }, null, Array.Empty<string>());
-        return (Array.Empty<string>(), ParserFailureQuestion, Array.Empty<string>());
+            return TurnDecision.Execute(new[] { transcript });
+        return TurnDecision.Clarify(ParserFailureQuestion);
     }
+
+    /// <summary>
+    /// The safety gate for a rewritten voice turn. Faithful: run it. Unfaithful and it would change money or an order: refuse (no tap options that
+    /// could be read as approval). Unfaithful but harmless: ask again.
+    /// </summary>
+    public static TurnDecision DecideRewrite(string transcript, IReadOnlyList<string> steps, IReadOnlySet<long>? knownNumbers)
+    {
+        if (WhyUnfaithful(transcript, string.Join("\n", steps), knownNumbers) is null) return TurnDecision.Execute(steps);
+        return StepsAreRisky(steps) ? TurnDecision.Reject(RejectedUnfaithful) : TurnDecision.Clarify(UnfaithfulQuestion);
+    }
+
+    // Money or order-state words. A step that is not a parsed command (e.g. "price 5000") still counts as risky when it names one of these.
+    private static readonly Regex RiskyStepWord = new(
+        @"\b(price|rate|delivery|discount|cancel|edit|paid|advance|payment|cod|shipped|delivered|returned|status|customer|remove|add)\b",
+        RegexOptions.IgnoreCase);
+
+    private static bool StepsAreRisky(IEnumerable<string> steps) =>
+        steps.Any(s => RiskyStepWord.IsMatch(s) || CommandParser.TryParse(s) is { } command && RiskyVoiceCommands.Contains(command.Kind));
+
+    private const string RejectedUnfaithful =
+        "Yeh poori tarah samajh nahi aaya, is liye kuch nahi badla. Ek baar likh kar bhejein, jo chahiye wo saaf alfaz mein.";
 
     // Three different outcomes, three different replies: a rewrite that changed the meaning, a transcript nothing could read, and (above) a rewrite
     // that was used. None of them runs a step.

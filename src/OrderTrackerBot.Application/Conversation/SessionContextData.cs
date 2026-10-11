@@ -94,6 +94,10 @@ public sealed class SessionContextData
     public decimal? LoyaltyDiscountPercent { get; set; }
     /// <summary>Typed steps read from a voice note that are waiting for YES (risky actions), in the order they will run.</summary>
     public List<string>? PendingVoiceSteps { get; set; }
+    /// <summary>When <see cref="PendingVoiceSteps"/> were parked (UTC). A YES after the window is not approval of those steps.</summary>
+    public DateTime? PendingVoiceParkedAt { get; set; }
+    /// <summary>Newest action-log id for the seller when the steps were parked. Any change since then (a new order, edit, undo...) makes the YES stale.</summary>
+    public int PendingVoiceLogId { get; set; }
     public string? SelectedPlan { get; set; }
     /// <summary>Support query whose drafted reply is awaiting YES/EDIT.</summary>
     public int? SupportQueryId { get; set; }

@@ -222,6 +222,10 @@ public partial class ConversationEngine
     /// "3500 nahi, 5300" while editing: the new amount replaces the one taken back, but only when exactly one field holds the old amount.
     /// Otherwise the seller is asked which field, and nothing changes.
     /// </summary>
+    private static readonly Regex CorrectionPriceWord = new(@"\b(rate|price|rates|qeemat|daam|kimat)\b", RegexOptions.IgnoreCase);
+    private static readonly Regex CorrectionDeliveryWord = new(@"\b(delivery|delivery\s+charge|kiraya)\b", RegexOptions.IgnoreCase);
+    private static readonly Regex CorrectionOtherWord = new(@"\b(discount|total|quantity|qty|pieces?|pcs|coupon|advance|paid)\b", RegexOptions.IgnoreCase);
+
     private async Task<bool> TryApplyEditCorrectionAsync(Seller seller, ConversationSession session, SessionContextData ctx, Order order, string text, CancellationToken ct)
     {
         var retracted = SpokenNumbers.RetractedAmounts(text);
@@ -236,7 +240,15 @@ public partial class ConversationEngine
         var deliveryMatches = order.DeliveryCharge == old;
 
         var matches = priceMatches.Count + (deliveryMatches ? 1 : 0);
-        if (matches == 1)
+        // The seller's own words must agree with the one field we would change. "delivery", "discount" or "total" are not a field we change here.
+        var named = new HashSet<string>();
+        if (CorrectionPriceWord.IsMatch(text)) named.Add("price");
+        if (CorrectionDeliveryWord.IsMatch(text)) named.Add("delivery");
+        if (CorrectionOtherWord.IsMatch(text)) named.Add("other");
+        var target = priceMatches.Count == 1 ? "price" : "delivery";
+        var namesSameField = named.Count == 0 || (named.Count == 1 && named.Single() == target);
+
+        if (matches == 1 && namesSameField)
         {
             var instruction = priceMatches.Count == 1 ? $"price {priceMatches[0].Number} = {value}" : $"delivery {value}";
             await HandleOrderEditAsync(seller, session, ctx, instruction, ct);
