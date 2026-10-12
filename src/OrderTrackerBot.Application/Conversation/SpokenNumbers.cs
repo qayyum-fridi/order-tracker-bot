@@ -57,6 +57,9 @@ public static class SpokenNumbers
         Add(90, "nabbe"); Add(91, "ikyanwe"); Add(92, "bayanwe"); Add(93, "tiranwe"); Add(94, "chauranwe"); Add(95, "pachanwe"); Add(96, "chhiyanwe");
         Add(97, "sattanwe"); Add(98, "atthanwe"); Add(99, "ninnanwe", "ninyanwe");
 
+        // Punjabi spellings that differ from Roman Urdu ("dass hazaar", "atth sau", "vee hazaar"). "saath"/"sath" stay 60; "satt" is 7.
+        Add(1, "ikk"); Add(2, "dho"); Add(3, "tinn", "tin"); Add(7, "satt"); Add(8, "atth"); Add(10, "dass"); Add(20, "vee", "veeh", "vih"); Add(40, "chali");
+
         // "one and a half / two and a half": dedh sau = 150, dhai hazar = 2500
         Add(1.5m, "dedh", "derh"); Add(2.5m, "dhai", "dhaai");
 
