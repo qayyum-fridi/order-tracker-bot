@@ -516,6 +516,8 @@ public class CommandParserTests
     [InlineData("➕ New order", CommandKind.NewOrderHelp)]
     [InlineData("📦 Orders today", CommandKind.OrdersToday)]
     [InlineData("📋 مینو", CommandKind.Menu)]
+    [InlineData("📖 Guide", CommandKind.Guide)]
+    [InlineData("📖 گائیڈ", CommandKind.Guide)]
     [InlineData("➕ نیا آرڈر", CommandKind.NewOrderHelp)]
     [InlineData("📦 آج کے آرڈرز", CommandKind.OrdersToday)]
     public void ShortcutButtonLabels_AreRealCommands(string label, CommandKind kind)
