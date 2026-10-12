@@ -63,6 +63,35 @@ public class EditModeTrapTests : IDisposable
 
     private static async Task<ConversationState> StateAsync(AppDbContext db) => (await db.Sessions.FirstAsync()).State;
 
+    [Fact]
+    public async Task QuantityTypedLikeAPrice_IsRefused_AndNothingChanges()
+    {
+        using var db = _dbFactory.CreateContext();
+        var (engine, id) = await OpenEditAsync(db, 1800m);
+
+        await engine.HandleIncomingMessageAsync(Phone, "1 = 3000", default);
+
+        Assert.Contains(_sent, m => m.Contains("bohat zyada") && m.Contains("price 1 = 3000"));
+        Assert.Equal(1, (await db.OrderItems.AsNoTracking().SingleAsync(i => i.OrderId == id)).Quantity);
+        Assert.Equal(ConversationState.AwaitingOrderEdit, await StateAsync(db));
+    }
+
+    [Fact]
+    public async Task OrderCancelledWhileEditing_EndsEditMode_AndChangesNothing()
+    {
+        using var db = _dbFactory.CreateContext();
+        var (engine, id) = await OpenEditAsync(db, 1800m);
+        // Another chat or instance cancels the order while the edit session is still open.
+        (await db.Orders.SingleAsync(o => o.Id == id)).Status = OrderStatus.Cancelled;
+        await db.SaveChangesAsync();
+
+        await engine.HandleIncomingMessageAsync(Phone, "price 1 = 2500", default);
+
+        Assert.Contains(_sent, m => m.Contains("edit band kar diya"));
+        Assert.Equal(1800m, (await db.OrderItems.AsNoTracking().SingleAsync(i => i.OrderId == id)).UnitPrice);
+        Assert.Equal(ConversationState.Idle, await StateAsync(db));
+    }
+
     [Theory]
     [InlineData("ok")]
     [InlineData("theek hai")]

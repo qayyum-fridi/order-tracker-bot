@@ -22,6 +22,8 @@ public partial class ConversationEngine
         "• \"payment cod\" / \"payment jazzcash\"\n" +
         "Mukammal ho to \"done\". Ghalti ho jaye to baad mein \"undo\".";
 
+    private const int MaxEditQuantity = 1000;
+
     private sealed record EditSnapshotItem(int? ProductId, string Name, decimal UnitPrice, int Quantity, decimal? UnitCost = null);
     private sealed record EditSnapshot(List<EditSnapshotItem> Items, decimal Subtotal, decimal DiscountAmount, decimal DeliveryCharge,
         decimal Total, OrderPaymentMethod PaymentMethod, string? CustomerName, string? CustomerPhone, string? CustomerAddress);
@@ -82,6 +84,13 @@ public partial class ConversationEngine
         {
             EndOrderEdit(session, ctx);
             await HandleIdleAsync(seller, session, ctx, message, ct);
+            return;
+        }
+        // The order may have been cancelled or returned since edit mode opened (another chat, another instance): nothing more can be changed on it.
+        if (order.Status is OrderStatus.Cancelled or OrderStatus.Returned)
+        {
+            EndOrderEdit(session, ctx);
+            await ReplyAsync(seller, $"Order #{order.Id} ab {Formatters.Status(order.Status)} hai — edit band kar diya, kuch nahi badla.", ct);
             return;
         }
         // A pending "jaari or chhoro?" question is answered by the next message, whatever it is.
@@ -299,6 +308,9 @@ public partial class ConversationEngine
             {
                 if (Item(change.Item) is not { } item) return (false, NoItem(change.Item));
                 if (change.Quantity is not > 0) return (false, "Tadaad kam az kam 1 honi chahiye — hatana ho to \"remove " + change.Item + "\".");
+                // "1 = 3000" is almost always a price typed as a quantity: ask instead of putting 3000 pieces on the order.
+                if (change.Quantity > MaxEditQuantity)
+                    return (false, $"{change.Quantity} piece bohat zyada lag raha hai, kuch nahi badla. Rate badalna ho to likhein: \"price {change.Item} = {change.Quantity}\".");
                 item.Quantity = change.Quantity.Value;
                 return (true, $"{item.ProductNameSnapshot} ki tadaad {item.Quantity} kar di.");
             }
