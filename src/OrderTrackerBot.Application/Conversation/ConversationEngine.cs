@@ -284,6 +284,22 @@ public partial class ConversationEngine
 
     private async Task HandleIdleAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
+        // Waiting for new products' prices, but the seller clearly asks for something else ("Kashif ka naya order likho"): park the price
+        // question for this turn so the message is read on its own, and put it back unless this turn started its own price question.
+        var parkedPrices = ctx.PendingPriceProducts is { Count: > 0 } && CommonWordPathRouter.ShouldLeavePriceWait(message) ? ctx.PendingPriceProducts : null;
+        if (parkedPrices is not null) ctx.PendingPriceProducts = null;
+        try
+        {
+            await HandleIdleCoreAsync(seller, session, ctx, message, ct);
+        }
+        finally
+        {
+            if (parkedPrices is not null) ctx.PendingPriceProducts ??= parkedPrices;
+        }
+    }
+
+    private async Task HandleIdleCoreAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
+    {
         var decision = TurnGate.DecideTyped(message);
         if (decision.Kind == DecisionKind.Reject)
         {
