@@ -639,7 +639,11 @@ public static class CommandParser
     private static readonly Regex CodPending = new(@"^cod\s+pending$", Opts);
     private static readonly Regex AddTracking = new(@"^add\s+tracking:\s*(.+?)\s*,\s*(.+)$", Opts);
     private static readonly Regex TrackingLookup = new(@"^(.+?)\s+(?:ka|کا)\s+(?:tracking|ٹریکنگ)$", Opts);
-    private static readonly Regex CustomerOrderLookup = new(@"^(.+?)\s+" + Of + @"\s+(?:order|آرڈر)$", Opts);
+    // Trailing request words are allowed ("Ali ka order khol do", "Ali ka order dikhao bhai"); anything that changes the order (cancel, edit...) is not.
+    private static readonly Regex CustomerOrderLookup = new(@"^(.+?)\s+" + Of + @"\s+(?:order|آرڈر)(?:\s+(?:khol\w*|dikha\w*|bata\w*|dekh\w*|show|de|do|dein|den|dedo|kar|please|plz|bhai|ji|کھول|دکھا\w*|بتا\w*|دو|دیں))*$", Opts);
+
+    // "Ali koi customer hai?", "Ali naam ka koi customer hai, yeh mujhe bataen": does this person exist? Answered by the customer search.
+    private static readonly Regex CustomerExists = new(@"^(\p{L}[\p{L}\s]{0,30}?)(?:\s+naam\s+" + Of + @")?\s+(?:koi\s+)?customer\s+(?:hai|hain|exist\w*|milta\w*|mil\s+sakta\w*)\b", Opts);
     private static readonly Regex FuzzyStatusUpdate = new(@"^(.+?)\s+" + Of + @"\s+(?:order|آرڈر)\s+.*?(deliver|ship|pending|bhej|return|wapas|wapis|waapas|ڈیلیور|شپ|پینڈنگ|واپس|ریٹرن)", Opts);
     private static readonly Regex CreateDiscount = new(@"^create\s+discount:\s*(.+)$", Opts);
     private static readonly Regex DiscountList = new(@"^discount\s+list$", Opts);
@@ -970,6 +974,8 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.MenuCategory, Text = m.Groups[1].Value.ToLowerInvariant() };
         if (CustomerList.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CustomerList };
         if ((m = CustomerSearch.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.CustomerSearch, Text = m.Groups[1].Value.Trim() };
+        if ((m = CustomerExists.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.CustomerSearch, Text = m.Groups[1].Value.Trim() };
         if ((m = DeleteCustomer.Match(message)).Success)
         {
