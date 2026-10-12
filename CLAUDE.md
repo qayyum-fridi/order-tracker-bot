@@ -162,7 +162,7 @@ shared-state action: confirm with the user and get SSH/host details first.
   forms are normalised), products on name + unit + pack size; existing ones are skipped, never overwritten, so re-sending a file is safe. One `ActionType.DataImported` log makes "undo" remove the new rows (ones that got orders meanwhile are
   hidden/deactivated instead). Orders, discounts and loyalty rules are export-only for now (their Guide says so) — importing open orders is the next step. No schema change, so no migration.
 - Shortcuts (`ConversationEngine.Shortcuts.cs`): after a turn that replied, ended in `Idle` and sent no interactive message, the engine adds a 3-button
-  quick bar (Menu / Naya order / Orders today; labels are parseable commands). Per-seller `shortcut off|on` lives in `SessionContextData`;
+  quick bar (Guide / Naya order / Orders today; labels are parseable commands). Per-seller `shortcut off|on` lives in `SessionContextData`;
   global flag `Features:ShortcutButtons` (engine built without `FeatureOptions` = off, so unit tests stay quiet). "/" commands: `CommandParser.SlashCommands`,
   registered with Meta via `deploy/whatsapp-conversational-components.json` (**schema from third-party docs; how Meta delivers a picked command was not
   verified** — the engine just accepts `/name` as a typed alias).
