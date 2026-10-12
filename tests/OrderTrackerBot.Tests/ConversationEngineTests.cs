@@ -1064,7 +1064,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Chhota (20 se kam)", default);
 
         var rows = sections!.SelectMany(s => s.Rows).ToList();
-        Assert.Equal(new[] { "setup", "new order", "guide", "connect instagram" }, rows.Select(r => r.Id));
+        Assert.Equal(new[] { "add product", "setup", "new order", "guide", "connect instagram" }, rows.Select(r => r.Id));
         Assert.All(rows, r => Assert.NotNull(CommandParser.TryParse(r.Id)));
     }
 

@@ -33,5 +33,33 @@ public class OnboardingTapTests : IDisposable
         Assert.Equal(ConversationState.OnboardingCatalogSize, db.Sessions.Single().State);
     }
 
+    [Fact]
+    public async Task CatalogStep_OffersAddProduct_AndItNeverDeadEnds()
+    {
+        var rows = new List<string>();
+        var sent = new List<string>();
+        _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, _, _, sections, _) => rows.AddRange(sections.SelectMany(s => s.Rows).Select(r => r.Id)))
+            .Returns(Task.CompletedTask);
+        _sender.Setup(s => s.SendTextMessageAsync(Phone, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, CancellationToken>((_, text, _) => sent.Add(text))
+            .Returns(Task.CompletedTask);
+
+        using var db = _dbFactory.CreateContext();
+        var engine = CreateEngine(db);
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Skip", "Chhota (20 se kam)" })
+            await engine.HandleIncomingMessageAsync(Phone, step, default);
+
+        // The list shown after "how many products" must let the seller add a product.
+        Assert.Contains("add product", rows);
+        Assert.Equal(ConversationState.OnboardingAddProduct, db.Sessions.Single().State);
+
+        // Tapping it again while adding products explains the format, and does not say "finish the catalog first".
+        sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "add product", default);
+        Assert.DoesNotContain(sent, m => m.Contains("pehle catalog complete"));
+        Assert.Contains(sent, m => m.Contains("Kurti - 1800"));
+    }
+
     public void Dispose() => _dbFactory.Dispose();
 }

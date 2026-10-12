@@ -122,6 +122,7 @@ public partial class ConversationEngine
     {
         new Abstractions.MenuSection("Ya, kuch aur karein", new[]
         {
+            new Abstractions.MenuRow("add product", "➕ Product add karein"),
             new Abstractions.MenuRow("setup", "⚙️ Setup"),
             new Abstractions.MenuRow("new order", "📦 New Order"),
             new Abstractions.MenuRow("guide", "📖 Guide"),
@@ -256,7 +257,7 @@ public partial class ConversationEngine
                 {
                     if (parsed.Kind is CommandKind.Help or CommandKind.Menu or CommandKind.ConnectInstagram or CommandKind.ImportCatalogSheet
                         or CommandKind.BusinessSetup or CommandKind.NewOrderHelp or CommandKind.Guide or CommandKind.Stock
-                        or CommandKind.ImportHelp or CommandKind.ImportTemplate)
+                        or CommandKind.ImportHelp or CommandKind.ImportTemplate or CommandKind.HowTo)
                     {
                         await ExecuteCommandAsync(seller, session, ctx, parsed, ct);
                         return;
