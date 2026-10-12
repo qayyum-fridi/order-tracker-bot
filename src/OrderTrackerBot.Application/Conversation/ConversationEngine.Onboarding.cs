@@ -15,10 +15,17 @@ public partial class ConversationEngine
     // means the text is an order/customer detail, never a "name - price" catalog line.
     private static readonly Regex PhoneNumber = new(@"(?<!\d)(?:\+?92[-\s]?|0)3\d{2}[-\s]?\d{7}(?!\d)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
+    // Trailing "add" instruction a voice rewrite can keep after the price: "Suit - 500, catalog mein add kar dein", "Silk Suit - 800 product ke taur par add kar do".
+    private static readonly Regex AddFiller = new(
+        @"[\s,;.]*(?:(?:(?:catalog|catalogue|product|products|list)\s+(?:mein|me)|product\s+ke\s+(?:taur|tor)\s+par)\s+)?(?:add|ad)\s+(?:kar\s*)?(?:do|dein|den|karo|kardo|kardein)[\s.!]*$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+
     // Onboarding accepts any "name - price" (digits allowed in the name, e.g. "Suit 2pc - 3500"), also with ":"/"=" or an Rs/PKR marker.
     private static ProductLine? ParseLooseProductLine(string line)
     {
         if (PhoneNumber.IsMatch(line)) return null;
+        // "address mein" is a mis-heard "catalog mein": it only matters when it trails the price like the other filler.
+        line = AddFiller.Replace(Regex.Replace(line, @"[\s,;]+address\s+(?:mein|me)\b", ""), "");
         var m = LooseProductLine.Match(line);
         if (m.Success) return CommandParser.SplitUnit(m.Groups[1].Value, decimal.Parse(m.Groups[2].Value));
         return CommandParser.TryParseSpacedProductLine(line, out ProductLine? spaced) ? spaced : null;
