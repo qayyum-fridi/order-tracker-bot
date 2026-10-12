@@ -28,7 +28,29 @@ public partial class ConversationEngine
         line = AddFiller.Replace(Regex.Replace(line, @"[\s,;]+address\s+(?:mein|me)\b", ""), "");
         var m = LooseProductLine.Match(line);
         if (m.Success) return CommandParser.SplitUnit(m.Groups[1].Value, decimal.Parse(m.Groups[2].Value));
-        return CommandParser.TryParseSpacedProductLine(line, out ProductLine? spaced) ? spaced : null;
+        if (CommandParser.TryParseSpacedProductLine(line, out ProductLine? spaced)) return spaced;
+        return TryParseNaturalPriceSentence(line);
+    }
+
+    // "Suit ki price 3500 rakho", "سوٹ کی قیمت ساڑھے تین ہزار روپے رکھو": a product and its price said as a sentence, not as "naam - price".
+    private static readonly Regex NaturalPriceSentence = new(
+        @"^\s*(?<name>.+?)\s+(?:ki|ka|ke|کی|کا|کے)\s+(?:price|rate|qeemat|keemat|kimat|قیمت|ریٹ)\s+(?<rest>.+?)\s*[.۔!]*\s*$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    private static readonly Regex NaturalPriceVerb = new(
+        @"(?:rakho|rakh\s+do|rakhein|rakhen|rakh\s+dein|hai|hain|set|likho|likh\s+do|kar\s+do|رکھو|رکھیں|رکھ\s+دو|رکھ\s+دیں|ہے|ہیں|لکھو|کر\s+دو)\s*[.۔!]*$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+
+    /// <summary>Exactly one amount (digits or spoken words, 100 or more) and a closing verb are required; anything else is not a price sentence.</summary>
+    private static ProductLine? TryParseNaturalPriceSentence(string line)
+    {
+        var m = NaturalPriceSentence.Match(line);
+        if (!m.Success || PhoneNumber.IsMatch(line)) return null;
+        var rest = m.Groups["rest"].Value;
+        var amounts = SpokenNumbers.Amounts(rest);
+        if (amounts.Count != 1 || !NaturalPriceVerb.IsMatch(rest)) return null;
+        var name = m.Groups["name"].Value.Trim();
+        if (name.Length == 0 || name.Length > 60) return null;
+        return CommandParser.SplitUnit(name, amounts.First());
     }
 
     /// <summary>
