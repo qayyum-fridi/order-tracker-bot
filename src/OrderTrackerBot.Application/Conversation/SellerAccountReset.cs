@@ -15,7 +15,6 @@ public static class SellerAccountReset
     public static async Task ResetAsync(IAppDbContext db, Seller seller, CancellationToken ct)
     {
         db.Orders.RemoveRange(await db.Orders.Where(o => o.SellerId == seller.Id).ToListAsync(ct));
-        await db.SaveChangesAsync(ct);
         db.Customers.RemoveRange(await db.Customers.Where(c => c.SellerId == seller.Id).ToListAsync(ct));
         db.Products.RemoveRange(await db.Products.Where(p => p.SellerId == seller.Id).ToListAsync(ct));
         db.Discounts.RemoveRange(await db.Discounts.Where(d => d.SellerId == seller.Id).ToListAsync(ct));
