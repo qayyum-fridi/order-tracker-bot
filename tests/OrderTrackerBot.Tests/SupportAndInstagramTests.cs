@@ -212,7 +212,7 @@ public class SupportAndInstagramTests : IDisposable
         Assert.Contains("Source: Instagram comment lead #1", _sent[^1]);
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
 
-        Assert.Contains("Lead #1 marked CONVERTED", _sent[^1]);
+        Assert.Contains(_sent, m => m.Contains("Lead #1 marked CONVERTED"));
         var lead = await db.CommentLeads.SingleAsync();
         var order = await db.Orders.SingleAsync();
         Assert.Equal("converted_to_order", lead.Status);

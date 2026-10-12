@@ -64,6 +64,26 @@ public class MockupFeatureTests : IDisposable
     };
 
     [Fact]
+    public async Task SavedOrder_OffersReceiptShippedAndUndoAsTaps_WhoseLabelsAreRealCommands()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(Order("Sara", "Kurti", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
+        _buttons.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        var id = (await db.Orders.AsNoTracking().SingleAsync()).Id;
+        var labels = Assert.Single(_buttons, b => b.Buttons.Contains("Undo")).Buttons;
+        Assert.Equal(new[] { $"Receipt {id}", $"Mark {id} shipped", "Undo" }, labels);
+        Assert.All(labels, l => Assert.True(l.Length <= 20));
+        Assert.Equal(CommandKind.Receipt, CommandParser.TryParse(labels[0])?.Kind);
+        Assert.Equal(CommandKind.MarkStatus, CommandParser.TryParse(labels[1])?.Kind);
+        Assert.Equal(CommandKind.Undo, CommandParser.TryParse(labels[2])?.Kind);
+    }
+
+    [Fact]
     public async Task Onboarding_SavesOptionalDetails_AndStartsFreeTrial()
     {
         using var db = _dbFactory.CreateContext();
@@ -1156,7 +1176,7 @@ public class MockupFeatureTests : IDisposable
 
         await engine.HandleIncomingMessageAsync(Phone, "kaise karun", default);
 
-        Assert.Contains(_sent, m => m.Contains("Yeh commands try karein"));
+        Assert.Contains(_sent, m => m.Contains("Sab se zaroori"));
     }
 
     [Fact]

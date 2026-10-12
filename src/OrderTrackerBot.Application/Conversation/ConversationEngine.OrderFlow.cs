@@ -465,6 +465,7 @@ public partial class ConversationEngine
             }
             var order = await SaveOrderFromDraftAsync(seller, pending, ct);
             await ReplyAsync(seller, SavedText(seller, order, pending), ct);
+            await SendOrderActionButtonsAsync(seller, order, ct);
             await AfterOrderSavedAsync(seller, session, ctx, order, ct);
             return;
         }
@@ -494,6 +495,14 @@ public partial class ConversationEngine
 
         await ReplyAsync(seller, "Reply YES to save, ya EDIT to fix.", ct);
     }
+
+    /// <summary>
+    /// The next likely things to do with a just-saved order, as taps. The labels are plain commands ("Receipt 12", "Mark 12 shipped", "Undo"),
+    /// so a tapped button is parsed like typed text. This replaces the generic shortcut bar for this turn (the message is interactive).
+    /// </summary>
+    private Task SendOrderActionButtonsAsync(Seller seller, Order order, CancellationToken ct) =>
+        _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, "Ab kya karna hai?",
+            new[] { $"Receipt {order.Id}", $"Mark {order.Id} shipped", "Undo" }, ct);
 
     private static string SavedText(Seller seller, Order order, PendingOrderData pending) =>
         SavedText(seller, order) + (pending.CommentLeadNumber is { } leadNumber ? $"\nLead #{leadNumber} marked CONVERTED." : "");
@@ -796,6 +805,7 @@ public partial class ConversationEngine
             SetState(session, ConversationState.Idle);
             var order = await SaveOrderFromDraftAsync(seller, pending, ct);
             await ReplyAsync(seller, SavedText(seller, order, pending), ct);
+            await SendOrderActionButtonsAsync(seller, order, ct);
             await AfterOrderSavedAsync(seller, session, ctx, order, ct);
             return;
         }
