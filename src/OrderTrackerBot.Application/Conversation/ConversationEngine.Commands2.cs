@@ -444,6 +444,11 @@ public partial class ConversationEngine
         // Claim before wiping. The claim commits on its own, so a crash after it leaves the account untouched and the seller can ask again.
         if (!await ResetConfirmation.TryClaimAsync(_db, session.Id, generation!, ct))
         {
+            // Another instance won the claim and has already moved the session on. Put back exactly what this turn loaded, so the
+            // save at the end of the turn writes nothing over the winner's state (onboarding) or context.
+            ctx.ResetAskedAt = asked;
+            ctx.ResetGenerationId = generation;
+            SetState(session, ConversationState.AwaitingResetConfirmation);
             await ReplyAsync(seller, "Yeh confirmation pehle hi use ho chuki hai — account dobara delete nahi hoga.", ct);
             return;
         }

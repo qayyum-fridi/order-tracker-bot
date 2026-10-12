@@ -15,3 +15,16 @@ public sealed record TurnDecision(DecisionKind Kind, IReadOnlyList<string> Steps
 
     public static TurnDecision Reject(string reply) => new(DecisionKind.Reject, Array.Empty<string>(), reply);
 }
+
+/// <summary>
+/// The safety gate every idle turn passes, typed or spoken (voice steps are replayed as typed messages, so they reach it too).
+/// A typed message is the seller's own words, so it is not checked for faithfulness; it is checked for being taken back.
+/// </summary>
+public static class TurnGate
+{
+    public const string RetractedReply =
+        "Yeh instruction wapas lete hue lag raha hai (nahi/mat/galat), is liye kuch nahi badla. Chalana ho to saaf alfaz mein dobara likhein.";
+
+    public static TurnDecision DecideTyped(string message) =>
+        ActionRisk.IsRetractedCommand(message) ? TurnDecision.Reject(RetractedReply) : TurnDecision.Execute(new[] { message });
+}

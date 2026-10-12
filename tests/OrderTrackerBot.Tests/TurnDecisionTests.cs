@@ -25,6 +25,31 @@ public class TurnDecisionTests
         Assert.Null(decision.Options);
     }
 
+    [Theory]
+    [InlineData("mark 5 shipped mat karo")]
+    [InlineData("cancel order 12 nahi sorry")]
+    [InlineData("mark 5 shipped galat tha")]
+    public void TypedRetractedRiskyCommand_IsRefused(string message)
+    {
+        // Only meaningful when the parser still reads it as the command; otherwise it never reaches execution and the gate has nothing to stop.
+        if (CommandParser.TryParse(message) is null) return;
+
+        Assert.Equal(DecisionKind.Reject, TurnGate.DecideTyped(message).Kind);
+    }
+
+    [Theory]
+    [InlineData("mark 5 shipped")]
+    [InlineData("cancel order 12")]
+    [InlineData("orders today")]
+    [InlineData("order 12 delivery nahi")]
+    public void TypedPlainCommand_Executes(string message)
+    {
+        var decision = TurnGate.DecideTyped(message);
+
+        Assert.Equal(DecisionKind.Execute, decision.Kind);
+        Assert.Equal(new[] { message }, decision.Steps);
+    }
+
     [Fact]
     public void UnfaithfulRewrite_ThatIsHarmless_AsksAgain()
     {

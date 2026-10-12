@@ -284,6 +284,13 @@ public partial class ConversationEngine
 
     private async Task HandleIdleAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
+        var decision = TurnGate.DecideTyped(message);
+        if (decision.Kind == DecisionKind.Reject)
+        {
+            await ReplyAsync(seller, decision.Message!, ct);
+            return;
+        }
+
         var command = CommandParser.TryParse(message);
         if (command is not null)
         {

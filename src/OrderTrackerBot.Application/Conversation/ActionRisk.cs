@@ -21,6 +21,20 @@ public static class ActionRisk
         @"\b(price|rate|delivery|discount|cancel|edit|paid|advance|payment|cod|shipped|delivered|returned|status|customer|remove|add)\b",
         RegexOptions.IgnoreCase);
 
+    /// <summary>Commands whose whole text is the instruction, so a "nahi" / "mat" / "galat" in it means the seller took it back. Not free-text ones (broadcast, names, delivery "nahi").</summary>
+    public static readonly IReadOnlySet<CommandKind> RetractionSensitive = new HashSet<CommandKind>
+    {
+        CommandKind.MarkStatus, CommandKind.MarkAllPendingShipped, CommandKind.CancelOrder, CommandKind.OrderPayment
+    };
+
+    private static readonly Regex Retraction = new(
+        @"(?<![\p{L}\p{N}])(?:nahi|nahin|nhi|nai|mat|galat|sorry|wrong|dont|don't|not)(?![\p{L}\p{N}])|نہیں|مت|غلط",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    /// <summary>True when the message parses to a retraction-sensitive command but also says the seller took it back ("mark 5 shipped, nahi sorry").</summary>
+    public static bool IsRetractedCommand(string message) =>
+        CommandParser.TryParse(message) is { } command && RetractionSensitive.Contains(command.Kind) && Retraction.IsMatch(message);
+
     /// <summary>True when the step names a money or order-state word, or parses to a risky command.</summary>
     public static bool IsRiskyStep(string step) =>
         RiskyWord.IsMatch(step) || CommandParser.TryParse(step) is { } command && RiskyCommands.Contains(command.Kind);
