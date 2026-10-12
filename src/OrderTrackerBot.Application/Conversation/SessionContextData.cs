@@ -37,6 +37,8 @@ public sealed class PendingOrderData
     /// <summary>Instagram comment lead this order converts (screen 5d-7); marked converted when the order is saved.</summary>
     public int? CommentLeadId { get; set; }
     public int? CommentLeadNumber { get; set; }
+    /// <summary>The seller already answered "same customer or a new one?" for this draft, so it is not asked again.</summary>
+    public bool CustomerMatchResolved { get; set; }
 }
 
 /// <summary>Everything an in-flight multi-turn flow needs, serialized to ConversationSession.ContextJson.</summary>
@@ -48,6 +50,8 @@ public sealed class SessionContextData
     public string? PendingMissingField { get; set; }
     public List<string>? ClarificationOptions { get; set; }
     public string? PendingNewProductName { get; set; }
+    /// <summary>Saved customer whose phone matches the draft's but whose name differs ("Muhammad Ali" for "Ali"); asked about before saving.</summary>
+    public string? PendingCustomerMatchName { get; set; }
     /// <summary>Products the seller named ("naye products hain") that the bot is still waiting to get a price for.</summary>
     public List<string>? PendingPriceProducts { get; set; }
     /// <summary>Cost/stock/attributes already given for those products, kept until their price arrives (product name -> details).</summary>

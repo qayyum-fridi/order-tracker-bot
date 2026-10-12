@@ -246,6 +246,18 @@ public partial class ConversationEngine
             return;
         }
 
+        // "Ali" with the phone of the saved "Muhammad Ali": ask before a second, split customer record is created.
+        if (!pending.CustomerMatchResolved && await FindRelatedCustomerByPhoneAsync(seller, pending, ct) is { } related)
+        {
+            ctx.PendingMissingField = "CustomerMatch";
+            ctx.PendingCustomerMatchName = related.Name;
+            SetState(session, ConversationState.AwaitingOrderMissingFields);
+            await ReplyAsync(seller,
+                $"Is phone number par pehle se \"{related.Name}\" saved hai. \"{pending.CustomerName}\" wohi customer hai?\n\n" +
+                $"1️⃣ Haan, wohi — \"{related.Name}\" ke naam se save karein\n2️⃣ Nahi, \"{pending.CustomerName}\" naya customer hai", ct);
+            return;
+        }
+
         await ApplyDiscountAsync(seller, pending, ct);
 
         var duplicate = await FindPossibleDuplicateAsync(seller, pending, ct);
@@ -633,12 +645,52 @@ public partial class ConversationEngine
                 await ContinueResolvingDraftAsync(seller, session, ctx, ct);
                 return;
 
+            case "CustomerMatch":
+            {
+                var answer = message.Trim().TrimEnd('.');
+                if (answer != "1" && answer != "2")
+                {
+                    await ReplyAsync(seller, "Reply 1 (wohi customer) ya 2 (naya customer).", ct);
+                    return;
+                }
+                if (answer == "1" && !string.IsNullOrWhiteSpace(ctx.PendingCustomerMatchName)) pending.CustomerName = ctx.PendingCustomerMatchName;
+                pending.CustomerMatchResolved = true;
+                ctx.PendingCustomerMatchName = null;
+                ctx.PendingMissingField = null;
+                await ContinueResolvingDraftAsync(seller, session, ctx, ct);
+                return;
+            }
+
             default:
                 SetState(session, ConversationState.Idle);
                 ctx.PendingOrder = null;
                 await ReplyAsync(seller, "Order draft clear kar diya. Dobara try karein.", ct);
                 return;
         }
+    }
+
+    /// <summary>
+    /// A saved customer with this draft's phone (last 10 digits) and a related but different name: they share a name word ("Ali" / "Muhammad Ali").
+    /// Null when a customer with exactly this name exists (that one is used, as before) or when the only phone match is an unrelated name (a shared family phone).
+    /// </summary>
+    private async Task<Customer?> FindRelatedCustomerByPhoneAsync(Seller seller, PendingOrderData pending, CancellationToken ct)
+    {
+        var digits = new string((pending.Phone ?? "").Where(char.IsDigit).ToArray());
+        var name = pending.CustomerName?.Trim();
+        if (digits.Length < 10 || string.IsNullOrEmpty(name)) return null;
+        var last10 = digits[^10..];
+
+        var sameName = name.ToLower();
+        if (await _db.Customers.AnyAsync(c => c.SellerId == seller.Id && c.Name.ToLower() == sameName, ct)) return null;
+
+        var candidates = await _db.Customers
+            .Where(c => c.SellerId == seller.Id && c.DeletedAt == null && c.Phone != null && c.Phone.EndsWith(last10))
+            .OrderBy(c => c.Id).Take(5).ToListAsync(ct);
+
+        static HashSet<string> Words(string s) => s.Split(new[] { ' ', '.', ',', '-' }, StringSplitOptions.RemoveEmptyEntries)
+            .Where(w => w.Length >= 2).Select(w => w.ToLowerInvariant()).ToHashSet();
+        var wanted = Words(name);
+        return candidates.FirstOrDefault(c => Words(c.Name).Overlaps(wanted));
     }
 
     private static void ApplyResolvedProductToPendingItem(PendingOrderData pending, string originalName, CatalogEntry entry)
