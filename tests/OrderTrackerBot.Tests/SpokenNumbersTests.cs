@@ -24,6 +24,13 @@ public class SpokenNumbersTests
     [InlineData("تین ہزار پانچ سو", 3500)]
     [InlineData("ڈھائی ہزار", 2500)]
     [InlineData("5 hazar", 5000)]
+    [InlineData("dass hazaar", 10000)]
+    [InlineData("atth sau", 800)]
+    [InlineData("tinn hazaar", 3000)]
+    [InlineData("satt sau", 700)]
+    [InlineData("vee hazaar", 20000)]
+    [InlineData("ikk hazaar", 1000)]
+    [InlineData("sath hazar", 60000)]
     public void WordAmounts_ReadsSpokenAmounts(string spoken, long expected) => Assert.Equal(new[] { expected }, Words(spoken));
 
     [Theory]
