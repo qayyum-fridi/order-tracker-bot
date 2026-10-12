@@ -12,28 +12,16 @@ public partial class ConversationEngine
 {
     // Screen 10: the full command list (the 9 core commands are what a seller memorizes; the rest lives under "menu").
     private const string HelpText =
-        "🆘 Yeh commands try karein:\n" +
+        "🆘 Sab se zaroori:\n" +
+        "📦 Naya order — customer ka message forward karein, ya 🎤 voice / 📷 screenshot bhejein\n" +
+        "• \"orders today\" — aaj ke orders\n" +
+        "• \"order 12\" — detail · \"mark 12 shipped\" — status\n" +
+        "• \"receipt 12\" — PDF receipt\n" +
+        "• \"undo\" — pichla kaam wapas\n" +
         "• \"guide\" — step-by-step seekhein\n" +
-        "• \"new order: naam, product, phone, address\"\n" +
-        "• \"orders today\" / \"pending orders\" / \"today's summary\"\n" +
-        "• \"order 12\" — detail · \"edit order 12\" — badlein\n" +
-        "• \"mark 12 shipped/delivered/returned/paid\"\n" +
-        "• \"order 12 advance 500\" · \"delivery 200\"\n" +
-        "• \"[naam] ka order\" / \"[naam] ka tracking\"\n" +
-        "• \"add tracking: courier, number\"\n" +
-        "• \"unpaid orders\" / \"cod pending\" / \"payment link\"\n" +
-        "• \"catalog\" · \"Kurti - 1800\" · \"stock Kurti 20\"\n" +
-        "• \"add product/customer/order (detailed)\" — form\n" +
-        "• \"trending products\" / \"slow movers\" / \"[product] ka report\"\n" +
-        "• \"loyal customers\" / \"create discount\"\n" +
-        "• \"Sara ka phone 0300...\" — customer update\n" +
-        "• \"receipt 12\" — PDF · \"export\" — Excel\n" +
-        "• \"expense 500 packaging\" · \"monthly net\"\n" +
-        "• \"support queries\" · \"change language\"\n" +
-        "• \"undo\"\n" +
         "\n" +
-        "🎤 Voice note ya 📷 screenshot bhi bhej saktay hain.\n" +
-        "Ya \"menu\" likh kar categorized list dekhein.";
+        "Baqi sab kuch (reports, discounts, stock, export...) \"menu\" likh kar milega.\n" +
+        "Samajh na aaye to \"kya karun\" likhein.";
 
     // Screen 10b: categorized menu.
     private const string MenuText =
@@ -76,6 +64,13 @@ public partial class ConversationEngine
         " • add payment: jazzcash/easypaisa, number\n" +
         " • change language\n" +
         " • create loyalty rule\n" +
+        "\n" +
+        "🧰 Aur\n" +
+        " • edit order 12 · order 12 advance 500 · delivery 200\n" +
+        " • add tracking: courier, number · unpaid orders\n" +
+        " • receipt 12 · export · undo\n" +
+        " • stock Kurti 20 · expense 500 packaging\n" +
+        " • Sara ka phone 0300... · support queries\n" +
         "\n" +
         "Command type karein, ya neeche button se category chunein.";
 

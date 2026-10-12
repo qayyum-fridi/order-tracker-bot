@@ -149,10 +149,11 @@ public partial class ConversationEngine
                 if (await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: true, ct)) return;
                 seller.BusinessName = message;
                 SetState(session, ConversationState.OnboardingOptionalDetails);
-                await ReplyAsync(seller,
-                    "Shukriya! Kya aap kuch mazeed tafseelat bhi dena chahenge? (ikhtiyari hai, \"skip\" bhi kar saktay hain)\n" +
-                    "📍 Shehar\n🏷️ Karobar ki qisam (jaise Clothing, Food, Jewelry)\n📸 Instagram handle (agar mojood ho)\n\n" +
-                    "Baari baari bata dein, ya aage barhne ke liye \"skip\" likhein.", ct);
+                // Skip is a tap, not a word to type. A real order sent at any step also ends setup (TryOrderDuringOnboardingAsync), and the seller is told so.
+                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
+                    "Shukriya! Ek line mein bata dein (ikhtiyari): shehar, karobar ki qisam, Instagram handle.\n" +
+                    "Jaise: Lahore, Clothing, @ayesha.collections\n\n" +
+                    "Ya \"Skip\" dabayein. Koi order aaya ho to seedha yahan bhej dein — baqi setup baad mein ho jayega.", new[] { "Skip" }, ct);
                 return;
 
             case ConversationState.OnboardingOptionalDetails:

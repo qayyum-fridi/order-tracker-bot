@@ -808,9 +808,9 @@ public class ConversationEngineTests : IDisposable
         Assert.Equal(7, lists[0].Sections.SelectMany(s => s.Rows).Count(r => r.Id.StartsWith("menu ")));
         Assert.Contains("Main Menu", lists[0].Body);
         Assert.Contains("📊 Reports", lists[0].Body);
-        Assert.Contains("Yeh commands try karein", lists[1].Body);
-        Assert.Contains("trending products", lists[1].Body);
-        Assert.Contains("\"guide\"", lists[1].Body);
+        Assert.Contains("Sab se zaroori", lists[1].Body);
+        Assert.Contains("orders today", lists[1].Body);
+        Assert.Contains("\"menu\"", lists[1].Body);
     }
 
     [Fact]
