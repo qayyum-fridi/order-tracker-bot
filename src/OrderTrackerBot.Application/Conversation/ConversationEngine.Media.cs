@@ -278,8 +278,15 @@ public partial class ConversationEngine
         // "Haan lekin quantity do kar do", "haan, theek hai... nahi ruko": a bare yes keeps the approval and drops the condition, the hesitation or the refusal.
         if (BareAffirmation.IsMatch(rewritten.Trim()) && ReversalWord.IsMatch(transcript))
             return "a bare yes drops a condition, hesitation or refusal the seller added";
+
+        // "shayad 12 cancel kar dun", "agar ho sake to price 1500": a hedge or a condition is not an instruction, so it may not become a step
+        // that changes money or an order. Pauses ("...") and a question mark are not hedges: they appear in self-corrections and mixed sentences.
+        if (HedgeWord.IsMatch(transcript) && rewritten.Split('\n', StringSplitOptions.RemoveEmptyEntries).Any(ActionRisk.IsRiskyStep))
+            return "the transcript is a hedge, condition or question but the rewrite changes money or an order";
         return null;
     }
+
+    private static readonly Regex HedgeWord = new(@"\b(?:agar|shayad|maybe|perhaps|if|soch\w*|dekh\w*|ruk\w*|wait|hmm+|pata\s+nahi|pata\s+nahin)\b",RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     private static readonly Regex BareAffirmation = new(@"^(yes|y|ha|haan|han|hanji|ji|jee|ok|okay|theek hai|thik hai)[.!]*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
     private static readonly Regex ReversalWord = new(@"(?:\b(?:lekin|magar|par|but|however|nahi|nahin|nahee|mat|na|no|ruk|ruko|rukna|pehle|phir|cancel|agar|shayad|soch|sochta|sochna|sochun|dekhta|dekhti|dekhungi|hmm|hmmm|baad|abhi|wait|if|maybe)\b)|\?|\.\.\.|…", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);

@@ -50,6 +50,26 @@ public class TurnDecisionTests
         Assert.Equal(new[] { message }, decision.Steps);
     }
 
+    [Theory]
+    [InlineData("shayad order 12 cancel kar dun", "cancel order 12")]
+    [InlineData("hmm order 12 shipped kar dun", "mark 12 shipped")]
+    [InlineData("agar ho sake to order 12 delivery 300", "order 12 delivery 300")]
+    public void HedgedTranscript_BecomingARiskyStep_IsRefused(string transcript, string step)
+    {
+        var decision = ConversationEngine.DecideRewrite(transcript, new[] { step }, new HashSet<long> { 12, 300 });
+
+        Assert.Equal(DecisionKind.Reject, decision.Kind);
+        Assert.Empty(decision.Steps);
+    }
+
+    [Fact]
+    public void ConfidentTranscript_BecomingARiskyStep_StillExecutes()
+    {
+        var decision = ConversationEngine.DecideRewrite("order 12 cancel kar do", new[] { "cancel order 12" }, new HashSet<long> { 12 });
+
+        Assert.Equal(DecisionKind.Execute, decision.Kind);
+    }
+
     [Fact]
     public void UnfaithfulRewrite_ThatIsHarmless_AsksAgain()
     {
