@@ -624,6 +624,8 @@ public static class CommandParser
     private static readonly Regex UpdateBusinessInfo = new(@"^(update\s+)?business\s+(info|details)$", Opts);
     private static readonly Regex Subscribe = new(@"^(subscribe|subscription|upgrade|plans?)$", Opts);
     private static readonly Regex BroadcastNatural = new(@"\b(?:sab|saare|sare|all)\s+customers?\s+ko\s+(?:batao|bata\s+do|bhejo|bhej\s+do|message\s+karo)\s*:\s*(.+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Singleline);
+    // The menu tells sellers to write "naya product: Kurti - 1800": the prefix is dropped and the rest read as a product line (a colon is required, so "naya product hai" sentences are left alone).
+    private static readonly Regex NewProductPrefix = new(@"^(?:naya|nayi|new)\s+products?\s*:\s*(?<r>.+)$", Opts);
     private static readonly Regex AddProduct = new(@"^add\s+product:\s*(.+?)\s*-\s*(\d+(?:\.\d+)?)$", Opts);
     private static readonly Regex EditProduct = new(@"^edit\s+product:\s*(.+?)\s*-\s*(\d+(?:\.\d+)?)$", Opts);
     private static readonly Regex MarkAllPendingShipped = new(@"^mark\s+all\s+pending\s+as\s+shipped$", Opts);
@@ -1006,6 +1008,7 @@ public static class CommandParser
         var text = rawMessage.Trim();
         var filler = LeadingFiller.Match(text);
         if (filler.Success && filler.Length < text.Length) text = text[filler.Length..].Trim();
+        if (NewProductPrefix.Match(text) is { Success: true } newProduct) text = newProduct.Groups["r"].Value.Trim();
 
         var parsed = ParseCore(text, wasQuestion: false);
         if (parsed is not null) return parsed;
@@ -1140,7 +1143,8 @@ public static class CommandParser
         if (TryParseLossOrWage(message) is { } lossOrWage) return lossOrWage;
         if (StockList.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Stock };
         if ((m = StockOff.Match(message)).Success) return new ParsedCommand { Kind = CommandKind.Stock, Text = m.Groups["name"].Value.Trim(), Text2 = "off" };
-        if ((m = StockSet.Match(message)).Success)
+        // "Kurti - 1800, stock 10" ends in a stock amount but is a product line (price + details), not "Kurti stock 10".
+        if (!TryParseProductLine(message, out _) && (m = StockSet.Match(message)).Success)
             return new ParsedCommand
             {
                 Kind = CommandKind.Stock, Text = m.Groups["name"].Value.Trim(), Text2 = m.Groups["sign"].Success ? "add" : "set",

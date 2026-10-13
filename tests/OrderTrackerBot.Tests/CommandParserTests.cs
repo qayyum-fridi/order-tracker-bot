@@ -819,3 +819,47 @@ public class CommandParserTests
         Assert.Equal(CommandKind.FuzzyStatusUpdate, CommandParser.TryParse("Sara ka order deliver ho gaya")!.Kind);
     }
 }
+
+public class NewProductPrefixTests
+{
+    [Theory]
+    [InlineData("naya product: Kurti - 1800", "Kurti", 1800)]
+    [InlineData("new product: Dupatta - 600, cost 300,", "Dupatta", 600)]
+    [InlineData("Naya Product : Shawl - 2,200", "Shawl", 2200)]
+    public void TheMenuWording_AddsAProduct(string text, string name, int price)
+    {
+        var parsed = CommandParser.TryParse(text)!;
+        Assert.Equal(CommandKind.AddProduct, parsed.Kind);
+        Assert.Equal(name, parsed.Text);
+        Assert.Equal(price, parsed.Amount);
+    }
+
+    [Theory]
+    [InlineData("naya product hai Kurti")]
+    [InlineData("naya product: Kurti")]
+    public void SentencesWithoutAPrice_AreNotProductLines(string text) =>
+        Assert.NotEqual(CommandKind.AddProduct, CommandParser.TryParse(text)?.Kind);
+}
+
+public class ProductLineEndingInStockTests
+{
+    [Theory]
+    [InlineData("Dupatta - 600, cost 300, stock 50", "Dupatta", 600)]
+    [InlineData("Kurti - 1800, stock 10", "Kurti", 1800)]
+    [InlineData("Dupatta - 600, cost 300,", "Dupatta", 600)]
+    public void AProductLineWithTrailingStock_IsAProduct_NotAStockCommand(string text, string name, int price)
+    {
+        var parsed = CommandParser.TryParse(text)!;
+        Assert.Equal(CommandKind.AddProduct, parsed.Kind);
+        Assert.Equal(name, parsed.Text);
+        Assert.Equal(price, parsed.Amount);
+    }
+
+    [Theory]
+    [InlineData("Kurti stock 20")]
+    [InlineData("stock Kurti 20")]
+    [InlineData("Kurti ka stock 20")]
+    [InlineData("stock Kurti +10")]
+    public void PlainStockCommands_AreUnchanged(string text) => Assert.Equal(CommandKind.Stock, CommandParser.TryParse(text)!.Kind);
+}
+
