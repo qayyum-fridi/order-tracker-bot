@@ -23,7 +23,7 @@ services:
       WhatsApp__FlowDraftMode: "${WHATSAPP_FLOW_DRAFT_MODE:-false}"
       Billing__Enabled: "${BILLING_ENABLED:-true}"
       Billing__FreeSellerLimit: "${BILLING_FREE_SELLER_LIMIT:-100}"
-      MediaLimits__VoicePerHour: "${MEDIA_VOICE_PER_HOUR:-10}"
+      MediaLimits__VoicePerHour: "${MEDIA_VOICE_PER_HOUR:-30}"
       MediaLimits__ImagePerHour: "${MEDIA_IMAGE_PER_HOUR:-10}"
       Billing__PaymentNumber: "${BILLING_PAYMENT_NUMBER:-}"
       Backup__Enabled: "${BACKUP_ENABLED:-false}"

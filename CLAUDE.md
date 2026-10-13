@@ -235,7 +235,7 @@ shared-state action: confirm with the user and get SSH/host details first.
   `PendingWebhookMessages` is created on Sqlite by the patcher — **no SQL Server migration yet**.
 - Free first sellers + media caps: `Billing:FreeSellerLimit` (appsettings/compose default 100, code default 0 = off): sellers with `Id <= limit` are free for good — `BillingApplies(seller)` (Billing.cs) is false for them, so
   no trial, plan/subscribe text, trial reminder, Pro-only block or "subscribe" menu row (typed "subscribe" answers that the account is free). Seller 101+ follow the normal 14-day trial. `MediaRateLimiter` (singleton, in-memory,
-  rolling hour per seller; `MediaLimits:VoicePerHour` / `ImagePerHour`, default 10 each, 0 = unlimited) is checked before the paid transcription / vision call; logo/banner pictures are not counted; a restart resets it.
+  rolling hour per seller; `MediaLimits:VoicePerHour` (default 30) / `ImagePerHour` (default 10), 0 = unlimited) is checked before the paid transcription / vision call; logo/banner pictures are not counted; a restart resets it.
 - Backups (`Infrastructure/Backup`, `Api/BackupService.cs`, `Api/BackupStartup.cs`; README "Backups"): Sqlite only, off unless `Backup:Enabled` + all of FolderId/ClientId/ClientSecret/RefreshToken.
   `BackupService` snapshots with SQLite's online backup API (safe while writing), integrity-checks it (a corrupt snapshot is never uploaded), gzips and uploads to Drive (`drive.file` scope, plain
   HTTP in `GoogleDriveBackupStorage`, OAuth refresh token) when the newest Drive backup is older than `IntervalHours`; prunes to `KeepCount`. `BackupStartup.RestoreIfNeededAsync` runs in `Program.cs` before

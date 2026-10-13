@@ -7,7 +7,7 @@ public sealed class MediaLimitOptions
 {
     public const string SectionName = "MediaLimits";
 
-    public int VoicePerHour { get; set; } = 10;
+    public int VoicePerHour { get; set; } = 30;
     public int ImagePerHour { get; set; } = 10;
 }
 
