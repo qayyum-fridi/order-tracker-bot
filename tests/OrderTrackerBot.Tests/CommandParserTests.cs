@@ -515,6 +515,7 @@ public class CommandParserTests
     [InlineData("➕ Naya order", CommandKind.NewOrderHelp)]
     [InlineData("➕ New order", CommandKind.NewOrderHelp)]
     [InlineData("📦 Orders today", CommandKind.OrdersToday)]
+    [InlineData("📋 Menu", CommandKind.Menu)]
     [InlineData("📋 مینو", CommandKind.Menu)]
     [InlineData("📖 Guide", CommandKind.Guide)]
     [InlineData("📖 گائیڈ", CommandKind.Guide)]

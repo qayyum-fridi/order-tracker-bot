@@ -289,7 +289,7 @@ Codes live in `IssueCodes` (`Application/Abstractions/IIssueReporter.cs`); never
 Sellers shouldn't have to remember command words:
 
 - **Quick-action buttons** — after a finished reply (nothing pending, and the reply didn't already carry its own buttons/list) the bot
-  adds three tappable buttons: *Menu · Naya order · Orders today* (Urdu-script labels for Urdu sellers). The first time it explains
+  adds three tappable buttons: *Guide · Naya order · Menu* (Urdu-script labels for Urdu sellers). The first time it explains
   them; `shortcut off` / `shortcut on` turns them off/on per seller. Global switch: `Features:ShortcutButtons` (default `true`).
   The button labels are real commands — a tapped button arrives as that text.
 - **"/" commands** — WhatsApp lists a business's commands when the user types `/`. Register them once per phone number (they map to

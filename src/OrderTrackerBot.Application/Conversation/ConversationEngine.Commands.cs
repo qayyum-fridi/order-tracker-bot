@@ -926,7 +926,7 @@ public partial class ConversationEngine
             existing.Price = line.Price;
             existing.IsActive = true;
             ApplyProductExtras(existing, line.Extras);
-            SuggestNext($"walkin {existing.Name} 1", "catalog", "stock");
+            SuggestNext($"walkin {existing.Name} 1", "catalog");
             return (existing, true);
         }
 
@@ -934,7 +934,7 @@ public partial class ConversationEngine
         ApplyProductExtras(product, line.Extras);
         _db.Products.Add(product);
         await _db.SaveChangesAsync(ct);
-        SuggestNext($"walkin {product.Name} 1", "catalog", "stock");
+        SuggestNext($"walkin {product.Name} 1", "catalog");
         return (product, false);
     }
 
