@@ -258,11 +258,21 @@ public partial class ConversationEngine
             return;
         }
 
+        // A phone read from the message ("030011122": a digit short) is checked like one typed as an answer, instead of being saved as it is.
+        string? badPhone = null;
+        if (!pending.PaidInFull && !string.IsNullOrWhiteSpace(pending.Phone) && !IsPlausiblePhone(pending.Phone))
+        {
+            badPhone = pending.Phone.Trim();
+            pending.Phone = null;
+        }
+
         if (string.IsNullOrWhiteSpace(pending.Phone) && !pending.PaidInFull)
         {
             ctx.PendingMissingField = "Phone";
             SetState(session, ConversationState.AwaitingOrderMissingFields);
-            await ReplyAsync(seller, "Customer ka phone number bhi bataiye?", ct);
+            await ReplyAsync(seller, badPhone is null
+                ? "Customer ka phone number bhi bataiye?"
+                : $"⚠️ Phone number \"{badPhone}\" poora nahi lagta ({badPhone.Count(char.IsDigit)} digits). Barae meherbani sahi number bhejein, jaise 03001234567.", ct);
             return;
         }
 
@@ -576,6 +586,14 @@ public partial class ConversationEngine
     private static bool IsProductStepAnswer(string message) =>
         System.Text.RegularExpressions.Regex.IsMatch(message.Trim(), @"^(?:[12](?:\s+.+)?|(?:rs\.?\s*)?\d[\d,]*(?:\.\d+)?)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
+    /// <summary>10 to 13 digits (03001234567, 3001234567, 923001234567, a landline with its code) and no letters; anything else is a typo.</summary>
+    internal static bool IsPlausiblePhone(string? phone)
+    {
+        if (string.IsNullOrWhiteSpace(phone)) return false;
+        var digits = phone.Count(char.IsDigit);
+        return digits is >= 10 and <= 13 && !phone.Any(char.IsLetter);
+    }
+
     private async Task HandleOrderMissingFieldAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         var pending = ctx.PendingOrder!;
@@ -678,7 +696,7 @@ public partial class ConversationEngine
                 return;
 
             case "Phone":
-                if (message.Count(char.IsDigit) < 10)
+                if (!IsPlausiblePhone(message))
                 {
                     await ReplyAsync(seller, "Phone number sahi nahi lagta — sirf number bhejein (e.g. 03001234567), ya \"cancel\" likhein.", ct);
                     return;

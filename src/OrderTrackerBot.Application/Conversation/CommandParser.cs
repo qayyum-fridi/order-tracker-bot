@@ -625,6 +625,7 @@ public static class CommandParser
     private static readonly Regex Subscribe = new(@"^(subscribe|subscription|upgrade|plans?)$", Opts);
     private static readonly Regex BroadcastNatural = new(@"\b(?:sab|saare|sare|all)\s+customers?\s+ko\s+(?:batao|bata\s+do|bhejo|bhej\s+do|message\s+karo)\s*:\s*(.+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Singleline);
     // The menu tells sellers to write "naya product: Kurti - 1800": the prefix is dropped and the rest read as a product line (a colon is required, so "naya product hai" sentences are left alone).
+    private static readonly Regex TrailingRemark = new(@"\s*[(（]\s*(?:confirm(?:ed)?|yes|ok|okay|haan|han|done)\s*[)）]\s*$", Opts);
     private static readonly Regex NewProductPrefix = new(@"^(?:naya|nayi|new)\s+products?\s*:\s*(?<r>.+)$", Opts);
     private static readonly Regex AddProduct = new(@"^add\s+product:\s*(.+?)\s*-\s*(\d+(?:\.\d+)?)$", Opts);
     private static readonly Regex EditProduct = new(@"^edit\s+product:\s*(.+?)\s*-\s*(\d+(?:\.\d+)?)$", Opts);
@@ -668,7 +669,10 @@ public static class CommandParser
 
     /// <summary>"EID10 10%" / "EID10 10 percent" / "EID10 Rs.50 flat" -> "EID10, 10 percent" / "EID10, Rs.50 flat" (the format the discount reader expects).</summary>
     public static string NormalizeDiscountSpec(string text) =>
-        CodeThenValue.Replace(PercentSign.Replace(text.Trim(), "$1 percent"), "${code}, ");
+        FlatOff.Replace(CodeThenValue.Replace(PercentSign.Replace(text.Trim(), "$1 percent"), "${code}, "), "${code}, Rs.${n} flat");
+
+    // "SAVE200, 200 off" (no percent sign, no "flat"): an amount off is Rupees, as sellers say "200 off".
+    private static readonly Regex FlatOff = new(@"^(?<code>[A-Za-z][A-Za-z0-9_-]{1,29})\s*,\s*(?:rs\.?\s*)?(?<n>\d+)\s*(?:rs\.?|rupay|rupees)?\s*off$", Opts);
     private static readonly Regex CancelOrder = new(@"^cancel\s+(?:order\s+)?#?(\d+)$", Opts);
     private static readonly Regex Undo = new(@"^undo$", Opts);
     private static readonly Regex PaymentLink = new(@"^payment\s+link(?:\s+(\d+))?$", Opts);
@@ -1022,6 +1026,8 @@ public static class CommandParser
         var filler = LeadingFiller.Match(text);
         if (filler.Success && filler.Length < text.Length) text = text[filler.Length..].Trim();
         if (NewProductPrefix.Match(text) is { Success: true } newProduct) text = newProduct.Groups["r"].Value.Trim();
+        // "cancel 3 (confirm)": a note in brackets at the end is a remark, not part of the command. The bot still asks before cancelling.
+        text = TrailingRemark.Replace(text, "").TrimEnd();
 
         var parsed = ParseCore(text, wasQuestion: false);
         if (parsed is not null) return parsed;
