@@ -176,11 +176,11 @@ public static class CommandParser
     private static readonly Regex OrdersToday = new(@"^(?:orders?\s+today|show\s+orders?|today'?s\s+orders?|" + Today + OrdersOfPeriod + @")$", Opts);
     private static readonly Regex OrdersYesterday = new(@"^(?:orders?\s+yesterday|yesterday'?s\s+orders?|" + Yesterday + OrdersOfPeriod + @")$", Opts);
     private static readonly Regex OrdersLastMonth = new(@"^(?:orders?\s+last\s+month|last\s+month'?s?\s+orders?|" + LastMonth + OrdersOfPeriod + @")$", Opts);
-    private static readonly Regex PendingOrders = new(@"^(pending\s+orders?|پینڈنگ\s+آرڈرز?)$", Opts);
-    private static readonly Regex TodaysSummary = new(@"^(?:today'?s\s+summary|today\s+summary|hisaa?b\s+kitab|daily\s+account|" + Today + @"\s+" + Of + @"\s+" + SummaryWord + @")$", Opts);
+    private static readonly Regex PendingOrders = new(@"^(pending\s+orders?|pending|active\s+orders?|پینڈنگ\s+آرڈرز?)$", Opts);
+    private static readonly Regex TodaysSummary = new(@"^(?:today'?s\s+summary|today\s+summary|hisaa?b\s+kitab|daily\s+(?:account|report)|hisaa?b|" + Today + @"\s+" + Of + @"\s+" + SummaryWord + @")$", Opts);
     private static readonly Regex YesterdaysSummary = new(@"^(?:yesterday'?s\s+summary|summary\s+yesterday|" + Yesterday + @"\s+" + Of + @"\s+" + SummaryWord + @")$", Opts);
     private static readonly Regex LastMonthSummary = new(@"^(?:last\s+month'?s?\s+summary|summary\s+last\s+month|" + LastMonth + @"\s+" + Of + @"\s+" + SummaryWord + @")$", Opts);
-    private static readonly Regex Catalog = new(@"^(?:catalog|products|my\s+products|کیٹلاگ|(?:show|dikhao|dikhana|dekhao|dekhein|view)\s+(?:my\s+|mera\s+)?catalog|catalog\s+(?:show|list|view|dikhao|dikhana|dekhao|dekhein|dekhna))$", Opts);
+    private static readonly Regex Catalog = new(@"^(?:catalog|products|my\s+products|maal|rate\s+list|price\s+list|کیٹلاگ|(?:show|dikhao|dikhana|dekhao|dekhein|view)\s+(?:my\s+|mera\s+)?catalog|catalog\s+(?:show|list|view|dikhao|dikhana|dekhao|dekhein|dekhna))$", Opts);
     private static readonly Regex ShareCatalog = new(@"^share\s+catalog$", Opts);
     private static readonly Regex MenuCategory = new(@"^menu\s+(orders|reports|catalog|payments|discounts|customers|settings|shop)$", Opts);
     private static readonly Regex CustomerList = new(@"^(customers?\s+list|my\s+customers|customers)$", Opts);
@@ -265,7 +265,7 @@ public static class CommandParser
     }
 
     // "stock" lists tracked stock; "stock Kurti 20" sets, "stock Kurti +10" adds, "stock Kurti off" stops tracking. Text = product, Text2 = set|add|off.
-    private static readonly Regex StockList = new(@"^(?:stock|stocks|inventory|stock\s+list|low\s+stock|اسٹاک)$", Opts);
+    private static readonly Regex StockList = new(@"^(?:stock|stocks|inventory|stock\s+list|low\s+stock|short\s+stock|kam\s+stock|out\s+of\s+stock|khatam\s+maal|stock\s+check|اسٹاک)$", Opts);
     private static readonly Regex StockOff = new(@"^(?:stock|اسٹاک)\s*:?\s*(?<name>[^\d].*?)\s+(?:off|band|remove|hatao)$", Opts);
     private static readonly Regex StockSet = new(@"^(?:stock|اسٹاک)\s*:?\s*(?<name>[^\d].*?)\s*[=:]?\s*(?<sign>\+)?\s*(?<![\d])(?<n>\d{1,6})$|^(?<name>[^\d].*?)\s+(?:ka\s+|ki\s+)?(?:stock|اسٹاک)\s*[=:]?\s*(?<sign>\+)?\s*(?<![\d])(?<n>\d{1,6})$", Opts);
 
@@ -720,7 +720,7 @@ public static class CommandParser
     private static readonly Regex BarcodeSetCmd = new(@"^(?:barcode|sku)\s+(?<name>.+?)\s+(?<code>[A-Za-z0-9\-]{4,40})$", Opts);
     private static readonly Regex BarcodeHelpCmd = new(@"^barcodes?$", Opts);
     private const string CashAmount = @"(?<amt>\d[\d,]*(?:\.\d+)?)";
-    private static readonly Regex DrawerCmd = new(@"^(?:cash\s*drawer|drawer|galla|cash\s*box|cashbox)(?:\s+(?<act>open|close|status|history|balance|khol\w*|band\w*))?(?:\s+" + CashAmount + @")?(?:\s+(?<note>.+))?$", Opts);
+    private static readonly Regex DrawerCmd = new(@"^(?:cash\s*drawer|drawer|galla|gala|cash\s*box|cashbox)(?:\s+(?<act>open|close|status|history|balance|khol\w*|band\w*))?(?:\s+" + CashAmount + @")?(?:\s+(?<note>.+))?$", Opts);
     private static readonly Regex CashOpenCloseCmd = new(@"^cash\s+(?<act>open|close|status|history|balance)(?:\s+" + CashAmount + @")?(?:\s+(?<note>.+))?$", Opts);
     private static readonly Regex CashMoveCmd = new(@"^cash\s+(?<k>in|out|sale|undo|jama|nikala|nikalo|bikri)(?:\s+" + CashAmount + @")?(?:\s+(?<note>.+))?$", Opts);
     private static readonly Regex CashAloneCmd = new(@"^(?:cash|galla)$", Opts);

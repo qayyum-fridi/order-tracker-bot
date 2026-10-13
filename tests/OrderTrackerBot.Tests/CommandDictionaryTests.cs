@@ -133,6 +133,20 @@ public class CommandDictionaryTests
     [InlineData("customers", CommandKind.CustomerList)]
     [InlineData("low stock", CommandKind.Stock)]
     [InlineData("print label", CommandKind.ShippingLabel)]
+    [InlineData("maal", CommandKind.Catalog)]
+    [InlineData("rate list", CommandKind.Catalog)]
+    [InlineData("price list", CommandKind.Catalog)]
+    [InlineData("short stock", CommandKind.Stock)]
+    [InlineData("kam stock", CommandKind.Stock)]
+    [InlineData("out of stock", CommandKind.Stock)]
+    [InlineData("khatam maal", CommandKind.Stock)]
+    [InlineData("stock check", CommandKind.Stock)]
+    [InlineData("pending", CommandKind.PendingOrders)]
+    [InlineData("active orders", CommandKind.PendingOrders)]
+    [InlineData("gala", CommandKind.CashDrawer)]
+    [InlineData("hisaab", CommandKind.TodaysSummary)]
+    [InlineData("hisab", CommandKind.TodaysSummary)]
+    [InlineData("daily report", CommandKind.TodaysSummary)]
     public void DocumentedPhrase_ParsesToItsCommand(string phrase, CommandKind expected) =>
         Assert.Equal(expected, CommandParser.TryParse(phrase)?.Kind);
 
@@ -167,4 +181,15 @@ public class CommandDictionaryTests
         Assert.Equal(number, parsed.Number);
         Assert.Equal(name, parsed.Text);
     }
+
+    // Words with more than one possible meaning are deliberately not guessed.
+    [Theory]
+    [InlineData("udhaar")]
+    [InlineData("ledger")]
+    [InlineData("items")]
+    [InlineData("slip")]
+    [InlineData("all orders")]
+    [InlineData("aaj ki kamai")]
+    [InlineData("minus 1000")]
+    public void AmbiguousWords_AreNotCommands(string phrase) => Assert.Null(CommandParser.TryParse(phrase));
 }

@@ -22,7 +22,7 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 |---|---|---|
 | New order | forward the customer's message, send a 🎤 voice note or a 📷 screenshot | `Ayesha, 2 suit, 03001234567` |
 | Orders of a day / period | `orders today` | `show orders` · `orders yesterday` · `orders 30 days` · `aaj ke orders` |
-| Pending / unpaid / COD owed | `pending orders` · `unpaid orders` · `cod pending` | |
+| Pending / unpaid / COD owed | `pending orders` · `unpaid orders` · `cod pending` | `pending` · `active orders` |
 | One order in full | `order 12` | `#12` |
 | Change status | `mark 12 shipped` | `delivered` · `returned` · `paid` · `bhej diya` · `mukammal` |
 | Cancel an order | `cancel 12` | |
@@ -52,10 +52,10 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 
 | Task | Write |
 |---|---|
-| See / share | `catalog` (or `products`) · `share catalog` |
+| See / share | `catalog` (or `products` · `maal` · `rate list` · `price list`) · `share catalog` |
 | Add a product | `Kurti - 1800` · `naya product: Kurti - 1800` · `Polo Shirt - 500, cost 300, stock 10, category: Shirts` |
 | Change / remove | `edit product: Kurti - 1900` · `delete product: Kurti` |
-| Stock | `stock` (or `low stock`) · `stock Kurti 20` (`+10` · `off`) |
+| Stock | `stock` (or `low stock` · `short stock` · `kam stock` · `out of stock` · `khatam maal` · `stock check`) · `stock Kurti 20` (`+10` · `off`) |
 | Filter | `products category Shirts` · `products vendor Ali` |
 | Barcode | `barcode Kurti 8961234567890` · `scan cart` · `scan done` · `scan clear` |
 
@@ -63,12 +63,12 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 
 | Task | Write |
 |---|---|
-| Today's account | `aaj ka hisaab` · `today's summary` · `hisaab kitab` · `آج کا حساب` (sales, top item, expenses, drawer cash) |
+| Today's account | `aaj ka hisaab` · `today's summary` · `hisaab` · `hisaab kitab` · `daily report` · `آج کا حساب` (sales, top item, expenses, drawer cash) |
 | Other days | `kal ka hisaab` · `weekly summary` |
 | Profit | `profit` · `profit today` · `munafa` |
 | Expenses | `expense 500 packaging` · `kharcha 800 petrol` · `expenses` · `monthly net` |
 | Payment link / methods | `payment link` · `add payment: jazzcash, 03001234567` |
-| Cash drawer | `drawer open 5000` · `cash in 500 float` · `cash out 300 chai` · `drawer` · `drawer close 12000` |
+| Cash drawer | (`gala` · `galla` = `drawer`) `drawer open 5000` · `cash in 500 float` · `cash out 300 chai` · `drawer` · `drawer close 12000` |
 | Courier payouts | `payout pending` · `payout 11700 TCS orders 1 2 3` · `payout list` |
 | Counter sale | `walkin Kurti 2` · `counter sale 1500` |
 
@@ -100,3 +100,7 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 ## Not commands (handled inside a question)
 
 `cancel` and `kya karun` are understood in any step but are not in the command table: `cancel` only means something while a question is open, and `kya karun` answers with a tip for the current step.
+
+## Left out on purpose (more than one meaning)
+
+`udhaar` (credit given — there is no credit ledger), `ledger`, `items`, `slip`, `all orders` (all of today? all ever?), `aaj ki kamai` (sales or profit?), `minus 1000` (expense or cash out?), `kurti ka rate` (a price lookup does not exist yet). These go to the assistant, which offers the possible actions as buttons.
