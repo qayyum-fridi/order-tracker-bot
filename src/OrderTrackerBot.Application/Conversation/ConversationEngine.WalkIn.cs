@@ -149,8 +149,38 @@ public sealed partial class ConversationEngine
 
         var customer = matches[0];
         ctx.OrderForCustomer = new OrderForCustomerData { Name = customer.Name, Phone = customer.Phone, Address = customer.Address, At = DateTime.UtcNow };
-        await ReplyAsync(seller,
-            $"📝 {customer.Name} ke liye order — items likhein, jaise:\nKurti 2, Dupatta\nya: Lawn Suit - 3200\n(Phone/address pehle se saved hain.)", ct);
+        var prompt = $"📝 {customer.Name} ke liye order — items likhein, jaise:\nKurti 2, Dupatta\nya: Lawn Suit - 3200\n(Phone/address pehle se saved hain.)";
+        var usual = _features.SuggestionButtons ? await UsualItemsAsync(seller, customer, ct) : new List<ProductSuggestion>();
+        ctx.ProductSuggestions = usual.Count > 0 ? usual : ctx.ProductSuggestions;
+        if (usual.Count == 0)
+        {
+            await ReplyAsync(seller, prompt, ct);
+            return;
+        }
+        await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
+            prompt + $"\n\n🔁 {customer.Name} ki pichli chizen — ek tap se 1 add hoga:", usual.Select(u => u.Title).ToList(), ct);
+    }
+
+    /// <summary>
+    /// The customer's usual items: the products most often bought in her last 3 orders (cancelled and returned ones do not count; ties go to the more recent order),
+    /// at most 3, only products that are still active in the catalog, titled "Name Rs.price" like the did-you-mean taps. Plain database history, no AI.
+    /// </summary>
+    private async Task<List<ProductSuggestion>> UsualItemsAsync(Seller seller, Customer customer, CancellationToken ct)
+    {
+        var orders = await _db.Orders.Include(o => o.Items)
+            .Where(o => o.SellerId == seller.Id && o.CustomerId == customer.Id && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
+            .OrderByDescending(o => o.CreatedAt).Take(3).ToListAsync(ct);
+        if (orders.Count == 0) return new List<ProductSuggestion>();
+
+        var catalog = await LoadCatalogAsync(seller, ct);
+        var ranked = orders.SelectMany((o, recency) => o.Items.Where(i => i.ProductId != null).Select(i => (i.ProductId!.Value, recency)))
+            .GroupBy(x => x.Item1)
+            .Select(g => (ProductId: g.Key, Count: g.Count(), Recent: g.Min(x => x.recency)))
+            .OrderByDescending(x => x.Count).ThenBy(x => x.Recent)
+            .Select(x => catalog.FirstOrDefault(c => c.Product.Id == x.ProductId)?.Label)
+            .Where(label => label is not null).Select(label => label!)
+            .Take(3).ToList();
+        return BuildSuggestions(catalog, ranked);
     }
 
     /// <summary>The message after "order for Sara": read as her items. A real command, or anything that is not items, drops the request and runs as usual.</summary>

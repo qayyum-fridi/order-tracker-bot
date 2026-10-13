@@ -125,12 +125,16 @@ public partial class ConversationEngine
         _turnSeller = seller;
         _turnCtx = ctx;
 
-        // A tap on a did-you-mean button for an unknown product acts as the typed answer ("2 <product>" / "1"); with no such question waiting it is a stale tap.
+        // A tap on a product button: an answer to the unknown-product question ("2 <product>" / "1"), or one of the customer's usual items after "order for Sara"
+        // (read as her items). With no such question waiting it is a stale tap.
         if (ctx.ProductSuggestions is { Count: > 0 } offered
             && (message.Trim() == NewProductButtonTitle || offered.Any(o => o.Title == message.Trim())))
         {
+            var tappedTitle = message.Trim();
             if (session.State == ConversationState.AwaitingOrderMissingFields && ctx.PendingMissingField == "ProductChoice")
-                message = message.Trim() == NewProductButtonTitle ? "1" : "2 " + offered.First(o => o.Title == message.Trim()).Label;
+                message = tappedTitle == NewProductButtonTitle ? "1" : "2 " + offered.First(o => o.Title == tappedTitle).Label;
+            else if (session.State == ConversationState.Idle && ctx.OrderForCustomer is not null && tappedTitle != NewProductButtonTitle)
+                message = offered.First(o => o.Title == tappedTitle).Label;
             else
             {
                 await ReplyAsync(seller, "ℹ️ Yeh button kisi purane sawal ka tha. Naya order likhein, ya \"menu\" likhein.", ct);

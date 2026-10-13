@@ -605,6 +605,10 @@ public partial class ConversationEngine
         var returned = await _db.Orders.CountAsync(o => o.SellerId == seller.Id && o.Status == OrderStatus.Returned
             && o.ReturnedAt >= start && o.ReturnedAt < end, ct);
 
+        // Today's summary is also "aaj ka hisaab": the day's sales picture adds the top item, the day's expenses and what the cash drawer should hold.
+        var today = period is null or "today";
+        var (dayExtra, drawerOpen) = today ? await DayAccountLinesAsync(seller, orders, start, end, ct) : ("", false);
+
         await ReplyAsync(seller,
             $"🧾 {label} Reconciliation — {seller.BusinessName}\n\n" +
             $"Orders: {orders.Count}\n" +
@@ -615,7 +619,39 @@ public partial class ConversationEngine
             $"Total sales {(period is null ? "today" : label.Replace("'s", "").ToLowerInvariant())}: {Formatters.Money(totalSales)}\n" +
             (salesTax > 0 ? $"Sales tax included: {Formatters.Money(salesTax)}\n" : "") +
             (withheld > 0 ? $"Tax withheld by courier/gateway: {Formatters.Money(withheld)} → net after withholding {Formatters.Money(totalSales - withheld)}\n" : "") +
+            dayExtra +
             "\nSab theek lag raha hai ✅", ct);
+        if (today) SuggestNext("orders today", drawerOpen ? "drawer" : "expenses today");
+    }
+
+    /// <summary>
+    /// The extra lines of today's account, all from the same plain database code as the other reports (no AI): the product sold the most (units, from the orders already counted
+    /// in the summary), today's expenses, and the cash drawer's expected cash. Saved orders only — a draft that was never confirmed is not an order and is not counted.
+    /// </summary>
+    private async Task<(string Text, bool DrawerOpen)> DayAccountLinesAsync(Seller seller, List<Order> orders, DateTime start, DateTime end, CancellationToken ct)
+    {
+        var lines = new List<string>();
+
+        var orderIds = orders.Select(o => o.Id).ToList();
+        var items = orderIds.Count == 0 ? new List<OrderItem>() : await _db.OrderItems.AsNoTracking().Where(i => orderIds.Contains(i.OrderId)).ToListAsync(ct);
+        var top = items.GroupBy(i => i.ProductNameSnapshot).Select(g => (Name: g.Key, Units: g.Sum(i => i.Quantity)))
+            .OrderByDescending(x => x.Units).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase).FirstOrDefault();
+        if (top.Name is not null) lines.Add($"🔥 Sab se zyada bika: {top.Name} ({top.Units} bike)");
+
+        var expenses = (await LoadExpensesAsync(seller, start, end, ct)).OrderByDescending(x => x.Amount).ToList();
+        lines.Add(expenses.Count == 0
+            ? "💸 Kharcha: koi nahi"
+            : $"💸 Kharcha: {Formatters.Money(expenses.Sum(x => x.Amount))}" + (expenses.Count == 1 ? $" ({expenses[0].Note ?? expenses[0].Category})" : $" ({expenses.Count} entries, sab se bara: {expenses[0].Note ?? expenses[0].Category})"));
+
+        var open = await OpenDrawerAsync(seller, ct);
+        if (open is not null)
+        {
+            var cash = await SummariseCashAsync(seller, open, _clock.GetUtcNow().UtcDateTime, ct);
+            lines.Add($"💵 Drawer mein hona chahiye: {Formatters.Money(cash.Expected)}");
+        }
+        else lines.Add("💵 Drawer band hai (kholne ke liye: drawer open 5000)");
+
+        return ("\n" + string.Join("\n", lines) + "\n", open is not null);
     }
 
     private async Task HandleCatalogAsync(Seller seller, CancellationToken ct)
