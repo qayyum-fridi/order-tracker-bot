@@ -691,7 +691,7 @@ public static class CommandParser
     private static readonly Regex ReceiptSettingsCmd = new(@"^receipts?\s+(?:settings?|options?)$", Opts);
     private static readonly Regex ReceiptDesignCmd = new(@"^(?:receipts?\s+(?:design|customi[sz]e|look|style|layout)|(?:design|customi[sz]e)\s+(?:my\s+)?receipts?|receipt\s+design\s+karo)$", Opts);
     private static readonly Regex ReceiptSizeCmd = new(@"^receipts?\s+(?:size|paper)\s*:?\s*(?<v>.+)$", Opts);
-    private static readonly Regex ReceiptFooterCmd = new(@"^receipts?\s+footer\s*:?\s*(?<v>.*)$", Opts);
+    private static readonly Regex ReceiptFooterCmd = new(@"^receipts?\s+footer\s*:?\s*(?<v>.*)$", Opts | RegexOptions.Singleline); // several lines allowed
     // [\s\S] rather than .: a contact may be typed on several lines, and Opts has no Singleline.
     private static readonly Regex ReceiptHeaderCmd = new(@"^receipts?\s+header\s*:?\s*(?<v>[\s\S]*)$", Opts);
     private static readonly Regex ReceiptContactCmd = new(@"^receipts?\s+contact\s*:?\s*(?<v>[\s\S]*)$", Opts);

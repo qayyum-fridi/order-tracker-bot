@@ -91,7 +91,7 @@ public partial class ConversationEngine
 
         if (choice is "baad mein karunga" or "baad mein")
         {
-            await ReplyAsync(seller, "Theek hai 👍 Jab tayyar hon, bas apne business ka naam bhej dein.", ct);
+            await ReplyAsync(seller, "ℹ️ Theek hai. Jab aap tayyar hon, apne business ka naam bhej dein.", ct);
             return true;
         }
 

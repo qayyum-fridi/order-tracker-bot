@@ -12,46 +12,49 @@ public partial class ConversationEngine
 {
     // Screen 10: the full command list (the 9 core commands are what a seller memorizes; the rest lives under "menu").
     private const string HelpText =
-        "🆘 Sab se zaroori:\n" +
-        "📦 Naya order — customer ka message forward karein, ya 🎤 voice / 📷 screenshot bhejein\n" +
-        "• \"orders today\" — aaj ke orders\n" +
-        "• \"order 12\" — detail · \"mark 12 shipped\" — status\n" +
-        "• \"receipt 12\" — PDF receipt\n" +
-        "• \"undo\" — pichla kaam wapas\n" +
-        "• \"guide\" — step-by-step seekhein\n" +
+        "🆘 Zaroori Madad\n" +
         "\n" +
-        "Baqi sab kuch (reports, discounts, stock, export...) \"menu\" likh kar milega.\n" +
-        "Samajh na aaye to \"kya karun\" likhein.";
+        "📦 Naya order: customer ka message forward karein, ya 🎤 voice note / 📷 screenshot bhejein.\n" +
+        "\n" +
+        "• \"orders today\" — aaj ke orders\n" +
+        "• \"order 12\" — order ki mukammal tafseel\n" +
+        "• \"mark 12 shipped\" — order ka status tabdeel karein\n" +
+        "• \"receipt 12\" — PDF receipt\n" +
+        "• \"undo\" — aakhri kaam wapas karein\n" +
+        "• \"guide\" — step-by-step rehnumai\n" +
+        "\n" +
+        "Tamam features ke liye \"menu\" likhein.\n" +
+        "Rehnumai ke liye \"kya karun\" likhein.";
 
     // Screen 10b: categorized menu.
     private const string MenuText =
         "📋 Main Menu\n" +
         "\n" +
-        "📖 \"guide\" — naya hain? Step-by-step seekhein\n" +
-        "🌐 \"change language\" — Roman Urdu/English/اردو\n" +
+        "📖 \"guide\" — pehli dafa istemal karne walon ke liye rehnumai\n" +
+        "🌐 \"change language\" — Roman Urdu / English / اردو\n" +
         "\n" +
-        "📦 Orders — new order, edit, receipt, label, order for [customer]\n" +
-        "📊 Reports — summary, trending, profit, net, expenses\n" +
-        "🛍️ Catalog — products, stock, barcode, share catalog\n" +
-        "💰 Payments — link, paid, advance, courier payout\n" +
-        "🎟️ Discounts — codes, loyalty\n" +
+        "📦 Orders — naya order, edit, receipt, label\n" +
+        "📊 Reports — summary, trending, profit, expenses\n" +
+        "🛍️ Catalog — products, stock, barcode\n" +
+        "💰 Payments — payment link, advance, courier payout\n" +
+        "🎟️ Discounts — discount codes, loyalty\n" +
         "👥 Customers — list, update, support, Instagram\n" +
-        "🏪 Counter — walkin sale, cash drawer, labels, scanner, printer\n" +
-        "⚙️ Settings — business info, receipt size/footer/email, export, logo\n" +
+        "🏪 Counter Sales — walk-in sale, cash drawer, labels\n" +
+        "⚙️ Settings — business info, receipt, email, export\n" +
         "\n" +
-        "Neeche button se category chunein, ya command type karein.";
+        "Barae meherbani neeche se category chunein, ya command likhein.";
 
     private static readonly MenuRow BackToMenu = new("menu", "⬅️ Main menu");
 
     private static readonly IReadOnlyList<MenuSection> HelpSections = new[]
     {
-        new MenuSection("Core commands", new[]
+        new MenuSection("Zaroori commands", new[]
         {
             new MenuRow("orders today", "Orders today"),
             new MenuRow("pending orders", "Pending orders"),
             new MenuRow("catalog", "Catalog"),
             new MenuRow("payment link", "Payment link"),
-            new MenuRow("menu", "Menu (baaki sab)")
+            new MenuRow("menu", "Main Menu")
         })
     };
 
@@ -61,14 +64,14 @@ public partial class ConversationEngine
         {
             new MenuRow("menu orders", "📦 Orders"),
             new MenuRow("menu reports", "📊 Reports"),
-            new MenuRow("menu catalog", "🛍️ Maal"),
-            new MenuRow("menu payments", "💰 Paisay"),
-            new MenuRow("menu discounts", "🎟️ Chhoot"),
-            new MenuRow("menu customers", "👥 Gahak"),
-            new MenuRow("menu shop", "🏪 Counter & dukaan"),
+            new MenuRow("menu catalog", "🛍️ Catalog"),
+            new MenuRow("menu payments", "💰 Payments"),
+            new MenuRow("menu discounts", "🎟️ Discounts"),
+            new MenuRow("menu customers", "👥 Customers"),
+            new MenuRow("menu shop", "🏪 Counter Sales"),
             new MenuRow("menu settings", "⚙️ Settings"),
-            new MenuRow("business setup", "⚙️ Dukaan setup"),
-            new MenuRow("change language", "🌐 Zaban badlein")
+            new MenuRow("business setup", "⚙️ Business Setup"),
+            new MenuRow("change language", "🌐 Language")
         })
     };
 
@@ -77,13 +80,13 @@ public partial class ConversationEngine
     private static readonly IReadOnlyDictionary<string, (string Title, string Body, MenuRow[] Rows)> MenuCategories =
         new Dictionary<string, (string, string, MenuRow[])>
         {
-            ["orders"] = ("📦 Orders", "📦 Orders\n • new order: [details]\n • order [n] — poori detail\n • edit order [n]\n • [customer] ka order\n • mark [n] shipped/delivered/returned\n • receipt [n] — PDF receipt\n • order for Sara — saved customer ka order\n • walkin Kurti 2 — dukaan par bikri\n • note 12 [text] · label 12 · email receipt 12", new[]
+            ["orders"] = ("📦 Orders", "📦 Orders\n • naya order: customer ka message ya details bhejein\n • order [n] — order ki tafseel\n • edit order [n] — order mein tabdeeli\n • [customer] ka order — customer ka order\n • mark [n] shipped / delivered / returned\n • receipt [n] — PDF receipt\n • order for Sara — mehfooz customer ka order\n • walkin Kurti 2 — dukaan par sale\n • note 12 [text] · label 12 · email receipt 12", new[]
             {
                 new MenuRow("orders today", "Orders today"), new MenuRow("pending orders", "Pending orders"),
                 new MenuRow("unpaid orders", "Unpaid orders"), new MenuRow("cod pending", "COD pending"), new MenuRow("receipt", "Last order receipt (PDF)"), new MenuRow("edit order", "Last order edit"),
                 new MenuRow("new order (detailed)", "New order (form)"), new MenuRow("walkin", "Counter sale (walk-in)"), new MenuRow("label", "Shipping label"), BackToMenu
             }),
-            ["reports"] = ("📊 Reports", "📊 Reports\n Sales aur trends ek tap par.\n • [product] ka report — e.g. \"Lawn Suit ka report\"\n • kharcha likhein: \"expense 500 packaging\"\n • profit / profit today / munafa\n • export orders 30 days", new[]
+            ["reports"] = ("📊 Reports", "📊 Reports\n Sales aur trends ek tap par.\n • [product] ka report — misaal: \"Lawn Suit ka report\"\n • expense likhein: \"expense 500 packaging\"\n • profit / profit today\n • export orders 30 days", new[]
             {
                 new MenuRow("today's summary", "Today's summary"), new MenuRow("trending products", "Trending products"),
                 new MenuRow("slow movers", "Slow movers"), new MenuRow("loyal customers", "Loyal customers"),
@@ -91,31 +94,31 @@ public partial class ConversationEngine
                 new MenuRow("discount performance", "Discount performance"),
                 new MenuRow("monthly net", "Monthly net"), new MenuRow("expenses", "Expenses"), BackToMenu
             }),
-            ["catalog"] = ("🛍️ Catalog", "🛍️ Catalog\n • naya product: Kurti - 1800\n • stock: \"stock Kurti 20\" / \"stock\"\n • weight/pack: Sugar 5 kg - 500\n • edit product: Kurti - 1900\n • delete product: Kurti\n • filter: \"products vendor Ali\" / \"products category Shirts\"\n • wholesale: Kaju - price tiers: 1kg=320, 10kg=300\n • barcode: \"barcode Kurti 8961234567890\" (scanner ke liye)\n • ek saath kai products bhi bhej sakte hain", new[]
+            ["catalog"] = ("🛍️ Catalog", "🛍️ Catalog\n • naya product: Kurti - 1800\n • stock: \"stock Kurti 20\" ya \"stock\"\n • weight / pack: Sugar 5 kg - 500\n • edit product: Kurti - 1900\n • delete product: Kurti\n • filter: \"products vendor Ali\" ya \"products category Shirts\"\n • wholesale: Kaju - price tiers: 1kg=320, 10kg=300\n • barcode: \"barcode Kurti 8961234567890\"\n • ek message mein kai products bhi bheje ja sakte hain", new[]
             {
                 new MenuRow("catalog", "View catalog"), new MenuRow("share catalog", "Share catalog"),
                 new MenuRow("add product", "Add product"), new MenuRow("add product (detailed)", "Add product (form)"),
                 new MenuRow("stock", "Stock list"), new MenuRow("scan cart", "Scanner cart"), BackToMenu
             }),
-            ["payments"] = ("💰 Payments", "💰 Payments\n • mark [order] paid\n • advance / thori payment: order [n] advance 500\n • delivery charge: delivery 200\n • add tracking: courier, number\n • courier ka paisa: payout pending / payout 11700 TCS orders 1 2 3\n • galla: drawer open 5000 / cash in 500", new[]
+            ["payments"] = ("💰 Payments", "💰 Payments\n • mark [order] paid\n • advance payment: order [n] advance 500\n • delivery charges: delivery 200\n • tracking: courier aur tracking number\n • courier payout: payout pending / payout 11700 TCS orders 1 2 3\n • cash drawer: drawer open 5000 / cash in 500", new[]
             {
                 new MenuRow("payment link", "Payment link"), new MenuRow("unpaid orders", "Unpaid orders"),
                 new MenuRow("cod pending", "COD pending"), new MenuRow("add payment", "Add payment method"),
                 new MenuRow("payout pending", "Courier payouts"), new MenuRow("drawer", "Cash drawer"), BackToMenu
             }),
-            ["discounts"] = ("🎟️ Discounts", "🎟️ Discounts & loyalty\n Code banayein, ya loyalty rule set karein.", new[]
+            ["discounts"] = ("🎟️ Discounts", "🎟️ Discounts & Loyalty\n Discount code banayein, ya loyalty rule set karein.", new[]
             {
                 new MenuRow("discount list", "Discount list"), new MenuRow("add discount", "Add discount"),
                 new MenuRow("create loyalty", "Add loyalty rule"), new MenuRow("loyal customers", "Loyal customers"),
                 new MenuRow("campaign status", "Campaign status"), BackToMenu
             }),
-            ["customers"] = ("👥 Customers", "👥 Customers\n • \"customer 1\" ya naam likh kar detail\n • update: \"Sara ka phone 0300...\" / \"Sara ka address ...\"\n • \"search customer: naam/phone\"\n • \"delete customer naam\" / \"restore customer naam\"\n • promotion: \"sab customers ko batao: naya stock aaya\"\n • customer ka sawal: \"order kab aayega? — Bilal ne poocha\"\n • \"mark [n] resolved\"", new[]
+            ["customers"] = ("👥 Customers", "👥 Customers\n • \"customer 1\" ya naam likh kar tafseel dekhein\n • update: \"Sara ka phone 0300...\" / \"Sara ka address ...\"\n • \"search customer: naam ya phone\"\n • \"delete customer naam\" / \"restore customer naam\"\n • promotion: \"sab customers ko batao: naya stock aaya\"\n • customer ka sawal: \"order kab aayega? — Bilal ne poocha\"\n • \"mark [n] resolved\"", new[]
             {
                 new MenuRow("customer list", "Customer list"), new MenuRow("support queries", "Support queries"),
                 new MenuRow("comment leads", "📷 Comment leads"), new MenuRow("connect instagram", "📷 Connect Instagram"),
                 new MenuRow("add customer (detailed)", "Add customer (form)"), BackToMenu
             }),
-            ["shop"] = ("🏪 Counter & dukaan", "🏪 Counter & dukaan\n • walkin Kurti 2, Dupatta — dukaan par bikri (kal/bank bhi likh sakte hain)\n • drawer open 5000 · cash in/out 500 · drawer close 12000\n • payout pending — courier ka baqi paisa\n • label 12 · business label · label size 4x6\n • scan cart — scanner se product (barcode Kurti 8961...)\n • printer · receipt size 80mm\n • profit · stock Kurti 20", new[]
+            ["shop"] = ("🏪 Counter Sales", "🏪 Counter Sales\n • walkin Kurti 2, Dupatta — dukaan par sale (kal ya bank bhi likh sakte hain)\n • drawer open 5000 · cash in/out 500 · drawer close 12000\n • payout pending — courier se baqaya raqam\n • label 12 · business label · label size 4x6\n • scan cart — scanner se products (barcode Kurti 8961...)\n • printer · receipt size 80mm\n • profit · stock Kurti 20", new[]
             {
                 new MenuRow("walkin", "Counter sale (walk-in)"), new MenuRow("drawer", "Cash drawer"),
                 new MenuRow("payout pending", "Courier payouts"), new MenuRow("label", "Labels"),
@@ -123,7 +126,7 @@ public partial class ConversationEngine
                 new MenuRow("receipt settings", "Receipt settings"), new MenuRow("profit", "Profit"),
                 new MenuRow("stock", "Stock list"), BackToMenu
             }),
-            ["settings"] = ("⚙️ Settings", "⚙️ Settings\n • receipt design — receipt ka rang/title/layout live banayein\n • receipt size 80mm|58mm|A5|A4 · receipt header/contact/footer [text]\n • email aap@gmail.com — receipt email\n • printer — printer ki guide\n • shortcut off — neeche ke buttons band\n • feedback: [aapka message] — hamein bot ke baare mein batayein", new[]
+            ["settings"] = ("⚙️ Settings", "⚙️ Settings\n • receipt design — receipt ka rang, title aur layout live tayyar karein\n • receipt size 80mm|58mm|A5|A4 · receipt header/contact/footer [text]\n • email aap@gmail.com — receipt email ke liye\n • printer — printer ki rehnumai\n • shortcut off — neeche ke buttons band karein\n • feedback: [aapka paigham] — hamein bot ke baare mein batayein", new[]
             {
                 new MenuRow("update business info", "Business info"), new MenuRow("add payment", "Payment methods"),
                 new MenuRow("subscribe", "Plan / subscribe"), new MenuRow("logo", "Receipt logo / banner"), new MenuRow("export", "Export (Excel)"),
@@ -334,7 +337,7 @@ public partial class ConversationEngine
                     (currentSummary.Length > 0 ? $"📋 Abhi ka record: {currentSummary}\n\n" : "") + BusinessInfoPrompt, ct);
                 return;
             case CommandKind.Subscribe when !BillingApplies(seller):
-                await ReplyAsync(seller, "🎁 Aapko koi plan ya payment ki zaroorat nahi — aapka account free hai.", ct);
+                await ReplyAsync(seller, "🎁 Aapka account free hai — kisi plan ya payment ki zaroorat nahi.", ct);
                 return;
             case CommandKind.Subscribe:
                 await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, $"💳 Plans:\n\n{PlansText}\n\nPlan chunein:", PlanButtons, ct);
@@ -354,7 +357,7 @@ public partial class ConversationEngine
                 await StartGuideAsync(seller, session, ctx, cmd.Text, ct);
                 return;
             case CommandKind.GuideLater:
-                await ReplyAsync(seller, "Theek hai 👍 Jab bhi zaroorat ho, \"guide\" likh dein.", ct);
+                await ReplyAsync(seller, "ℹ️ Theek hai. Jab bhi zaroorat ho, \"guide\" likh dein.", ct);
                 return;
             case CommandKind.Greeting:
                 await HandleGreetingAsync(seller, ct);
@@ -621,7 +624,7 @@ public partial class ConversationEngine
         {
             await ReplyAsync(seller,
                 "🛍️ Aapka catalog abhi khali hai.\n\n" +
-                "Product add karna bohot aasan hai — bas naam aur price bhejein:\n" +
+                "Product add karne ke liye naam aur price bhejein:\n" +
                 "Lawn Suit - 3500\n\n" +
                 "Ek saath kai products bhi bhej sakte hain (har line mein ek):\n" +
                 "Lawn Suit - 3500\nKurti - 1800\nDupatta - 900\n\n" +
@@ -632,7 +635,7 @@ public partial class ConversationEngine
         var lines = products.Select((p, i) => $"{i + 1} {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}" + (p.StockQty is { } q ? $" (stock {q})" : ""));
         await ReplyAsync(seller,
             $"🛍️ Aapka Catalog ({products.Count} products):\n\n{string.Join("\n", lines)}\n\n" +
-            "Naya product add karne ke liye bas likhein: Kurti - 1800\n" +
+            "Naya product add karne ke liye likhein: Kurti - 1800\n" +
             "Price badalne ke liye: edit product: Kurti - 1900", ct);
     }
 

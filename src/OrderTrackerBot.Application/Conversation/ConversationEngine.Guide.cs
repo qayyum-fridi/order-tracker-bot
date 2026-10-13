@@ -11,20 +11,20 @@ public partial class ConversationEngine
     private static readonly string[] GuideStepButtons = { "Next ➜", "Guide band karein" };
 
     private const string GuideOrdersBody =
-        "Customer ka message copy/forward karein, ya khud likhein:\n\"Ayesha, 2 suit, 03001234567\"\nBas itna — bot baaki khud samajh lega.";
+        "Customer ka message copy ya forward karein, ya khud likhein:\n\"Ayesha, 2 suit, 03001234567\"\nBaqi tafseel bot khud samajh kar order tayyar kar dega.";
 
     private static readonly string[] GuideFullSteps =
     {
         "📖 Step 1/4 — Order Save Karna\n" + GuideOrdersBody,
-        "📖 Step 2/4 — Orders Dekhna\nType karein: \"orders today\" ya \"pending orders\"\nTurant list mil jayegi.",
-        "📖 Step 3/4 — Status Update\nOrder bhej diya? Likhein: \"mark 1 shipped\"\nDelivery ho gayi? \"mark 1 delivered\"",
-        "📖 Step 4/4 — Kabhi Bhi Madad\nKuch bhool jayein to sirf \"menu\" ya \"guide\" likh dein — yeh guide dobara khul jayega.\n🎉 Bas itna hi — ab try karein!"
+        "📖 Step 2/4 — Orders Dekhna\nLikhein: \"orders today\" ya \"pending orders\".\nOrders ki list foran bhej di jayegi.",
+        "📖 Step 3/4 — Status Tabdeel Karna\nOrder rawana kar diya ho to likhein: \"mark 1 shipped\".\nDelivery mukammal ho jaye to likhein: \"mark 1 delivered\".",
+        "📖 Step 4/4 — Madad\nKisi bhi waqt \"menu\" ya \"guide\" likhein, rehnumai dobara dastiyab hogi.\n🎉 Aap tayyar hain — ab pehla order likh kar dekhein."
     };
 
     private const string GuideOrdersOnly = "📖 Order Save Karna\n" + GuideOrdersBody;
 
     private const string GuidePaymentsOnly =
-        "📖 Payments\nCustomer ko payment details bhejni hain? Likhein: \"payment link\"\nPayment aa gayi? \"mark 4 paid\"\nApna JazzCash/Easypaisa number set karein: \"add payment: jazzcash, 0300-1234567\"";
+        "📖 Payments\nCustomer ko payment ki tafseel bhejne ke liye likhein: \"payment link\".\nPayment mosool hone par likhein: \"mark 4 paid\".\nApna JazzCash / Easypaisa number darj karne ke liye likhein: \"add payment: jazzcash, 0300-1234567\".";
 
     private async Task StartGuideAsync(Seller seller, ConversationSession session, SessionContextData ctx, string? topic, CancellationToken ct)
     {
@@ -42,7 +42,7 @@ public partial class ConversationEngine
 
         ctx.GuideTopic = null;
         ctx.GuideStep = 0;
-        await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, "📖 Guide kahan se shuru karein?", GuideTopicButtons, ct);
+        await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, "📖 Aap guide kahan se shuru karna chahenge?", GuideTopicButtons, ct);
     }
 
     private async Task HandleGuideStepAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
@@ -84,7 +84,7 @@ public partial class ConversationEngine
         ExitGuide(session, ctx);
         if (choice is "guide band karein" or "band" or "skip" or "stop")
         {
-            await ReplyAsync(seller, "Theek hai 👍 Jab bhi zaroorat ho, \"guide\" likh dein.", ct);
+            await ReplyAsync(seller, "ℹ️ Theek hai. Jab bhi zaroorat ho, \"guide\" likhein.", ct);
             return;
         }
 

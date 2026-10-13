@@ -65,7 +65,7 @@ public partial class ConversationEngine
             await SendDesignPreviewAsync(seller, ct);
             return;
         }
-        if (Regex.Match(text, @"^footer\s*:?\s*(?<v>.*)$", RegexOptions.IgnoreCase) is { Success: true } ft)
+        if (Regex.Match(text, @"^footer\s*:?\s*(?<v>.*)$", RegexOptions.IgnoreCase | RegexOptions.Singleline) is { Success: true } ft)
         {
             await HandleReceiptFooterAsync(seller, ft.Groups["v"].Value, ct);
             await SendDesignPreviewAsync(seller, ct);

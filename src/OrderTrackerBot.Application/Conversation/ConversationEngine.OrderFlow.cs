@@ -725,7 +725,7 @@ public partial class ConversationEngine
             default:
                 SetState(session, ConversationState.Idle);
                 ctx.PendingOrder = null;
-                await ReplyAsync(seller, "Order draft clear kar diya. Dobara try karein.", ct);
+                await ReplyAsync(seller, "Order draft khatam kar diya gaya hai. Barae meherbani dobara koshish karein.", ct);
                 return;
         }
     }
