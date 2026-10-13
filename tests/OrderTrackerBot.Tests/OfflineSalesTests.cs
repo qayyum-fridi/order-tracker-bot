@@ -19,6 +19,7 @@ public class WalkInParserTests
     [InlineData("counter sale 1500")]
     [InlineData("offline order Chai - 200")]
     [InlineData("dukan par Kurti 1")]
+    [InlineData("walkin")]
     public void Recognised(string text) => Assert.Equal(CommandKind.WalkInSale, CommandParser.TryParse(text)?.Kind);
 
     [Fact]

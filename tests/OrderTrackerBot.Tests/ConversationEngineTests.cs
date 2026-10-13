@@ -769,6 +769,8 @@ public class ConversationEngineTests : IDisposable
     [InlineData("payments")]
     [InlineData("discounts")]
     [InlineData("customers")]
+    [InlineData("settings")]
+    [InlineData("shop")]
     public async Task MenuCategory_OpensTappableSubMenu_WithBackRow_AndOnlyRunnableRows(string category)
     {
         using var db = _dbFactory.CreateContext();
@@ -792,7 +794,7 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
-    public async Task MainMenu_ListsSevenCategories_AndHelpShowsOnlyTheEightCoreThings()
+    public async Task MainMenu_ListsEightCategories_AndHelpShowsOnlyTheEightCoreThings()
     {
         using var db = _dbFactory.CreateContext();
         await OnboardSellerAsync(db);
@@ -805,7 +807,9 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "menu", default);
         await engine.HandleIncomingMessageAsync(Phone, "help", default);
 
-        Assert.Equal(7, lists[0].Sections.SelectMany(s => s.Rows).Count(r => r.Id.StartsWith("menu ")));
+        Assert.Equal(8, lists[0].Sections.SelectMany(s => s.Rows).Count(r => r.Id.StartsWith("menu ")));
+        Assert.True(lists[0].Body.Length <= 1024, $"main menu body is {lists[0].Body.Length} chars");
+        Assert.InRange(lists[0].Sections.SelectMany(s => s.Rows).Count(), 1, 10);
         Assert.Contains("Main Menu", lists[0].Body);
         Assert.Contains("📊 Reports", lists[0].Body);
         Assert.Contains("Sab se zaroori", lists[1].Body);
