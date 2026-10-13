@@ -396,7 +396,23 @@ public partial class ConversationEngine
             expiresAt = expiry;
         }
 
+        if (isPercent && value is <= 0 or > 100)
+        {
+            await ReplyAsync(seller, "Percent 1 se 100 ke beech hona chahiye (e.g. 10 percent).", ct);
+            return;
+        }
+        if (!isPercent && value <= 0)
+        {
+            await ReplyAsync(seller, "Flat discount 0 se zyada hona chahiye (e.g. Rs.50 flat).", ct);
+            return;
+        }
+
         var code = match.Groups["code"].Value.ToUpperInvariant();
+        if (await _db.Discounts.AnyAsync(d => d.SellerId == seller.Id && d.Code == code, ct))
+        {
+            await ReplyAsync(seller, $"Code {code} pehle se hai. Doosra naam chunein, ya \"discount list\" dekhein.", ct);
+            return;
+        }
         _db.Discounts.Add(new Discount
         {
             SellerId = seller.Id,

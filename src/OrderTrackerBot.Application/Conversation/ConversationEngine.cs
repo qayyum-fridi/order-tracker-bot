@@ -105,7 +105,7 @@ public partial class ConversationEngine
 
     private async Task HandleIncomingCoreAsync(string fromPhoneNumber, string rawMessage, CancellationToken ct)
     {
-        var message = (rawMessage ?? string.Empty).Trim();
+        var message = TextHygiene.StripInvisible(rawMessage ?? string.Empty).Trim();
         if (message.Length == 0) return;
 
         _db.MessageLogs.Add(new MessageLog { Phone = fromPhoneNumber, Direction = "inbound", RawText = message });

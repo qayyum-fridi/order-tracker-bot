@@ -164,3 +164,111 @@ public class OfflineSalesEngineTests : IDisposable
 
     public void Dispose() => _dbFactory.Dispose();
 }
+
+public class BadInputGuardTests
+{
+    [Theory]
+    [InlineData("Kurti -2")]
+    [InlineData("Kurti 99999")]
+    [InlineData("counter sale 99999999999999")]
+    [InlineData("Kurti - 99999999")]
+    [InlineData(",,,")]
+    public void WalkInTypos_BuildNoSaleLines(string text) => Assert.Empty(ConversationEngine.ParseWalkIn(text).Items.Where(i => i.Name is "Counter sale" || i.Name.StartsWith("Kurti -") || i.Quantity > 999 || i.Price > 10_000_000m));
+
+    [Fact]
+    public void WalkInDashedPrice_StillWorks()
+    {
+        var sale = ConversationEngine.ParseWalkIn("Chai - 200, Kurti 2");
+        Assert.Equal(new[] { ("Chai", 1, (decimal?)200m), ("Kurti", 2, null) }, sale.Items.Select(i => (i.Name, i.Quantity, i.Price)));
+    }
+
+    [Theory]
+    [InlineData("stock Kurti 99999999")]
+    [InlineData("Kurti stock 99999999")]
+    public void ASevenDigitStock_IsNotSplitIntoANameEndingInDigits(string text)
+    {
+        var parsed = CommandParser.TryParse(text);
+        Assert.False(parsed?.Kind == CommandKind.Stock && parsed.Text!.EndsWith("99"), parsed?.Text);
+    }
+
+    [Fact]
+    public void InvisibleMarks_AreStripped_ButUrduJoinersStay()
+    {
+        Assert.Equal("Kurti - 1800", TextHygiene.StripInvisible("​Kurti‏ - 1800‬"));
+        Assert.Equal("a‌b", TextHygiene.StripInvisible("a‌b"));
+    }
+}
+
+public class BadInputEngineTests : IDisposable
+{
+    private const string Phone = "923001234567";
+    private readonly TestDbContextFactory _dbFactory = new();
+    private readonly Mock<IWhatsAppSender> _sender = new();
+    private readonly Mock<IAiOrderAssistant> _ai = new();
+    private readonly List<string> _sent = new();
+
+    public BadInputEngineTests()
+    {
+        _sender.Setup(s => s.SendTextMessageAsync(Phone, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, CancellationToken>((_, t, _) => _sent.Add(t)).Returns(Task.CompletedTask);
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "unclear", AiUnavailable = true });
+    }
+
+    private async Task<(ConversationEngine, AppDbContext)> StartAsync()
+    {
+        var db = _dbFactory.CreateContext();
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, Mock.Of<IFounderAlertNotifier>());
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "10 ke qareeb", "Kurti - 1800", "done" })
+            await engine.HandleIncomingMessageAsync(Phone, m, default);
+        _sent.Clear();
+        return (engine, db);
+    }
+
+    [Fact]
+    public async Task ADiscountOver100Percent_OrADuplicateCode_IsRefused()
+    {
+        var (engine, db) = await StartAsync();
+        using (db)
+        {
+            await engine.HandleIncomingMessageAsync(Phone, "create discount: X, 150 percent", default);
+            Assert.Contains(_sent, m => m.Contains("1 se 100"));
+            Assert.Equal(0, await db.Discounts.CountAsync());
+
+            await engine.HandleIncomingMessageAsync(Phone, "create discount: EID10, 10 percent", default);
+            _sent.Clear();
+            await engine.HandleIncomingMessageAsync(Phone, "create discount: EID10, 20 percent", default);
+            Assert.Contains(_sent, m => m.Contains("pehle se hai"));
+            Assert.Equal(1, await db.Discounts.CountAsync());
+        }
+    }
+
+    [Fact]
+    public async Task AnInvisibleMarkInAProductName_DoesNotCreateALookAlikeProduct()
+    {
+        var (engine, db) = await StartAsync();
+        using (db)
+        {
+            await engine.HandleIncomingMessageAsync(Phone, "​Kurti - 1800", default);
+
+            Assert.Equal(1, await db.Products.CountAsync());
+            Assert.Contains(_sent, m => m.Contains("pehle se catalog mein hai"));
+        }
+    }
+
+    [Fact]
+    public async Task AWalkInWithAnAbsurdAmount_IsNotOfferedForConfirmation()
+    {
+        var (engine, db) = await StartAsync();
+        using (db)
+        {
+            await engine.HandleIncomingMessageAsync(Phone, "counter sale 99999999999999", default);
+            await engine.HandleIncomingMessageAsync(Phone, "👍", default);
+
+            Assert.DoesNotContain(_sent, m => m.Contains("Confirm order"));
+            Assert.Equal(0, await db.Orders.CountAsync());
+        }
+    }
+
+    public void Dispose() => _dbFactory.Dispose();
+}

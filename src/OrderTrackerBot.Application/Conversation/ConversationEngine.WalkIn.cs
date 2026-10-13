@@ -11,6 +11,7 @@ namespace OrderTrackerBot.Application.Conversation;
 public sealed partial class ConversationEngine
 {
     internal const string WalkInCustomer = "Walk-in";
+    private const decimal MaxWalkInAmount = 10_000_000m;
 
     internal sealed record WalkInItem(string Name, int Quantity, decimal? Price);
     internal sealed record WalkInSale(List<WalkInItem> Items, string? Payment, int DaysAgo);
@@ -19,9 +20,9 @@ public sealed partial class ConversationEngine
     private static readonly Regex WalkInPay = new(@"\b(?<p>cash|naqd|bank|easypaisa|easy\s*paisa|jazz\s*cash|jazzcash|card|online)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex WalkInAmountOnly = new(@"^(?:rs\.?\s*)?(?<p>\d[\d,]*)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex WalkInSplit = new(@"\s*(?:,|\+|;|\baur\b|\band\b)\s*", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex WalkInPriced = new(@"^(?<n>.*[^\W\d_].*?)\s*[-:=]\s*(?:rs\.?\s*)?(?<p>\d[\d,]*)(?:\s*x\s*(?<q>\d+))?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex WalkInPriced = new(@"^(?<n>.*[^\W\d_].*?)(?:\s+[-–]\s+|\s*[:=]\s*)(?:rs\.?\s*)?(?<p>\d[\d,]*)(?:\s*x\s*(?<q>\d+))?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex WalkInQtyFirst = new(@"^(?<q>\d{1,3})\s*x?\s+(?<n>.*[^\W\d_].*)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex WalkInQtyLast = new(@"^(?<n>.*[^\W\d_].*?)\s*x?\s*(?<q>\d{1,3})$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex WalkInQtyLast = new(@"^(?<n>.*[^\W\d_].*?)\s*x?\s*(?<![\d])(?<q>\d{1,3})$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     internal static WalkInSale ParseWalkIn(string rest)
     {
@@ -44,7 +45,7 @@ public sealed partial class ConversationEngine
         var items = new List<WalkInItem>();
         if (WalkInAmountOnly.Match(text) is { Success: true } only)
         {
-            if (decimal.TryParse(only.Groups["p"].Value.Replace(",", ""), out var amount) && amount > 0) items.Add(new WalkInItem("Counter sale", 1, amount));
+            if (decimal.TryParse(only.Groups["p"].Value.Replace(",", ""), out var amount) && amount is > 0 and <= MaxWalkInAmount) items.Add(new WalkInItem("Counter sale", 1, amount));
             return new WalkInSale(items, payment, days);
         }
 
@@ -60,7 +61,10 @@ public sealed partial class ConversationEngine
             else if (part.Any(char.IsLetter))
                 items.Add(new WalkInItem(part, 1, null));
         }
-        return new WalkInSale(items.Where(i => i.Quantity > 0).ToList(), payment, days);
+        // "Kurti -2" (a minus typed as a dash), a name ending in a dash, or an absurd price/quantity is a typo, not a sale line.
+        static bool Junk(WalkInItem i) => i.Quantity <= 0 || i.Quantity > 999 || i.Price is > MaxWalkInAmount
+            || i.Name.TrimEnd().EndsWith('-') || i.Name.TrimEnd().EndsWith('–') || i.Name.TrimEnd().EndsWith('=');
+        return new WalkInSale(items.Where(i => !Junk(i)).ToList(), payment, days);
     }
 
     private async Task HandleWalkInSaleAsync(Seller seller, ConversationSession session, SessionContextData ctx, string rest, CancellationToken ct)
