@@ -39,6 +39,8 @@ public static class SellerAccountReset
         seller.ReceiptSize = null;
         seller.ReceiptFooter = null;
         seller.ReceiptDesignJson = null;
+        seller.ReceiptHeader = null;
+        seller.ReceiptContact = null;
         seller.LabelSize = null;
         seller.OnboardingComplete = false;
         seller.PreferredLanguage = Lang.RomanUrdu;

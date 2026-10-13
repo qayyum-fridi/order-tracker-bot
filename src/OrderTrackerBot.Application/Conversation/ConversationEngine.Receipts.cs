@@ -100,7 +100,9 @@ public partial class ConversationEngine
             order.TrackingCourier, order.TrackingNumber, payTo, Logo: branding?.Logo, Banner: branding?.Banner, DeliveryCharge: order.DeliveryCharge, AmountPaid: OrderMoney.Received(order),
             ReceiptNumber: order.ReceiptNumber, Ntn: seller.Ntn, Strn: seller.Strn,
             SalesTaxRate: order.SalesTaxRate, SalesTaxAmount: SalesTax.Amount(order),
-            PaperSize: NormalizeReceiptSize(seller.ReceiptSize) ?? "A5", Footer: seller.ReceiptFooter, Notes: order.Notes, Design: ReceiptDesign.FromJson(seller.ReceiptDesignJson)));
+            PaperSize: NormalizeReceiptSize(seller.ReceiptSize) ?? "A5", Footer: seller.ReceiptFooter, Notes: order.Notes,
+            Header: seller.ReceiptHeader, Contact: seller.ReceiptContact,
+            Design: ReceiptDesign.FromJson(seller.ReceiptDesignJson)));
         return (pdf, numberIsNew);
     }
 

@@ -170,8 +170,10 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
                 col.Spacing(3);
                 if (r.Logo is not null && !design.HideLogo) col.Item().AlignCenter().Height(32).Image(r.Logo).FitArea();
                 col.Item().AlignCenter().Text(r.BusinessName).FontSize(size + 3).Bold();
+                if (!string.IsNullOrWhiteSpace(r.Header)) col.Item().AlignCenter().Text(r.Header).FontSize(size - 1).Italic();
                 var sub = string.Join(" · ", new[] { r.BusinessCity, design.HideShopPhone ? null : r.BusinessPhone }.Where(s => !string.IsNullOrWhiteSpace(s)));
                 if (sub.Length > 0) col.Item().AlignCenter().Text(sub).FontSize(size - 1);
+                if (!string.IsNullOrWhiteSpace(r.Contact)) col.Item().AlignCenter().Text(r.Contact).FontSize(size - 1);
                 var taxIds = string.Join(" · ", new[] { Id("NTN", r.Ntn), Id("STRN", r.Strn) }.Where(s => s is not null));
                 if (taxIds.Length > 0) col.Item().AlignCenter().Text(taxIds).FontSize(size - 1);
                 col.Item().AlignCenter().Text(r.SalesTaxRate > 0 ? "TAX INVOICE" : (design.Title ?? "RECEIPT").ToUpperInvariant()).Bold();
@@ -253,15 +255,16 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
                 if (r.Banner is not null)
                     col.Item().PaddingBottom(8).AlignCenter().MaxHeight(90).Image(r.Banner).FitArea();
                 var showLogo = r.Logo is not null && !design.HideLogo;
-                void ShopBlock(IContainer box, bool center) => box.Column(c =>
+                void ShopBlock(IContainer box) => box.Column(c =>
                 {
-                    var name = c.Item().Text(r.BusinessName).FontSize(16).Bold().FontColor(accent);
+                    c.Item().Text(r.BusinessName).FontSize(16).Bold().FontColor(accent);
+                    if (!string.IsNullOrWhiteSpace(r.Header)) c.Item().Text(r.Header).FontSize(10).Italic().FontColor(Ink);
                     var sub = string.Join(" · ", new[] { r.BusinessCity, design.HideShopPhone || r.BusinessPhone is null ? null : "WhatsApp " + r.BusinessPhone, r.InstagramHandle }
                         .Where(s => !string.IsNullOrWhiteSpace(s)));
                     if (sub.Length > 0) c.Item().Text(sub).FontSize(9).FontColor(Muted);
+                    if (!string.IsNullOrWhiteSpace(r.Contact)) c.Item().Text(r.Contact).FontSize(9).FontColor(Muted);
                     var taxIds = string.Join(" · ", new[] { Id("NTN", r.Ntn), Id("STRN", r.Strn) }.Where(s => s is not null));
                     if (taxIds.Length > 0) c.Item().Text(taxIds).FontSize(9).FontColor(Muted);
-                    if (center) { /* alignment is applied on the container below */ }
                 });
                 void DocBlock(IContainer box, bool right) => box.Column(c =>
                 {
@@ -277,7 +280,7 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
                     {
                         c.Spacing(4);
                         if (showLogo) c.Item().AlignCenter().Height(48).Image(r.Logo!).FitArea();
-                        c.Item().AlignCenter().Element(b => ShopBlock(b, true));
+                        c.Item().AlignCenter().Element(b => ShopBlock(b));
                         c.Item().AlignCenter().Element(b => DocBlock(b, false));
                     });
                 else
@@ -285,7 +288,7 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
                     {
                         if (showLogo)
                             row.ConstantItem(56).PaddingRight(8).Height(48).Image(r.Logo!).FitArea();
-                        row.RelativeItem().Element(b => ShopBlock(b, false));
+                        row.RelativeItem().Element(b => ShopBlock(b));
                         row.ConstantItem(120).AlignRight().Element(b => DocBlock(b, true));
                     });
                 col.Item().PaddingTop(10).LineHorizontal(1).LineColor(Line);

@@ -31,6 +31,10 @@ public class Seller
     public string? ReceiptFooter { get; set; }
     /// <summary>The seller's own receipt look (colour, title, layout, what to show) as JSON; null = standard look ("receipt design").</summary>
     public string? ReceiptDesignJson { get; set; }
+    /// <summary>Short line printed under the shop name on every receipt ("receipt header ...").</summary>
+    public string? ReceiptHeader { get; set; }
+    /// <summary>Contact line printed under the shop name, e.g. email and extra phone numbers ("receipt contact ...").</summary>
+    public string? ReceiptContact { get; set; }
     /// <summary>Label sheet for shipping / business labels: null/"4x6" (default), "A6" or "50x30" (mm sticker) ("label size a6").</summary>
     public string? LabelSize { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

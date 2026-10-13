@@ -99,6 +99,8 @@ public enum CommandKind
     ReceiptDesign,
     ReceiptSize,
     ReceiptFooter,
+    ReceiptHeader,
+    ReceiptContact,
     OrderNote,
     SetEmail,
     EmailReceipt,
@@ -690,6 +692,9 @@ public static class CommandParser
     private static readonly Regex ReceiptDesignCmd = new(@"^(?:receipts?\s+(?:design|customi[sz]e|look|style|layout)|(?:design|customi[sz]e)\s+(?:my\s+)?receipts?|receipt\s+design\s+karo)$", Opts);
     private static readonly Regex ReceiptSizeCmd = new(@"^receipts?\s+(?:size|paper)\s*:?\s*(?<v>.+)$", Opts);
     private static readonly Regex ReceiptFooterCmd = new(@"^receipts?\s+footer\s*:?\s*(?<v>.*)$", Opts);
+    // [\s\S] rather than .: a contact may be typed on several lines, and Opts has no Singleline.
+    private static readonly Regex ReceiptHeaderCmd = new(@"^receipts?\s+header\s*:?\s*(?<v>[\s\S]*)$", Opts);
+    private static readonly Regex ReceiptContactCmd = new(@"^receipts?\s+contact\s*:?\s*(?<v>[\s\S]*)$", Opts);
     private static readonly Regex OrderNoteCmd = new(@"^(?:note|order\s+note)\s+#?(?<n>\d{1,9})\s*:?\s*(?<t>.*)$", Opts);
     private static readonly Regex SetEmailCmd = new(@"^email\s*:?\s+(?<a>\S+@\S+|off|hata\s*do|hata|remove|delete|clear)$", Opts);
     private static readonly Regex EmailReceiptCmd = new(@"^email\s+(?:the\s+)?(?:receipt|bill|invoice)(?:\s+#?(?<n>\d{1,9}))?(?:\s+(?:to|ko)\s+(?<a>\S+@\S+))?$", Opts);
@@ -1054,6 +1059,10 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.ReceiptSize, Text = m.Groups["v"].Value.Trim() };
         if ((m = ReceiptFooterCmd.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.ReceiptFooter, Text = m.Groups["v"].Value.Trim() };
+        if ((m = ReceiptHeaderCmd.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.ReceiptHeader, Text = m.Groups["v"].Value.Trim() };
+        if ((m = ReceiptContactCmd.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.ReceiptContact, Text = m.Groups["v"].Value.Trim() };
         if ((m = OrderNoteCmd.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.OrderNote, Number = int.Parse(m.Groups["n"].Value), Text = m.Groups["t"].Value.Trim() };
         if ((m = EmailReceiptCmd.Match(message)).Success)

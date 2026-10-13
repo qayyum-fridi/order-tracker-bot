@@ -220,7 +220,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "\"delivery 250\", \"catalog\" for any request to see/show the catalog). A seller who wants to create/add a discount, in any wording or just describing it " +
             "(\"naya discount banain\", \"ye ek naya discount hai jo product ke liye hoga\"), gives the command \"create discount\" (action command); only when they also said the code and the value " +
             "write \"create discount: CODE, 10 percent\" or \"create discount: CODE, Rs.50 flat\" (append \", expires <duration or date>\" if said, e.g. \"expires 15 days\"). " +
-            "More typed commands the bot understands: \"receipt 12\", \"receipt size 80mm\" (or 58mm, A5, A4), \"receipt footer <line>\", \"note 12 gift wrap\" (an order note), " +
+            "More typed commands the bot understands: \"receipt 12\", \"receipt size 80mm\" (or 58mm, A5, A4), \"receipt footer <line>\", \"receipt header <line>\", \"receipt contact <line>\", \"note 12 gift wrap\" (an order note), " +
             "\"email receipt 12\", \"email <address>\", \"label 12\" (a parcel label), \"business label\" (the shop's sticker), \"label size a6\", \"printer\" (how to print), " +
             "\"drawer open 5000\", \"cash in 500 <why>\", \"cash out 300 <why>\", \"cash sale 1200\", \"drawer close 18000\", \"drawer\" (the cash drawer / galla), " +
             "\"barcode <product> <code>\", \"scan done\" (a scanned cart becomes an order). "+
