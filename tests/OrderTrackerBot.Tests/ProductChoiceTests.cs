@@ -121,6 +121,41 @@ public class ProductChoiceTests : IDisposable
     }
 
     [Fact]
+    public async Task AddingAProductThatAlreadyExists_SaysSo_InsteadOfAnnouncingAPriceUpdate()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);               // onboarding saved "Kurti - 1800"
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "Kurti - 1800", default);
+        Assert.Contains(_sent, m => m.Contains("pehle se catalog mein hai") && m.Contains("koi tabdeeli nahi"));
+        Assert.DoesNotContain(_sent, m => m.Contains("price updated"));
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "Kurti - 1900", default);
+        Assert.Contains(_sent, m => m.Contains("pehle se catalog mein hai") && m.Contains("Rs.1,800 → Rs.1,900"));
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "Kurti - 1900, cost 1200", default);
+        Assert.Contains(_sent, m => m.Contains("pehle se catalog mein hai") && m.Contains("details update") && m.Contains("1,200"));
+        Assert.Equal(1, await db.Products.CountAsync(p => p.Name == "Kurti"));
+    }
+
+    [Fact]
+    public async Task AddingAProductThatWasSwitchedOff_SaysItIsBack()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        (await db.Products.SingleAsync(p => p.Name == "Kurti")).IsActive = false;
+        await db.SaveChangesAsync();
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "Kurti - 1800", default);
+
+        Assert.Contains(_sent, m => m.Contains("pehle catalog mein tha") && m.Contains("wapas chalu"));
+    }
+
+    [Fact]
     public async Task ChhoroCancelsTheDraft()
     {
         using var db = _dbFactory.CreateContext();
