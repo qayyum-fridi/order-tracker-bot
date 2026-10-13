@@ -863,3 +863,23 @@ public class ProductLineEndingInStockTests
     public void PlainStockCommands_AreUnchanged(string text) => Assert.Equal(CommandKind.Stock, CommandParser.TryParse(text)!.Kind);
 }
 
+
+public class ProductLineSanityTests
+{
+    [Theory]
+    [InlineData("Kurti - -5")]
+    [InlineData("Kurti -- 5")]
+    [InlineData("Kurti = ")]
+    [InlineData("- 500")]
+    public void TyposThatWouldSaveAJunkProduct_AreNotProductLines(string text)
+    {
+        Assert.False(CommandParser.TryParseProductLine(text, out ProductLine? _));
+        Assert.NotEqual(CommandKind.AddProduct, CommandParser.TryParse(text)?.Kind);
+    }
+
+    [Theory]
+    [InlineData("Kurti - 1")]
+    [InlineData("Polo Shirt - 500, cost 300, stock 10")]
+    [InlineData("Sugar 5 kg - 500")]
+    public void RealProductLines_StillParse(string text) => Assert.True(CommandParser.TryParseProductLine(text, out ProductLine? _));
+}

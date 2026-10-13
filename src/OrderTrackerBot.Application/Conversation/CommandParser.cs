@@ -862,6 +862,19 @@ public static class CommandParser
 
     public static bool TryParseProductLine(string line, out ProductLine? product)
     {
+        if (!ParseProductLineCore(line, out product)) return false;
+        // "Kurti - -5" (name "Kurti -", price 5) is a typo, not a product: never saved. (A price of 0 stays allowed: free sample products.)
+        var name = product!.Name.Trim();
+        if (!name.Any(char.IsLetter) || name.EndsWith('-') || name.EndsWith('–') || name.EndsWith('='))
+        {
+            product = null;
+            return false;
+        }
+        return true;
+    }
+
+    private static bool ParseProductLineCore(string line, out ProductLine? product)
+    {
         product = null;
         var text = NormalizeProductPriceText(line.Trim());
 

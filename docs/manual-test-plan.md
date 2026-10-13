@@ -248,7 +248,7 @@ Prepare: 3 COD orders (1900 + 3500 + 1800 …), each `mark N shipped`, `add trac
 | 18.3 | `cancel 1` then `no` | Nothing cancelled |
 | 18.4 | `mark 999 shipped` | "Order not found" |
 | 18.5 | `Sara ka phone abc` | Rejected, not saved |
-| 18.6 | `Kurti - 0` and `Kurti - -5` | **Known bug (found while writing this plan):** both are saved today — a Rs.0 product, and a product named "Kurti -" at Rs.5. Expected behaviour is to refuse a price ≤ 0. Do not leave such products in the catalog (delete them) |
+| 18.6 | `Kurti - -5` | Not saved (it used to create a product named "Kurti -" at Rs.5). `Kurti - 0` is allowed on purpose (free sample product) |
 | 18.7 | `reset account` | Asks YES |
 | 18.8 | `yes` after 11 min | Expired, nothing wiped |
 | 18.9 | `reset account` then `yes` within 10 min | Everything wiped (orders, customers, products, expenses, drawer, payouts, email/receipt settings), onboarding restarts |
