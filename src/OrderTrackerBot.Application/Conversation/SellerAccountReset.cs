@@ -38,6 +38,8 @@ public static class SellerAccountReset
         seller.Email = null;
         seller.ReceiptSize = null;
         seller.ReceiptFooter = null;
+        seller.ReceiptHeader = null;
+        seller.ReceiptContact = null;
         seller.LabelSize = null;
         seller.OnboardingComplete = false;
         seller.PreferredLanguage = Lang.RomanUrdu;

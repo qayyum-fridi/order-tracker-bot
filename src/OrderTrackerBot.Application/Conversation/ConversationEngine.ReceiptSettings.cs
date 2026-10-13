@@ -7,7 +7,8 @@ using OrderTrackerBot.Domain.Entities;
 namespace OrderTrackerBot.Application.Conversation;
 
 // Everyday receipt settings for a seller with a thermal (or any) printer, an order note, and receipts by email.
-//   receipt settings | receipt size 80mm|58mm|A5|A4 | receipt footer <line>|off | note 12 <text>|off
+//   receipt settings | receipt size 80mm|58mm|A5|A4 | receipt header <line>|off | receipt contact <line>|off | receipt footer <line>|off | note 12 <text>|off
+//   logo / banner: a picture captioned "logo" or "banner" (ConversationEngine.Branding.cs)
 //   email ali@shop.com | email off | email receipt [12] [to someone@mail.com] | printer
 // The bot never prints by itself: it makes a PDF in the right paper size, and the seller prints it from their phone or computer.
 public partial class ConversationEngine
@@ -15,6 +16,8 @@ public partial class ConversationEngine
     private static readonly Regex EmailAddress = new(@"^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]{2,}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private const int MaxFooterLength = 120;
+    private const int MaxHeaderLength = 80;
+    private const int MaxContactLength = 150;
     private const int MaxNoteLength = 300;
     private const int EmailsPerHour = 20;
     private static readonly Dictionary<int, Queue<DateTime>> EmailSendTimes = new();
@@ -40,16 +43,25 @@ public partial class ConversationEngine
 
     private async Task HandleReceiptSettingsAsync(Seller seller, CancellationToken ct)
     {
+        var branding = await _db.SellerBrandings.AsNoTracking().FirstOrDefaultAsync(b => b.SellerId == seller.Id, ct);
+        static string Or(string? value, string fallback) => string.IsNullOrWhiteSpace(value) ? fallback : value;
         await ReplyAsync(seller,
             "🧾 Receipt settings\n" +
             $"Size: {NormalizeReceiptSize(seller.ReceiptSize) ?? "A5"}\n" +
-            $"Footer: {(string.IsNullOrWhiteSpace(seller.ReceiptFooter) ? "default (Thank you ...)" : seller.ReceiptFooter)}\n" +
+            $"Logo: {(branding?.Logo is not null ? "set ✅" : "abhi nahi")}\n" +
+            $"Banner: {(branding?.Banner is not null ? "set ✅" : "abhi nahi")}\n" +
+            $"Header: {Or(seller.ReceiptHeader, "nahi (sirf dukan ka naam)")}\n" +
+            $"Contact: {Or(seller.ReceiptContact, "nahi")}\n" +
+            $"Footer: {Or(seller.ReceiptFooter, "default (Thank you ...)")}\n" +
             $"Email: {seller.Email ?? "set nahi"}{(_email is { IsConfigured: true } ? "" : " (email service abhi server par on nahi)")}\n\n" +
             "Badalne ke liye:\n" +
+            "• logo ya banner: tasveer bhejein, caption mein \"logo\" ya \"banner\"  (hatane ke liye: remove logo)\n" +
+            "• receipt header Gulberg Branch · Est. 2015  (hatane ke liye: receipt header off)\n" +
+            "• receipt contact 0300-1234567 · ali@shop.com  (hatane ke liye: receipt contact off)\n" +
             "• receipt size 80mm  (ya 58mm / A5 / A4)\n" +
             "• receipt footer Shukriya, dobara tashreef layein  (hatane ke liye: receipt footer off)\n" +
             "• note 12 gift wrap  (order ka note, receipt par bhi chhapta hai; hatane ke liye: note 12 off)\n" +
-            "• email ali@shop.com, phir: email receipt 12\n" +
+            "• email ali@shop.com, phir: email receipt 12  (email bhejne ke liye; receipt par chhapne ke liye receipt contact)\n" +
             "• printer  (print karne ka tareeqa)", ct);
     }
 
@@ -88,6 +100,60 @@ public partial class ConversationEngine
         }
         seller.ReceiptFooter = footer;
         await ReplyAsync(seller, $"✅ Har receipt ke neeche likha aayega:\n\"{footer}\"", ct);
+    }
+
+    /// <summary>What a seller types for a header or contact line: several typed lines become one, joined with " · ".</summary>
+    private static string OneReceiptLine(string? text) =>
+        string.Join(" · ", (text ?? "").Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+    private async Task HandleReceiptHeaderAsync(Seller seller, string? text, CancellationToken ct)
+    {
+        if (ClearWord(text))
+        {
+            seller.ReceiptHeader = null;
+            await ReplyAsync(seller, "✅ Receipt par ab dukan ke naam ke neeche koi header nahi chhapega.", ct);
+            return;
+        }
+        var line = OneReceiptLine(text);
+        if (line.Length == 0)
+        {
+            await ReplyAsync(seller, string.IsNullOrWhiteSpace(seller.ReceiptHeader)
+                ? "Header likhein, jaise: receipt header Gulberg Branch · Est. 2015"
+                : $"🧾 Abhi header: \"{seller.ReceiptHeader}\"\nBadalne ke liye: receipt header <line>  (hatane ke liye: receipt header off)", ct);
+            return;
+        }
+        if (line.Length > MaxHeaderLength)
+        {
+            await ReplyAsync(seller, $"Header {MaxHeaderLength} huroof se chhota rakhein (abhi {line.Length}).", ct);
+            return;
+        }
+        seller.ReceiptHeader = line;
+        await ReplyAsync(seller, $"✅ Receipt par dukan ke naam ke neeche likha aayega:\n\"{line}\"", ct);
+    }
+
+    private async Task HandleReceiptContactAsync(Seller seller, string? text, CancellationToken ct)
+    {
+        if (ClearWord(text))
+        {
+            seller.ReceiptContact = null;
+            await ReplyAsync(seller, "✅ Receipt par ab contact line nahi chhapegi.", ct);
+            return;
+        }
+        var line = OneReceiptLine(text);
+        if (line.Length == 0)
+        {
+            await ReplyAsync(seller, string.IsNullOrWhiteSpace(seller.ReceiptContact)
+                ? "Contact likhein, jaise: receipt contact 0300-1234567 · ali@shop.com · Gulberg, Lahore"
+                : $"📞 Abhi contact: \"{seller.ReceiptContact}\"\nBadalne ke liye: receipt contact <line>  (hatane ke liye: receipt contact off)", ct);
+            return;
+        }
+        if (line.Length > MaxContactLength)
+        {
+            await ReplyAsync(seller, $"Contact {MaxContactLength} huroof se chhota rakhein (abhi {line.Length}).", ct);
+            return;
+        }
+        seller.ReceiptContact = line;
+        await ReplyAsync(seller, $"✅ Receipt par contact ye chhapega:\n\"{line}\"", ct);
     }
 
     private async Task HandleOrderNoteAsync(Seller seller, SessionContextData ctx, ParsedCommand cmd, CancellationToken ct)

@@ -35,7 +35,9 @@ public sealed record ReceiptData(
     decimal SalesTaxAmount = 0,
     string PaperSize = "A5",
     string? Footer = null,
-    string? Notes = null);
+    string? Notes = null,
+    string? Header = null,
+    string? Contact = null);
 
 /// <summary>A parcel label: who it is from and to, what to collect on delivery, the order number and tracking.</summary>
 public sealed record ShippingLabelData(

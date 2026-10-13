@@ -19,6 +19,10 @@ public class ReceiptSettingsParserTests
     [InlineData("receipt size 58", CommandKind.ReceiptSize)]
     [InlineData("receipt footer Shukriya, dobara tashreef layein", CommandKind.ReceiptFooter)]
     [InlineData("receipt footer off", CommandKind.ReceiptFooter)]
+    [InlineData("receipt header Gulberg Branch · Est. 2015", CommandKind.ReceiptHeader)]
+    [InlineData("receipt header off", CommandKind.ReceiptHeader)]
+    [InlineData("receipt contact 0300-1234567 · ali@shop.com", CommandKind.ReceiptContact)]
+    [InlineData("receipt contact off", CommandKind.ReceiptContact)]
     [InlineData("note 12 gift wrap", CommandKind.OrderNote)]
     [InlineData("note 12 off", CommandKind.OrderNote)]
     [InlineData("email ali@shop.com", CommandKind.SetEmail)]
@@ -101,6 +105,20 @@ public class ReceiptPaperSizePdfTests
             SalesTaxRate = 18, SalesTaxAmount = 1208, Ntn = "1234567-8", Strn = "17-00-8888-001-37", ReceiptNumber = 7
         };
         var pdf = new ReceiptPdfGenerator().Generate(data);
+        Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(pdf, 0, 5));
+    }
+
+    [Theory]
+    [InlineData("A5")]
+    [InlineData("A4")]
+    [InlineData("80mm")]
+    [InlineData("58mm")]
+    public void Generate_ProducesAPdfForEveryPaperSize_WithHeaderAndContact(string size)
+    {
+        var pdf = new ReceiptPdfGenerator().Generate(Sample() with
+        {
+            PaperSize = size, Header = "Gulberg Branch · Est. 2015", Contact = "0300-1234567 · ali@shop.com · Gulberg, Lahore", Logo = ReceiptPdfTests.TinyPng
+        });
         Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(pdf, 0, 5));
     }
 
@@ -192,6 +210,54 @@ public class ReceiptSettingsEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "receipt size A5", default);
         await engine.HandleIncomingMessageAsync(Phone, "receipt footer off", default);
         Assert.Null((await db.Sellers.AsNoTracking().FirstAsync()).ReceiptSize);
+    }
+
+    [Fact]
+    public async Task HeaderAndContact_ReachTheReceipt_AndCanBeCleared()
+    {
+        using var db = _dbFactory.CreateContext();
+        var (_, order) = await SeedAsync(db);
+        var engine = Engine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "receipt header Gulberg Branch · Est. 2015", default);
+        await engine.HandleIncomingMessageAsync(Phone, "receipt contact 0300-1234567\nali@shop.com", default);
+        await engine.HandleIncomingMessageAsync(Phone, $"receipt {order.Id}", default);
+
+        Assert.Equal("Gulberg Branch · Est. 2015", _captured!.Header);
+        Assert.Equal("0300-1234567 · ali@shop.com", _captured.Contact);
+        var seller = await db.Sellers.AsNoTracking().FirstAsync();
+        Assert.Equal("0300-1234567 · ali@shop.com", seller.ReceiptContact);
+
+        await engine.HandleIncomingMessageAsync(Phone, "receipt header off", default);
+        await engine.HandleIncomingMessageAsync(Phone, "receipt contact off", default);
+        seller = await db.Sellers.AsNoTracking().FirstAsync();
+        Assert.Null(seller.ReceiptHeader);
+        Assert.Null(seller.ReceiptContact);
+    }
+
+    [Fact]
+    public async Task OverlongHeader_IsRefused_AndNothingChanges()
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, "receipt header " + new string('x', 81), default);
+
+        Assert.Null((await db.Sellers.AsNoTracking().FirstAsync()).ReceiptHeader);
+        Assert.Contains(_sent, m => m.Contains("80 huroof"));
+    }
+
+    [Fact]
+    public async Task ReceiptSettings_ShowsLogoBannerHeaderAndContact()
+    {
+        using var db = _dbFactory.CreateContext();
+        var (seller, _) = await SeedAsync(db);
+        db.SellerBrandings.Add(new SellerBranding { SellerId = seller.Id, Logo = ReceiptPdfTests.TinyPng });
+        await db.SaveChangesAsync();
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, "receipt settings", default);
+
+        Assert.Contains(_sent, m => m.Contains("Logo: set") && m.Contains("Banner: abhi nahi") && m.Contains("Header: nahi") && m.Contains("receipt contact"));
     }
 
     [Fact]
@@ -304,6 +370,8 @@ public class ReceiptSettingsEngineTests : IDisposable
         seller.Email = "ali@shop.com";
         seller.ReceiptSize = "80mm";
         seller.ReceiptFooter = "Shukriya";
+        seller.ReceiptHeader = "Gulberg Branch";
+        seller.ReceiptContact = "0300-1234567";
         await db.SaveChangesAsync();
 
         await SellerAccountReset.ResetAsync(db, seller, default);
@@ -313,6 +381,8 @@ public class ReceiptSettingsEngineTests : IDisposable
         Assert.Null(saved.Email);
         Assert.Null(saved.ReceiptSize);
         Assert.Null(saved.ReceiptFooter);
+        Assert.Null(saved.ReceiptHeader);
+        Assert.Null(saved.ReceiptContact);
     }
 
     public void Dispose() => _dbFactory.Dispose();

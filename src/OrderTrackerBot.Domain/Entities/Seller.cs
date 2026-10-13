@@ -29,6 +29,10 @@ public class Seller
     public string? ReceiptSize { get; set; }
     /// <summary>Line printed at the bottom of every receipt instead of the default thank-you ("receipt footer ...").</summary>
     public string? ReceiptFooter { get; set; }
+    /// <summary>Short line printed under the shop name on every receipt ("receipt header ...").</summary>
+    public string? ReceiptHeader { get; set; }
+    /// <summary>Contact line printed under the shop name, e.g. email and extra phone numbers ("receipt contact ...").</summary>
+    public string? ReceiptContact { get; set; }
     /// <summary>Label sheet for shipping / business labels: null/"4x6" (default), "A6" or "50x30" (mm sticker) ("label size a6").</summary>
     public string? LabelSize { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

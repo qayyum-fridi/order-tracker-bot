@@ -169,8 +169,10 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
                 col.Spacing(3);
                 if (r.Logo is not null) col.Item().AlignCenter().Height(32).Image(r.Logo).FitArea();
                 col.Item().AlignCenter().Text(r.BusinessName).FontSize(size + 3).Bold();
+                if (!string.IsNullOrWhiteSpace(r.Header)) col.Item().AlignCenter().Text(r.Header).FontSize(size - 1).Italic();
                 var sub = string.Join(" · ", new[] { r.BusinessCity, r.BusinessPhone }.Where(s => !string.IsNullOrWhiteSpace(s)));
                 if (sub.Length > 0) col.Item().AlignCenter().Text(sub).FontSize(size - 1);
+                if (!string.IsNullOrWhiteSpace(r.Contact)) col.Item().AlignCenter().Text(r.Contact).FontSize(size - 1);
                 var taxIds = string.Join(" · ", new[] { Id("NTN", r.Ntn), Id("STRN", r.Strn) }.Where(s => s is not null));
                 if (taxIds.Length > 0) col.Item().AlignCenter().Text(taxIds).FontSize(size - 1);
                 col.Item().AlignCenter().Text(r.SalesTaxRate > 0 ? "TAX INVOICE" : "RECEIPT").Bold();
@@ -253,9 +255,11 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
                     row.RelativeItem().Column(c =>
                     {
                         c.Item().Text(r.BusinessName).FontSize(16).Bold().FontColor(Accent);
+                        if (!string.IsNullOrWhiteSpace(r.Header)) c.Item().Text(r.Header).FontSize(10).Italic().FontColor(Ink);
                         var sub = string.Join(" · ", new[] { r.BusinessCity, r.BusinessPhone is null ? null : "WhatsApp " + r.BusinessPhone, r.InstagramHandle }
                             .Where(s => !string.IsNullOrWhiteSpace(s)));
                         if (sub.Length > 0) c.Item().Text(sub).FontSize(9).FontColor(Muted);
+                        if (!string.IsNullOrWhiteSpace(r.Contact)) c.Item().Text(r.Contact).FontSize(9).FontColor(Muted);
                         var taxIds = string.Join(" · ", new[] { Id("NTN", r.Ntn), Id("STRN", r.Strn) }.Where(s => s is not null));
                         if (taxIds.Length > 0) c.Item().Text(taxIds).FontSize(9).FontColor(Muted);
                     });
