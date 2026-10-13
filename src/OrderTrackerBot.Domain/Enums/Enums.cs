@@ -40,7 +40,8 @@ public enum ConversationState
     /// <summary>Voice note read as risky actions (price edit, cancel, status change...); waiting for YES/NO before running them.</summary>
     AwaitingVoiceConfirmation,
     /// <summary>A customers/catalog file was uploaded and checked; waiting for YES before anything is saved.</summary>
-    AwaitingImportConfirmation
+    AwaitingImportConfirmation,
+    AwaitingReceiptDesign
 }
 
 public enum OrderStatus

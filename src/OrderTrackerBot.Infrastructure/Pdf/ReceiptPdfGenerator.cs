@@ -157,7 +157,8 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
     /// </summary>
     private static byte[] RenderThermal(ReceiptData r, float widthMm)
     {
-        var size = widthMm < 70f ? 8f : 9f;
+        var design = r.Design ?? new ReceiptDesign();
+        var size = (widthMm < 70f ? 8f : 9f) + TextSizeDelta(design);
         return Document.Create(doc => doc.Page(page =>
         {
             page.ContinuousSize(widthMm, Unit.Millimetre);
@@ -167,13 +168,13 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
             page.Content().Column(col =>
             {
                 col.Spacing(3);
-                if (r.Logo is not null) col.Item().AlignCenter().Height(32).Image(r.Logo).FitArea();
+                if (r.Logo is not null && !design.HideLogo) col.Item().AlignCenter().Height(32).Image(r.Logo).FitArea();
                 col.Item().AlignCenter().Text(r.BusinessName).FontSize(size + 3).Bold();
-                var sub = string.Join(" · ", new[] { r.BusinessCity, r.BusinessPhone }.Where(s => !string.IsNullOrWhiteSpace(s)));
+                var sub = string.Join(" · ", new[] { r.BusinessCity, design.HideShopPhone ? null : r.BusinessPhone }.Where(s => !string.IsNullOrWhiteSpace(s)));
                 if (sub.Length > 0) col.Item().AlignCenter().Text(sub).FontSize(size - 1);
                 var taxIds = string.Join(" · ", new[] { Id("NTN", r.Ntn), Id("STRN", r.Strn) }.Where(s => s is not null));
                 if (taxIds.Length > 0) col.Item().AlignCenter().Text(taxIds).FontSize(size - 1);
-                col.Item().AlignCenter().Text(r.SalesTaxRate > 0 ? "TAX INVOICE" : "RECEIPT").Bold();
+                col.Item().AlignCenter().Text(r.SalesTaxRate > 0 ? "TAX INVOICE" : (design.Title ?? "RECEIPT").ToUpperInvariant()).Bold();
                 col.Item().AlignCenter().Text((r.ReceiptNumber is { } no ? $"No. {no} · " : "") + $"Order #{r.OrderId}");
                 col.Item().AlignCenter().Text(r.OrderedAtLocal.ToString("dd MMM yyyy, hh:mm tt", CultureInfo.InvariantCulture)).FontSize(size - 1);
                 col.Item().LineHorizontal(0.5f);
@@ -181,8 +182,8 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
                 col.Item().Column(c =>
                 {
                     c.Item().Text(r.CustomerName).Bold();
-                    if (!string.IsNullOrWhiteSpace(r.CustomerPhone)) c.Item().Text(r.CustomerPhone);
-                    if (!string.IsNullOrWhiteSpace(r.CustomerAddress)) c.Item().Text(r.CustomerAddress);
+                    if (!design.HideBuyerDetails && !string.IsNullOrWhiteSpace(r.CustomerPhone)) c.Item().Text(r.CustomerPhone);
+                    if (!design.HideBuyerDetails && !string.IsNullOrWhiteSpace(r.CustomerAddress)) c.Item().Text(r.CustomerAddress);
                 });
                 col.Item().LineHorizontal(0.5f);
 
@@ -232,41 +233,61 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
         })).GeneratePdf();
     }
 
+    private static float TextSizeDelta(ReceiptDesign d) => d.TextSize switch { "small" => -1f, "large" => 1.5f, _ => 0f };
+
     private static byte[] Render(ReceiptData r)
     {
         if (ThermalWidthMm(r.PaperSize) is { } thermalWidth) return RenderThermal(r, thermalWidth);
+        var design = r.Design ?? new ReceiptDesign();
+        var accent = design.Accent ?? Accent;
+        var title = r.SalesTaxRate > 0 ? "TAX INVOICE" : (design.Title ?? "RECEIPT").ToUpperInvariant();
 
         return Document.Create(doc => doc.Page(page =>
         {
             page.Size(string.Equals(r.PaperSize, "A4", StringComparison.OrdinalIgnoreCase) ? PageSizes.A4 : PageSizes.A5);
             page.Margin(28);
-            page.DefaultTextStyle(Base);
+            page.DefaultTextStyle(Base.FontSize(10 + TextSizeDelta(design)));
 
             page.Header().Column(col =>
             {
                 if (r.Banner is not null)
                     col.Item().PaddingBottom(8).AlignCenter().MaxHeight(90).Image(r.Banner).FitArea();
-                col.Item().Row(row =>
+                var showLogo = r.Logo is not null && !design.HideLogo;
+                void ShopBlock(IContainer box, bool center) => box.Column(c =>
                 {
-                    if (r.Logo is not null)
-                        row.ConstantItem(56).PaddingRight(8).Height(48).Image(r.Logo).FitArea();
-                    row.RelativeItem().Column(c =>
-                    {
-                        c.Item().Text(r.BusinessName).FontSize(16).Bold().FontColor(Accent);
-                        var sub = string.Join(" · ", new[] { r.BusinessCity, r.BusinessPhone is null ? null : "WhatsApp " + r.BusinessPhone, r.InstagramHandle }
-                            .Where(s => !string.IsNullOrWhiteSpace(s)));
-                        if (sub.Length > 0) c.Item().Text(sub).FontSize(9).FontColor(Muted);
-                        var taxIds = string.Join(" · ", new[] { Id("NTN", r.Ntn), Id("STRN", r.Strn) }.Where(s => s is not null));
-                        if (taxIds.Length > 0) c.Item().Text(taxIds).FontSize(9).FontColor(Muted);
-                    });
-                    row.ConstantItem(120).AlignRight().Column(c =>
-                    {
-                        c.Item().AlignRight().Text(r.SalesTaxRate > 0 ? "TAX INVOICE" : "RECEIPT").FontSize(14).Bold();
-                        c.Item().AlignRight().Text(r.ReceiptNumber is { } no ? $"No. {no}" : $"#{r.OrderId}").FontSize(11);
-                        if (r.ReceiptNumber is not null) c.Item().AlignRight().Text($"Order #{r.OrderId}").FontSize(9).FontColor(Muted);
-                        c.Item().AlignRight().Text(r.OrderedAtLocal.ToString("dd MMM yyyy, hh:mm tt", CultureInfo.InvariantCulture)).FontSize(9).FontColor(Muted);
-                    });
+                    var name = c.Item().Text(r.BusinessName).FontSize(16).Bold().FontColor(accent);
+                    var sub = string.Join(" · ", new[] { r.BusinessCity, design.HideShopPhone || r.BusinessPhone is null ? null : "WhatsApp " + r.BusinessPhone, r.InstagramHandle }
+                        .Where(s => !string.IsNullOrWhiteSpace(s)));
+                    if (sub.Length > 0) c.Item().Text(sub).FontSize(9).FontColor(Muted);
+                    var taxIds = string.Join(" · ", new[] { Id("NTN", r.Ntn), Id("STRN", r.Strn) }.Where(s => s is not null));
+                    if (taxIds.Length > 0) c.Item().Text(taxIds).FontSize(9).FontColor(Muted);
+                    if (center) { /* alignment is applied on the container below */ }
                 });
+                void DocBlock(IContainer box, bool right) => box.Column(c =>
+                {
+                    IContainer Line(IContainer x) => right ? x.AlignRight() : x.AlignCenter();
+                    c.Item().Element(Line).Text(title).FontSize(14).Bold().FontColor(design.Accent is null ? Ink : accent);
+                    c.Item().Element(Line).Text(r.ReceiptNumber is { } no ? $"No. {no}" : $"#{r.OrderId}").FontSize(11);
+                    if (r.ReceiptNumber is not null) c.Item().Element(Line).Text($"Order #{r.OrderId}").FontSize(9).FontColor(Muted);
+                    c.Item().Element(Line).Text(r.OrderedAtLocal.ToString("dd MMM yyyy, hh:mm tt", CultureInfo.InvariantCulture)).FontSize(9).FontColor(Muted);
+                });
+
+                if (design.Centered)
+                    col.Item().Column(c =>
+                    {
+                        c.Spacing(4);
+                        if (showLogo) c.Item().AlignCenter().Height(48).Image(r.Logo!).FitArea();
+                        c.Item().AlignCenter().Element(b => ShopBlock(b, true));
+                        c.Item().AlignCenter().Element(b => DocBlock(b, false));
+                    });
+                else
+                    col.Item().Row(row =>
+                    {
+                        if (showLogo)
+                            row.ConstantItem(56).PaddingRight(8).Height(48).Image(r.Logo!).FitArea();
+                        row.RelativeItem().Element(b => ShopBlock(b, false));
+                        row.ConstantItem(120).AlignRight().Element(b => DocBlock(b, true));
+                    });
                 col.Item().PaddingTop(10).LineHorizontal(1).LineColor(Line);
             });
 
@@ -278,8 +299,8 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
                 {
                     c.Item().Text("BILL TO").FontSize(8).Bold().FontColor(Muted);
                     c.Item().Text(r.CustomerName).Bold();
-                    if (!string.IsNullOrWhiteSpace(r.CustomerPhone)) c.Item().Text(r.CustomerPhone);
-                    if (!string.IsNullOrWhiteSpace(r.CustomerAddress)) c.Item().Text(r.CustomerAddress);
+                    if (!design.HideBuyerDetails && !string.IsNullOrWhiteSpace(r.CustomerPhone)) c.Item().Text(r.CustomerPhone);
+                    if (!design.HideBuyerDetails && !string.IsNullOrWhiteSpace(r.CustomerAddress)) c.Item().Text(r.CustomerAddress);
                 });
 
                 col.Item().Table(table =>
@@ -327,7 +348,7 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
                         Row("Value excl. sales tax", Money(r.Total - r.SalesTaxAmount));
                         Row($"Sales tax ({r.SalesTaxRate.ToString("0.##", CultureInfo.InvariantCulture)}%)", Money(r.SalesTaxAmount));
                     }
-                    Row(r.SalesTaxRate > 0 ? "TOTAL (incl. tax)" : "TOTAL", Money(r.Total), bold: true, color: Accent);
+                    Row(r.SalesTaxRate > 0 ? "TOTAL (incl. tax)" : "TOTAL", Money(r.Total), bold: true, color: accent);
                     if (r.SalesTaxRate > 0)
                         c.Item().PaddingTop(3).Text("Prices include sales tax.").FontSize(8).FontColor(Muted);
                 });
@@ -339,7 +360,7 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
                         t.Span("Payment: ").Bold();
                         t.Span($"{r.PaymentMethod} — ");
                         var partly = !r.Paid && r.AmountPaid > 0;
-                        t.Span(r.Paid ? "PAID" : partly ? "PARTLY PAID" : "UNPAID").Bold().FontColor(r.Paid ? Accent : Colors.Red.Darken2);
+                        t.Span(r.Paid ? "PAID" : partly ? "PARTLY PAID" : "UNPAID").Bold().FontColor(r.Paid ? accent : Colors.Red.Darken2);
                     });
                     if (!r.Paid && r.AmountPaid > 0)
                         c.Item().Text(t =>
@@ -347,7 +368,7 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
                             t.Span($"Paid: {Money(r.AmountPaid)} · ");
                             t.Span($"Balance due: {Money(Math.Max(0, r.Total - r.AmountPaid))}").Bold();
                         });
-                    c.Item().Text(t => { t.Span("Order status: ").Bold(); t.Span(r.Status); });
+                    if (!design.HideOrderStatus) c.Item().Text(t => { t.Span("Order status: ").Bold(); t.Span(r.Status); });
                     if (!string.IsNullOrWhiteSpace(r.Notes))
                         c.Item().Text(t => { t.Span("Note: ").Bold(); t.Span(r.Notes); });
                     if (!string.IsNullOrWhiteSpace(r.TrackingNumber))

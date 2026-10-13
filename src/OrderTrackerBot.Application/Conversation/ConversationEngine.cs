@@ -246,6 +246,9 @@ public partial class ConversationEngine
             case ConversationState.AwaitingOrderEdit:
                 await HandleOrderEditAsync(seller, session, ctx, message, ct);
                 break;
+            case ConversationState.AwaitingReceiptDesign:
+                await HandleReceiptDesignAsync(seller, session, ctx, message, ct);
+                break;
             case ConversationState.AwaitingSupportQueryPick:
                 await HandleSupportQueryPickAsync(seller, session, ctx, message, ct);
                 break;

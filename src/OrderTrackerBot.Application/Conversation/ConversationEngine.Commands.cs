@@ -123,11 +123,11 @@ public partial class ConversationEngine
                 new MenuRow("receipt settings", "Receipt settings"), new MenuRow("profit", "Profit"),
                 new MenuRow("stock", "Stock list"), BackToMenu
             }),
-            ["settings"] = ("⚙️ Settings", "⚙️ Settings\n • receipt size 80mm|58mm|A5|A4 · receipt footer [text]\n • email aap@gmail.com — receipt email\n • printer — printer ki guide\n • shortcut off — neeche ke buttons band\n • feedback: [aapka message] — hamein bot ke baare mein batayein", new[]
+            ["settings"] = ("⚙️ Settings", "⚙️ Settings\n • receipt design — receipt ka rang/title/layout live banayein\n • receipt size 80mm|58mm|A5|A4 · receipt footer [text]\n • email aap@gmail.com — receipt email\n • printer — printer ki guide\n • shortcut off — neeche ke buttons band\n • feedback: [aapka message] — hamein bot ke baare mein batayein", new[]
             {
                 new MenuRow("update business info", "Business info"), new MenuRow("add payment", "Payment methods"),
                 new MenuRow("subscribe", "Plan / subscribe"), new MenuRow("logo", "Receipt logo / banner"), new MenuRow("export", "Export (Excel)"),
-                new MenuRow("receipt settings", "Receipt settings"), new MenuRow("printer", "Printer guide"), BackToMenu
+                new MenuRow("receipt design", "Receipt design"), new MenuRow("receipt settings", "Receipt settings"), new MenuRow("printer", "Printer guide"), BackToMenu
             })
         };
 
@@ -255,6 +255,9 @@ public partial class ConversationEngine
             case CommandKind.ReceiptSettings:
                 await HandleReceiptSettingsAsync(seller, ct);
                 return;
+            case CommandKind.ReceiptDesign:
+                await HandleReceiptDesignStartAsync(seller, session, ct);
+                break;
             case CommandKind.ReceiptSize:
                 await HandleReceiptSizeAsync(seller, cmd.Text, ct);
                 return;

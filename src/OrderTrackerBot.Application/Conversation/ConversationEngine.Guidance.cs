@@ -47,6 +47,7 @@ public partial class ConversationEngine
             or ConversationState.AwaitingImportConfirmation => "YES ya NO likhein (bol kar \"haan\" / \"nahi\" bhi chalta hai).",
         ConversationState.AwaitingVoiceConfirmation => "Aapki voice se jo actions samjhe, woh upar likhe hain — chalane ke liye YES, rokne ke liye NO.",
         ConversationState.AwaitingOrderEdit => OrderEditHelp,
+        ConversationState.AwaitingReceiptDesign => ReceiptDesignHelp,
         ConversationState.AwaitingDiscountDetails => "Discount code likhein, jaise \"create discount: EID10, 10 percent, expires 15 days\".",
         ConversationState.AwaitingPaymentMethodInput => "Payment method likhein, jaise \"add payment: jazzcash, 0300-1234567\".",
         _ => "Bot abhi aapke jawab ka intezar kar raha hai. Upar wale sawal ka jawab dein, ya \"cancel\" likh kar ruk jayein."

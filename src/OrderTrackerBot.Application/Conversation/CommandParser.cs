@@ -96,6 +96,7 @@ public enum CommandKind
     ImportHelp,
     ImportTemplate,
     ReceiptSettings,
+    ReceiptDesign,
     ReceiptSize,
     ReceiptFooter,
     OrderNote,
@@ -686,6 +687,7 @@ public static class CommandParser
 
     // Receipt settings, order note, email and printer help (ConversationEngine.ReceiptSettings.cs). Anchored and specific so nothing else is caught.
     private static readonly Regex ReceiptSettingsCmd = new(@"^receipts?\s+(?:settings?|options?)$", Opts);
+    private static readonly Regex ReceiptDesignCmd = new(@"^(?:receipts?\s+(?:design|customi[sz]e|look|style|layout)|(?:design|customi[sz]e)\s+(?:my\s+)?receipts?|receipt\s+design\s+karo)$", Opts);
     private static readonly Regex ReceiptSizeCmd = new(@"^receipts?\s+(?:size|paper)\s*:?\s*(?<v>.+)$", Opts);
     private static readonly Regex ReceiptFooterCmd = new(@"^receipts?\s+footer\s*:?\s*(?<v>.*)$", Opts);
     private static readonly Regex OrderNoteCmd = new(@"^(?:note|order\s+note)\s+#?(?<n>\d{1,9})\s*:?\s*(?<t>.*)$", Opts);
@@ -1046,6 +1048,7 @@ public static class CommandParser
         if (message.StartsWith('/') && ExpandSlashCommand(message) is { } expanded) message = expanded;
         Match m;
 
+        if (ReceiptDesignCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ReceiptDesign };
         if (ReceiptSettingsCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ReceiptSettings };
         if ((m = ReceiptSizeCmd.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.ReceiptSize, Text = m.Groups["v"].Value.Trim() };
