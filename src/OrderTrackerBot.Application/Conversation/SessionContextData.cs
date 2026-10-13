@@ -27,6 +27,10 @@ public sealed class PendingOrderData
     public string? DiscountCode { get; set; }
     public string? OrderSource { get; set; }
     public bool FromScreenshot { get; set; }
+    /// <summary>Counter (offline) sale: no phone needed, saved as delivered and fully paid.</summary>
+    public bool PaidInFull { get; set; }
+    /// <summary>When the sale really happened (UTC), for entries made later ("kal"); null = now.</summary>
+    public DateTime? SoldAt { get; set; }
     public decimal DiscountAmount { get; set; }
     /// <summary>Null until set: the seller's default delivery charge is applied when totals are computed.</summary>
     public decimal? DeliveryCharge { get; set; }

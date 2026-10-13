@@ -29,6 +29,8 @@ public class WhatsAppWebhookPayload
         [JsonPropertyName("id")] public string? Id { get; set; }
         [JsonPropertyName("from")] public string? From { get; set; }
         [JsonPropertyName("type")] public string? Type { get; set; }
+        /// <summary>When the buyer/seller sent it (unix seconds, as a string). Differs from arrival time when the phone was offline.</summary>
+        [JsonPropertyName("timestamp")] public string? Timestamp { get; set; }
         [JsonPropertyName("text")] public InboundText? Text { get; set; }
         [JsonPropertyName("interactive")] public InboundInteractive? Interactive { get; set; }
         [JsonPropertyName("image")] public InboundMedia? Image { get; set; }
@@ -72,6 +74,17 @@ public class WhatsAppWebhookPayload
     }
 
     /// <summary>Every (from, text) pair for a "text" message found in this payload.</summary>
+    /// <summary>Send time (unix seconds) per message id, for messages that carry one.</summary>
+    public Dictionary<string, long> SentAtById()
+    {
+        var map = new Dictionary<string, long>();
+        foreach (var entry in Entries)
+        foreach (var change in entry.Changes)
+        foreach (var message in change.Value?.Messages ?? Enumerable.Empty<InboundMessage>())
+            if (message.Id is not null && long.TryParse(message.Timestamp, out var ts) && ts > 0) map[message.Id] = ts;
+        return map;
+    }
+
     public IEnumerable<(string From, string Text, string? MessageId)> ExtractTextMessages()
     {
         foreach (var entry in Entries)

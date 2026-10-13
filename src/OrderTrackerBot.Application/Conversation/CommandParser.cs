@@ -109,7 +109,8 @@ public enum CommandKind
     BarcodeSet,
     CashDrawer,
     CashMovement,
-    Payout
+    Payout,
+    WalkInSale
 }
 
 /// <summary>What to export: any of "orders", "customers", "catalog", "discounts" (empty = ask), and an optional orders period (today/yesterday/7d/30d/lastmonth).</summary>
@@ -688,6 +689,8 @@ public static class CommandParser
     // Courier / gateway payouts (ConversationEngine.Payouts.cs): payout 11700 TCS orders 1 2 3 fee 300 | payout pending | payouts | payout skip 12 | payout undo.
     private static readonly Regex PayoutCmd = new(@"^(?:payouts?|settlements?)(?:\s+(?<rest>.+))?$", Opts);
     private static readonly Regex AwaitingPayoutCmd = new(@"^(?:awaiting|pending|baqi)\s+(?:payouts?|settlements?)$", Opts);
+    // Offline / counter sales (ConversationEngine.WalkIn.cs): walkin Kurti 2, Dupatta cash | counter sale 1500 | offline sale Chai - 200 kal.
+    private static readonly Regex WalkInCmd = new(@"^(?:walk[\s-]?in(?:\s+(?:sale|order))?|counter\s+sale|offline\s+(?:sale|order)|dukan\s+(?:ki\s+)?sale|dukan\s+par)\s+(?<rest>.+)$", Opts);
     private static readonly Regex PayoutAmountFirst = new(@"^(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d+)?)\s*(?<r>.*)$", Opts);
 
     // Labels, barcode scanning and the cash drawer (ConversationEngine.Labels.cs / Scan.cs / CashDrawer.cs).
@@ -1035,6 +1038,9 @@ public static class CommandParser
         if ((m = SetEmailCmd.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.SetEmail, Text = m.Groups["a"].Value.Trim() };
         if (PrinterHelpCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.PrinterHelp };
+
+        if ((m = WalkInCmd.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.WalkInSale, Text = m.Groups["rest"].Value.Trim() };
 
         if (AwaitingPayoutCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Payout, Text = "pending" };
         if ((m = PayoutCmd.Match(message)).Success)

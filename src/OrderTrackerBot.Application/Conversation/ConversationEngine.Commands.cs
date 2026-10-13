@@ -315,6 +315,9 @@ public partial class ConversationEngine
             case CommandKind.CashMovement:
                 await HandleCashMovementAsync(seller, cmd, ct);
                 return;
+            case CommandKind.WalkInSale:
+                await HandleWalkInSaleAsync(seller, session, ctx, cmd.Text!, ct);
+                return;
             case CommandKind.Payout:
                 await HandlePayoutAsync(seller, cmd, ct);
                 return;

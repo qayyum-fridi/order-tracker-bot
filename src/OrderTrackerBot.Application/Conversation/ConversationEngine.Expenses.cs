@@ -43,7 +43,7 @@ public partial class ConversationEngine
         var category = note is null ? "other" : note.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0].Trim(',', '.', ':', ';').ToLowerInvariant();
         if (category.Length == 0) category = "other";
 
-        var expense = new Expense { SellerId = seller.Id, Amount = amount, Category = category, Note = note };
+        var expense = new Expense { SellerId = seller.Id, Amount = amount, Category = category, Note = note, CreatedAt = RecordTimeUtc() };
         _db.Expenses.Add(expense);
         await _db.SaveChangesAsync(ct);
         _db.ActionLogs.Add(new ActionLog

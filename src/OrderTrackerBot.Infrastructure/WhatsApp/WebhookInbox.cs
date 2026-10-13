@@ -14,7 +14,7 @@ public enum WebhookMessageKind { Text, Image, Audio, Document, Flow, Unsupported
 public sealed record WebhookMessage(
     string Id, WebhookMessageKind Kind, string From,
     string? Text = null, string? MediaId = null, string? Caption = null, string? FileName = null,
-    string? MimeType = null, string? Json = null, string? Type = null)
+    string? MimeType = null, string? Json = null, string? Type = null, long? SentAt = null)
 {
     public string Serialize() => JsonSerializer.Serialize(this);
 
@@ -27,7 +27,7 @@ public sealed record WebhookMessage(
     public WebhookWork ToWork() => Kind switch
     {
         WebhookMessageKind.Text => new WebhookWork(From, Id, IssueCodes.InboundMessageFailed, null, true,
-            (engine, ct) => engine.HandleIncomingMessageAsync(From, Text!, ct)),
+            (engine, ct) => engine.HandleIncomingMessageAsync(From, Text!, ct, SentAt is { } s ? DateTimeOffset.FromUnixTimeSeconds(s).UtcDateTime : null)),
         WebhookMessageKind.Image => new WebhookWork(From, Id, IssueCodes.ScreenshotFailed, null, true,
             (engine, ct) => engine.HandleImageMessageAsync(From, MediaId!, Caption, ct)),
         WebhookMessageKind.Audio => new WebhookWork(From, Id, IssueCodes.VoiceNoteFailed, null, true,

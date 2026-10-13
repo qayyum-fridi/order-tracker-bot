@@ -1,0 +1,103 @@
+using System.Text.RegularExpressions;
+using OrderTrackerBot.Application.Ai;
+using OrderTrackerBot.Domain.Entities;
+using OrderTrackerBot.Domain.Enums;
+
+namespace OrderTrackerBot.Application.Conversation;
+
+// Offline / counter sales: a buyer standing in the shop has no WhatsApp chat with the bot. "walkin Kurti 2, Dupatta", "counter sale 1500 bank",
+// "offline sale Chai - 200 kal" make an order draft with the shared customer "Walk-in" (no phone asked), paid in full and delivered once the seller says YES.
+public sealed partial class ConversationEngine
+{
+    internal const string WalkInCustomer = "Walk-in";
+
+    internal sealed record WalkInItem(string Name, int Quantity, decimal? Price);
+    internal sealed record WalkInSale(List<WalkInItem> Items, string? Payment, int DaysAgo);
+
+    private static readonly Regex WalkInDay = new(@"\b(?<d>kal|yesterday|parso|parson)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex WalkInPay = new(@"\b(?<p>cash|naqd|bank|easypaisa|easy\s*paisa|jazz\s*cash|jazzcash|card|online)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex WalkInAmountOnly = new(@"^(?:rs\.?\s*)?(?<p>\d[\d,]*)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex WalkInSplit = new(@"\s*(?:,|\+|;|\baur\b|\band\b)\s*", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex WalkInPriced = new(@"^(?<n>.*[^\W\d_].*?)\s*[-:=]\s*(?:rs\.?\s*)?(?<p>\d[\d,]*)(?:\s*x\s*(?<q>\d+))?$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex WalkInQtyFirst = new(@"^(?<q>\d{1,3})\s*x?\s+(?<n>.*[^\W\d_].*)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex WalkInQtyLast = new(@"^(?<n>.*[^\W\d_].*?)\s*x?\s*(?<q>\d{1,3})$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    internal static WalkInSale ParseWalkIn(string rest)
+    {
+        var text = rest.Trim();
+        var days = 0;
+        if (WalkInDay.Match(text) is { Success: true } day)
+        {
+            days = day.Groups["d"].Value.ToLowerInvariant().StartsWith("par") ? 2 : 1;
+            text = WalkInDay.Replace(text, " ");
+        }
+
+        string? payment = null;
+        if (WalkInPay.Match(text) is { Success: true } pay)
+        {
+            payment = pay.Groups["p"].Value.ToLowerInvariant();
+            text = WalkInPay.Replace(text, " ");
+        }
+        text = Regex.Replace(text, @"\s+", " ").Trim(' ', ',', '+', ';');
+
+        var items = new List<WalkInItem>();
+        if (WalkInAmountOnly.Match(text) is { Success: true } only)
+        {
+            if (decimal.TryParse(only.Groups["p"].Value.Replace(",", ""), out var amount) && amount > 0) items.Add(new WalkInItem("Counter sale", 1, amount));
+            return new WalkInSale(items, payment, days);
+        }
+
+        foreach (var part in WalkInSplit.Split(text).Select(p => p.Trim()).Where(p => p.Length > 0))
+        {
+            Match m;
+            if ((m = WalkInPriced.Match(part)).Success && decimal.TryParse(m.Groups["p"].Value.Replace(",", ""), out var price) && price > 0)
+                items.Add(new WalkInItem(m.Groups["n"].Value.Trim(), m.Groups["q"].Success ? int.Parse(m.Groups["q"].Value) : 1, price));
+            else if ((m = WalkInQtyFirst.Match(part)).Success)
+                items.Add(new WalkInItem(m.Groups["n"].Value.Trim(), int.Parse(m.Groups["q"].Value), null));
+            else if ((m = WalkInQtyLast.Match(part)).Success)
+                items.Add(new WalkInItem(m.Groups["n"].Value.Trim(), int.Parse(m.Groups["q"].Value), null));
+            else if (part.Any(char.IsLetter))
+                items.Add(new WalkInItem(part, 1, null));
+        }
+        return new WalkInSale(items.Where(i => i.Quantity > 0).ToList(), payment, days);
+    }
+
+    private async Task HandleWalkInSaleAsync(Seller seller, ConversationSession session, SessionContextData ctx, string rest, CancellationToken ct)
+    {
+        var sale = ParseWalkIn(rest);
+        if (sale.Items.Count == 0)
+        {
+            await ReplyAsync(seller,
+                "Counter sale aise likhein:\n• walkin Kurti 2, Dupatta\n• counter sale 1500 (sirf rakam)\n• offline sale Chai - 200 bank\n• walkin Kurti 2 kal (kal ki sale)\n" +
+                "Payment: cash (default) / bank / easypaisa / jazzcash / card.", ct);
+            return;
+        }
+
+        var catalog = await LoadCatalogAsync(seller, ct);
+        var draft = new AiOrderDraft();
+        foreach (var item in sale.Items.Where(i => i.Price is null))
+            draft.Items.Add(new AiOrderItemDraft { ProductName = item.Name, Quantity = item.Quantity, MatchedCatalogProductName = FindCatalogEntry(catalog, item.Name)?.Label });
+        var pending = BuildPendingOrder(draft, catalog, fromScreenshot: false);
+
+        foreach (var item in sale.Items.Where(i => i.Price is not null))
+        {
+            var line = new PendingOrderItemData { ProductName = item.Name, Quantity = item.Quantity, UnitPrice = item.Price!.Value };
+            if (FindCatalogEntry(catalog, item.Name) is { } entry)
+            {
+                ApplyCatalogEntry(line, entry);
+                line.UnitPrice = item.Price.Value; // the price said at the counter wins over the list price
+            }
+            pending.Items.Add(line);
+        }
+
+        pending.CustomerName = WalkInCustomer;
+        pending.OrderSource = "offline";
+        pending.PaymentMethodText = sale.Payment ?? "cash";
+        pending.PaidInFull = true;
+        pending.DeliveryCharge = 0;
+        if (sale.DaysAgo > 0) pending.SoldAt = RecordTimeUtc().AddDays(-sale.DaysAgo);
+
+        ctx.PendingOrder = pending;
+        await ContinueResolvingDraftAsync(seller, session, ctx, ct);
+    }
+}
