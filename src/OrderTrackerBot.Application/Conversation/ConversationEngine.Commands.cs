@@ -726,13 +726,29 @@ public partial class ConversationEngine
             "🚚 Tracking number save karne ke liye likhein:\n\nadd tracking: Leopards, LC998877"
     };
 
+    // Price and active flag of the product before the last upsert changed it, so the reply can say what really happened.
+    private (decimal Price, bool WasActive)? _upsertBefore;
+
     private async Task HandleAddProductAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
     {
         var line = cmd.Product ?? new ProductLine(cmd.Text!, cmd.Amount!.Value, "piece", 1);
+        _upsertBefore = null;
         var (product, updated) = await UpsertProductAsync(seller, line, ct);
         var label = Formatters.ProductLabel(product);
+        var before = _upsertBefore;
+        string? existingReply = null;
+        if (updated && before is { } was)
+        {
+            var hasDetails = line.Extras is not null;
+            existingReply =
+                !was.WasActive ? $"✅ {label} pehle catalog mein tha (band tha), wapas chalu: {Formatters.Money(product.Price)}{ProductDetailsText(product)}"
+                : was.Price != product.Price ? $"✅ {label} pehle se catalog mein hai — price updated: {Formatters.Money(was.Price)} → {Formatters.Money(product.Price)}{ProductDetailsText(product)}"
+                : hasDetails ? $"✅ {label} pehle se catalog mein hai (price wohi: {Formatters.Money(product.Price)}) — details update:{ProductDetailsText(product)}"
+                : $"ℹ️ {label} pehle se catalog mein hai ({Formatters.Money(product.Price)}) — koi tabdeeli nahi.\nPrice badalna ho to naya price likhein, e.g. {product.Name} - {Formatters.Money(product.Price + 100).Replace("Rs.", "").Replace(",", "")}";
+        }
         await ReplyAsync(seller,
-            updated ? $"✅ {label} price updated: {Formatters.Money(product.Price)}{ProductDetailsText(product)}"
+            existingReply is not null ? existingReply
+            : updated ? $"✅ {label} price updated: {Formatters.Money(product.Price)}{ProductDetailsText(product)}"
             : line.UnitType != "piece" || line.UnitQty != 1 ? $"✅ Added: {label} - {Formatters.Money(product.Price)}{ProductDetailsText(product)}"
             : $"✅ {label} - {Formatters.Money(product.Price)}{ProductDetailsText(product)} catalog mein add ho gaya.\n\nAur add karein (Naam - price), ya \"catalog\" likhein.", ct);
     }
@@ -902,6 +918,7 @@ public partial class ConversationEngine
             .FirstOrDefault(p => p.UnitType == line.UnitType && p.UnitQty == line.UnitQty);
         if (existing is not null)
         {
+            _upsertBefore = (existing.Price, existing.IsActive);
             existing.Price = line.Price;
             existing.IsActive = true;
             ApplyProductExtras(existing, line.Extras);
