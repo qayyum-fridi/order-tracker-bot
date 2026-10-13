@@ -14,8 +14,10 @@ public sealed partial class ConversationEngine
     private const decimal MaxWalkInAmount = 10_000_000m;
 
     internal sealed record WalkInItem(string Name, int Quantity, decimal? Price);
-    internal sealed record WalkInSale(List<WalkInItem> Items, string? Payment, int DaysAgo);
+    internal sealed record WalkInSale(List<WalkInItem> Items, string? Payment, int DaysAgo, bool Confirm = false);
 
+    // "walkin Kurti 1 then yes": a confirmation typed in the same message saves the draft right away.
+    private static readonly Regex WalkInConfirm = new(@"(?:^|[\s,;.])(?:(?:then|phir|aur|and|or|fir)\s+)?(?:yes|haan|han|ha|ok|okay|confirm|theek\s+hai)\s*[.!]*\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex WalkInDay = new(@"\b(?<d>kal|yesterday|parso|parson)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex WalkInPay = new(@"\b(?<p>cash|naqd|bank|easypaisa|easy\s*paisa|jazz\s*cash|jazzcash|card|online)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex WalkInAmountOnly = new(@"^(?:rs\.?\s*)?(?<p>\d[\d,]*)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -27,6 +29,8 @@ public sealed partial class ConversationEngine
     internal static WalkInSale ParseWalkIn(string rest)
     {
         var text = rest.Trim();
+        var confirm = false;
+        text = Regex.Replace(text, @"[()]", " ").Trim();
         var days = 0;
         if (WalkInDay.Match(text) is { Success: true } day)
         {
@@ -41,12 +45,18 @@ public sealed partial class ConversationEngine
             text = WalkInPay.Replace(text, " ");
         }
         text = Regex.Replace(text, @"\s+", " ").Trim(' ', ',', '+', ';');
+        // The payment and day words are gone, so a trailing "yes" is now last.
+        if (WalkInConfirm.Match(text) is { Success: true } yes && yes.Index > 0)
+        {
+            confirm = true;
+            text = text[..yes.Index].Trim(' ', ',', ';', '.', '+');
+        }
 
         var items = new List<WalkInItem>();
         if (WalkInAmountOnly.Match(text) is { Success: true } only)
         {
             if (decimal.TryParse(only.Groups["p"].Value.Replace(",", ""), out var amount) && amount is > 0 and <= MaxWalkInAmount) items.Add(new WalkInItem("Counter sale", 1, amount));
-            return new WalkInSale(items, payment, days);
+            return new WalkInSale(items, payment, days, confirm);
         }
 
         foreach (var part in WalkInSplit.Split(text).Select(p => p.Trim()).Where(p => p.Length > 0))
@@ -64,7 +74,7 @@ public sealed partial class ConversationEngine
         // "Kurti -2" (a minus typed as a dash), a name ending in a dash, or an absurd price/quantity is a typo, not a sale line.
         static bool Junk(WalkInItem i) => i.Quantity <= 0 || i.Quantity > 999 || i.Price is > MaxWalkInAmount
             || i.Name.TrimEnd().EndsWith('-') || i.Name.TrimEnd().EndsWith('–') || i.Name.TrimEnd().EndsWith('=');
-        return new WalkInSale(items.Where(i => !Junk(i)).ToList(), payment, days);
+        return new WalkInSale(items.Where(i => !Junk(i)).ToList(), payment, days, confirm);
     }
 
     private async Task HandleWalkInSaleAsync(Seller seller, ConversationSession session, SessionContextData ctx, string rest, CancellationToken ct)
@@ -90,6 +100,11 @@ public sealed partial class ConversationEngine
 
         ctx.PendingOrder = pending;
         await ContinueResolvingDraftAsync(seller, session, ctx, ct);
+        if (sale.Confirm && session.State == ConversationState.AwaitingOrderConfirmation)
+        {
+            ctx.PendingOrderAskedAt ??= _clock.GetUtcNow().UtcDateTime; // a draft is only savable once its clock has started
+            await HandleOrderConfirmationAsync(seller, session, ctx, "yes", ct);
+        }
     }
 
     /// <summary>Items typed as "Kurti 2, Dupatta" / "Chai - 200" become draft lines: catalog items priced from the catalog, "name - price" items at the stated price.</summary>

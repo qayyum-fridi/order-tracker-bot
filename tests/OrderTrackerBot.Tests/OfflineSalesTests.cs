@@ -125,6 +125,36 @@ public class OfflineSalesEngineTests : IDisposable
         Assert.InRange(order.CreatedAt, DateTime.UtcNow.AddDays(-1).AddMinutes(-5), DateTime.UtcNow.AddDays(-1).AddMinutes(5));
     }
 
+    [Theory]
+    [InlineData("walkin Kurti 1 then yes (cash)")]
+    [InlineData("walkin Kurti 1 yes")]
+    [InlineData("walkin Kurti 1, cash, haan")]
+    public async Task AConfirmationTypedInTheSameMessage_SavesTheSaleAtOnce(string text)
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, text, default);
+
+        var order = await db.Orders.SingleAsync();
+        Assert.Equal(1800m, order.Total);
+        Assert.Equal(OrderStatus.Delivered, order.Status);
+        Assert.Equal(OrderPaymentMethod.Cod, order.PaymentMethod);   // cash
+        Assert.DoesNotContain(_sent, m => m.Contains("catalog mein nahi mila"));
+    }
+
+    [Fact]
+    public async Task ADraftWithAnUnknownProduct_IsNotSavedByTheInlineYes()
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, "walkin Ghost 2 yes", default);
+
+        Assert.Equal(0, await db.Orders.CountAsync());
+        Assert.Contains(_sent, m => m.Contains("Ghost") && m.Contains("catalog mein nahi mila"));
+    }
+
     [Fact]
     public async Task ADelayedMessage_KeepsItsSendTime_ForOrdersAndExpenses()
     {
