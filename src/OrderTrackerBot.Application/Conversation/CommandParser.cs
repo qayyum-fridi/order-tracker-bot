@@ -177,7 +177,7 @@ public static class CommandParser
     private static readonly Regex LastMonthSummary = new(@"^(?:last\s+month'?s?\s+summary|summary\s+last\s+month|" + LastMonth + @"\s+" + Of + @"\s+" + SummaryWord + @")$", Opts);
     private static readonly Regex Catalog = new(@"^(?:catalog|کیٹلاگ|(?:show|dikhao|dikhana|dekhao|dekhein|view)\s+(?:my\s+|mera\s+)?catalog|catalog\s+(?:show|list|view|dikhao|dikhana|dekhao|dekhein|dekhna))$", Opts);
     private static readonly Regex ShareCatalog = new(@"^share\s+catalog$", Opts);
-    private static readonly Regex MenuCategory = new(@"^menu\s+(orders|reports|catalog|payments|discounts|customers|settings)$", Opts);
+    private static readonly Regex MenuCategory = new(@"^menu\s+(orders|reports|catalog|payments|discounts|customers|settings|shop)$", Opts);
     private static readonly Regex CustomerList = new(@"^(customers?\s+list|my\s+customers)$", Opts);
     private static readonly Regex CustomerSearch = new(@"^search\s+customers?:\s*(.+)$", Opts);
     private static readonly Regex CustomerDetail = new(@"^customer\s+(?!list$|feedback$)(.+)$", Opts);
@@ -691,7 +691,7 @@ public static class CommandParser
     private static readonly Regex PayoutCmd = new(@"^(?:payouts?|settlements?)(?:\s+(?<rest>.+))?$", Opts);
     private static readonly Regex AwaitingPayoutCmd = new(@"^(?:awaiting|pending|baqi)\s+(?:payouts?|settlements?)$", Opts);
     // Offline / counter sales (ConversationEngine.WalkIn.cs): walkin Kurti 2, Dupatta cash | counter sale 1500 | offline sale Chai - 200 kal.
-    private static readonly Regex WalkInCmd = new(@"^(?:walk[\s-]?in(?:\s+(?:sale|order))?|counter\s+sale|offline\s+(?:sale|order)|dukan\s+(?:ki\s+)?sale|dukan\s+par)\s+(?<rest>.+)$", Opts);
+    private static readonly Regex WalkInCmd = new(@"^(?:walk[\s-]?in(?:\s+(?:sale|order))?|counter\s+sale|offline\s+(?:sale|order)|dukan\s+(?:ki\s+)?sale|dukan\s+par)(?:\s+(?<rest>.+))?$", Opts);
     // "order for Sara" / "Sara ke liye order": start an order for a saved customer (ConversationEngine.WalkIn.cs).
     private static readonly Regex OrderForCmd = new(@"^(?:order\s+for\s+(?<n>.*[^\W\d_].*)|(?<n2>.*[^\W\d_].*?)\s+(?:ke\s+liye|k\s+liye|ko)\s+order(?:\s+(?:banao|banana|dena))?)$", Opts);
     private static readonly Regex PayoutAmountFirst = new(@"^(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d+)?)\s*(?<r>.*)$", Opts);
@@ -1045,7 +1045,7 @@ public static class CommandParser
         if ((m = OrderForCmd.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.OrderForCustomer, Text = (m.Groups["n"].Success ? m.Groups["n"].Value : m.Groups["n2"].Value).Trim() };
         if ((m = WalkInCmd.Match(message)).Success)
-            return new ParsedCommand { Kind = CommandKind.WalkInSale, Text = m.Groups["rest"].Value.Trim() };
+            return new ParsedCommand { Kind = CommandKind.WalkInSale, Text = m.Groups["rest"].Success ? m.Groups["rest"].Value.Trim() : "" };
 
         if (AwaitingPayoutCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Payout, Text = "pending" };
         if ((m = PayoutCmd.Match(message)).Success)

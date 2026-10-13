@@ -50,7 +50,7 @@ public partial class ConversationEngine
             $"✅ {(cmd.Text2 == "name" ? previous : customer.Name)} ka {label} update: {cmd.Text3}" +
             (string.IsNullOrWhiteSpace(previous) ? "" : $" (pehle: {previous})") +
             "\nGhalti ho to \"undo\".", ct);
-        SuggestNext($"order for {customer.Name}", $"{customer.Name} ka order", "undo");
+        SuggestNext($"order for {customer.Name}", $"{customer.Name} ka order");
     }
 
     private async Task UndoCustomerUpdateAsync(Seller seller, ActionLog log, CancellationToken ct)
