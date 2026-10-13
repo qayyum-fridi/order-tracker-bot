@@ -67,6 +67,7 @@ internal static class InsightParser
     private static readonly Regex StockWord = W(@"stock|stok|maal|mal|اسٹاک|مال");
     private static readonly Regex Finish = W(@"khatam|khtm|finish\w*|run\s*out|runout|out\s+of\s+stock|end\s+ho\w*|ending|ختم");
     private static readonly Regex DaysLast = W(@"kitne\s+din|kitn[ae]\s+dino|how\s+many\s+days|days?\s+(?:chal|last)|chal\s*eg\w*|chale\s*g\w*|din\s+chal\w*|کتنے\s+دن|چلے\s*گا|چلے\s*گی");
+    private static readonly Regex LastsWord = W(@"chal\s*eg\w*|chale\s*g\w*|chalta|chalti|last\s*s?|چلے\s*گ\w*");
     private static readonly Regex SoldWord = W(@"bik\w*|sell\w*|sold|بک\w*");
     private static readonly Regex Reorder = W(@"restock|re-?order|naya\s+batch|new\s+batch|batch|mangwa\w*|mangw\w*|supplier|wholesale|منگوا\w*|نیا\s+بیچ|بیچ");
     private static readonly Regex Track = W(@"track\w*|ٹریک");
@@ -178,7 +179,7 @@ internal static class InsightParser
         if (Track.IsMatch(text) && Not.IsMatch(text) && (Product.IsMatch(text) || StockWord.IsMatch(text))) return Topic("untracked");
         if ((StockWord.IsMatch(text) && Finish.IsMatch(text)) || LowStock.IsMatch(text)) return Topic("stockending", NumberOfDays(text));
         if (Reorder.IsMatch(text) && (StockWord.IsMatch(text) || Product.IsMatch(text) || Need.IsMatch(text))) return Topic("reorder");
-        if ((StockWord.IsMatch(text) && DaysLast.IsMatch(text)) || (Daily.IsMatch(text) && SoldWord.IsMatch(text) && How.IsMatch(text))) return Topic("stockdays");
+        if ((StockWord.IsMatch(text) && DaysLast.IsMatch(text)) || (DaysLast.IsMatch(text) && LastsWord.IsMatch(text) && How.IsMatch(text)) || (Daily.IsMatch(text) && SoldWord.IsMatch(text) && How.IsMatch(text))) return Topic("stockdays");
 
         if (StockWord.IsMatch(text) && How.IsMatch(text) && Left.IsMatch(text)) return Topic("stocklevel");
 
