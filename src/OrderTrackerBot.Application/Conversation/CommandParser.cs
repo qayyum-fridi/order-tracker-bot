@@ -15,6 +15,7 @@ public enum CommandKind
     Profit,
     Margin,
     CategorySales,
+    Insight,
     Catalog,
     CatalogFilter,
     AddProduct,
@@ -1234,6 +1235,7 @@ public static class CommandParser
         if ((m = ExportTrail.Match(message)).Success && ParseExportRequest(m.Groups["what"].Value) is { Datasets.Count: > 0 } trailing)
             return new ParsedCommand { Kind = CommandKind.Export, Export = trailing };
         if (TryParsePeriodReport(message) is { } periodReport) return periodReport;
+        if (InsightParser.TryParse(message) is { } insight) return insight;
         if ((m = RemoveBranding.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.RemoveBranding, Text = BrandingKind(m.Groups["k"].Value) };
         if ((m = BrandingHelp.Match(message)).Success)

@@ -15,7 +15,7 @@ public partial class ConversationEngine
 {
     private const int MarginRowsShown = 10;
 
-    private async Task HandleMarginAsync(Seller seller, CancellationToken ct)
+    private async Task HandleMarginAsync(Seller seller, CancellationToken ct, bool lowestFirst = false)
     {
         var products = await _db.Products.AsNoTracking().Where(p => p.SellerId == seller.Id && p.IsActive).OrderBy(p => p.Id).ToListAsync(ct);
         if (products.Count == 0)
@@ -46,8 +46,8 @@ public partial class ConversationEngine
 
         var rows = withCost
             .Select(p => (Product: p, Margin: (p.Price - p.CostPrice!.Value) / p.Price * 100m))
-            .OrderByDescending(r => r.Margin).ThenBy(r => r.Product.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
+        rows = (lowestFirst ? rows.OrderBy(r => r.Margin) : rows.OrderByDescending(r => r.Margin)).ThenBy(r => r.Product.Name, StringComparer.OrdinalIgnoreCase).ToList();
 
         static string Pct(decimal v) => Math.Floor(v).ToString("0", CultureInfo.InvariantCulture) + "%";
         var lines = rows.Take(MarginRowsShown).Select((r, i) =>
@@ -62,7 +62,7 @@ public partial class ConversationEngine
         var missing = noCost > 0 ? $"\n\nℹ️ {noCost} product(s) ki cost save nahi, wo is list mein nahi. Cost likhein: \"Kurti - 1800, cost 1200\"." : "";
 
         await ReplyAsync(seller,
-            "📊 Margin aur discount ki gunjaish\n\n" + string.Join("\n", lines) + more + "\n\n" +
+            (lowestFirst ? "📊 Sab se kam margin wale products\n\n" : "📊 Margin aur discount ki gunjaish\n\n") + string.Join("\n", lines) + more + "\n\n" +
             "Munasib discount = margin ka aadha (is par bhi aadha munafa bachta hai). \"Is se zyada nahi\" par bechne se kuch nahi bachta (cost ke barabar). " +
             "Yeh sirf andaza hai; delivery aur kharcha shamil nahi." + missing, ct);
         SuggestNext("profit", "catalog");

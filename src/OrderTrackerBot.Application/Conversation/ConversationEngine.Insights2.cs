@@ -1,0 +1,379 @@
+using System.Globalization;
+using Microsoft.EntityFrameworkCore;
+using OrderTrackerBot.Application.Formatting;
+using OrderTrackerBot.Application.Time;
+using OrderTrackerBot.Domain.Entities;
+using OrderTrackerBot.Domain.Enums;
+
+namespace OrderTrackerBot.Application.Conversation;
+
+// Business-analysis questions, part 2 (see ConversationEngine.Insights.cs): payments, areas, returns, delivery time, stock run-rate, expenses, today vs yesterday, profit or loss.
+public partial class ConversationEngine
+{
+    // ---------- payments, areas, returns, delivery
+
+    private async Task InsightPaymentSplitAsync(Seller seller, string? period, CancellationToken ct)
+    {
+        var (start, end, label) = InsightWindow(seller, period, "30d");
+        var orders = await ActiveOrdersIn(seller, start, end).Select(o => new { o.PaymentMethod, o.Total }).ToListAsync(ct);
+        if (orders.Count == 0)
+        {
+            await ReplyAsync(seller, $"💳 Payment ka tareeqa ({label}): is dauran koi order nahi.", ct);
+            return;
+        }
+
+        static string Name(OrderPaymentMethod m) => m switch
+        {
+            OrderPaymentMethod.Cod => "Cash / COD",
+            OrderPaymentMethod.Manual => "Bank / wallet (Easypaisa, JazzCash, transfer)",
+            OrderPaymentMethod.Gateway => "Online payment",
+            _ => "Tareeqa likha nahi"
+        };
+        var total = orders.Sum(o => o.Total);
+        var groups = orders.GroupBy(o => o.PaymentMethod).Select(g => (Name: Name(g.Key), Orders: g.Count(), Amount: g.Sum(o => o.Total)))
+            .OrderByDescending(g => g.Orders).ThenByDescending(g => g.Amount).ToList();
+        var lines = groups.Select(g => $"• {g.Name}: {g.Orders} orders ({Pct((decimal)g.Orders / orders.Count * 100m)}) · {Formatters.Money(g.Amount)}" + (total > 0 ? $" ({Pct(g.Amount / total * 100m)})" : ""));
+        await ReplyAsync(seller,
+            $"💳 Payment ka tareeqa — {label}\n\n{string.Join("\n", lines)}\n\nZyada tar: {groups[0].Name}.\n" +
+            "Dukaan par cash sale COD mein ginti hai. Easypaisa, JazzCash aur bank transfer \"Bank / wallet\" mein ikatthe hain.", ct);
+        SuggestNext("unpaid", "cod pending");
+    }
+
+    /// <summary>"Model Town se kitne orders aaye": orders whose customer's city or address has the place; with no place, orders per city.</summary>
+    private async Task InsightAreaOrdersAsync(Seller seller, string place, string? period, CancellationToken ct)
+    {
+        var (start, end, label) = InsightWindow(seller, period, "all");
+        var rows = await ActiveOrdersIn(seller, start, end)
+            .Select(o => new { o.Total, City = o.Customer!.City, Address = o.Customer.Address, o.CustomerId })
+            .ToListAsync(ct);
+        if (rows.Count == 0)
+        {
+            await ReplyAsync(seller, $"📍 Orders ({label}): is dauran koi order nahi.", ct);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(place))
+        {
+            var groups = rows.GroupBy(r => string.IsNullOrWhiteSpace(r.City) ? "Shehar nahi likha" : r.City!.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Select(g => (Name: g.Key, Orders: g.Count(), Sales: g.Sum(r => r.Total), Customers: g.Select(r => r.CustomerId).Distinct().Count()))
+                .OrderBy(g => g.Name == "Shehar nahi likha" ? 1 : 0).ThenByDescending(g => g.Orders).ToList();
+            var lines = groups.Take(10).Select((g, i) => $"{i + 1}. {g.Name} — {g.Orders} orders · {g.Customers} customers · {Formatters.Money(g.Sales)}");
+            await ReplyAsync(seller, $"📍 Shehar ke hisab se orders — {label}\n\n{string.Join("\n", lines)}\n\nKisi ek jagah ke liye likhein, jaise: \"Model Town se kitne orders\".", ct);
+            return;
+        }
+
+        var hits = rows.Where(r => (r.City ?? "").Contains(place, StringComparison.OrdinalIgnoreCase) || (r.Address ?? "").Contains(place, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (hits.Count == 0)
+        {
+            await ReplyAsync(seller, $"📍 \"{place}\" ke naam wali koi city ya address kisi order mein nahi mili ({label}).\nSab shehron ka hisaab dekhne ke liye \"city wise orders\" likhein.", ct);
+            return;
+        }
+        await ReplyAsync(seller,
+            $"📍 {place} — {label}\n\nOrders: {hits.Count}\nCustomers: {hits.Select(h => h.CustomerId).Distinct().Count()}\nSale: {Formatters.Money(hits.Sum(h => h.Total))}\n\n" +
+            "Yeh customer ki city aur address mein likhe naam se milaya gaya hai (spelling alag ho to nahi milega).", ct);
+        SuggestNext("customers", "city wise orders");
+    }
+
+    private async Task InsightReturnRateAsync(Seller seller, string? period, CancellationToken ct)
+    {
+        var (start, end, label) = InsightWindow(seller, period, "30d");
+        var orders = await _db.Orders.AsNoTracking()
+            .Where(o => o.SellerId == seller.Id && o.CreatedAt >= start && o.CreatedAt < end)
+            .Select(o => new { o.Status, o.Total, o.ShippedAt })
+            .ToListAsync(ct);
+        if (orders.Count == 0)
+        {
+            await ReplyAsync(seller, $"↩️ Cancel / return ({label}): is dauran koi order nahi.", ct);
+            return;
+        }
+
+        var cancelled = orders.Where(o => o.Status == OrderStatus.Cancelled).ToList();
+        var returned = orders.Where(o => o.Status == OrderStatus.Returned).ToList();
+        var shippedEver = orders.Count(o => o.ShippedAt != null || o.Status is OrderStatus.Shipped or OrderStatus.Delivered or OrderStatus.Returned);
+        var cancelledAfterShip = cancelled.Count(o => o.ShippedAt != null);
+        var lost = cancelled.Sum(o => o.Total) + returned.Sum(o => o.Total);
+
+        await ReplyAsync(seller,
+            $"↩️ Cancel aur return — {label}\n\n" +
+            $"Kul orders: {orders.Count}\n" +
+            $"Cancel: {cancelled.Count} ({Pct((decimal)cancelled.Count / orders.Count * 100m)})" + (cancelledAfterShip > 0 ? $" — {cancelledAfterShip} bhejne ke baad" : "") + "\n" +
+            $"Return: {returned.Count}" + (shippedEver > 0 ? $" ({Pct((decimal)returned.Count / shippedEver * 100m)} bheje gaye {shippedEver} orders mein se)" : "") + "\n" +
+            $"Rakam jo nahi mili: {Formatters.Money(lost)}", ct);
+        SuggestNext("orders today", "profit");
+    }
+
+    /// <summary>"TCS ka average delivery time": days from "shipped" to "delivered" per courier, for orders the seller marked both ways.</summary>
+    private async Task InsightDeliveryTimeAsync(Seller seller, string text, string? period, CancellationToken ct)
+    {
+        var (start, end, label) = InsightWindow(seller, period, "90d");
+        var rows = await _db.Orders.AsNoTracking()
+            .Where(o => o.SellerId == seller.Id && o.CreatedAt >= start && o.CreatedAt < end && o.ShippedAt != null && o.DeliveredAt != null
+                        && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
+            .Select(o => new { o.TrackingCourier, o.ShippedAt, o.DeliveredAt })
+            .ToListAsync(ct);
+        if (rows.Count == 0)
+        {
+            await ReplyAsync(seller,
+                $"🚚 Delivery ka waqt ({label}): abhi hisaab ke liye data nahi.\nYeh tab banta hai jab aap \"mark 12 shipped\" aur phir \"mark 12 delivered\" likhte hain (courier ke liye \"tracking 12 TCS 12345\").", ct);
+            return;
+        }
+
+        var couriers = rows.Select(r => r.TrackingCourier).Where(c => !string.IsNullOrWhiteSpace(c)).Select(c => c!.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var wanted = couriers.Where(c => HasWord(text, c)).ToList();
+        var scope = wanted.Count > 0 ? rows.Where(r => wanted.Contains((r.TrackingCourier ?? "").Trim(), StringComparer.OrdinalIgnoreCase)).ToList() : rows;
+        if (scope.Count == 0)
+        {
+            await ReplyAsync(seller, $"🚚 Is courier ke delivered orders ({label}) mein nahi mile.", ct);
+            return;
+        }
+
+        static double Days(DateTime from, DateTime to) => Math.Max(0, (to - from).TotalDays);
+        var groups = scope.GroupBy(r => string.IsNullOrWhiteSpace(r.TrackingCourier) ? "Courier likha nahi" : r.TrackingCourier!.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => (Name: g.Key, Orders: g.Count(), Avg: g.Average(r => Days(r.ShippedAt!.Value, r.DeliveredAt!.Value)), Max: g.Max(r => Days(r.ShippedAt!.Value, r.DeliveredAt!.Value))))
+            .OrderBy(g => g.Avg).ToList();
+        var lines = groups.Select(g => $"• {g.Name}: average {Num((decimal)g.Avg)} din ({g.Orders} orders, sab se der {Num((decimal)g.Max)} din)");
+        await ReplyAsync(seller,
+            $"🚚 Delivery ka waqt — {label}\n\n{string.Join("\n", lines)}\n\nYeh \"shipped\" likhne se \"delivered\" likhne tak ka waqt hai — aap jab likhte hain wohi gina jata hai.", ct);
+        SuggestNext("orders today", "cod pending");
+    }
+
+    // ---------- stock run-rate
+
+    private sealed record StockRow(Product Product, int Sold, int WindowDays, decimal PerDay, decimal? DaysLeft);
+
+    /// <summary>Units sold per day over the last 30 days (or since the product was added, at least a week) and, for tracked products, how many days the stock lasts at that pace.</summary>
+    private async Task<List<StockRow>> StockRowsAsync(Seller seller, IReadOnlyCollection<Product> products, CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+        var since = now.AddDays(-30);
+        var ids = products.Select(p => p.Id).ToList();
+        var rows = await _db.OrderItems.AsNoTracking()
+            .Where(i => i.ProductId != null && ids.Contains(i.ProductId.Value) && i.Order!.SellerId == seller.Id && i.Order.CreatedAt >= since
+                        && i.Order.Status != OrderStatus.Cancelled && i.Order.Status != OrderStatus.Returned)
+            .Select(i => new { ProductId = i.ProductId!.Value, i.Quantity })
+            .ToListAsync(ct);
+        var sold = rows.GroupBy(r => r.ProductId).ToDictionary(g => g.Key, g => g.Sum(r => r.Quantity));
+        return products.Select(p =>
+        {
+            var window = Math.Clamp((int)Math.Ceiling((now - p.CreatedAt).TotalDays), 7, 30);
+            var s = sold.GetValueOrDefault(p.Id);
+            var perDay = (decimal)s / window;
+            decimal? left = p.StockQty is { } stock ? (stock <= 0 ? 0 : perDay > 0 ? stock / perDay : null) : null;
+            return new StockRow(p, s, window, perDay, left);
+        }).ToList();
+    }
+
+    private static string StockRowDetail(StockRow r)
+    {
+        var p = r.Product;
+        var rate = r.Sold == 0 ? $"pichle {r.WindowDays} din mein bika nahi" : $"pichle {r.WindowDays} din mein {r.Sold} bika (roz ~{Num(r.PerDay)})";
+        if (p.StockQty is null)
+            return $"📦 {Formatters.ProductLabel(p)}\n• {rate}\n• Stock track nahi hota — shuru karne ke liye: stock {p.Name} 20";
+        var left = p.StockQty <= 0 ? "stock khatam hai"
+            : r.DaysLeft is null ? "bikri nahi, is liye kitne din chalega yeh andaza nahi"
+            : $"taqreeban {Num(r.DaysLeft.Value)} din chalega";
+        return $"📦 {Formatters.ProductLabel(p)}\n• Stock: {p.StockQty}\n• {rate}\n• {left}";
+    }
+
+    private async Task InsightStockEndingAsync(Seller seller, int days, CancellationToken ct)
+    {
+        days = Math.Clamp(days, 1, 365);
+        var all = await _db.Products.AsNoTracking().Where(p => p.SellerId == seller.Id && p.IsActive).ToListAsync(ct);
+        var tracked = all.Where(p => p.StockQty is not null).ToList();
+        if (tracked.Count == 0)
+        {
+            await ReplyAsync(seller, "Abhi kisi product ka stock track nahi ho raha, is liye andaza nahi ho sakta. Shuru karne ke liye likhein: \"stock Kurti 20\".", ct);
+            return;
+        }
+
+        var due = (await StockRowsAsync(seller, tracked, ct)).Where(r => r.Product.StockQty <= 0 || (r.DaysLeft is { } d && d <= days))
+            .OrderBy(r => r.DaysLeft ?? 0).ThenBy(r => r.Product.Name, StringComparer.OrdinalIgnoreCase).ToList();
+        var untracked = all.Count - tracked.Count;
+        var note = untracked > 0 ? $"\n\nℹ️ {untracked} product(s) ka stock track nahi hota, wo is hisaab mein nahi (\"untracked stock\" likhein)." : "";
+        if (due.Count == 0)
+        {
+            await ReplyAsync(seller, $"✅ Pichli bikri ki raftaar se agle {days} din mein kisi tracked product ka stock khatam nahi hoga.{note}", ct);
+            return;
+        }
+        var lines = due.Take(10).Select((r, i) => r.Product.StockQty <= 0
+            ? $"{i + 1}. {Formatters.ProductLabel(r.Product)} — ⛔ stock khatam"
+            : $"{i + 1}. {Formatters.ProductLabel(r.Product)} — {r.Product.StockQty} bacha, ~{Num(r.DaysLeft!.Value)} din (roz ~{Num(r.PerDay)} bik raha)");
+        await ReplyAsync(seller, $"⚠️ Agle {days} din mein khatam hone wala stock\n\n{string.Join("\n", lines)}\n\nYeh pichle {(due[0].WindowDays)} din ki raftaar ka andaza hai, pakka nahi.{note}", ct);
+        SuggestNext("stock", "catalog");
+    }
+
+    /// <summary>"Polo shirt ka stock kitna bacha hai": that product's stock and pace; with no product named, the usual stock list.</summary>
+    private async Task InsightStockLevelAsync(Seller seller, SessionContextData ctx, ParsedCommand cmd, string text, CancellationToken ct)
+    {
+        var named = await ProductsInTextAsync(seller, text, ct);
+        if (named.Count == 0)
+        {
+            await HandleStockAsync(seller, new ParsedCommand { Kind = CommandKind.Stock }, ct);
+            return;
+        }
+        var rows = await StockRowsAsync(seller, named.Take(3).ToList(), ct);
+        await ReplyAsync(seller, string.Join("\n\n", rows.Select(StockRowDetail)), ct);
+        SuggestNext("stock", "margin");
+    }
+
+    private async Task InsightStockDaysAsync(Seller seller, string text, CancellationToken ct)
+    {
+        var named = await ProductsInTextAsync(seller, text, ct);
+        if (named.Count == 0)
+        {
+            await InsightStockEndingAsync(seller, 14, ct);
+            return;
+        }
+        var rows = await StockRowsAsync(seller, named.Take(3).ToList(), ct);
+        await ReplyAsync(seller, string.Join("\n\n", rows.Select(StockRowDetail)) + "\n\nYeh pichli bikri ki raftaar ka andaza hai, pakka nahi.", ct);
+        SuggestNext("stock", "margin");
+    }
+
+    /// <summary>"Lawn suit ka naya batch mangwana chahiye": the product's stock days against 7 / 14 days — the supplier's delivery time is the seller's to weigh.</summary>
+    private async Task InsightReorderAsync(Seller seller, string text, CancellationToken ct)
+    {
+        var named = await ProductsInTextAsync(seller, text, ct);
+        if (named.Count == 0)
+        {
+            await InsightStockEndingAsync(seller, 7, ct);
+            return;
+        }
+        var rows = await StockRowsAsync(seller, named.Take(3).ToList(), ct);
+        var blocks = rows.Select(r =>
+        {
+            var verdict = r.Product.StockQty is null ? "Stock track nahi hota, is liye mashwara nahi de sakta."
+                : r.Product.StockQty <= 0 ? "⛔ Stock khatam hai — jald order karein."
+                : r.DaysLeft is null ? "Pichle din bikri nahi hui — abhi order ki zaroorat nazar nahi aati."
+                : r.DaysLeft <= 7 ? "⚠️ Haan, jald order karein — stock ek hafte se kam ka hai."
+                : r.DaysLeft <= 14 ? "Supplier se maal aane mein jitna waqt lagta hai wo dekh kar jald order ka sochein (stock do hafte se kam ka hai)."
+                : "Abhi zaroorat nahi — stock do hafte se zyada chalega.";
+            return StockRowDetail(r) + "\n→ " + verdict;
+        });
+        await ReplyAsync(seller, string.Join("\n\n", blocks) + "\n\nYeh pichli bikri ki raftaar ka andaza hai; supplier ka waqt aap behtar jante hain.", ct);
+        SuggestNext("stock", "catalog");
+    }
+
+    private async Task InsightUntrackedStockAsync(Seller seller, CancellationToken ct)
+    {
+        var all = await _db.Products.AsNoTracking().Where(p => p.SellerId == seller.Id && p.IsActive).OrderBy(p => p.Name).ToListAsync(ct);
+        if (all.Count == 0)
+        {
+            await ReplyAsync(seller, "Aapke catalog mein abhi koi product nahi.", ct);
+            return;
+        }
+        var untracked = all.Where(p => p.StockQty is null).ToList();
+        if (untracked.Count == 0)
+        {
+            await ReplyAsync(seller, $"✅ Sab {all.Count} products ka stock track hota hai.", ct);
+            return;
+        }
+        var names = string.Join("\n", untracked.Take(10).Select(p => $"• {Formatters.ProductLabel(p)}"));
+        var more = untracked.Count > 10 ? $"\n…aur {untracked.Count - 10}" : "";
+        await ReplyAsync(seller,
+            $"📦 {all.Count} mein se {untracked.Count} products ka stock track nahi hota:\n\n{names}{more}\n\n" +
+            "Track karne ke liye likhein, jaise: \"stock Kurti 20\".", ct);
+        SuggestNext("stock", "catalog");
+    }
+
+    // ---------- expenses
+
+    private async Task InsightExpenseCategoryAsync(Seller seller, string category, string? period, CancellationToken ct)
+    {
+        var (start, end, label) = InsightWindow(seller, period, "thismonth");
+        var expenses = await _db.Expenses.AsNoTracking().Where(e => e.SellerId == seller.Id && e.CreatedAt >= start && e.CreatedAt < end).OrderByDescending(e => e.CreatedAt).ToListAsync(ct);
+        var hits = expenses.Where(e => e.Category.Contains(category, StringComparison.OrdinalIgnoreCase) || (e.Note ?? "").Contains(category, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (hits.Count == 0)
+        {
+            var known = expenses.Select(e => e.Category).Distinct(StringComparer.OrdinalIgnoreCase).Take(6).ToList();
+            await ReplyAsync(seller, $"💸 \"{category}\" par {label} koi kharcha nahi mila." + (known.Count > 0 ? $"\nIs dauran ke kharche: {string.Join(", ", known)}." : "") +
+                "\nKharcha likhne ke liye: \"expense 500 petrol\".", ct);
+            return;
+        }
+        var lines = hits.Take(3).Select(e => $"• {ShortDate(seller, e.CreatedAt)} — {Formatters.Money(e.Amount)}" + (string.IsNullOrWhiteSpace(e.Note) ? "" : $" ({e.Note})"));
+        await ReplyAsync(seller,
+            $"💸 {category} par kharcha — {label}\n\nKul: {Formatters.Money(hits.Sum(e => e.Amount))} ({hits.Count} entries)\n\nAakhri entries:\n{string.Join("\n", lines)}", ct);
+        SuggestNext("expenses", "monthly net");
+    }
+
+    private async Task InsightTopExpensesAsync(Seller seller, string? period, CancellationToken ct)
+    {
+        var (start, end, label) = InsightWindow(seller, period, "thismonth");
+        var expenses = await _db.Expenses.AsNoTracking().Where(e => e.SellerId == seller.Id && e.CreatedAt >= start && e.CreatedAt < end).ToListAsync(ct);
+        if (expenses.Count == 0)
+        {
+            await ReplyAsync(seller, $"💸 Kharcha ({label}): koi kharcha darj nahi. Likhne ke liye: \"expense 500 petrol\".", ct);
+            return;
+        }
+        var total = expenses.Sum(e => e.Amount);
+        var groups = expenses.GroupBy(e => e.Category.Trim().ToLowerInvariant()).Select(g => (Name: g.Key, Amount: g.Sum(e => e.Amount), Count: g.Count()))
+            .OrderByDescending(g => g.Amount).ThenBy(g => g.Name, StringComparer.Ordinal).ToList();
+        var lines = groups.Take(5).Select((g, i) => $"{i + 1}. {g.Name} — {Formatters.Money(g.Amount)} ({Pct(total > 0 ? g.Amount / total * 100m : 0)}, {g.Count} entries)");
+        await ReplyAsync(seller, $"💸 Kharcha kahan ho raha hai — {label}\n\n{string.Join("\n", lines)}\n\nKul kharcha: {Formatters.Money(total)}. Sab se zyada: {groups[0].Name}.", ct);
+        SuggestNext("expenses", "monthly net");
+    }
+
+    // ---------- today vs yesterday, profit or loss
+
+    private async Task InsightTodayVsYesterdayAsync(Seller seller, CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+        var todayStart = SellerClock.StartOfLocalDayUtc(seller.TimeZoneId, now);
+        var (yStart, yEnd) = SellerClock.LocalDayRangeUtc(seller.TimeZoneId, now, -1);
+        var sameTimeEnd = yStart + (now - todayStart);
+        if (sameTimeEnd > yEnd) sameTimeEnd = yEnd;
+
+        var today = await ActiveOrdersIn(seller, todayStart, DateTime.MaxValue).Select(o => o.Total).ToListAsync(ct);
+        var yFull = await ActiveOrdersIn(seller, yStart, yEnd).Select(o => new { o.CreatedAt, o.Total }).ToListAsync(ct);
+        var ySame = yFull.Where(o => o.CreatedAt < sameTimeEnd).ToList();
+
+        static string Change(decimal now, decimal before) =>
+            before == 0 ? (now == 0 ? "➖ barabar" : "📈 kal isi waqt tak koi sale nahi thi")
+            : now > before ? $"📈 {Pct((now - before) / before * 100m)} zyada"
+            : now < before ? $"📉 {Pct((before - now) / before * 100m)} kam"
+            : "➖ barabar";
+
+        var todayTotal = today.Sum();
+        await ReplyAsync(seller,
+            "📊 Aaj bamuqabla kal\n\n" +
+            $"Aaj ab tak: {Formatters.Money(todayTotal)} ({today.Count} orders)\n" +
+            $"Kal isi waqt tak: {Formatters.Money(ySame.Sum(o => o.Total))} ({ySame.Count} orders) → {Change(todayTotal, ySame.Sum(o => o.Total))}\n" +
+            $"Kal poora din: {Formatters.Money(yFull.Sum(o => o.Total))} ({yFull.Count} orders)\n\n" +
+            "Sale mein delivery shamil hai; cancel aur return shamil nahi.", ct);
+        SuggestNext("aaj ka hisaab", "orders today");
+    }
+
+    /// <summary>"Kya main faide mein hoon ya nuqsan mein": product profit minus the expenses of the same period (this month by default).</summary>
+    private async Task InsightProfitOrLossAsync(Seller seller, string? period, CancellationToken ct)
+    {
+        var (start, end, label) = InsightWindow(seller, period, "thismonth");
+        var (orderCount, counted, revenue, cost) = await ComputeProfitAsync(seller, start, end, ct);
+        var expenses = (await _db.Expenses.AsNoTracking().Where(e => e.SellerId == seller.Id && e.CreatedAt >= start && e.CreatedAt < end).Select(e => e.Amount).ToListAsync(ct)).Sum();
+
+        if (orderCount == 0 && expenses == 0)
+        {
+            await ReplyAsync(seller, $"💰 Faida ya nuqsan ({label}): is dauran na koi order hai na koi kharcha.", ct);
+            return;
+        }
+        if (counted == 0 && orderCount > 0)
+        {
+            await ReplyAsync(seller,
+                $"💰 Faida ya nuqsan ({label}): {orderCount} orders hain magar kisi product ki cost save nahi, is liye munafa nahi nikal sakta.\n" +
+                "Cost ke saath likhein, jaise: \"Kurti - 1800, cost 1200\". Sale aur kharcha dekhne ke liye: \"monthly net\".", ct);
+            return;
+        }
+
+        var gross = revenue - cost;
+        var net = gross - expenses;
+        var skipped = orderCount - counted;
+        await ReplyAsync(seller,
+            $"💰 Faida ya nuqsan — {label}\n\n" +
+            $"Sale (delivery ke baghair): {Formatters.Money(revenue)}\n" +
+            $"Product ki cost: {Formatters.Money(cost)}\n" +
+            $"Munafa (kharche se pehle): {Formatters.Money(gross)}\n" +
+            $"Kharche: {Formatters.Money(expenses)}\n" +
+            $"Khalis: {Formatters.Money(net)}\n\n" +
+            (net >= 0 ? "✅ Aap faide mein hain." : "⚠️ Aap nuqsan mein hain — kharche munafe se zyada hain.") +
+            (skipped > 0 ? $"\nℹ️ {skipped} order(s) shamil nahi (cost maloom nahi), is liye asal munafa is se zyada ho sakta hai." : ""), ct);
+        SuggestNext("profit", "monthly net");
+    }
+}

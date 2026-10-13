@@ -75,6 +75,39 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 | Courier payouts | `payout pending` · `courier payout` · `payout 11700 TCS orders 1 2 3` · `payout list` |
 | Counter sale | `walkin Kurti 2` · `counter sale 1500` |
 
+## Ask a business question in your own words
+
+These are recognised from a few key words, in any word order, in Roman Urdu, English or Urdu script (typed or spoken). The bot answers from your saved data; it never guesses a number.
+Add a period if you want one (`pichle hafte`, `last month`, `is mahine`, `30 din`, `1 May se 15 May`).
+
+| Ask | Example |
+|---|---|
+| Dearest / cheapest product and how often it sold | `sab se mehnga product kaun sa hai` · `sab se sasta product` |
+| Average daily sale (and best day) | `pichle 30 din ki average sale` · `roz ki average bikri` |
+| Should the price go up? | `dupatte ki qeemat barhani chahiye` · `price review` |
+| What a discount does to the margin | `lawn suit par 10% discount do to margin kitna bachega` |
+| Discount given | `pichle mahine kitna discount diya` |
+| Lowest margin / best margin / room for a discount | `sab se kam margin kis item par hai` · `kis product par sab se zyada munafa` · `kitna discount de sakta hoon` |
+| Customers who stopped coming | `kaun se customers pichle ek mahine se wapas nahi aaye` · `... 14 din se nahi aaye` |
+| Biggest / repeat / new customers | `mera sab se bada customer kaun hai` · `bar bar aane wale customers` · `naye customers kitne aaye` |
+| Who owes how much | `Bilal ka kitna udhaar hai` · `kis kis ka udhaar baqi hai` (unpaid and part-paid orders) |
+| Last purchase | `Sara ne pichli baar kya kharida` |
+| Cash against Easypaisa / bank | `log zyada tar COD lete hain ya easypaisa` · `payment method split` |
+| Orders from a place | `Model Town se kitne orders aaye` · `city wise orders` |
+| Cancelled and returned | `kitne orders cancel ya return hue` · `return rate` |
+| Delivery time per courier | `TCS ka average delivery time` · `kaun sa courier sab se tez hai` (needs `mark N shipped` and `mark N delivered`) |
+| Stock running out / how many days it lasts | `kaun sa stock agle 3 din mein khatam hoga` · `polo shirt kitne din chalega` · `polo shirt ka stock kitna bacha hai` |
+| Re-order? | `lawn suit ka naya batch mangwana chahiye` |
+| Products whose stock is not tracked | `kitne products ka stock track nahi kiya` |
+| Spending on one thing / biggest expense | `petrol par ab tak kitna kharcha hua` · `sab se zyada kharcha kis cheez par` · `total kharche kitne hain` |
+| Today against yesterday / this week or month against the last | `kal ke muqable aaj sale kaisi rahi` · `is mahine ki sale pichle mahine se kaisi hai` |
+| Profit or loss (product profit minus expenses) | `kya main faide mein hoon ya nuksan mein` |
+| Sales of one product, this month against last | `polo shirt ki sale pichle mahine se behtar hai ya kam` |
+| Sales per category | `kapron se kitni sale hui aur grocery se` |
+| Top / slow sellers (also by season) | `sab se zyada kya bika` · `kaun sa maal nahi bik raha` · `pichle saal sardiyon mein kya bika` |
+| Net sale / revenue / net profit for a period | `pichle hafte ki net sale kitni thi` · `is mahine ka total revenue` · `aaj ka khalis munafa` |
+| Drawer short or over | `aaj galle mein kitna cash short ya zyada hai` |
+
 ## Customers and discounts
 
 | Task | Write |
@@ -106,4 +139,4 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 
 ## Left out on purpose (more than one meaning)
 
-`udhaar` (credit given — there is no credit ledger), `ledger`, `items`, `slip` · `courier slip`, `all orders` · `orders` · `recent orders` (all of today? all ever?), `aaj ki kamai` (sales or profit?), `minus 1000` (expense or cash out?), `mark delivered` / `mark paid` without an order number, `Sara ka balance`, `discount 100`, `loyalty`, `kurti ka rate` (a price lookup does not exist yet). These go to the assistant, which offers the possible actions as buttons.
+`udhaar` on its own (credit given — there is no credit ledger; "Bilal ka kitna udhaar hai" is read as the unpaid balance of his orders), `ledger`, `items`, `slip` · `courier slip`, `all orders` · `orders` · `recent orders` (all of today? all ever?), `aaj ki kamai` (sales or profit?), `minus 1000` (expense or cash out?), `mark delivered` / `mark paid` without an order number, `Sara ka balance`, `discount 100`, `loyalty`, `kurti ka rate` (a price lookup does not exist yet). These go to the assistant, which offers the possible actions as buttons.
