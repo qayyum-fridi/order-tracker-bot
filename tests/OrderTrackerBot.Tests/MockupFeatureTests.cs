@@ -1195,7 +1195,7 @@ public class MockupFeatureTests : IDisposable
 
         await engine.HandleIncomingMessageAsync(Phone, "kaise karun", default);
 
-        Assert.Contains(_sent, m => m.Contains("Sab se zaroori"));
+        Assert.Contains(_sent, m => m.Contains("Zaroori Madad"));
     }
 
     [Fact]

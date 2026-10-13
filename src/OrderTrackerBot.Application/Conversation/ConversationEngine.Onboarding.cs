@@ -258,7 +258,7 @@ public partial class ConversationEngine
                     SetState(session, ConversationState.Idle);
                     var reply = message.Equals("skip", StringComparison.OrdinalIgnoreCase)
                         ? $"Ji theek hai — jab bhi chahein \"catalog\" likh kar dobara products add kar sakte hain.\n{TrialStartedText(seller)}"
-                        : $"🎉 Mubarak ho, aapka setup mukammal ho gaya aur catalog save ho gayi hai.{TrialStartedText(seller)}\nAb jab bhi koi order aaye, usay forward kar dein ya 'new order: ...' likh kar darj karein.";
+                        : $"🎉 Mubarak ho! Aapka setup mukammal ho gaya hai aur catalog save ho chuki hai.{TrialStartedText(seller)}\nAb jab bhi koi order aaye, usay forward kar dein ya 'new order: ...' likh kar darj karein.";
                     await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, $"{reply.TrimEnd()}\n\nAage kya karna hai? Neeche se chunein 👇",
                         "Options dekhein", AfterSetupSections, ct);
                     await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,

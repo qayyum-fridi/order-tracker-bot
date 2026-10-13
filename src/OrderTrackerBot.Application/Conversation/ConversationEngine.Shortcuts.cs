@@ -38,7 +38,7 @@ public partial class ConversationEngine
             ? (urdu ? "⚡ فوری بٹن" : "⚡ Quick actions")
             : urdu
                 ? "⚡ یہ بٹن ہر جواب کے بعد نیچے ملتے رہیں گے — بس دبائیں۔ بند کرنے کے لیے لکھیں: shortcut off"
-                : "⚡ Yeh buttons har jawab ke neeche milte rahenge — bas dabayein.\nBand karne ke liye likhein: \"shortcut off\"";
+                : "⚡ Yeh buttons har jawab ke neeche dastiyab rahenge.\nBand karne ke liye likhein: \"shortcut off\"";
         await _sender.SendButtonsMessageAsync(phone, body, ShortcutLabels(seller.PreferredLanguage), ct);
 
         ctx.ShortcutIntroShown = true;

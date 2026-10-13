@@ -812,7 +812,7 @@ public class ConversationEngineTests : IDisposable
         Assert.InRange(lists[0].Sections.SelectMany(s => s.Rows).Count(), 1, 10);
         Assert.Contains("Main Menu", lists[0].Body);
         Assert.Contains("📊 Reports", lists[0].Body);
-        Assert.Contains("Sab se zaroori", lists[1].Body);
+        Assert.Contains("Zaroori Madad", lists[1].Body);
         Assert.Contains("orders today", lists[1].Body);
         Assert.Contains("\"menu\"", lists[1].Body);
     }
@@ -834,7 +834,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Next ➜", default);
         await engine.HandleIncomingMessageAsync(Phone, "Next ➜", default);
 
-        Assert.Contains("Guide kahan se shuru karein?", buttons[0]);
+        Assert.Contains("guide kahan se shuru", buttons[0]);
         Assert.Contains("Step 1/4", buttons[1]);
         Assert.Contains("Step 2/4", buttons[2]);
         Assert.Contains("Step 3/4", buttons[3]);

@@ -32,13 +32,13 @@ public partial class ConversationEngine
         branding.UpdatedAt = DateTime.UtcNow;
 
         await ReplyAsync(seller,
-            $"✅ {BrandingLabel(kind)} save ho gaya — ab har receipt par nazar aayega.\nDekhne ke liye \"receipt\" likhein. Hatane ke liye \"remove {kind}\".", ct);
+            $"✅ {BrandingLabel(kind)} save ho gaya hai. Ab har receipt par nazar aayega.\nDekhne ke liye \"receipt\" likhein. Hatane ke liye \"remove {kind}\".", ct);
     }
 
     private const string BrandingHow =
         "📸 Kaise karein:\n1) Apni tasveer WhatsApp mein \"Photo/Gallery\" se chunein (Document ke taur par nahi)\n" +
         "2) Caption mein \"logo\" ya \"banner\" likh kar bhej dein\n" +
-        "Bas — agli receipt par nazar aayegi.";
+        "Yeh agli receipt par nazar aayega.";
 
     // kind null = the seller asked in general terms ("receipt par image lagani hai"): explain both.
     private async Task HandleBrandingHelpAsync(Seller seller, string? kind, CancellationToken ct)

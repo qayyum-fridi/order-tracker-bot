@@ -41,7 +41,7 @@ public partial class ConversationEngine
 
     private string TrialStartedText(Seller seller) =>
         BillingApplies(seller) && seller.TrialEndsAt is { } end
-            ? $"\n🎁 Aapka {_billing.TrialDays}-din FREE trial shuru ho gaya (koi card nahi chahiye).\nTrial khatam: {end:d MMMM}\n"
+            ? $"\n🎁 Aapka {_billing.TrialDays}-din FREE trial shuru ho gaya hai (card ki zaroorat nahi).\nTrial khatam: {end:d MMMM}\n"
             : "";
 
     private string[] PlanButtons => new[] { $"Basic - Rs.{_billing.BasicPrice:0}", $"Pro - Rs.{_billing.ProPrice:0}" };
@@ -98,7 +98,7 @@ public partial class ConversationEngine
         {
             var what = seller.SubscriptionActiveUntil is null ? "free trial" : "subscription";
             await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
-                $"⏸️ Aapka {what} khatam ho gaya hai.\n\nAapka data safe hai — subscribe karein dobara shuru karne ke liye:\n\n" +
+                $"⏸️ Aapka {what} khatam ho gaya hai.\n\nAapka data mehfooz hai. Dobara shuru karne ke liye subscribe karein:\n\n" +
                 $"1️⃣ Basic - Rs.{_billing.BasicPrice:0}/month\n2️⃣ Pro - Rs.{_billing.ProPrice:0}/month", PlanButtons, ct);
             return true;
         }

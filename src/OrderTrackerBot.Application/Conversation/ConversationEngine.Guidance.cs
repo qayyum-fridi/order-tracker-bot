@@ -24,17 +24,17 @@ public partial class ConversationEngine
 
     private static string GuidanceFor(ConversationState state, SessionContextData ctx) => state switch
     {
-        ConversationState.Idle => "Setup shuru karne ke liye \"start\" likhein (ya bol dein).",
+        ConversationState.Idle => "Setup shuru karne ke liye \"start\" likhein.",
         ConversationState.OnboardingLanguage or ConversationState.AwaitingLanguageChoice => "Apni zubaan chunein: Roman Urdu, English ya اردو (neeche buttons hain).",
         ConversationState.OnboardingStartChoice => "Chunein: \"Setup shuru karein\", \"Guide dekhein\" ya \"Purana data\" (purane system se customers/products laane ke liye).",
-        ConversationState.OnboardingBusinessName => "Apni dukaan ka naam batayein, jaise \"Ayesha Collections\".",
+        ConversationState.OnboardingBusinessName => "Barae meherbani apni dukaan ka naam likhein, maslan \"Ayesha Collections\".",
         ConversationState.OnboardingOptionalDetails => "Shehar, karobar ki qisam aur Instagram handle ek saath bhejein, jaise \"Lahore, Clothing, @ayesha.collections\" — ya \"skip\" likhein.",
         ConversationState.OnboardingCatalogSize => "Batayein aapke paas kitne products hain: \"10 ke qareeb\", ya button dabayein.",
         ConversationState.OnboardingAddProduct =>
             "Har product ka naam aur price bhejein, jaise \"Lawn Suit - 3500\" (kai products ek saath bhi, har line mein ek). " +
-            "Sirf naam bataya to main price pooch loon ga. Khatam hone par \"done\" likhein.",
+            "Agar sirf naam likha ho to main price daryaft kar loon ga. Mukammal hone par \"done\" likhein.",
         ConversationState.AwaitingOrderConfirmation =>
-            "Order draft confirm karne ke liye YES likhein. Badalna ho to: \"delivery 300\", \"advance 500\". Rokne ke liye \"cancel\".",
+            "Order confirm karne ke liye YES likhein. Tabdeeli ke liye likhein: \"delivery 300\", \"advance 500\". Rokne ke liye \"cancel\" likhein.",
         ConversationState.AwaitingOrderMissingFields =>
             $"Order ki baqi detail bhejein ({ctx.PendingMissingField ?? "customer ka naam ya phone"}). Rokne ke liye \"cancel\".",
         ConversationState.AwaitingMultiOrderConfirmation => "Sab orders confirm karne ke liye YES, ya sirf ek ka number bhejein.",
@@ -50,6 +50,6 @@ public partial class ConversationEngine
         ConversationState.AwaitingReceiptDesign => ReceiptDesignHelp,
         ConversationState.AwaitingDiscountDetails => "Discount code likhein, jaise \"create discount: EID10, 10 percent, expires 15 days\".",
         ConversationState.AwaitingPaymentMethodInput => "Payment method likhein, jaise \"add payment: jazzcash, 0300-1234567\".",
-        _ => "Bot abhi aapke jawab ka intezar kar raha hai. Upar wale sawal ka jawab dein, ya \"cancel\" likh kar ruk jayein."
+        _ => "Bot aapke jawab ka muntazir hai. Barae meherbani upar diye gaye sawal ka jawab dein, ya \"cancel\" likh kar rok dein."
     };
 }
