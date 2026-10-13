@@ -36,7 +36,7 @@ Business used throughout: **Ayesha Collections, Lahore** (clothes + a few grocer
 | 2.7 | During onboarding product step only: `Handbag - abc` | Says which part was not understood (outside onboarding it is not a product line and goes to the AI) |
 | 2.8 | `catalog` | List of all products |
 | 2.9 | `Kurti - 1900` | Price updated to 1900 |
-| 2.10 | `products category Shirts` | Filter works (empty or Polo Shirt if categorised) |
+| 2.10 | `products category Shirts` | Before any product has a category: "Category abhi kisi product par likha hua nahi" (correct). Set one first with `Polo Shirt - 500, category: Shirts`, then the filter lists Polo Shirt |
 | 2.11 | `share catalog` | Shareable catalog text |
 | 2.12 | `delete product Handbag` | Handbag removed (if it exists) |
 | 2.13 🔑 | `teen chadar aur do dupatte naye products hain` | Treated as new products, asks prices (not an order) |
