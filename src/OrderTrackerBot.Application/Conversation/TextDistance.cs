@@ -52,4 +52,27 @@ public static class TextDistance
         }
         return best;
     }
+
+    /// <summary>
+    /// Up to <paramref name="take"/> near misses of <paramref name="text"/> (same limits as <see cref="Closest"/>), nearest first, ties in catalog order.
+    /// Empty for an exact match, a short word or no near candidate.
+    /// </summary>
+    public static IReadOnlyList<string> Nearest(string text, IEnumerable<string> candidates, int maxDistance = 2, int take = 3)
+    {
+        var wanted = text.Trim();
+        if (wanted.Length < 4) return Array.Empty<string>();
+        var allowed = Math.Min(maxDistance, Math.Max(1, wanted.Length / 3));
+
+        var found = new List<(string Candidate, int Distance, int Order)>();
+        var order = 0;
+        foreach (var candidate in candidates)
+        {
+            order++;
+            if (string.IsNullOrWhiteSpace(candidate) || Math.Abs(candidate.Length - wanted.Length) > allowed) continue;
+            var distance = Levenshtein(wanted, candidate);
+            if (distance == 0) return Array.Empty<string>();
+            if (distance <= allowed) found.Add((candidate, distance, order));
+        }
+        return found.OrderBy(f => f.Distance).ThenBy(f => f.Order).Select(f => f.Candidate).Distinct(StringComparer.OrdinalIgnoreCase).Take(take).ToList();
+    }
 }

@@ -77,7 +77,7 @@ public partial class ConversationEngine
         _transcriber = transcriber;
         _importReader = importReader;
         // Unconfigured (e.g. unit tests) means off; the app registers FeatureOptions with its real defaults.
-        _features = features ?? new FeatureOptions { ShortcutButtons = false, ConfirmButtons = false };
+        _features = features ?? new FeatureOptions { ShortcutButtons = false, ConfirmButtons = false, SuggestionButtons = false };
     }
 
     private static readonly ConversationState[] OnboardingStates =
@@ -124,6 +124,20 @@ public partial class ConversationEngine
         var ctx = SessionContextData.FromJson(session.ContextJson);
         _turnSeller = seller;
         _turnCtx = ctx;
+
+        // A tap on a did-you-mean button for an unknown product acts as the typed answer ("2 <product>" / "1"); with no such question waiting it is a stale tap.
+        if (ctx.ProductSuggestions is { Count: > 0 } offered
+            && (message.Trim() == NewProductButtonTitle || offered.Any(o => o.Title == message.Trim())))
+        {
+            if (session.State == ConversationState.AwaitingOrderMissingFields && ctx.PendingMissingField == "ProductChoice")
+                message = message.Trim() == NewProductButtonTitle ? "1" : "2 " + offered.First(o => o.Title == message.Trim()).Label;
+            else
+            {
+                await ReplyAsync(seller, "ℹ️ Yeh button kisi purane sawal ka tha. Naya order likhein, ya \"menu\" likhein.", ct);
+                await PersistAsync(session, ctx, ct);
+                return;
+            }
+        }
 
         // A tap on the draft's Save / Edit / Cancel buttons arrives as its label: it acts as typed yes / edit / cancel, and is told apart from a stale tap.
         if (Array.IndexOf(ConfirmButtonLabels, message.Trim()) is var tapped and >= 0)
@@ -457,6 +471,9 @@ public sealed class FeatureOptions
 
     /// <summary>Save / Edit / Cancel as tap buttons under an order draft (typed YES / EDIT / cancel keep working).</summary>
     public bool ConfirmButtons { get; set; } = true;
+
+    /// <summary>Did-you-mean taps (nearest catalog products) when an order names a product that is not in the catalog; the typed hint is used when off.</summary>
+    public bool SuggestionButtons { get; set; } = true;
 
     /// <summary>Public link to the illustrated English/Urdu guide, sent with the Guide command. Empty = no link.</summary>
     public string GuideUrl { get; set; } = "";
