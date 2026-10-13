@@ -196,6 +196,24 @@ public class ReceiptSettingsEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task Footer_KeepsLineBreaks_AndRefusesTooManyLinesOrTooLong()
+    {
+        using var db = _dbFactory.CreateContext();
+        var (_, order) = await SeedAsync(db);
+        var engine = Engine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "receipt footer Shukriya!\nWapsi 7 din mein\n\nInsta: @ayesha", default);
+        await engine.HandleIncomingMessageAsync(Phone, $"receipt {order.Id}", default);
+        Assert.Equal("Shukriya!\nWapsi 7 din mein\nInsta: @ayesha", _captured!.Footer);
+
+        await engine.HandleIncomingMessageAsync(Phone, "receipt footer a\nb\nc\nd\ne", default);
+        await engine.HandleIncomingMessageAsync(Phone, "receipt footer " + new string('x', 201), default);
+        Assert.Equal("Shukriya!\nWapsi 7 din mein\nInsta: @ayesha", (await db.Sellers.AsNoTracking().FirstAsync()).ReceiptFooter);
+        Assert.Contains(_sent, m => m.Contains("zyada se zyada 4 lines"));
+        Assert.Contains(_sent, m => m.Contains("200 huroof"));
+    }
+
+    [Fact]
     public async Task DefaultReceipt_StillA5_AndSettingsCanBeCleared()
     {
         using var db = _dbFactory.CreateContext();

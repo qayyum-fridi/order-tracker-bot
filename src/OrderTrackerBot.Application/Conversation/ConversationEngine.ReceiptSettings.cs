@@ -15,7 +15,8 @@ public partial class ConversationEngine
 {
     private static readonly Regex EmailAddress = new(@"^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]{2,}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
-    private const int MaxFooterLength = 120;
+    private const int MaxFooterLength = 200;
+    private const int MaxFooterLines = 4;
     private const int MaxHeaderLength = 80;
     private const int MaxContactLength = 150;
     private const int MaxNoteLength = 300;
@@ -59,7 +60,7 @@ public partial class ConversationEngine
             "• receipt header Gulberg Branch · Est. 2015  (hatane ke liye: receipt header off)\n" +
             "• receipt contact 0300-1234567 · ali@shop.com  (hatane ke liye: receipt contact off)\n" +
             "• receipt size 80mm  (ya 58mm / A5 / A4)\n" +
-            "• receipt footer Shukriya, dobara tashreef layein  (hatane ke liye: receipt footer off)\n" +
+            "• receipt footer Shukriya, dobara tashreef layein  (apna koi bhi text, 4 lines tak; hatane ke liye: receipt footer off)\n" +
             "• note 12 gift wrap  (order ka note, receipt par bhi chhapta hai; hatane ke liye: note 12 off)\n" +
             "• email ali@shop.com, phir: email receipt 12  (email bhejne ke liye; receipt par chhapne ke liye receipt contact)\n" +
             "• printer  (print karne ka tareeqa)", ct);
@@ -87,10 +88,18 @@ public partial class ConversationEngine
             await ReplyAsync(seller, "✅ Receipt ki aakhri line ab default (Thank you) hogi.", ct);
             return;
         }
-        var footer = string.Join(" ", (text ?? "").Split(new[] { '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries)).Trim();
+        // Line breaks are kept (a seller's own layout: "Shukriya!" / "Wapsi 7 din mein" / "Insta: @shop"); blank lines and tabs are dropped.
+        var lines = (text ?? "").Replace('\t', ' ').Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(l => l.Trim()).Where(l => l.Length > 0).ToList();
+        var footer = string.Join("\n", lines);
         if (footer.Length == 0)
         {
             await ReplyAsync(seller, "Footer likhein, jaise: receipt footer Shukriya! Wapsi 7 din mein.", ct);
+            return;
+        }
+        if (lines.Count > MaxFooterLines)
+        {
+            await ReplyAsync(seller, $"Footer mein zyada se zyada {MaxFooterLines} lines rakhein (abhi {lines.Count}).", ct);
             return;
         }
         if (footer.Length > MaxFooterLength)
