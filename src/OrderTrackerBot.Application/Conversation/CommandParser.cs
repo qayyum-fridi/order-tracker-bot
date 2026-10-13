@@ -173,17 +173,17 @@ public static class CommandParser
     private const string LastMonth = @"(?:(?:pichle|pichhle|pichlay|پچھلے)\s+(?:mahine|mahinay|maheene|mahiny|مہینے))";
     // "kal ke orders" / "kal ke kitne orders the?" / "aaj kitne orders aaye": the period word, optional ka/ke, optional "kitne", the word orders, optional question tail.
     private const string OrdersOfPeriod = @"(?:\s+" + Of + @")?(?:\s+(?:kitne|kitnay|کتنے))?\s+" + OrdersWord + @"(?:\s+(?:the|thay|tha|hain|hai|aaye|aae|hue|تھے|تھا|ہیں|ہے|آئے|ہوئے))*\s*[?؟]?";
-    private static readonly Regex OrdersToday = new(@"^(?:orders?\s+today|today'?s\s+orders?|" + Today + OrdersOfPeriod + @")$", Opts);
+    private static readonly Regex OrdersToday = new(@"^(?:orders?\s+today|show\s+orders?|today'?s\s+orders?|" + Today + OrdersOfPeriod + @")$", Opts);
     private static readonly Regex OrdersYesterday = new(@"^(?:orders?\s+yesterday|yesterday'?s\s+orders?|" + Yesterday + OrdersOfPeriod + @")$", Opts);
     private static readonly Regex OrdersLastMonth = new(@"^(?:orders?\s+last\s+month|last\s+month'?s?\s+orders?|" + LastMonth + OrdersOfPeriod + @")$", Opts);
     private static readonly Regex PendingOrders = new(@"^(pending\s+orders?|پینڈنگ\s+آرڈرز?)$", Opts);
     private static readonly Regex TodaysSummary = new(@"^(?:today'?s\s+summary|today\s+summary|hisaa?b\s+kitab|daily\s+account|" + Today + @"\s+" + Of + @"\s+" + SummaryWord + @")$", Opts);
     private static readonly Regex YesterdaysSummary = new(@"^(?:yesterday'?s\s+summary|summary\s+yesterday|" + Yesterday + @"\s+" + Of + @"\s+" + SummaryWord + @")$", Opts);
     private static readonly Regex LastMonthSummary = new(@"^(?:last\s+month'?s?\s+summary|summary\s+last\s+month|" + LastMonth + @"\s+" + Of + @"\s+" + SummaryWord + @")$", Opts);
-    private static readonly Regex Catalog = new(@"^(?:catalog|کیٹلاگ|(?:show|dikhao|dikhana|dekhao|dekhein|view)\s+(?:my\s+|mera\s+)?catalog|catalog\s+(?:show|list|view|dikhao|dikhana|dekhao|dekhein|dekhna))$", Opts);
+    private static readonly Regex Catalog = new(@"^(?:catalog|products|my\s+products|کیٹلاگ|(?:show|dikhao|dikhana|dekhao|dekhein|view)\s+(?:my\s+|mera\s+)?catalog|catalog\s+(?:show|list|view|dikhao|dikhana|dekhao|dekhein|dekhna))$", Opts);
     private static readonly Regex ShareCatalog = new(@"^share\s+catalog$", Opts);
     private static readonly Regex MenuCategory = new(@"^menu\s+(orders|reports|catalog|payments|discounts|customers|settings|shop)$", Opts);
-    private static readonly Regex CustomerList = new(@"^(customers?\s+list|my\s+customers)$", Opts);
+    private static readonly Regex CustomerList = new(@"^(customers?\s+list|my\s+customers|customers)$", Opts);
     private static readonly Regex CustomerSearch = new(@"^search\s+customers?:\s*(.+)$", Opts);
     private static readonly Regex CustomerDetail = new(@"^customer\s+(?!list$|feedback$)(.+)$", Opts);
     private static readonly Regex DeleteCustomer = new(@"^(?:delete|remove)\s+customer:?\s*(.+)$", Opts);
@@ -265,7 +265,7 @@ public static class CommandParser
     }
 
     // "stock" lists tracked stock; "stock Kurti 20" sets, "stock Kurti +10" adds, "stock Kurti off" stops tracking. Text = product, Text2 = set|add|off.
-    private static readonly Regex StockList = new(@"^(?:stock|stocks|inventory|stock\s+list|اسٹاک)$", Opts);
+    private static readonly Regex StockList = new(@"^(?:stock|stocks|inventory|stock\s+list|low\s+stock|اسٹاک)$", Opts);
     private static readonly Regex StockOff = new(@"^(?:stock|اسٹاک)\s*:?\s*(?<name>[^\d].*?)\s+(?:off|band|remove|hatao)$", Opts);
     private static readonly Regex StockSet = new(@"^(?:stock|اسٹاک)\s*:?\s*(?<name>[^\d].*?)\s*[=:]?\s*(?<sign>\+)?\s*(?<![\d])(?<n>\d{1,6})$|^(?<name>[^\d].*?)\s+(?:ka\s+|ki\s+)?(?:stock|اسٹاک)\s*[=:]?\s*(?<sign>\+)?\s*(?<![\d])(?<n>\d{1,6})$", Opts);
 
@@ -714,7 +714,7 @@ public static class CommandParser
     // Labels, barcode scanning and the cash drawer (ConversationEngine.Labels.cs / Scan.cs / CashDrawer.cs).
     private static readonly Regex LabelSizeCmd = new(@"^labels?\s+size\s*:?\s*(?<v>.*)$", Opts);
     private static readonly Regex BusinessLabelCmd = new(@"^(?:(?:business|shop|dukan|store)\s+(?:labels?|stickers?)|labels?\s+(?:business|shop|dukan)|stickers?)$", Opts);
-    private static readonly Regex ShippingLabelCmd = new(@"^(?:(?:shipping|parcel|courier|delivery)\s+)?labels?(?:\s+#?(?<n>\d{1,9}))?(?:\s+(?:for\s+|ka\s+)?(?<name>\D.*))?$", Opts);
+    private static readonly Regex ShippingLabelCmd = new(@"^(?:(?:shipping|parcel|courier|delivery|print)\s+)?labels?(?:\s+#?(?<n>\d{1,9}))?(?:\s+(?:for\s+|ka\s+)?(?<name>\D.*))?$", Opts);
     private static readonly Regex ScanCmd = new(@"^(?:scan|scanner)(?:\s+(?<v>.+))?$", Opts);
     private static readonly Regex BarcodeRemoveCmd = new(@"^barcode\s+(?:remove|off|hata\w*|delete|clear)\s+(?<name>.+)$", Opts);
     private static readonly Regex BarcodeSetCmd = new(@"^(?:barcode|sku)\s+(?<name>.+?)\s+(?<code>[A-Za-z0-9\-]{4,40})$", Opts);

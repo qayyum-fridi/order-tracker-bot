@@ -21,7 +21,7 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 | Task | Write | Also works |
 |---|---|---|
 | New order | forward the customer's message, send a 🎤 voice note or a 📷 screenshot | `Ayesha, 2 suit, 03001234567` |
-| Orders of a day / period | `orders today` | `orders yesterday` · `orders 30 days` · `aaj ke orders` |
+| Orders of a day / period | `orders today` | `show orders` · `orders yesterday` · `orders 30 days` · `aaj ke orders` |
 | Pending / unpaid / COD owed | `pending orders` · `unpaid orders` · `cod pending` | |
 | One order in full | `order 12` | `#12` |
 | Change status | `mark 12 shipped` | `delivered` · `returned` · `paid` · `bhej diya` · `mukammal` |
@@ -44,7 +44,7 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 | Header / contact / footer | `receipt header [line]` · `receipt contact [line]` · `receipt footer [up to 4 lines]` — `off` clears |
 | All receipt settings | `receipt settings` |
 | Email | `email ali@shop.com` · `email receipt 12` |
-| Parcel / shop label | `label 12` · `business label` · `label size a6` |
+| Parcel / shop label | `label 12` · `print label` (asks which label) · `business label` · `label size a6` |
 | Logo / banner | `logo` · `banner` (then send the picture) |
 | Printer help | `printer` |
 
@@ -52,10 +52,10 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 
 | Task | Write |
 |---|---|
-| See / share | `catalog` · `share catalog` |
+| See / share | `catalog` (or `products`) · `share catalog` |
 | Add a product | `Kurti - 1800` · `naya product: Kurti - 1800` · `Polo Shirt - 500, cost 300, stock 10, category: Shirts` |
 | Change / remove | `edit product: Kurti - 1900` · `delete product: Kurti` |
-| Stock | `stock` · `stock Kurti 20` (`+10` · `off`) |
+| Stock | `stock` (or `low stock`) · `stock Kurti 20` (`+10` · `off`) |
 | Filter | `products category Shirts` · `products vendor Ali` |
 | Barcode | `barcode Kurti 8961234567890` · `scan cart` · `scan done` · `scan clear` |
 
@@ -76,7 +76,7 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 
 | Task | Write |
 |---|---|
-| List / detail / search | `customer list` · `customer 1` · `search customer: Sara` |
+| List / detail / search | `customer list` (or `customers`) · `customer 1` · `search customer: Sara` |
 | Correct details | `Sara ka phone 03001234567` · `Sara ka address ...` |
 | Delete / restore | `delete customer Sara` · `restore customer Sara` |
 | Support / Instagram | `support queries` · `comment leads` · `connect instagram` |

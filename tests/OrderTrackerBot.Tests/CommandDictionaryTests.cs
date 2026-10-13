@@ -127,6 +127,12 @@ public class CommandDictionaryTests
     [InlineData("discount performance", CommandKind.DiscountPerformance)]
     [InlineData("customer feedback", CommandKind.CustomerFeedbackList)]
     [InlineData("sab customers ko batao: naya stock aaya", CommandKind.Broadcast)]
+    [InlineData("show orders", CommandKind.OrdersToday)]
+    [InlineData("products", CommandKind.Catalog)]
+    [InlineData("my products", CommandKind.Catalog)]
+    [InlineData("customers", CommandKind.CustomerList)]
+    [InlineData("low stock", CommandKind.Stock)]
+    [InlineData("print label", CommandKind.ShippingLabel)]
     public void DocumentedPhrase_ParsesToItsCommand(string phrase, CommandKind expected) =>
         Assert.Equal(expected, CommandParser.TryParse(phrase)?.Kind);
 
@@ -134,4 +140,31 @@ public class CommandDictionaryTests
     [InlineData("cancel")]   // meaningful only while a question is open
     [InlineData("kya karun")] // answered with a tip for the current step
     public void StepWords_AreNotCommands(string phrase) => Assert.Null(CommandParser.TryParse(phrase));
+
+    // The new short names must not take over longer commands that start with the same word.
+    [Theory]
+    [InlineData("products category Shirts", CommandKind.CatalogFilter)]
+    [InlineData("products vendor Ali", CommandKind.CatalogFilter)]
+    [InlineData("catalog", CommandKind.Catalog)]
+    [InlineData("customer list", CommandKind.CustomerList)]
+    [InlineData("customer Sara", CommandKind.CustomerDetail)]
+    [InlineData("customer 1", CommandKind.CustomerDetail)]
+    [InlineData("orders today", CommandKind.OrdersToday)]
+    [InlineData("stock Kurti 20", CommandKind.Stock)]
+    [InlineData("label 12", CommandKind.ShippingLabel)]
+    [InlineData("label size a6", CommandKind.LabelSize)]
+    [InlineData("business label", CommandKind.BusinessLabel)]
+    public void LongerCommands_KeepTheirMeaning(string phrase, CommandKind expected) =>
+        Assert.Equal(expected, CommandParser.TryParse(phrase)?.Kind);
+
+    [Theory]
+    [InlineData("print label", null, null)]
+    [InlineData("label", null, null)]
+    public void PrintLabel_IsTheBareLabelCommand(string phrase, int? number, string? name)
+    {
+        var parsed = CommandParser.TryParse(phrase)!;
+        Assert.Equal(CommandKind.ShippingLabel, parsed.Kind);
+        Assert.Equal(number, parsed.Number);
+        Assert.Equal(name, parsed.Text);
+    }
 }
