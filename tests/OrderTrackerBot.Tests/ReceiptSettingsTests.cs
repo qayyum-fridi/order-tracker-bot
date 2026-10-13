@@ -95,7 +95,7 @@ public class ReceiptPaperSizePdfTests
     [InlineData("58mm")]
     public void Thermal_HandlesUrduNames_LogoPartPaymentAndTax(string size)
     {
-        var data = Sample(paid: false) with
+        var data = Sample() with
         {
             PaperSize = size, CustomerName = "عائشہ خان", AmountPaid = 2000, Logo = ReceiptPdfTests.TinyPng,
             SalesTaxRate = 18, SalesTaxAmount = 1208, Ntn = "1234567-8", Strn = "17-00-8888-001-37", ReceiptNumber = 7
@@ -120,6 +120,7 @@ public class ReceiptSettingsEngineTests : IDisposable
     private readonly Mock<IWhatsAppSender> _sender = new();
     private readonly Mock<IReceiptPdfGenerator> _pdf = new();
     private readonly Mock<IMerchantEmailSender> _email = new();
+    private readonly Mock<IAiOrderAssistant> _ai = new();
     private readonly List<string> _sent = new();
     private ReceiptData? _captured;
 
@@ -130,13 +131,16 @@ public class ReceiptSettingsEngineTests : IDisposable
         _sender.Setup(s => s.SendDocumentAsync(Phone, It.IsAny<byte[]>(), It.IsAny<string>(), "application/pdf", It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
         _pdf.Setup(p => p.Generate(It.IsAny<ReceiptData>())).Callback<ReceiptData>(d => _captured = d).Returns(new byte[] { 1, 2, 3 });
+        // Anything the parser does not recognise reaches the AI; answer "unclear" like the real assistant does when it cannot help.
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "unclear", AiUnavailable = true });
         _email.SetupGet(e => e.IsConfigured).Returns(true);
         _email.Setup(e => e.SendAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<byte[]?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
     }
 
     private ConversationEngine Engine(AppDbContext db, bool withEmail = true) =>
-        new(db, Mock.Of<IAiOrderAssistant>(), _sender.Object, Mock.Of<IFounderAlertNotifier>(), receiptPdf: _pdf.Object, emailSender: withEmail ? _email.Object : null);
+        new(db, _ai.Object, _sender.Object, Mock.Of<IFounderAlertNotifier>(), receiptPdf: _pdf.Object, emailSender: withEmail ? _email.Object : null);
 
     private async Task<(Seller Seller, Order Order)> SeedAsync(AppDbContext db)
     {

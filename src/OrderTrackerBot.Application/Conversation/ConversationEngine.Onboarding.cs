@@ -15,15 +15,18 @@ public partial class ConversationEngine
     // means the text is an order/customer detail, never a "name - price" catalog line.
     private static readonly Regex PhoneNumber = new(@"(?<!\d)(?:\+?92[-\s]?|0)3\d{2}[-\s]?\d{7}(?!\d)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
+    private static readonly Regex BrokenPriceLine = new(@"^(?<name>[^\d\n:=—–-]{2,40}?)\s*[-–—=:]\s*(?<v>[^\n]*)$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
     // Trailing "add" instruction a voice rewrite can keep after the price: "Suit - 500, catalog mein add kar dein", "Silk Suit - 800 product ke taur par add kar do".
     private static readonly Regex AddFiller = new(
         @"[\s,;.]*(?:(?:(?:catalog|catalogue|product|products|list)\s+(?:mein|me)|product\s+ke\s+(?:taur|tor)\s+par)\s+)?(?:add|ad)\s+(?:kar\s*)?(?:do|dein|den|karo|kardo|kardein)[\s.!]*$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
     // Onboarding accepts any "name - price" (digits allowed in the name, e.g. "Suit 2pc - 3500"), also with ":"/"=" or an Rs/PKR marker.
-    private static ProductLine? ParseLooseProductLine(string line)
+    internal static ProductLine? ParseLooseProductLine(string line)
     {
         if (PhoneNumber.IsMatch(line)) return null;
+        line = CommandParser.NormalizeProductPriceText(line);
         // "address mein" is a mis-heard "catalog mein": it only matters when it trails the price like the other filler.
         line = AddFiller.Replace(Regex.Replace(line, @"[\s,;]+address\s+(?:mein|me)\b", ""), "");
         var m = LooseProductLine.Match(line);
@@ -40,9 +43,28 @@ public partial class ConversationEngine
         @"(?:rakho|rakh\s+do|rakhein|rakhen|rakh\s+dein|hai|hain|set|likho|likh\s+do|kar\s+do|رکھو|رکھیں|رکھ\s+دو|رکھ\s+دیں|ہے|ہیں|لکھو|کر\s+دو)\s*[.۔!]*$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
+    // "Shawl - teen hazar do sau": the price after the dash written in number words (no digits at all).
+    private static readonly Regex SpokenDashPrice = new(@"^(?<name>[^\d]{2,50}?)\s*[-–—:=]\s*(?<rest>[^\d]+?)[.!]*$", RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    private static readonly HashSet<string> PriceFiller = new(StringComparer.OrdinalIgnoreCase) { "rupay", "rupaye", "rupees", "rupee", "rs", "pkr", "ka", "ki", "hai", "ke", "روپے", "کا", "ہے" };
+    private static readonly Regex WordToken = new(@"[\p{L}\p{N}]+", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    /// <summary>Only number words, multipliers (sau, hazar, lakh) and a currency/filler word are allowed after the dash, and they must add up to exactly one amount.</summary>
+    private static ProductLine? TryParseSpokenDashPrice(string line)
+    {
+        var m = SpokenDashPrice.Match(line);
+        if (!m.Success || PhoneNumber.IsMatch(line)) return null;
+        var rest = m.Groups["rest"].Value;
+        var tokens = WordToken.Matches(rest).Select(t => t.Value).ToList();
+        if (tokens.Count == 0 || !tokens.All(t => SpokenNumbers.IsNumberWord(t) || SpokenNumbers.IsMultiplier(t) || PriceFiller.Contains(t))) return null;
+        var amounts = SpokenNumbers.Amounts(rest);
+        var name = m.Groups["name"].Value.Trim();
+        return amounts.Count == 1 && name.Length > 0 ? CommandParser.SplitUnit(name, amounts.First()) : null;
+    }
+
     /// <summary>Exactly one amount (digits or spoken words, 100 or more) and a closing verb are required; anything else is not a price sentence.</summary>
     private static ProductLine? TryParseNaturalPriceSentence(string line)
     {
+        if (TryParseSpokenDashPrice(line) is { } spoken) return spoken;
         var m = NaturalPriceSentence.Match(line);
         if (!m.Success || PhoneNumber.IsMatch(line)) return null;
         var rest = m.Groups["rest"].Value;
@@ -314,6 +336,17 @@ public partial class ConversationEngine
                 if (stockAnalysis is { Intent: "add_products", NewProducts.Count: > 0 })
                 {
                     await HandleNewProductsAsync(seller, ctx, stockAnalysis.NewProducts, message, ct);
+                    return;
+                }
+
+                // "Handbag - abc" / "Scarf -": it is clearly a product line, so say which part could not be read instead of a generic failure.
+                if (BrokenPriceLine.Match(message.Trim()) is { Success: true } broken && !PhoneNumber.IsMatch(message) && broken.Groups["name"].Value.Trim().Split(' ').Length <= 4)
+                {
+                    var productName = broken.Groups["name"].Value.Trim();
+                    var wrote = broken.Groups["v"].Value.Trim();
+                    await ReplyAsync(seller,
+                        $"\"{productName}\" ki price samajh nahi aayi{(wrote.Length == 0 ? " (price likhi nahi)" : $" (\"{wrote}\")")}.\n" +
+                        $"Price number mein likhein, jaise: {productName} - 2500\nYa \"skip\" likhein.", ct);
                     return;
                 }
 

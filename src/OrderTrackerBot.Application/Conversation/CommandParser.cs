@@ -643,9 +643,28 @@ public static class CommandParser
         if (PaidPhrase.IsMatch(phrase)) return "paid";
         if (PendingPhrase.IsMatch(phrase)) return "pending";
         if (ReturnedPhrase.IsMatch(phrase)) return "returned";
-        return null;
+        return FuzzyStatusWord(phrase);
     }
-    private static readonly Regex CancelOrder = new(@"^cancel\s+order\s+(\d+)$", Opts);
+
+    private static readonly string[] StatusWords = { "shipped", "delivered", "pending", "returned" };
+
+    /// <summary>A one-word status with a typo ("shiped", "delivred", "pendng"): the status it is a near miss of, else null.</summary>
+    private static string? FuzzyStatusWord(string phrase) =>
+        phrase.Length < 5 || phrase.Contains(' ') ? null : TextDistance.Closest(phrase, StatusWords, 2);
+
+    private static readonly Regex PriceCurrency = new(@"(?<=[-–=]\s*)(?:rs\.?|pkr)\s*", Opts);
+    private static readonly Regex ThousandsComma = new(@"(?<=\d),(?=\d{3}(?!\d))", Opts);
+
+    /// <summary>"Chadar - Rs. 2,200" -> "Chadar - 2200": the currency marker after the dash and thousands commas are dropped before a product line is read.</summary>
+    public static string NormalizeProductPriceText(string text) => ThousandsComma.Replace(PriceCurrency.Replace(text, ""), "");
+
+    private static readonly Regex PercentSign = new(@"(\d)\s*%", Opts);
+    private static readonly Regex CodeThenValue = new(@"^(?<code>[A-Za-z][A-Za-z0-9_-]{1,29})\s+(?=\d|rs\b)", Opts);
+
+    /// <summary>"EID10 10%" / "EID10 10 percent" / "EID10 Rs.50 flat" -> "EID10, 10 percent" / "EID10, Rs.50 flat" (the format the discount reader expects).</summary>
+    public static string NormalizeDiscountSpec(string text) =>
+        CodeThenValue.Replace(PercentSign.Replace(text.Trim(), "$1 percent"), "${code}, ");
+    private static readonly Regex CancelOrder = new(@"^cancel\s+(?:order\s+)?#?(\d+)$", Opts);
     private static readonly Regex Undo = new(@"^undo$", Opts);
     private static readonly Regex PaymentLink = new(@"^payment\s+link(?:\s+(\d+))?$", Opts);
     private static readonly Regex AddPaymentMethod = new(@"^add\s+payment:\s*(jazzcash|easypaisa|bank|safepay)\s*(?:,\s*(.+))?$", Opts);
@@ -830,7 +849,7 @@ public static class CommandParser
     public static bool TryParseProductLine(string line, out ProductLine? product)
     {
         product = null;
-        var text = line.Trim();
+        var text = NormalizeProductPriceText(line.Trim());
 
         var detailed = ProductWithDetails.Match(text);
         if (detailed.Success && TryParseProductDetails(detailed.Groups[3].Value, out var extras))
@@ -1229,7 +1248,7 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.CustomerOrderLookup, Text = m.Groups[1].Value.Trim() };
 
         if ((m = CreateDiscount.Match(message)).Success)
-            return new ParsedCommand { Kind = CommandKind.CreateDiscount, Text = m.Groups[1].Value.Trim() };
+            return new ParsedCommand { Kind = CommandKind.CreateDiscount, Text = NormalizeDiscountSpec(m.Groups[1].Value) };
 
         if (DiscountList.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DiscountList };
 

@@ -351,7 +351,7 @@ public partial class ConversationEngine
             return;
         }
 
-        var spec = ctx.PendingDiscountCode is null ? trimmed : $"{ctx.PendingDiscountCode}, {trimmed}";
+        var spec = CommandParser.NormalizeDiscountSpec(ctx.PendingDiscountCode is null ? trimmed : $"{ctx.PendingDiscountCode}, {trimmed}");
         if (DiscountSpec.IsMatch(spec))
         {
             ctx.PendingDiscountCode = null;
@@ -376,7 +376,7 @@ public partial class ConversationEngine
 
     private async Task HandleCreateDiscountAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
     {
-        var match = DiscountSpec.Match(cmd.Text!);
+        var match = DiscountSpec.Match(CommandParser.NormalizeDiscountSpec(cmd.Text!));
         if (!match.Success)
         {
             await ReplyAsync(seller, "Format: \"create discount: CODE, 10 percent[, expires 15 days]\" ya \"CODE, Rs.50 flat\"", ct);

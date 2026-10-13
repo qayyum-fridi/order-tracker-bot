@@ -240,10 +240,13 @@ public partial class ConversationEngine
             ctx.PendingNewProductName = unresolved.ProductName;
             ctx.PendingMissingField = "ProductChoice";
             SetState(session, ConversationState.AwaitingOrderMissingFields);
+            // A near miss of a catalog name is most likely a typo: say which product it probably is.
+            var guess = TextDistance.Closest(unresolved.ProductName, (await LoadCatalogAsync(seller, ct)).Select(c => c.Label), 2);
             await ReplyAsync(seller,
                 $"\"{unresolved.ProductName}\" aapke catalog mein nahi mila.\n\n" +
                 "1️⃣ Ye naya product hai — catalog mein add karoon?\n" +
-                "2️⃣ Ye kisi existing product ka doosra naam hai (batayein kaunsa)", ct);
+                "2️⃣ Ye kisi existing product ka doosra naam hai (batayein kaunsa)" +
+                (guess is null ? "" : $"\n\n💡 Kya aap \"{guess}\" keh rahe hain? Haan to likhein: 2 {guess}"), ct);
             return;
         }
 
