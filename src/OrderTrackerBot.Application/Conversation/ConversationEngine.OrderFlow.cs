@@ -87,7 +87,7 @@ public partial class ConversationEngine
             {
                 await ReplyAsync(seller, CategoryWords.IsMatch(sourceText)
                     ? "Category alag se nahi banti — product ke saath likhein: Polo Shirt - 500, category: Women Cloths.\nDekhne ke liye: catalog category"
-                    : "Samajh nahi aaya. Discount banana ho to \"create discount\" likhein, ya \"menu\" likhein.", ct);
+                    : "Maaf kijiye, samajh nahi aaya. Discount banana ho to \"create discount\" likhein, ya \"menu\" kholein.", ct);
                 return;
             }
 
@@ -117,7 +117,7 @@ public partial class ConversationEngine
         if (!analysis.IsOrderAttempt || analysis.Order is null)
         {
             var options = analysis.ClarificationOptions.Count > 0 ? analysis.ClarificationOptions : DefaultClarificationOptions.ToList();
-            var question = analysis.ClarificationQuestion ?? "Mujhe samajh nahi aaya 🤔 Kya aap:";
+            var question = analysis.ClarificationQuestion ?? "Maaf kijiye, mujhe aapki baat samajh nahi aayi 🙏 Kya aap yeh kehna chahte hain:";
             if (analysis.ClarificationOptions.Count == 0 && TryKeywordClarification(sourceText, out var kwQuestion, out var kwOptions))
                 (question, options) = (kwQuestion, kwOptions);
             await AskClarificationAsync(seller, session, ctx, question, options, ct);
@@ -258,11 +258,21 @@ public partial class ConversationEngine
             return;
         }
 
+        // A phone read from the message ("030011122": a digit short) is checked like one typed as an answer, instead of being saved as it is.
+        string? badPhone = null;
+        if (!pending.PaidInFull && !string.IsNullOrWhiteSpace(pending.Phone) && !IsPlausiblePhone(pending.Phone))
+        {
+            badPhone = pending.Phone.Trim();
+            pending.Phone = null;
+        }
+
         if (string.IsNullOrWhiteSpace(pending.Phone) && !pending.PaidInFull)
         {
             ctx.PendingMissingField = "Phone";
             SetState(session, ConversationState.AwaitingOrderMissingFields);
-            await ReplyAsync(seller, "Customer ka phone number bhi bataiye?", ct);
+            await ReplyAsync(seller, badPhone is null
+                ? "Customer ka phone number bhi bataiye?"
+                : $"⚠️ Phone number \"{badPhone}\" poora nahi lagta ({badPhone.Count(char.IsDigit)} digits). Barae meherbani sahi number bhejein, jaise 03001234567.", ct);
             return;
         }
 
@@ -478,7 +488,7 @@ public partial class ConversationEngine
             return true;
         }
 
-        await ReplyAsync(seller, "↩️ Adhoora order chhod diya.", ct);
+        await ReplyAsync(seller, "↩️ Pichla adhoora order mansookh kar diya gaya hai.", ct);
         await ExecuteCommandAsync(seller, session, ctx, command!, ct);
         return true;
     }
@@ -576,6 +586,14 @@ public partial class ConversationEngine
     private static bool IsProductStepAnswer(string message) =>
         System.Text.RegularExpressions.Regex.IsMatch(message.Trim(), @"^(?:[12](?:\s+.+)?|(?:rs\.?\s*)?\d[\d,]*(?:\.\d+)?)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
+    /// <summary>10 to 13 digits (03001234567, 3001234567, 923001234567, a landline with its code) and no letters; anything else is a typo.</summary>
+    internal static bool IsPlausiblePhone(string? phone)
+    {
+        if (string.IsNullOrWhiteSpace(phone)) return false;
+        var digits = phone.Count(char.IsDigit);
+        return digits is >= 10 and <= 13 && !phone.Any(char.IsLetter);
+    }
+
     private async Task HandleOrderMissingFieldAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         var pending = ctx.PendingOrder!;
@@ -591,7 +609,7 @@ public partial class ConversationEngine
             ctx.PendingNewProductName = null;
             ctx.PendingMissingField = null;
             SetState(session, ConversationState.Idle);
-            await ReplyAsync(seller, "Pichla adhoora order chhor diya.", ct);
+            await ReplyAsync(seller, "Pichla adhoora order mansookh kar diya gaya hai.", ct);
             await ExecuteCommandAsync(seller, session, ctx, leave, ct);
             return;
         }
@@ -630,7 +648,7 @@ public partial class ConversationEngine
                     await ReplyAsync(seller, "Kaunsa existing product hai? (naam batayein)", ct);
                     return;
                 }
-                await ReplyAsync(seller, "Reply 1 ya 2.", ct);
+                await ReplyAsync(seller, "Barae meherbani 1 ya 2 likh kar jawab dein.", ct);
                 return;
             }
 
@@ -678,7 +696,7 @@ public partial class ConversationEngine
                 return;
 
             case "Phone":
-                if (message.Count(char.IsDigit) < 10)
+                if (!IsPlausiblePhone(message))
                 {
                     await ReplyAsync(seller, "Phone number sahi nahi lagta — sirf number bhejein (e.g. 03001234567), ya \"cancel\" likhein.", ct);
                     return;
@@ -765,7 +783,7 @@ public partial class ConversationEngine
             return;
         }
 
-        await ReplyAsync(seller, "Reply 1 ya 2.", ct);
+        await ReplyAsync(seller, "Barae meherbani 1 ya 2 likh kar jawab dein.", ct);
     }
 
     private static PendingOrderData CopyHeader(PendingOrderData source) => new()
@@ -927,7 +945,7 @@ public partial class ConversationEngine
             return;
         }
 
-        await ReplyAsync(seller, "Reply 1 ya 2.", ct);
+        await ReplyAsync(seller, "Barae meherbani 1 ya 2 likh kar jawab dein.", ct);
     }
 
     /// <summary>The AI writes the options freely, so the reply is picked from the option's wording; unrecognised wording gets a neutral prompt, never an order prompt.</summary>
@@ -1002,7 +1020,7 @@ public partial class ConversationEngine
         var text = $"🌟 {customer?.Name} ka {Formatters.Ordinal(orderCount)} order hai — {rule.DiscountPercent:0.##}% loyalty discount apply karna chahenge?";
         if (session is null)
         {
-            await ReplyAsync(seller, $"{text}\n(Baad mein discount code se de saktay hain.)", ct);
+            await ReplyAsync(seller, $"{text}\n(Baad mein discount code se de sakte hain.)", ct);
             return;
         }
 

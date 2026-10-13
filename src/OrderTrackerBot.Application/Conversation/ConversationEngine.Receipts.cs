@@ -23,7 +23,7 @@ public partial class ConversationEngine
         var (order, fromList) = await FindReceiptOrderAsync(seller, ctx, cmd, ct);
         if (order is null)
         {
-            await ReplyAsync(seller, cmd.Number is not null ? $"Order #{cmd.Number} nahi mila."
+            await ReplyAsync(seller, cmd.Number is not null ? $"Order #{cmd.Number} nahi mila. Apne orders dekhne ke liye \"orders today\" likhein."
                 : cmd.Text is not null ? $"{cmd.Text} ka koi order nahi mila." : "Abhi koi order nahi hai.", ct);
             return;
         }

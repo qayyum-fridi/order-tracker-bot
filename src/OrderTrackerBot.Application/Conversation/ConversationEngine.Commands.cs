@@ -91,7 +91,7 @@ public partial class ConversationEngine
                 new MenuRow("discount performance", "Discount performance"),
                 new MenuRow("monthly net", "Monthly net"), new MenuRow("expenses", "Expenses"), BackToMenu
             }),
-            ["catalog"] = ("🛍️ Catalog", "🛍️ Catalog\n • naya product: Kurti - 1800\n • stock: \"stock Kurti 20\" / \"stock\"\n • weight/pack: Sugar 5 kg - 500\n • edit product: Kurti - 1900\n • delete product: Kurti\n • filter: \"products vendor Ali\" / \"products category Shirts\"\n • wholesale: Kaju - price tiers: 1kg=320, 10kg=300\n • barcode: \"barcode Kurti 8961234567890\" (scanner ke liye)\n • ek saath kai products bhi bhej saktay hain", new[]
+            ["catalog"] = ("🛍️ Catalog", "🛍️ Catalog\n • naya product: Kurti - 1800\n • stock: \"stock Kurti 20\" / \"stock\"\n • weight/pack: Sugar 5 kg - 500\n • edit product: Kurti - 1900\n • delete product: Kurti\n • filter: \"products vendor Ali\" / \"products category Shirts\"\n • wholesale: Kaju - price tiers: 1kg=320, 10kg=300\n • barcode: \"barcode Kurti 8961234567890\" (scanner ke liye)\n • ek saath kai products bhi bhej sakte hain", new[]
             {
                 new MenuRow("catalog", "View catalog"), new MenuRow("share catalog", "Share catalog"),
                 new MenuRow("add product", "Add product"), new MenuRow("add product (detailed)", "Add product (form)"),
@@ -115,7 +115,7 @@ public partial class ConversationEngine
                 new MenuRow("comment leads", "📷 Comment leads"), new MenuRow("connect instagram", "📷 Connect Instagram"),
                 new MenuRow("add customer (detailed)", "Add customer (form)"), BackToMenu
             }),
-            ["shop"] = ("🏪 Counter & dukaan", "🏪 Counter & dukaan\n • walkin Kurti 2, Dupatta — dukaan par bikri (kal/bank bhi likh saktay hain)\n • drawer open 5000 · cash in/out 500 · drawer close 12000\n • payout pending — courier ka baqi paisa\n • label 12 · business label · label size 4x6\n • scan cart — scanner se product (barcode Kurti 8961...)\n • printer · receipt size 80mm\n • profit · stock Kurti 20", new[]
+            ["shop"] = ("🏪 Counter & dukaan", "🏪 Counter & dukaan\n • walkin Kurti 2, Dupatta — dukaan par bikri (kal/bank bhi likh sakte hain)\n • drawer open 5000 · cash in/out 500 · drawer close 12000\n • payout pending — courier ka baqi paisa\n • label 12 · business label · label size 4x6\n • scan cart — scanner se product (barcode Kurti 8961...)\n • printer · receipt size 80mm\n • profit · stock Kurti 20", new[]
             {
                 new MenuRow("walkin", "Counter sale (walk-in)"), new MenuRow("drawer", "Cash drawer"),
                 new MenuRow("payout pending", "Courier payouts"), new MenuRow("label", "Labels"),
@@ -477,7 +477,7 @@ public partial class ConversationEngine
                 }
                 ctx.RuntimeFilterCommand = "trending";
                 SetState(session, ConversationState.AwaitingRuntimeFilterChoice);
-                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, "📈 Konsi time period dekhna chahte hain? (\"last 30 days\" bhi likh saktay hain)",
+                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, "📈 Konsi time period dekhna chahte hain? (\"last 30 days\" bhi likh sakte hain)",
                     new[] { "This Week", "This Month", "Custom Dates" }, ct);
                 return;
             case CommandKind.SlowMovers:
@@ -503,7 +503,7 @@ public partial class ConversationEngine
                 await HandleBroadcastRequestAsync(seller, session, ctx, cmd, ct);
                 return;
             default:
-                await ReplyAsync(seller, "Samajh nahi aaya 🤔 \"help\" likh kar commands dekhein.", ct);
+                await ReplyAsync(seller, "Maaf kijiye, yeh command samajh nahi aaya. Tamam commands dekhne ke liye \"help\" likhein.", ct);
                 return;
         }
     }
@@ -620,7 +620,7 @@ public partial class ConversationEngine
                 "🛍️ Aapka catalog abhi khali hai.\n\n" +
                 "Product add karna bohot aasan hai — bas naam aur price bhejein:\n" +
                 "Lawn Suit - 3500\n\n" +
-                "Ek saath kai products bhi bhej saktay hain (har line mein ek):\n" +
+                "Ek saath kai products bhi bhej sakte hain (har line mein ek):\n" +
                 "Lawn Suit - 3500\nKurti - 1800\nDupatta - 900\n\n" +
                 "Weight/pack wale products: Sugar 5 kg - 500", ct);
             return;
@@ -719,10 +719,10 @@ public partial class ConversationEngine
             "create discount: EID10, 10 percent, expires 15 days\n\n" +
             "Ya flat amount:\n" +
             "create discount: WELCOME50, Rs.50 flat\n\n" +
-            "Ya seedha sirf code ka naam bhejein (e.g. EID10) — main value pooch loon ga. \"cancel\" likh kar ruk saktay hain.",
+            "Ya seedha sirf code ka naam bhejein (e.g. EID10) — main value pooch loon ga. \"cancel\" likh kar ruk sakte hain.",
         "product" =>
-            "🛍️ Product add karne ke liye bas likhein:\n\nKurti - 1800\n\n" +
-            "Ek saath kai bhi bhej saktay hain (har line mein ek).",
+            "🛍️ Product shamil karne ke liye is tarah likhein:\n\nKurti - 1800\n\n" +
+            "Aap ek saath kai products bhi bhej sakte hain (har line mein ek product).",
         "payment" =>
             "💳 Payment method save karne ke liye likhein:\n\n" +
             "add payment: jazzcash, 0300-1234567\nadd payment: easypaisa, 0300-1234567",
@@ -793,8 +793,17 @@ public partial class ConversationEngine
         pendingExtras = new Dictionary<string, ProductExtras>(pendingExtras, StringComparer.OrdinalIgnoreCase);
 
         var saved = new List<string>();
+        var priceKept = new List<string>();
         foreach (var p in products.Where(p => p.Price is not null))
         {
+            // A price the AI read out of free text never silently overwrites a product that already exists: the seller changes prices on purpose.
+            var lowerName = p.Name.ToLower();
+            var current = await _db.Products.FirstOrDefaultAsync(x => x.SellerId == seller.Id && x.IsActive && x.UnitType == "piece" && x.UnitQty == 1 && x.Name.ToLower() == lowerName, ct);
+            if (current is not null && current.Price != p.Price!.Value)
+            {
+                priceKept.Add($"⚠️ {Formatters.ProductLabel(current)} pehle se {Formatters.Money(current.Price)} par hai — price nahi badli.\nBadalni ho to likhein: edit product: {current.Name} - {p.Price.Value:0.##}");
+                continue;
+            }
             pendingExtras.TryGetValue(p.Name, out var earlier);
             var (product, _) = await UpsertProductAsync(seller, new ProductLine(p.Name, p.Price!.Value, "piece", 1, MergeExtras(earlier, ExtrasOf(p))), ct);
             pendingExtras.Remove(p.Name);
@@ -821,6 +830,8 @@ public partial class ConversationEngine
 
         var reply = saved.Count == 0 ? "" : $"✅ {saved.Count} product{(saved.Count == 1 ? "" : "s")} catalog mein add ho gaye:\n{string.Join("\n", saved)}\n\n";
 
+        if (priceKept.Count > 0) reply += string.Join("\n\n", priceKept) + "\n\n";
+
         // Names the seller listed without a price that are already in the catalog: say so, instead of silently skipping them.
         var already = products.Where(p => p.Price is null).Select(p => p.Name).Distinct(StringComparer.OrdinalIgnoreCase)
             .Where(n => activeNames.Contains(n, StringComparer.OrdinalIgnoreCase)).ToList();
@@ -834,7 +845,7 @@ public partial class ConversationEngine
         if (needPrice.Count > 0)
             reply += "📦 Samajh gaya — yeh naye products hain:\n" +
                      string.Join("\n", needPrice.Select(n => $"• {n}{(ctx.PendingProductExtras is { } extras && extras.FirstOrDefault(e => string.Equals(e.Key, n, StringComparison.OrdinalIgnoreCase)) is { Value: not null } found ? ExtrasText(found.Value) : "")}")) +
-                     "\n\nBas har product ki sale price bata dein (misaal: 'Kurti - 1800' ya \"teenon ki 5000\") — jo kuch aap ne bataya hai (cost, stock) woh yaad hai.";
+                     "\n\nBarae meherbani har product ki sale price bata dein (misaal: 'Kurti - 1800' ya \"teenon ki 5000\") — jo kuch aap ne bataya hai (cost, stock) woh yaad hai.";
         if (needPrice.Count > 0) reply += "\n\n" + PriceHowToText(needPrice[0]);
         await ReplyAsync(seller, reply.TrimEnd(), ct);
     }
@@ -905,7 +916,7 @@ public partial class ConversationEngine
         if (lines is null)
         {
             await ReplyAsync(seller,
-                "⚠️ Sheet se products load nahi ho sake. Check karein ke sheet \"Anyone with the link can view\" par set ho, ya products ek ek karke bhi bhej saktay hain (e.g. 'Kurti - 1800').", ct);
+                "⚠️ Sheet se products load nahi ho sake. Check karein ke sheet \"Anyone with the link can view\" par set ho, ya products ek ek karke bhi bhej sakte hain (e.g. 'Kurti - 1800').", ct);
             return;
         }
 
@@ -1060,7 +1071,7 @@ public partial class ConversationEngine
         var product = await FindProductAsync(seller, cmd.Text!, ct);
         if (product is null)
         {
-            await ReplyAsync(seller, $"\"{cmd.Text}\" catalog mein nahi mila.", ct);
+            await ReplyAsync(seller, $"\"{cmd.Text}\" catalog mein nahi mila. Catalog dekhne ke liye \"catalog\" likhein.", ct);
             return;
         }
 
@@ -1083,7 +1094,7 @@ public partial class ConversationEngine
             .FirstOrDefaultAsync(o => o.SellerId == seller.Id && o.Id == orderId, ct);
         if (order is null)
         {
-            await ReplyAsync(seller, $"Order #{cmd.Number} nahi mila.", ct);
+            await ReplyAsync(seller, $"Order #{cmd.Number} nahi mila. Apne orders dekhne ke liye \"orders today\" likhein.", ct);
             return;
         }
 
@@ -1202,6 +1213,6 @@ public partial class ConversationEngine
         await ReplyAsync(seller,
             $"💸 Unpaid Orders ({orders.Count}):\n\n{string.Join("\n", lines)}\n\n" +
             $"Total pending: {Formatters.Money(orders.Sum(OrderMoney.Balance))}\n\n" +
-            "\"payment link 1\" likh kar link bhej saktay hain.", ct);
+            "\"payment link 1\" likh kar link bhej sakte hain.", ct);
     }
 }

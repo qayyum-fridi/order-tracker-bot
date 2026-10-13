@@ -30,7 +30,7 @@ public partial class ConversationEngine
         var order = await _db.Orders.Include(o => o.Customer).FirstOrDefaultAsync(o => o.SellerId == seller.Id && o.Id == orderId, ct);
         if (order is null)
         {
-            await ReplyAsync(seller, $"Order #{number} nahi mila.", ct);
+            await ReplyAsync(seller, $"Order #{number} nahi mila. Apne orders dekhne ke liye \"orders today\" likhein.", ct);
             return;
         }
         if (IsDispatched(order))

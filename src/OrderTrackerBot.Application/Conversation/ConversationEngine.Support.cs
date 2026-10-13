@@ -150,7 +150,7 @@ public partial class ConversationEngine
         if (query is not null && (CommandParser.IsNegative(message) || text is "cancel" or "skip" or "baad mein"))
         {
             ClearSupportPrompt(session, ctx);
-            await ReplyAsync(seller, $"Theek hai — query #{query.Number} open rahegi. \"support queries\" se baad mein dekh saktay hain.", ct);
+            await ReplyAsync(seller, $"Theek hai — query #{query.Number} open rahegi. \"support queries\" se baad mein dekh sakte hain.", ct);
             return;
         }
 
@@ -476,7 +476,7 @@ public partial class ConversationEngine
             $"{l.Number}. {LeadName(l)} - \"{Shorten(l.CommentText, 30)}\" - {LeadStatusLabel(l.Status)}");
         await ReplyAsync(seller,
             $"📷 Naye Comment Leads ({leads.Count}):\n\n{string.Join("\n", lines)}\n\n" +
-            "\"lead 1 converted\" likh kar order se link karein.\n\"lead 1 followed up\" / \"lead 1 dismiss\" bhi likh saktay hain.", ct);
+            "\"lead 1 converted\" likh kar order se link karein.\n\"lead 1 followed up\" / \"lead 1 dismiss\" bhi likh sakte hain.", ct);
     }
 
     private static string LeadName(CommentLead lead) =>
@@ -518,7 +518,7 @@ public partial class ConversationEngine
             var order = await _db.Orders.FirstOrDefaultAsync(o => o.Id == (int)orderNumber && o.SellerId == seller.Id, ct);
             if (order is null)
             {
-                await ReplyAsync(seller, $"Order #{orderNumber} nahi mila.", ct);
+                await ReplyAsync(seller, $"Order #{orderNumber} nahi mila. Apne orders dekhne ke liye \"orders today\" likhein.", ct);
                 return;
             }
 

@@ -59,7 +59,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
                 Intent = "unclear",
                 IsOrderAttempt = false,
                 AiUnavailable = true,
-                ClarificationQuestion = "Mujhe samajh nahi aaya 🤔 Kya aap:",
+                ClarificationQuestion = "Maaf kijiye, mujhe aapki baat samajh nahi aayi 🙏 Kya aap yeh kehna chahte hain:",
                 ClarificationOptions = { "Naya order add karna chahte hain", "Kisi order ka status update karna chahte hain" }
             };
         }
@@ -146,7 +146,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
                 Intent = "unclear",
                 IsOrderAttempt = false,
                 AiUnavailable = true,
-                ClarificationQuestion = "⚠️ Kuch masla ho gaya, dobara try karein ya tafseel se likhein.",
+                ClarificationQuestion = "⚠️ Maaf kijiye, is waqt aapki request poori nahi ho saki. Barae meherbani dobara koshish karein, ya tafseel se likhein.",
                 ClarificationOptions = { "Naya order add karna chahte hain", "Kisi order ka status update karna chahte hain" }
             };
         }
