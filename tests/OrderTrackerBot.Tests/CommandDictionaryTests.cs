@@ -205,6 +205,8 @@ public class CommandDictionaryTests
     [InlineData("what can I do", CommandKind.Help)]
     [InlineData("how to use", CommandKind.Help)]
     [InlineData("madad chahiye", CommandKind.Help)]
+    [InlineData("margin", CommandKind.Margin)]
+    [InlineData("discount room", CommandKind.Margin)]
     public void DocumentedPhrase_ParsesToItsCommand(string phrase, CommandKind expected) =>
         Assert.Equal(expected, CommandParser.TryParse(phrase)?.Kind);
 

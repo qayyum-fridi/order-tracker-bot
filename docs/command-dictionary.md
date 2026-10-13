@@ -66,6 +66,7 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 | Today's account | `aaj ka hisaab` · `today's summary` · `hisaab` · `hisaab kitab` · `daily report` · `daily summary` · `today report` · `aaj ka account` · `آج کا حساب` (sales, top item, expenses, drawer cash) |
 | Other days | `kal ka hisaab` · `weekly summary` |
 | Profit | `profit` · `profit today` · `munafa` |
+| Margin / how much discount a product can take | `margin` · `margin list` · `profit margin` · `discount room` |
 | Expenses | `expense 500 packaging` · `kharcha 800 petrol` · `expenses` · `monthly net` |
 | Payment link / methods | `payment link` · `add payment: jazzcash, 03001234567` |
 | Cash drawer | (`gala` · `galla` = `drawer`) `drawer open 5000` · `cash in 500 float` · `cash out 300 chai` · `drawer` · `drawer close 12000` |
