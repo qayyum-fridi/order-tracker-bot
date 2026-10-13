@@ -670,7 +670,7 @@ public class MockupFeatureTests : IDisposable
 
         Assert.True(await db.Products.AnyAsync(p => p.Name == "Wool Dupatta" && p.Price == 800));
         Assert.False(await db.Products.AnyAsync(p => p.Name == "Khaddar Chadar"));
-        Assert.Contains(_sent, m => m.Contains("Wool Dupatta") && m.Contains("add ho gaye") && m.Contains("Khaddar Chadar") && m.Contains("order nahi"));
+        Assert.Contains(_sent, m => m.Contains("Wool Dupatta") && m.Contains("add ho gaye") && m.Contains("Khaddar Chadar") && m.Contains("naye products hain"));
         Assert.Equal(0, await db.Orders.CountAsync());
     }
 

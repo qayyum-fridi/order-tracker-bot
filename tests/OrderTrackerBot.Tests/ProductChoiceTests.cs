@@ -155,6 +155,50 @@ public class ProductChoiceTests : IDisposable
         Assert.Contains(_sent, m => m.Contains("pehle catalog mein tha") && m.Contains("wapas chalu"));
     }
 
+    [Theory]
+    [InlineData("9000", 9000)]
+    [InlineData("Rs. 9,000", 9000)]
+    [InlineData("9000 rupay", 9000)]
+    public async Task ABareAmount_AnswersTheWaitingNewProductsPrice(string reply, int price)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "add_products", NewProducts = { new AiNewProduct { Name = "Handbag" } } });
+        await engine.HandleIncomingMessageAsync(Phone, "ek handbag naya product hai", default);
+        Assert.True(_sent.Any(m => m.Contains("ki price bhejein")), string.Join(" || ", _sent));
+        _sent.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, reply, default);
+
+        Assert.DoesNotContain(_sent, m => m.Contains("Aap kya kehna chahte hain"));
+        Assert.Equal(price, (await db.Products.SingleAsync(p => p.Name == "Handbag")).Price);
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "7000", default);        // nothing is waiting any more: the number is not a price for anything
+        Assert.Equal(1, await db.Products.CountAsync(p => p.Name == "Handbag"));
+        Assert.DoesNotContain(_sent, m => m.Contains("catalog mein add ho gaya"));
+    }
+
+    [Fact]
+    public async Task NamingProducts_SaysWhichOnesAreAlreadyInTheCatalog_AndNeverCallsThemNotOrders()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);                // catalog has Kurti - 1800
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis
+            {
+                Intent = "add_products",
+                NewProducts = { new AiNewProduct { Name = "Chadar" }, new AiNewProduct { Name = "Kurti" } }
+            });
+
+        await engine.HandleIncomingMessageAsync(Phone, "teen chadar aur do kurti naye products hain", default);
+
+        Assert.Contains(_sent, m => m.Contains("Pehle se catalog mein hain") && m.Contains("Kurti") && m.Contains("1,800"));
+        Assert.Contains(_sent, m => m.Contains("naye products hain") && m.Contains("Chadar"));
+        Assert.DoesNotContain(_sent, m => m.Contains("order nahi"));
+        Assert.Equal(1, await db.Products.CountAsync(p => p.Name == "Kurti"));
+    }
+
     [Fact]
     public async Task ChhoroCancelsTheDraft()
     {
