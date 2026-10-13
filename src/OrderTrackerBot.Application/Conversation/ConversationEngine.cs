@@ -29,6 +29,7 @@ public partial class ConversationEngine
     private readonly IImportFileReader? _importReader;
     private readonly FeatureOptions _features;
     private readonly IIssueReporter? _issues;
+    private readonly Microsoft.Extensions.Logging.ILogger<ConversationEngine>? _logger;
     private readonly INewSellerNotifier? _newSellers;
     private readonly MediaRateLimiter? _mediaLimiter;
     private readonly TimeProvider _clock;
@@ -43,8 +44,9 @@ public partial class ConversationEngine
         IReceiptPdfGenerator? receiptPdf = null, IExportFileWriter? exportWriter = null, FeatureOptions? features = null,
         IIssueReporter? issues = null, IAudioTranscriber? transcriber = null, IImportFileReader? importReader = null,
         INewSellerNotifier? newSellers = null, MediaRateLimiter? mediaLimiter = null, TimeProvider? clock = null,
-        IMerchantEmailSender? emailSender = null)
+        IMerchantEmailSender? emailSender = null, Microsoft.Extensions.Logging.ILogger<ConversationEngine>? logger = null)
     {
+        _logger = logger;
         _email = emailSender;
         _clock = clock ?? TimeProvider.System;
         _newSellers = newSellers;

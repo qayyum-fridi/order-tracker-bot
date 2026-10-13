@@ -455,6 +455,7 @@ public partial class ConversationEngine
 
         // The wipe is one SaveChanges, so it either fully applies or leaves the data as it was.
         await SellerAccountReset.ResetAsync(_db, seller, ct);
+        await _db.SaveChangesAsync(ct); // persist before telling the seller it worked
         await ReplyAsync(seller, "✅ Account reset ho gaya.", ct);
         await StartOnboardingAsync(seller, session, ct);
     }
