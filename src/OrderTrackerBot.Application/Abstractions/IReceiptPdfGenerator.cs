@@ -32,7 +32,10 @@ public sealed record ReceiptData(
     string? Ntn = null,
     string? Strn = null,
     decimal SalesTaxRate = 0,
-    decimal SalesTaxAmount = 0);
+    decimal SalesTaxAmount = 0,
+    string PaperSize = "A5",
+    string? Footer = null,
+    string? Notes = null);
 
 public interface IReceiptPdfGenerator
 {

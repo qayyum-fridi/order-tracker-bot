@@ -247,4 +247,10 @@ shared-state action: confirm with the user and get SSH/host details first.
   are set. The same SMTP settings power `NewSellerEmailNotifier` (`INewSellerNotifier`, called once from `LoadOrCreateSellerAsync` when a seller row is first created; background send, never awaited by the engine).
   `POST /internal/test-error` (header `X-Test-Token`, only mapped when `ErrorLog:TestToken` is set) raises one dummy OTB-1001 for end-to-end checks.
   Failures there are logged only, never reported through `IIssueReporter`. CSV cells are always quoted and a leading `= + - @` is prefixed with `'`.
+- Receipt settings / printing / email (`ConversationEngine.ReceiptSettings.cs`, `Infrastructure/Email/MerchantEmailSender.cs`, `Infrastructure/Pdf/ReceiptPdfGenerator.cs`): `receipt size 80mm|58mm|A5|A4`
+  (`Seller.ReceiptSize`, null = A5; 80/58mm use `RenderThermal`, a continuous-height one-column layout), `receipt footer`, `note 12 <text>` (`Order.Notes`, printed on the receipt), `email <addr>`
+  (`Seller.Email`), `email receipt [12] [to addr]`, `printer` (guide), `receipt settings`. `HandleReceiptAsync` and the email path share `RenderReceiptAsync` (serial receipt number given back when the
+  send fails). The bot never prints itself: the seller prints the PDF from their phone/computer. Email needs `MerchantEmail:SmtpUser/SmtpPassword` (separate from the founder's `ErrorLog:*` SMTP; the
+  service is only registered when set, engine param `emailSender` is optional), 20 emails/seller/hour in memory, default recipient is the seller's own address. No email for exports/summaries yet, no buyer
+  email field. New `Sellers` columns: Sqlite patcher adds them, **no SQL Server migration yet**. The thermal PDF layout was written without being rendered: check an actual 58mm/80mm print.
 - The WhatsApp list body (help) must stay ≤ 1024 chars — a test enforces it; keep `HelpText` curated rather than exhaustive.

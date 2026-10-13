@@ -273,6 +273,27 @@ public partial class ConversationEngine
             case CommandKind.Receipt:
                 await HandleReceiptAsync(seller, ctx, cmd, ct);
                 return;
+            case CommandKind.ReceiptSettings:
+                await HandleReceiptSettingsAsync(seller, ct);
+                return;
+            case CommandKind.ReceiptSize:
+                await HandleReceiptSizeAsync(seller, cmd.Text, ct);
+                return;
+            case CommandKind.ReceiptFooter:
+                await HandleReceiptFooterAsync(seller, cmd.Text, ct);
+                return;
+            case CommandKind.OrderNote:
+                await HandleOrderNoteAsync(seller, ctx, cmd, ct);
+                return;
+            case CommandKind.SetEmail:
+                await HandleSetEmailAsync(seller, cmd.Text, ct);
+                return;
+            case CommandKind.EmailReceipt:
+                await HandleEmailReceiptAsync(seller, ctx, cmd, ct);
+                return;
+            case CommandKind.PrinterHelp:
+                await HandlePrinterHelpAsync(seller, ct);
+                return;
             case CommandKind.ProductReport:
                 await HandleProductReportAsync(seller, cmd.Text!, ct);
                 return;

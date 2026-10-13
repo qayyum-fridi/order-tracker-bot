@@ -32,6 +32,9 @@ public static class SellerAccountReset
         seller.City = null;
         seller.BusinessType = null;
         seller.InstagramHandle = null;
+        seller.Email = null;
+        seller.ReceiptSize = null;
+        seller.ReceiptFooter = null;
         seller.OnboardingComplete = false;
         seller.PreferredLanguage = Lang.RomanUrdu;
     }

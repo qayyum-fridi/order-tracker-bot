@@ -33,6 +33,7 @@ public partial class ConversationEngine
     private readonly MediaRateLimiter? _mediaLimiter;
     private readonly TimeProvider _clock;
     private readonly IAudioTranscriber? _transcriber;
+    private readonly IMerchantEmailSender? _email;
     private readonly MessageLoggingSender _turn;
     private Seller? _turnSeller;
     private SessionContextData? _turnCtx;
@@ -41,8 +42,10 @@ public partial class ConversationEngine
         BillingOptions? billing = null, IWhatsAppMediaClient? media = null, IInstagramClient? instagram = null, ICatalogSheetImporter? catalogSheets = null,
         IReceiptPdfGenerator? receiptPdf = null, IExportFileWriter? exportWriter = null, FeatureOptions? features = null,
         IIssueReporter? issues = null, IAudioTranscriber? transcriber = null, IImportFileReader? importReader = null,
-        INewSellerNotifier? newSellers = null, MediaRateLimiter? mediaLimiter = null, TimeProvider? clock = null)
+        INewSellerNotifier? newSellers = null, MediaRateLimiter? mediaLimiter = null, TimeProvider? clock = null,
+        IMerchantEmailSender? emailSender = null)
     {
+        _email = emailSender;
         _clock = clock ?? TimeProvider.System;
         _newSellers = newSellers;
         _mediaLimiter = mediaLimiter;

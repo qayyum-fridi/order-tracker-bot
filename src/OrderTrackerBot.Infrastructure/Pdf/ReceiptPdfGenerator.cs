@@ -64,11 +64,102 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
         }
     }
 
-    private static byte[] Render(ReceiptData r)
+    /// <summary>Roll width in mm for "80mm" / "58mm" (thermal printers); null for the sheet sizes.</summary>
+    private static float? ThermalWidthMm(string? paperSize) => paperSize?.Trim().ToLowerInvariant() switch
     {
+        "80mm" => 80f,
+        "58mm" => 58f,
+        _ => null
+    };
+
+    /// <summary>
+    /// Thermal roll receipt: one narrow column, continuous height (the page is as long as the content, so nothing is cut or wasted),
+    /// each item on two lines (name, then qty x price and amount) because a 58mm roll has no room for a table. Plain black on white: thermal heads print no grey.
+    /// </summary>
+    private static byte[] RenderThermal(ReceiptData r, float widthMm)
+    {
+        var size = widthMm < 70f ? 8f : 9f;
         return Document.Create(doc => doc.Page(page =>
         {
-            page.Size(PageSizes.A5);
+            page.ContinuousSize(widthMm, Unit.Millimetre);
+            page.Margin(3, Unit.Millimetre);
+            page.DefaultTextStyle(Base.FontSize(size).FontColor(Colors.Black));
+
+            page.Content().Column(col =>
+            {
+                col.Spacing(3);
+                if (r.Logo is not null) col.Item().AlignCenter().Height(32).Image(r.Logo).FitArea();
+                col.Item().AlignCenter().Text(r.BusinessName).FontSize(size + 3).Bold();
+                var sub = string.Join(" · ", new[] { r.BusinessCity, r.BusinessPhone }.Where(s => !string.IsNullOrWhiteSpace(s)));
+                if (sub.Length > 0) col.Item().AlignCenter().Text(sub).FontSize(size - 1);
+                var taxIds = string.Join(" · ", new[] { Id("NTN", r.Ntn), Id("STRN", r.Strn) }.Where(s => s is not null));
+                if (taxIds.Length > 0) col.Item().AlignCenter().Text(taxIds).FontSize(size - 1);
+                col.Item().AlignCenter().Text(r.SalesTaxRate > 0 ? "TAX INVOICE" : "RECEIPT").Bold();
+                col.Item().AlignCenter().Text((r.ReceiptNumber is { } no ? $"No. {no} · " : "") + $"Order #{r.OrderId}");
+                col.Item().AlignCenter().Text(r.OrderedAtLocal.ToString("dd MMM yyyy, hh:mm tt", CultureInfo.InvariantCulture)).FontSize(size - 1);
+                col.Item().LineHorizontal(0.5f);
+
+                col.Item().Column(c =>
+                {
+                    c.Item().Text(r.CustomerName).Bold();
+                    if (!string.IsNullOrWhiteSpace(r.CustomerPhone)) c.Item().Text(r.CustomerPhone);
+                    if (!string.IsNullOrWhiteSpace(r.CustomerAddress)) c.Item().Text(r.CustomerAddress);
+                });
+                col.Item().LineHorizontal(0.5f);
+
+                foreach (var item in r.Lines)
+                    col.Item().Column(c =>
+                    {
+                        c.Item().Text(item.Name);
+                        c.Item().Row(row =>
+                        {
+                            row.RelativeItem().Text($"{item.Quantity.ToString(CultureInfo.InvariantCulture)} x {Money(item.UnitPrice)}");
+                            row.AutoItem().Text(Money(item.LineTotal));
+                        });
+                    });
+                col.Item().LineHorizontal(0.5f);
+
+                void Row(string label, string value, bool bold = false) => col.Item().Row(row =>
+                {
+                    row.RelativeItem().Text(label).Style(bold ? TextStyle.Default.Bold() : TextStyle.Default);
+                    row.AutoItem().Text(value).Style(bold ? TextStyle.Default.Bold() : TextStyle.Default);
+                });
+                Row("Subtotal", Money(r.Subtotal));
+                if (r.DiscountAmount > 0)
+                    Row(string.IsNullOrWhiteSpace(r.DiscountCode) ? "Discount" : $"Discount ({r.DiscountCode})", "- " + Money(r.DiscountAmount));
+                if (r.DeliveryCharge > 0) Row("Delivery", Money(r.DeliveryCharge));
+                if (r.SalesTaxRate > 0)
+                    Row($"Sales tax ({r.SalesTaxRate.ToString("0.##", CultureInfo.InvariantCulture)}%)", Money(r.SalesTaxAmount));
+                Row(r.SalesTaxRate > 0 ? "TOTAL (incl. tax)" : "TOTAL", Money(r.Total), bold: true);
+
+                var partly = !r.Paid && r.AmountPaid > 0;
+                col.Item().Text($"{r.PaymentMethod}: {(r.Paid ? "PAID" : partly ? "PARTLY PAID" : "UNPAID")}").Bold();
+                if (partly)
+                {
+                    Row("Paid", Money(r.AmountPaid));
+                    Row("Balance due", Money(Math.Max(0, r.Total - r.AmountPaid)), bold: true);
+                }
+                if (!string.IsNullOrWhiteSpace(r.TrackingNumber)) col.Item().Text($"Tracking: {r.TrackingCourier} {r.TrackingNumber}".Replace("  ", " ").Trim());
+                if (!r.Paid && r.PayTo.Count > 0)
+                {
+                    col.Item().Text("Pay to:").Bold();
+                    foreach (var p in r.PayTo) col.Item().Text(p);
+                }
+                if (!string.IsNullOrWhiteSpace(r.Notes)) col.Item().Text($"Note: {r.Notes}");
+
+                col.Item().LineHorizontal(0.5f);
+                col.Item().AlignCenter().Text(string.IsNullOrWhiteSpace(r.Footer) ? $"Thank you for shopping with {r.BusinessName}!" : r.Footer).FontSize(size - 1);
+            });
+        })).GeneratePdf();
+    }
+
+    private static byte[] Render(ReceiptData r)
+    {
+        if (ThermalWidthMm(r.PaperSize) is { } thermalWidth) return RenderThermal(r, thermalWidth);
+
+        return Document.Create(doc => doc.Page(page =>
+        {
+            page.Size(string.Equals(r.PaperSize, "A4", StringComparison.OrdinalIgnoreCase) ? PageSizes.A4 : PageSizes.A5);
             page.Margin(28);
             page.DefaultTextStyle(Base);
 
@@ -178,6 +269,8 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
                             t.Span($"Balance due: {Money(Math.Max(0, r.Total - r.AmountPaid))}").Bold();
                         });
                     c.Item().Text(t => { t.Span("Order status: ").Bold(); t.Span(r.Status); });
+                    if (!string.IsNullOrWhiteSpace(r.Notes))
+                        c.Item().Text(t => { t.Span("Note: ").Bold(); t.Span(r.Notes); });
                     if (!string.IsNullOrWhiteSpace(r.TrackingNumber))
                         c.Item().Text(t => { t.Span("Tracking: ").Bold(); t.Span($"{r.TrackingCourier} {r.TrackingNumber}".Trim()); });
                     if (!r.Paid && r.PayTo.Count > 0)
@@ -188,7 +281,7 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
                 });
             });
 
-            page.Footer().AlignCenter().Text($"Thank you for shopping with {r.BusinessName}!").FontSize(9).FontColor(Muted);
+            page.Footer().AlignCenter().Text(string.IsNullOrWhiteSpace(r.Footer) ? $"Thank you for shopping with {r.BusinessName}!" : r.Footer).FontSize(9).FontColor(Muted);
         })).GeneratePdf();
     }
 }

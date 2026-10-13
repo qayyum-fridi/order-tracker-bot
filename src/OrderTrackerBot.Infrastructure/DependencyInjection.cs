@@ -81,6 +81,10 @@ public static class DependencyInjection
         services.AddSingleton(configuration.GetSection(FeatureOptions.SectionName).Get<FeatureOptions>() ?? new FeatureOptions());
 
         services.AddSingleton<IReceiptPdfGenerator, Pdf.ReceiptPdfGenerator>();
+        // Receipts by email: registered only when SMTP is set, so the engine answers "email not enabled" instead of failing (see README).
+        services.Configure<Email.MerchantEmailOptions>(configuration.GetSection(Email.MerchantEmailOptions.SectionName));
+        var merchantEmail = configuration.GetSection(Email.MerchantEmailOptions.SectionName).Get<Email.MerchantEmailOptions>() ?? new Email.MerchantEmailOptions();
+        if (merchantEmail.IsConfigured) services.AddSingleton<IMerchantEmailSender, Email.MerchantEmailSender>();
         services.AddSingleton<WhatsApp.WebhookMessageGate>();
         services.AddSingleton<WhatsApp.WebhookWorkQueue>();
         services.AddSingleton<WhatsApp.WebhookInbox>();        services.AddSingleton<IExportFileWriter, Export.ExportXlsxWriter>();

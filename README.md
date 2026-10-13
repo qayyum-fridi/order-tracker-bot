@@ -303,6 +303,18 @@ curl -X POST "https://graph.facebook.com/v20.0/$PHONE_NUMBER_ID/conversational_a
 
   The same file also sets three ice breakers (tappable prompts WhatsApp shows in a chat that has no messages yet).
 
+## Receipt settings, thermal printers and email receipts
+
+Per-seller commands (all in chat, Roman Urdu / English): `receipt settings`, `receipt size 80mm|58mm|A5|A4`, `receipt footer <line>` (`off` to clear),
+`note 12 <text>` (order note, also printed on the receipt; `note 12 off`), `email ali@shop.com`, `email receipt 12 [to buyer@mail.com]`, `printer` (how to print).
+
+- The bot never talks to a printer. It makes the PDF in the chosen paper size (80mm / 58mm are continuous-height thermal rolls) and the seller prints it
+  from their phone (e.g. RawBT / Bluetooth Print for Bluetooth thermal printers) or computer. The `printer` command explains the steps.
+- Email is off until `MerchantEmail:SmtpUser` and `MerchantEmail:SmtpPassword` are set (compose: `MERCHANT_EMAIL_USER`, `MERCHANT_EMAIL_PASSWORD`; host/port default to Gmail STARTTLS 587).
+  Gmail SMTP is fine to try it; for real volume use a transactional provider (SES, SendGrid, Resend) on your own domain with SPF/DKIM. At most 20 emails per seller per hour (in memory).
+  By default a receipt goes to the seller's own saved address; it goes to someone else only when the seller types that address in the command.
+- New `Sellers` columns `Email`, `ReceiptSize`, `ReceiptFooter` are added on Sqlite by the patcher; **SQL Server needs a migration**. `reset account` clears them.
+
 ## Known limitations / roadmap
 
 These match the spec's own version tags (V2/V3/V4) and are intentionally out of scope

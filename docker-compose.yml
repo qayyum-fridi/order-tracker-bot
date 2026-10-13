@@ -25,6 +25,8 @@ services:
       Billing__FreeSellerLimit: "${BILLING_FREE_SELLER_LIMIT:-100}"
       MediaLimits__VoicePerHour: "${MEDIA_VOICE_PER_HOUR:-30}"
       MediaLimits__ImagePerHour: "${MEDIA_IMAGE_PER_HOUR:-10}"
+      MerchantEmail__SmtpUser: "${MERCHANT_EMAIL_USER:-}"
+      MerchantEmail__SmtpPassword: "${MERCHANT_EMAIL_PASSWORD:-}"
       Billing__PaymentNumber: "${BILLING_PAYMENT_NUMBER:-}"
       Backup__Enabled: "${BACKUP_ENABLED:-false}"
       Backup__FolderId: "${BACKUP_FOLDER_ID:-}"

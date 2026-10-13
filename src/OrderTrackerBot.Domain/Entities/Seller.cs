@@ -23,6 +23,12 @@ public class Seller
     public string? Strn { get; set; }
     /// <summary>Percent of sales tax included in the seller's prices (e.g. 18). 0 = not charging sales tax, receipts stay plain receipts.</summary>
     public decimal SalesTaxRate { get; set; }
+    /// <summary>The seller's own email address: receipts are emailed here by default ("email ali@shop.com"). Cleared by "reset account".</summary>
+    public string? Email { get; set; }
+    /// <summary>Receipt paper: null/"A5" (default), "A4", "80mm" or "58mm" thermal roll ("receipt size 80mm").</summary>
+    public string? ReceiptSize { get; set; }
+    /// <summary>Line printed at the bottom of every receipt instead of the default thank-you ("receipt footer ...").</summary>
+    public string? ReceiptFooter { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>Free trial end; null until onboarding completes (trial starts then).</summary>

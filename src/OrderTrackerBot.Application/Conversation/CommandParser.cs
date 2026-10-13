@@ -94,7 +94,14 @@ public enum CommandKind
     PaymentMethodPrompt,
     ImportCatalogSheet,
     ImportHelp,
-    ImportTemplate
+    ImportTemplate,
+    ReceiptSettings,
+    ReceiptSize,
+    ReceiptFooter,
+    OrderNote,
+    SetEmail,
+    EmailReceipt,
+    PrinterHelp
 }
 
 /// <summary>What to export: any of "orders", "customers", "catalog", "discounts" (empty = ask), and an optional orders period (today/yesterday/7d/30d/lastmonth).</summary>
@@ -642,6 +649,15 @@ public static class CommandParser
     // Trailing request words are allowed ("Ali ka order khol do", "Ali ka order dikhao bhai"); anything that changes the order (cancel, edit...) is not.
     private static readonly Regex CustomerOrderLookup = new(@"^(.+?)\s+" + Of + @"\s+(?:order|آرڈر)(?:\s+(?:khol\w*|dikha\w*|bata\w*|dekh\w*|show|کھول|دکھا\w*|بتا\w*)(?:\s+(?:de|do|dein|den|dedo|kar|karo|please|plz|bhai|ji|دو|دیں))*)?$", Opts);
 
+    // Receipt settings, order note, email and printer help (ConversationEngine.ReceiptSettings.cs). Anchored and specific so nothing else is caught.
+    private static readonly Regex ReceiptSettingsCmd = new(@"^receipts?\s+(?:settings?|options?)$", Opts);
+    private static readonly Regex ReceiptSizeCmd = new(@"^receipts?\s+(?:size|paper)\s*:?\s*(?<v>.+)$", Opts);
+    private static readonly Regex ReceiptFooterCmd = new(@"^receipts?\s+footer\s*:?\s*(?<v>.*)$", Opts);
+    private static readonly Regex OrderNoteCmd = new(@"^(?:note|order\s+note)\s+#?(?<n>\d{1,9})\s*:?\s*(?<t>.*)$", Opts);
+    private static readonly Regex SetEmailCmd = new(@"^email\s*:?\s+(?<a>\S+@\S+|off|hata\s*do|hata|remove|delete|clear)$", Opts);
+    private static readonly Regex EmailReceiptCmd = new(@"^email\s+(?:the\s+)?(?:receipt|bill|invoice)(?:\s+#?(?<n>\d{1,9}))?(?:\s+(?:to|ko)\s+(?<a>\S+@\S+))?$", Opts);
+    private static readonly Regex PrinterHelpCmd = new(@"^(?:printer|thermal\s+printer|(?:print|printer)\s+(?:help|guide|setup))$", Opts);
+
     // "Ali koi customer hai?", "Ali naam ka koi customer hai, yeh mujhe bataen": does this person exist? Answered by the customer search.
     private static readonly Regex CustomerExists = new(@"^(\p{L}[\p{L}\s]{0,30}?)(?:\s+naam\s+" + Of + @")?\s+(?:koi\s+)?customer\s+(?:hai|hain|exist\w*|milta\w*|mil\s+sakta\w*)\b", Opts);
     private static readonly Regex FuzzyStatusUpdate = new(@"^(.+?)\s+" + Of + @"\s+(?:order|آرڈر)\s+.*?(deliver|ship|pending|bhej|return|wapas|wapis|waapas|ڈیلیور|شپ|پینڈنگ|واپس|ریٹرن)", Opts);
@@ -944,6 +960,24 @@ public static class CommandParser
         if (stripped.Length > 0) message = stripped;
         if (message.StartsWith('/') && ExpandSlashCommand(message) is { } expanded) message = expanded;
         Match m;
+
+        if (ReceiptSettingsCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ReceiptSettings };
+        if ((m = ReceiptSizeCmd.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.ReceiptSize, Text = m.Groups["v"].Value.Trim() };
+        if ((m = ReceiptFooterCmd.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.ReceiptFooter, Text = m.Groups["v"].Value.Trim() };
+        if ((m = OrderNoteCmd.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.OrderNote, Number = int.Parse(m.Groups["n"].Value), Text = m.Groups["t"].Value.Trim() };
+        if ((m = EmailReceiptCmd.Match(message)).Success)
+            return new ParsedCommand
+            {
+                Kind = CommandKind.EmailReceipt,
+                Number = m.Groups["n"].Success ? int.Parse(m.Groups["n"].Value) : null,
+                Text2 = m.Groups["a"].Success ? m.Groups["a"].Value : null
+            };
+        if ((m = SetEmailCmd.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.SetEmail, Text = m.Groups["a"].Value.Trim() };
+        if (PrinterHelpCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.PrinterHelp };
 
         if ((m = CatalogSheetLink.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.ImportCatalogSheet, Text = m.Value };
