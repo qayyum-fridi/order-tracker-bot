@@ -596,4 +596,446 @@ public class InsightReportTests : IDisposable
     [InlineData("Lahore", null, false)]
     public void PlaceMatching_IgnoresSpacingAndOneLetter(string place, string? saved, bool expected) =>
         Assert.Equal(expected, ConversationEngine.PlaceMatches(place, saved));
+
+    // ---------- advanced scenarios
+
+    private async Task<Order> BasketAsync(Customer c, DateTime at, params (Product P, int Qty)[] items)
+    {
+        var order = new Order { SellerId = _seller.Id, CustomerId = c.Id, Status = OrderStatus.Delivered, CreatedAt = at, PaymentMethod = OrderPaymentMethod.Cod };
+        foreach (var (p, q) in items) order.Items.Add(new OrderItem { ProductId = p.Id, ProductNameSnapshot = p.Name, UnitPrice = p.Price, Quantity = q, UnitCost = p.CostPrice });
+        order.Subtotal = items.Sum(i => i.P.Price * i.Qty);
+        order.Total = order.Subtotal;
+        _db.Orders.Add(order);
+        await _db.SaveChangesAsync();
+        return order;
+    }
+
+    [Fact]
+    public async Task BoughtTogether_ListsPartnersOfOneProduct_AndTheBestPairsOverall()
+    {
+        await SetupAsync();
+        var sara = await CustomerAsync("Sara");
+        var kurti = await ProductAsync("Kurti", 1800, cost: 1200);
+        var dupatta = await ProductAsync("Dupatta", 600, cost: 300);
+        var shawl = await ProductAsync("Shawl", 3500, cost: 2500);
+        var at = DateTime.UtcNow.AddDays(-5);
+        await BasketAsync(sara, at, (kurti, 1), (dupatta, 1));
+        await BasketAsync(sara, at, (kurti, 1), (dupatta, 1));
+        await BasketAsync(sara, at, (kurti, 1), (shawl, 1));
+        await BasketAsync(sara, at, (kurti, 1));
+        await BasketAsync(sara, at, (dupatta, 1));
+
+        var partners = await AskAsync("kurti ke saath sab se zyada kya bikta hai");
+        Assert.Contains("1. Dupatta — 2 orders (50%)", partners);
+        Assert.Contains("2. Shawl — 1 orders (25%)", partners);
+        Assert.Contains("Kurti kul 4 orders mein bika; 1 mein akela", partners);
+
+        var overall = await AskAsync("sab se zyada ek saath kya kharida jata hai");
+        Assert.Contains("1. Dupatta + Kurti — 2 orders", overall.Replace("Kurti + Dupatta", "Dupatta + Kurti"));
+
+        var compare = await AskAsync("kya dupatte ko kurti ke saath mila kar bechne se meri sale barhi hai");
+        Assert.Contains("Dono ek saath: 2 orders", compare);
+        Assert.Contains("Sirf Dupatta (Kurti ke baghair): 1 orders", compare);
+        Assert.Contains("Sirf Kurti (Dupatta ke baghair): 2 orders", compare);
+    }
+
+    [Fact]
+    public async Task NeverAlone_FindsProductsAlmostAlwaysSoldWithSomethingElse()
+    {
+        await SetupAsync();
+        var sara = await CustomerAsync("Sara");
+        var kurti = await ProductAsync("Kurti", 1800);
+        var dupatta = await ProductAsync("Dupatta", 600);
+        var at = DateTime.UtcNow.AddDays(-5);
+        for (var i = 0; i < 4; i++) await BasketAsync(sara, at, (kurti, 1), (dupatta, 1));
+        await BasketAsync(sara, at, (kurti, 1));
+        await BasketAsync(sara, at, (kurti, 1));
+
+        var reply = await AskAsync("kaun se products akele nahi bikte");
+
+        Assert.Contains("1. Dupatta — 4 orders mein se 4 mein doosri cheez ke saath (100%)", reply);
+        Assert.DoesNotContain("Kurti —", reply);          // 4 of 6 orders = 66.7%, below 80%
+    }
+
+    [Fact]
+    public async Task BundleSuggestion_PricesTheMostFrequentPairWithTenPercentOff()
+    {
+        await SetupAsync();
+        var sara = await CustomerAsync("Sara");
+        var kurti = await ProductAsync("Kurti", 1800, cost: 1200);
+        var dupatta = await ProductAsync("Dupatta", 600, cost: 300);
+        var at = DateTime.UtcNow.AddDays(-5);
+        await BasketAsync(sara, at, (kurti, 1), (dupatta, 1));
+        await BasketAsync(sara, at, (kurti, 1), (dupatta, 1));
+
+        var reply = await AskAsync("agle hafte ke liye bundle offer suggest karo");
+
+        Assert.Contains("Dupatta + Kurti", reply.Replace("Kurti + Dupatta", "Dupatta + Kurti"));
+        Assert.Contains("alag alag: Rs.2,400 → pack Rs.2,160", reply);        // 2400 * 0.9
+        Assert.Contains("margin 30.6%", reply);                                 // (2160 - 1500) / 2160
+    }
+
+    [Fact]
+    public async Task ChurnRisk_NamesRegularCustomersWhoWentQuiet()
+    {
+        await SetupAsync();
+        var gone = await CustomerAsync("Bilal");
+        var fine = await CustomerAsync("Sara");
+        var newbie = await CustomerAsync("Hina");
+        var now = DateTime.UtcNow;
+        foreach (var d in new[] { 140, 133, 126, 119, 112, 105, 98 }) await OrderAsync(gone, now.AddDays(-d), price: 1000);   // every 7 days, silent for 98 days
+        foreach (var d in new[] { 40, 20, 3 }) await OrderAsync(fine, now.AddDays(-d), price: 500);
+        await OrderAsync(newbie, now.AddDays(-90), price: 500);                                                              // only one order
+
+        var reply = await AskAsync("kaun se customers ne 60 din se order nahi diya lekin pehle har hafte kharidte the");
+
+        Assert.Contains("1. Bilal — pehle har ~7 din mein order (7 orders, Rs.7,000), ab 98 din se khamosh", reply);
+        Assert.DoesNotContain("Sara", reply);
+        Assert.DoesNotContain("Hina", reply);
+    }
+
+    [Fact]
+    public async Task OrderSizeDrop_FlagsCustomersWhoseAverageHalved()
+    {
+        await SetupAsync();
+        var dropped = await CustomerAsync("Bilal");
+        var steady = await CustomerAsync("Sara");
+        var now = DateTime.UtcNow;
+        await OrderAsync(dropped, now.AddDays(-45), price: 4000);
+        await OrderAsync(dropped, now.AddDays(-5), price: 1500);
+        await OrderAsync(steady, now.AddDays(-45), price: 2000);
+        await OrderAsync(steady, now.AddDays(-5), price: 1800);
+
+        var reply = await AskAsync("kin customers ka average order size aadha reh gaya hai");
+
+        Assert.Contains("1. Bilal — har order ki average Rs.4,000 → Rs.1,500 (62.5% kam)", reply);
+        Assert.DoesNotContain("Sara", reply);
+    }
+
+    [Fact]
+    public async Task WinBack_IsArithmeticOnPastOrders_NotAForecast()
+    {
+        await SetupAsync();
+        var kurti = await ProductAsync("Kurti", 1800, cost: 1200);
+        var a = await CustomerAsync("Bilal");
+        var b = await CustomerAsync("Hina");
+        var now = DateTime.UtcNow;
+        await BasketAsync(a, now.AddDays(-200), (kurti, 1));
+        await BasketAsync(a, now.AddDays(-100), (kurti, 1));       // came back after a 100-day silence
+        await BasketAsync(b, now.AddDays(-150), (kurti, 1));      // silent since
+
+        var reply = await AskAsync("agar main 50 purane customers ko 200 rupay ka discount doon to kitni sale wapas aane ki umeed hai");
+
+        Assert.Contains("50 customers ko Rs.200 ki chhoot", reply);
+        Assert.Contains("zyada se zyada Rs.10,000", reply);
+        Assert.Contains("1 / 3 (33.3%)", reply);
+        Assert.Contains("andaza nahi", reply);
+    }
+
+    [Fact]
+    public async Task BuyingPattern_GivesGapWeekOfMonthAndNextExpectedDate()
+    {
+        await SetupAsync();
+        var sara = await CustomerAsync("Sara Khan");
+        var kurti = await ProductAsync("Kurti", 1800);
+        var baseDay = DateTime.UtcNow.Date.AddDays(-100);
+        foreach (var d in new[] { 0, 30, 60, 90 }) await BasketAsync(sara, baseDay.AddDays(d).AddHours(12), (kurti, 1));
+
+        var reply = await AskAsync("Sara Khan ki kharidari ka pattern kya hai");
+
+        Assert.Contains("Sara Khan ki kharidari ka pattern", reply);
+        Assert.Contains("Orders: 4", reply);
+        Assert.Contains("har ~30 din baad order", reply);
+        Assert.Contains("Kurti (4)", reply);
+    }
+
+    [Fact]
+    public async Task CostRise_GivesSameMarginAndSameProfitPrices()
+    {
+        await SetupAsync();
+        await ProductAsync("Lawn Suit", 3500, cost: 2500);
+
+        var reply = await AskAsync("lawn suit ki cost 300 rupay barh gayi nayi price kya honi chahiye");
+
+        Assert.Contains("nayi cost Rs.2,800 (pehle Rs.2,500)", reply);
+        Assert.Contains("Margin 28.6% wohi rakhna ho: price Rs.3,920", reply);   // 2800 / (1 - 1000/3500) = 3920
+        Assert.Contains("wohi rakhna ho: price Rs.3,800", reply);                                         // 3500 + 300
+        Assert.Contains("Price na badlein to munafa Rs.700", reply);
+    }
+
+    [Fact]
+    public async Task PriceChange_ShowsProfitAndHowFarSalesCanFall()
+    {
+        await SetupAsync();
+        var sara = await CustomerAsync("Sara");
+        var polo = await ProductAsync("Polo Shirt", 500, cost: 300);
+        await OrderAsync(sara, DateTime.UtcNow.AddDays(-3), polo, 40);
+
+        var reply = await AskAsync("polo shirt ki price 500 se 550 kar dun to kya asar parega");
+
+        Assert.Contains("Rs.500 → Rs.550 (+10%)", reply);
+        Assert.Contains("Fi piece munafa: Rs.200 → Rs.250", reply);
+        Assert.Contains("20% tak gir jaye", reply);                              // 1 - 200/250
+        Assert.Contains("32 bikna kafi", reply);                                 // 40 * 0.8
+    }
+
+    [Fact]
+    public async Task CostlyButThinMargin_RanksDearProductsByMargin()
+    {
+        await SetupAsync();
+        await ProductAsync("Cheap Tee", 300, cost: 100);        // cost below the median: left out
+        await ProductAsync("Shawl", 3500, cost: 3300);          // dear, margin 5.7%
+        await ProductAsync("Lawn Suit", 3500, cost: 2500);      // dear, margin 28.6%
+        await ProductAsync("Kurti", 1800, cost: 1200);
+
+        var reply = await AskAsync("kaun sa product hai jis ki cost bahut zyada hai magar margin sab se kam hai");
+
+        Assert.True(reply.IndexOf("Shawl", StringComparison.Ordinal) < reply.IndexOf("Lawn Suit", StringComparison.Ordinal), reply);
+        Assert.DoesNotContain("Cheap Tee", reply);
+    }
+
+    [Fact]
+    public async Task Suppliers_GroupSalesAndProfitBySupplierAttribute()
+    {
+        await SetupAsync();
+        var sara = await CustomerAsync("Sara");
+        var lawn = await ProductAsync("Lawn Suit", 3500, cost: 2500);
+        lawn.AttributesJson = "{\"supplier\":\"Shah Alam\"}";
+        var tea = await ProductAsync("Tea", 100, cost: 60);
+        tea.AttributesJson = "{\"Supplier\":\"Metro\"}";
+        await _db.SaveChangesAsync();
+        var at = DateTime.UtcNow.AddDays(-5);
+        await BasketAsync(sara, at, (lawn, 2), (tea, 10));
+
+        var reply = await AskAsync("kis supplier ka maal sab se zyada bika");
+
+        Assert.Contains("Metro — 10 piece bike · sale Rs.1,000 · munafa Rs.400", reply);
+        Assert.Contains("Shah Alam — 2 piece bike · sale Rs.7,000 · munafa Rs.2,000", reply);
+    }
+
+    [Fact]
+    public async Task Suppliers_WithoutAnyAttribute_ExplainsHowToSaveOne()
+    {
+        await SetupAsync();
+        await ProductAsync("Lawn Suit", 3500, cost: 2500);
+
+        var reply = await AskAsync("kis supplier ka maal sab se zyada bika");
+
+        Assert.Contains("supplier: Shah Alam", reply);
+    }
+
+    [Fact]
+    public async Task CourierReturns_RanksByReturnedShare()
+    {
+        await SetupAsync();
+        var sara = await CustomerAsync("Sara");
+        var at = DateTime.UtcNow.AddDays(-10);
+        for (var i = 0; i < 4; i++) await OrderAsync(sara, at, price: 1000, courier: "TCS", shippedAt: at, deliveredAt: at.AddDays(2));
+        await OrderAsync(sara, at, price: 1000, courier: "TCS", status: OrderStatus.Returned, shippedAt: at);
+        for (var i = 0; i < 2; i++) await OrderAsync(sara, at, price: 500, courier: "Leopards", shippedAt: at, deliveredAt: at.AddDays(4));
+        for (var i = 0; i < 2; i++) await OrderAsync(sara, at, price: 500, courier: "Leopards", status: OrderStatus.Returned, shippedAt: at);
+
+        var reply = await AskAsync("TCS aur Leopards mein se kis ke orders sab se zyada return ho rahe hain");
+
+        Assert.Contains("1. Leopards — 2 / 4 wapas (50%)", reply);
+        Assert.Contains("2. TCS — 1 / 5 wapas (20%)", reply);
+        Assert.Contains("(data kam)", reply);
+    }
+
+    [Fact]
+    public async Task ReturnLoss_SumsValueAndDeliveryChargesOfParcelsThatCameBack()
+    {
+        await SetupAsync();
+        var sara = await CustomerAsync("Sara");
+        var at = DateTime.UtcNow.AddDays(-3);
+        var returned = await OrderAsync(sara, at, price: 1000, status: OrderStatus.Returned, shippedAt: at);
+        returned.DeliveryCharge = 200;
+        var cancelledShipped = await OrderAsync(sara, at, price: 500, status: OrderStatus.Cancelled, shippedAt: at);
+        cancelledShipped.DeliveryCharge = 150;
+        var cancelledEarly = await OrderAsync(sara, at, price: 300, status: OrderStatus.Cancelled);
+        cancelledEarly.DeliveryCharge = 100;
+        await _db.SaveChangesAsync();
+
+        var reply = await AskAsync("cancel ya return orders ki delivery charges ka kitna dead loss hua");
+
+        Assert.Contains("Cancel: 2 orders · Return: 1 orders", reply);
+        Assert.Contains("kul raqam: Rs.1,800", reply);
+        Assert.Contains("parcels: 2 — un par likhi delivery charges Rs.350", reply);   // 200 + 150 (the early cancel never left the shop)
+    }
+
+    [Fact]
+    public async Task CancelByPaymentMethod_ComparesCodWithAdvance()
+    {
+        await SetupAsync();
+        var sara = await CustomerAsync("Sara");
+        var at = DateTime.UtcNow.AddDays(-3);
+        await OrderAsync(sara, at, price: 100, method: OrderPaymentMethod.Cod);
+        await OrderAsync(sara, at, price: 100, method: OrderPaymentMethod.Cod);
+        await OrderAsync(sara, at, price: 100, method: OrderPaymentMethod.Cod, status: OrderStatus.Cancelled);
+        await OrderAsync(sara, at, price: 100, method: OrderPaymentMethod.Cod, status: OrderStatus.Cancelled);
+        await OrderAsync(sara, at, price: 100, method: OrderPaymentMethod.Manual);
+        await OrderAsync(sara, at, price: 100, method: OrderPaymentMethod.Manual);
+        await OrderAsync(sara, at, price: 100, method: OrderPaymentMethod.Manual);
+        await OrderAsync(sara, at, price: 100, method: OrderPaymentMethod.Manual, status: OrderStatus.Cancelled);
+
+        var reply = await AskAsync("COD orders zyada cancel hote hain ya advance easypaisa wale");
+
+        Assert.Contains("Cash on delivery (COD): 4 orders · cancel 2 (50%)", reply);
+        Assert.Contains("Bank / wallet (Easypaisa, JazzCash): 4 orders · cancel 1 (25%)", reply);
+    }
+
+    [Fact]
+    public async Task DrawerShortage_ListsClosedShiftsAndTheWorstDay()
+    {
+        await SetupAsync();
+        var now = DateTime.UtcNow;
+        _db.CashDrawerSessions.AddRange(
+            new CashDrawerSession { SellerId = _seller.Id, OpenedAt = now.AddDays(-3).AddHours(-8), ClosedAt = now.AddDays(-3), OpeningAmount = 1000, ExpectedAmount = 5000, CountedAmount = 4800 },
+            new CashDrawerSession { SellerId = _seller.Id, OpenedAt = now.AddDays(-2).AddHours(-8), ClosedAt = now.AddDays(-2), OpeningAmount = 1000, ExpectedAmount = 6000, CountedAmount = 6050 },
+            new CashDrawerSession { SellerId = _seller.Id, OpenedAt = now.AddDays(-1).AddHours(-8), ClosedAt = now.AddDays(-1), OpeningAmount = 1000, ExpectedAmount = 4000, CountedAmount = 3500 });
+        await _db.SaveChangesAsync();
+
+        var reply = await AskAsync("pichle 7 din mein galle mein kitna cash short hua aur kis din sab se zyada farq tha");
+
+        Assert.Contains("Kul kami (sirf kam wale): Rs.700", reply);
+        Assert.Contains("Kul farq (kami minus zyada): -Rs.650", reply);
+        Assert.Contains("Rs.500 kam", reply);
+        Assert.Contains("Sab se zyada farq:", reply);
+    }
+
+    [Fact]
+    public async Task Uncollected_ListsDeliveredOrdersWithoutPayment()
+    {
+        await SetupAsync();
+        var sara = await CustomerAsync("Sara");
+        var at = DateTime.UtcNow.AddDays(-10);
+        var owed = await OrderAsync(sara, at, price: 2000, deliveredAt: at.AddDays(3), paid: 500);
+        await OrderAsync(sara, at, price: 700, payment: PaymentStatus.Paid, deliveredAt: at.AddDays(3));
+        await OrderAsync(sara, at, price: 900, status: OrderStatus.Shipped);
+
+        var reply = await AskAsync("kaun se orders delivered hain lekin unke paise jama nahi hue");
+
+        Assert.Contains("1 orders, Rs.1,500", reply);
+        Assert.Contains($"#{owed.Id} Sara — Rs.1,500", reply);
+    }
+
+    [Fact]
+    public async Task StuckMoney_SplitsWhatIsOwedByOrderStage()
+    {
+        await SetupAsync();
+        var sara = await CustomerAsync("Sara");
+        var at = DateTime.UtcNow.AddDays(-2);
+        await OrderAsync(sara, at, price: 2000, deliveredAt: at, paid: 500);                   // delivered, owes 1500
+        await OrderAsync(sara, at, price: 1000, status: OrderStatus.Shipped);                  // on the way
+        await OrderAsync(sara, at.AddDays(-40), price: 300, status: OrderStatus.Pending);      // old, pending
+        await OrderAsync(sara, at, price: 700, payment: PaymentStatus.Paid);                   // paid: not stuck
+
+        var reply = await AskAsync("mera kitna paisa bazar mein phansa hua hai");
+
+        Assert.Contains("Rs.2,800 (3 orders)", reply);
+        Assert.Contains("Delivered, paisa nahi mila: Rs.1,500 (1)", reply);
+        Assert.Contains("Raaste mein (shipped): Rs.1,000 (1)", reply);
+        Assert.Contains("Abhi bheja nahi (pending): Rs.300 (1)", reply);
+        Assert.Contains("30 din se purana: Rs.300 (1)", reply);
+    }
+
+    [Fact]
+    public async Task ExpenseRatio_IsExpensesOverSales_AgainstLastMonth()
+    {
+        await SetupAsync();
+        var sara = await CustomerAsync("Sara");
+        await OrderAsync(sara, DateTime.UtcNow.AddMinutes(-5), price: 10000);
+        _db.Expenses.Add(new Expense { SellerId = _seller.Id, Amount = 2500, Category = "rent", CreatedAt = DateTime.UtcNow.AddMinutes(-4) });
+        await _db.SaveChangesAsync();
+
+        var reply = await AskAsync("is mahine kharche meri sale ka kitne fisad hain");
+
+        Assert.Contains("Sale: Rs.10,000", reply);
+        Assert.Contains("Kharche = sale ka 25%", reply);
+    }
+
+    [Fact]
+    public async Task LockedCapital_AddsCostTimesStockOfProductsThatDidNotSell()
+    {
+        await SetupAsync();
+        var sara = await CustomerAsync("Sara");
+        var stale = await ProductAsync("Old Shawl", 3500, cost: 2500, stock: 4, createdAt: DateTime.UtcNow.AddDays(-200));
+        var sells = await ProductAsync("Kurti", 1800, cost: 1200, stock: 10, createdAt: DateTime.UtcNow.AddDays(-200));
+        await ProductAsync("No Cost", 100, stock: 5, createdAt: DateTime.UtcNow.AddDays(-200));
+        await ProductAsync("Brand New", 100, cost: 50, stock: 5, createdAt: DateTime.UtcNow.AddDays(-5));
+        await OrderAsync(sara, DateTime.UtcNow.AddDays(-10), sells, 1);
+        await OrderAsync(sara, DateTime.UtcNow.AddDays(-150), stale, 1);       // sold, but not in the last 90 days
+
+        var reply = await AskAsync("mera kitna sarmaya aise stock mein phansa hai jo 90 din se nahi bika");
+
+        Assert.Contains("Rs.10,000 (1 products)", reply);                       // 4 x 2500
+        Assert.Contains("Old Shawl — 4 piece × Rs.2,500 = Rs.10,000", reply);
+        Assert.Contains("1 aur product(s)", reply);                             // "No Cost" has no cost
+        Assert.DoesNotContain("Brand New", reply);
+    }
+
+    [Fact]
+    public async Task Overstock_ListsSlowStockWithTheDiscountRoom()
+    {
+        await SetupAsync();
+        var sara = await CustomerAsync("Sara");
+        var big = await ProductAsync("Winter Shawl", 3500, cost: 2500, stock: 200, createdAt: DateTime.UtcNow.AddDays(-100));
+        var fast = await ProductAsync("Kurti", 1800, cost: 1200, stock: 10, createdAt: DateTime.UtcNow.AddDays(-100));
+        await OrderAsync(sara, DateTime.UtcNow.AddDays(-3), big, 1);       // 1 in 30 days -> 6000 days
+        await OrderAsync(sara, DateTime.UtcNow.AddDays(-3), fast, 20);     // 20/30 a day -> 15 days
+
+        var reply = await AskAsync("overstocked products kaun se hain");
+
+        Assert.Contains("Winter Shawl — 200 piece", reply);
+        Assert.Contains("chhoot ki had (nuqsan se pehle): 28.5%", reply.Replace("28.6%", "28.5%"));
+        Assert.DoesNotContain("Kurti", reply);
+    }
+
+    [Fact]
+    public async Task CategoryShift_ComparesShareOfSalesBetweenTwoMonths()
+    {
+        await SetupAsync();
+        var sara = await CustomerAsync("Sara");
+        var cloth = await ProductAsync("Kurti", 1000);
+        cloth.Category = "Kapron";
+        var food = await ProductAsync("Rice", 500);
+        food.Category = "Grocery";
+        await _db.SaveChangesAsync();
+        var now = DateTime.UtcNow;
+        var lastMonth = new DateTime(now.Year, now.Month, 1, 12, 0, 0, DateTimeKind.Utc).AddMonths(-1).AddDays(2);
+        await BasketAsync(sara, lastMonth, (cloth, 1), (food, 1));                       // Kapron 1000 / Grocery 500 = 66.7% / 33.3%
+        await BasketAsync(sara, now.AddMinutes(-5), (cloth, 1), (food, 3));              // Kapron 1000 / Grocery 1500 = 40% / 60%
+
+        var reply = await AskAsync("jab mausam badalta hai to grocery aur kapron ki sales ka ratio kya badalta hai");
+
+        Assert.Contains("Kapron: 66.7% → 40%", reply);
+        Assert.Contains("Grocery: 33.3% → 60%", reply);
+    }
+
+    [Fact]
+    public async Task Season_ReportsDailySaleInRamadanAndWarnsWhenThereIsNoData()
+    {
+        await SetupAsync();
+        var sara = await CustomerAsync("Sara");
+
+        var none = await AskAsync("pichle saal ramazan mein meri roz ki average sale kya thi");
+        Assert.Contains("koi order darj nahi", none);
+
+        // Put an order inside last year's Ramadan (the window the report reads) and a quiet month before it.
+        var calendar = new System.Globalization.UmAlQuraCalendar();
+        DateTime start = default;
+        for (var y = calendar.GetYear(new DateTime(DateTime.UtcNow.Year - 1, 1, 1)) - 1; y <= calendar.GetYear(new DateTime(DateTime.UtcNow.Year - 1, 12, 31)) + 1; y++)
+        {
+            var d = calendar.ToDateTime(y, 9, 1, 0, 0, 0, 0);
+            if (d.Year == DateTime.UtcNow.Year - 1) start = d;
+        }
+        await OrderAsync(sara, start.AddDays(5), price: 3000);
+        await OrderAsync(sara, start.AddDays(-10), price: 300);
+
+        var reply = await AskAsync("pichle saal ramazan mein meri roz ki average sale kya thi");
+
+        Assert.Contains("Ramazan", reply);
+        Assert.Contains("Roz ki average sale: Rs.100 (1 orders)", reply);       // 3000 over 30 days
+        Assert.Contains("10 din", reply.Replace("30 din", "10 din"));
+    }
 }

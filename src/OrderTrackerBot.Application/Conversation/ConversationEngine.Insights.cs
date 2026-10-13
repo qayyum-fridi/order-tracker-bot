@@ -51,7 +51,10 @@ public partial class ConversationEngine
             case "exptop": await InsightTopExpensesAsync(seller, period, ct); break;
             case "vsyesterday": await InsightTodayVsYesterdayAsync(seller, ct); break;
             case "pnl": await InsightProfitOrLossAsync(seller, period, ct); break;
-            default: await ReplyAsync(seller, "Maaf kijiye, yeh sawal samajh nahi aaya. Madad ke liye \"menu\" likhein.", ct); break;
+            default:
+                if (!await TryHandleAdvancedInsightAsync(seller, ctx, cmd, period, text, ct))
+                    await ReplyAsync(seller, "Maaf kijiye, yeh sawal samajh nahi aaya. Madad ke liye \"menu\" likhein.", ct);
+                break;
         }
     }
 
@@ -63,7 +66,7 @@ public partial class ConversationEngine
         var key = period ?? defaultKey;
         if (key == "all") return (DateTime.MinValue, DateTime.MaxValue, "ab tak");
         var (start, end) = ReportRange(seller, key);
-        var label = key switch { "30d" => "pichle 30 din", "90d" => "pichle 90 din", "7d" => "pichle 7 din", _ => PeriodLabel(seller, key).ToLowerInvariant() };
+        var label = Regex.Match(key, @"^(\d{1,4})d$") is { Success: true } days ? $"pichle {days.Groups[1].Value} din" : PeriodLabel(seller, key).ToLowerInvariant();
         return (start, end, label);
     }
 
@@ -96,16 +99,25 @@ public partial class ConversationEngine
     {
         var products = await _db.Products.AsNoTracking().Where(p => p.SellerId == seller.Id && p.IsActive).OrderBy(p => p.Id).ToListAsync(ct);
         var hits = products.Where(p => p.Name.Trim().Length >= 2 && HasWord(text, p.Name)).ToList();
-        if (hits.Count > 0)
-            return hits.Where(h => !hits.Any(o => o.Name.Length > h.Name.Length && o.Name.Contains(h.Name, StringComparison.OrdinalIgnoreCase))).ToList();
+        hits = hits.Where(h => !hits.Any(o => o.Name.Length > h.Name.Length && o.Name.Contains(h.Name, StringComparison.OrdinalIgnoreCase))).ToList();
 
+        // Words not already part of an exact match may still be a misspelt product ("dupatte" for "Dupatta").
+        var covered = hits.SelectMany(h => h.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries)).Select(w => w.ToLowerInvariant()).ToHashSet();
         var tokens = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(t => t.Trim('?', '.', ',', '!', '؟', '،')).Where(t => t.Length > 0).ToList();
-        var chunks = tokens.Concat(tokens.Zip(tokens.Skip(1), (a, b) => a + " " + b)).Where(c => c.Length >= 4 && !GenericQuestionWords.Contains(c)).ToList();
+        var free = tokens.Select(t => covered.Contains(t.ToLowerInvariant()) ? null : t).ToList();
+        var chunks = new List<string>();
+        for (var i = 0; i < free.Count; i++)
+        {
+            if (free[i] is null) continue;
+            chunks.Add(free[i]!);
+            if (i + 1 < free.Count && free[i + 1] is not null) chunks.Add(free[i] + " " + free[i + 1]);
+        }
         var names = products.Select(p => p.Name.ToLowerInvariant()).Distinct().ToList();
-        foreach (var chunk in chunks)
+        foreach (var chunk in chunks.Where(c => c.Length >= 4 && !GenericQuestionWords.Contains(c)))
             if (TextDistance.Nearest(chunk.ToLowerInvariant(), names, 2, 1).FirstOrDefault() is { } near)
-                return products.Where(p => p.Name.Equals(near, StringComparison.OrdinalIgnoreCase)).ToList();
-        return new List<Product>();
+                foreach (var p in products.Where(p => p.Name.Equals(near, StringComparison.OrdinalIgnoreCase) && hits.All(h => h.Id != p.Id)))
+                    hits.Add(p);
+        return hits;
     }
 
     /// <summary>Saved customers named in the sentence: the full name, or a first / last name of 3+ letters as a whole word.</summary>

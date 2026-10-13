@@ -107,6 +107,17 @@ Add a period if you want one (`pichle hafte`, `last month`, `is mahine`, `30 din
 | Top / slow sellers (also by season) | `sab se zyada kya bika` · `kaun sa maal nahi bik raha` · `pichle saal sardiyon mein kya bika` |
 | Net sale / revenue / net profit for a period | `pichle hafte ki net sale kitni thi` · `is mahine ka total revenue` · `aaj ka khalis munafa` |
 | Drawer short or over | `aaj galle mein kitna cash short ya zyada hai` |
+| Which products sell together / never alone / a bundle idea | `kurti ke saath kya bikta hai` · `kaun se products akele nahi bikte` · `bundle offer suggest karo` |
+| Regular customers who went quiet / whose order size halved | `kaun se customers ne 60 din se order nahi diya lekin pehle har hafte kharidte the` · `kin customers ka order size aadha reh gaya` |
+| What a win-back discount costs | `agar 50 purane customers ko 200 rupay ka discount doon to` (arithmetic and past win-back rate, not a forecast) |
+| One customer's buying pattern | `Sara Khan ki kharidari ka pattern` |
+| Cost went up: new price? / price change effect | `lawn suit ki cost 300 barh gayi nayi price kya ho` · `polo shirt 500 se 550 kar dun to kya asar` |
+| Dear product with a thin margin | `kaun sa product mehnga hai magar margin sab se kam` |
+| Sales and profit per supplier | `kis supplier ka maal zyada bika` (save `supplier: Shah Alam` on the product line) |
+| Courier returns / loss on returns / outside the city / cancel by payment | `kis courier ke orders zyada return hote hain` · `return ka dead loss` · `Lahore ke bahar delivery time` · `COD zyada cancel hote hain ya advance` |
+| Cash: drawer shortage, delivered but unpaid, money stuck, expense share | `pichle 7 din drawer mein kitna cash short hua` · `delivered orders ka paisa jama nahi` · `mera kitna paisa phansa hua hai` · `kharche meri sale ka kitne fisad hain` |
+| Stock capital: locked, overstocked, until Eid | `kitna sarmaya 90 din se na bikne wale stock mein phansa hai` · `overstocked products` · `agli eid tak kaun sa stock khatam ho jayega` |
+| Ramadan / Eid sales; category mix between months | `pichle saal ramazan mein roz ki sale` · `september se october mein grocery aur kapron ka ratio` |
 
 ## Customers and discounts
 

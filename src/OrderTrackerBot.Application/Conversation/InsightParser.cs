@@ -135,6 +135,8 @@ internal static class InsightParser
         ParsedCommand Topic(string topic, decimal? amount = null, string? periodKey = null, string? subject = null) =>
             new() { Kind = CommandKind.Insight, Text = topic, Text2 = periodKey ?? period, Text3 = subject ?? text, Amount = amount };
 
+        if (AdvancedInsightParser.TryParse(text, period) is { } advanced) return advanced;
+
         // --- discount what-if / price review (margin questions about ONE product, so before the plain ones)
         if (Discount.IsMatch(text) && Margin.IsMatch(text) && Pct.Match(text) is { Success: true } pct
             && decimal.TryParse(pct.Groups["n"].Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var percent))
