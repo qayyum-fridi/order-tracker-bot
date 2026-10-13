@@ -787,8 +787,17 @@ public partial class ConversationEngine
         pendingExtras = new Dictionary<string, ProductExtras>(pendingExtras, StringComparer.OrdinalIgnoreCase);
 
         var saved = new List<string>();
+        var priceKept = new List<string>();
         foreach (var p in products.Where(p => p.Price is not null))
         {
+            // A price the AI read out of free text never silently overwrites a product that already exists: the seller changes prices on purpose.
+            var lowerName = p.Name.ToLower();
+            var current = await _db.Products.FirstOrDefaultAsync(x => x.SellerId == seller.Id && x.IsActive && x.UnitType == "piece" && x.UnitQty == 1 && x.Name.ToLower() == lowerName, ct);
+            if (current is not null && current.Price != p.Price!.Value)
+            {
+                priceKept.Add($"⚠️ {Formatters.ProductLabel(current)} pehle se {Formatters.Money(current.Price)} par hai — price nahi badli.\nBadalni ho to likhein: edit product: {current.Name} - {p.Price.Value:0.##}");
+                continue;
+            }
             pendingExtras.TryGetValue(p.Name, out var earlier);
             var (product, _) = await UpsertProductAsync(seller, new ProductLine(p.Name, p.Price!.Value, "piece", 1, MergeExtras(earlier, ExtrasOf(p))), ct);
             pendingExtras.Remove(p.Name);
@@ -814,6 +823,8 @@ public partial class ConversationEngine
         needPrice = stillWaiting;
 
         var reply = saved.Count == 0 ? "" : $"✅ {saved.Count} product{(saved.Count == 1 ? "" : "s")} catalog mein add ho gaye:\n{string.Join("\n", saved)}\n\n";
+
+        if (priceKept.Count > 0) reply += string.Join("\n\n", priceKept) + "\n\n";
 
         // Names the seller listed without a price that are already in the catalog: say so, instead of silently skipping them.
         var already = products.Where(p => p.Price is null).Select(p => p.Name).Distinct(StringComparer.OrdinalIgnoreCase)

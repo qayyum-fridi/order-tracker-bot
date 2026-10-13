@@ -91,10 +91,10 @@ Business used throughout: **Ayesha Collections, Lahore** (clothes + a few grocer
 | 6.9 | `unpaid orders` | Order 2 (balance), order 3 |
 | 6.10 | `cod pending` | COD orders not yet collected |
 | 6.11 | `mark 2 paid` | Paid in full |
-| 6.12 | `edit order 3` | Edit mode |
-| 6.13 | `price 1 = 1500` / `add Polo Shirt 1` / `remove 2` / `delivery 150` / `done` | Each applied one at a time; totals recomputed; stock follows |
+| 6.12 | `edit order 3` (use a real order number; numbers from the latest list such as `pending orders` also work) | Edit mode; an unknown number answers "Order #3 nahi mila" |
+| 6.13 | After `edit order N` (N = the order's real number; `order 1` shows it), send these **as five separate messages**: `price 1 = 1500`, then `add Polo Shirt 1`, then `remove 2`, then `delivery 150`, then `done` | Each applied one at a time; totals recomputed; stock follows. (Sending them in one message is not an edit instruction.) |
 | 6.14 | `undo` | The whole edit reverted |
-| 6.15 | `cancel 3` (confirm) | Cancelled, stock returned |
+| 6.15 | `cancel 3`, then answer `yes` when the bot asks (two messages) | Cancelled, stock returned |
 | 6.16 | `mark 1 returned` | Rejected only if not shipped/delivered; order 1 is delivered so accepted |
 | 6.17 | `mark 2 shiped` (typo) | Read as `shipped` |
 | 6.18 | `mark all pending as shipped` | Bulk confirmation (or "Koi pending order nahi hai") |
@@ -104,7 +104,7 @@ Business used throughout: **Ayesha Collections, Lahore** (clothes + a few grocer
 | # | Send | Expect |
 |---|---|---|
 | 7.1 | `create discount: EID10, 10 percent, expires 15 days` | Discount code created |
-| 7.2 | `create discount: SAVE200 200 off` | Flat discount (or follow its prompt) |
+| 7.2 | `create discount: SAVE200, Rs.200 flat` (also accepted: `create discount: SAVE200 200 off`) | Flat Rs.200 discount |
 | 7.3 | `discount list` | Both codes |
 | 7.4 🔑 | `Hina: Lawn Suit 1, 03007778888, code EID10` | Draft total 3,150 (10% off) |
 | 7.5 | `create loyalty: 3 orders = 10% off` | Loyalty rule saved |

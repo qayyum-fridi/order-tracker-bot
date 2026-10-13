@@ -883,3 +883,29 @@ public class ProductLineSanityTests
     [InlineData("Sugar 5 kg - 500")]
     public void RealProductLines_StillParse(string text) => Assert.True(CommandParser.TryParseProductLine(text, out ProductLine? _));
 }
+
+public class TrailingRemarkTests
+{
+    [Theory]
+    [InlineData("cancel 3 (confirm)", CommandKind.CancelOrder)]
+    [InlineData("cancel 3 (yes)", CommandKind.CancelOrder)]
+    [InlineData("mark 2 shipped (ok)", CommandKind.MarkStatus)]
+    [InlineData("orders today (done)", CommandKind.OrdersToday)]
+    public void ABracketedConfirmationRemark_IsIgnored(string text, CommandKind kind) => Assert.Equal(kind, CommandParser.TryParse(text)?.Kind);
+}
+
+
+public class FlatOffDiscountTests
+{
+    [Theory]
+    [InlineData("SAVE200 200 off", "SAVE200, Rs.200 flat")]
+    [InlineData("SAVE200, Rs. 200 off", "SAVE200, Rs.200 flat")]
+    [InlineData("EID10 10%", "EID10, 10 percent")]
+    [InlineData("EID10, 10 percent", "EID10, 10 percent")]
+    [InlineData("WELCOME50, Rs.50 flat", "WELCOME50, Rs.50 flat")]
+    public void DiscountSpecs_AreNormalised(string spec, string expected) => Assert.Equal(expected, CommandParser.NormalizeDiscountSpec(spec));
+
+    [Fact]
+    public void AFlatOffDiscount_ParsesAsACreateDiscountCommand() =>
+        Assert.Equal(CommandKind.CreateDiscount, CommandParser.TryParse("create discount: SAVE200 200 off")?.Kind);
+}

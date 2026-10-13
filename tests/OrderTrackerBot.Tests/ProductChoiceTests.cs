@@ -200,6 +200,56 @@ public class ProductChoiceTests : IDisposable
     }
 
     [Fact]
+    public async Task APriceTheAiReadsForAnExistingProduct_DoesNotOverwriteIt_AndShowsTheEditCommand()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);                // Kurti - 1800
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis
+            {
+                Intent = "add_products",
+                NewProducts = { new AiNewProduct { Name = "Kurti", Price = 1500 }, new AiNewProduct { Name = "Shawl", Price = 900 } }
+            });
+
+        await engine.HandleIncomingMessageAsync(Phone, "price 1 = 1500 / add Kurti 1 / shawl 900", default);
+
+        Assert.Equal(1800m, (await db.Products.SingleAsync(p => p.Name == "Kurti")).Price);
+        Assert.Equal(900m, (await db.Products.SingleAsync(p => p.Name == "Shawl")).Price);
+        Assert.Contains(_sent, m => m.Contains("pehle se Rs.1,800 par hai") && m.Contains("edit product: Kurti - 1500"));
+    }
+
+    [Theory]
+    [InlineData("030011122", false)]
+    [InlineData("0300111222233333", false)]
+    [InlineData("0300-abc4567", false)]
+    [InlineData("03001112222", true)]
+    [InlineData("+92 300 1112222", true)]
+    [InlineData("042-35761234", true)]
+    public void PhonePlausibility(string phone, bool expected) => Assert.Equal(expected, ConversationEngine.IsPlausiblePhone(phone));
+
+    [Fact]
+    public async Task AShortPhoneReadFromAnOrder_IsAskedAgain_NotSaved()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis
+            {
+                Intent = "new_order", IsOrderAttempt = true,
+                Order = new AiOrderDraft { CustomerName = "Sara", Phone = "030011122", Items = { new AiOrderItemDraft { ProductName = "Kurti", Quantity = 2 } } }
+            });
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara: Kurti 2, 030011122", default);
+
+        Assert.Contains(_sent, m => m.Contains("poora nahi lagta") && m.Contains("9 digits"));
+        Assert.DoesNotContain(_sent, m => m.Contains("Confirm order"));
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "03001112222", default);
+        Assert.Contains(_sent, m => m.Contains("Confirm order") && m.Contains("03001112222"));
+    }
+
+    [Fact]
     public async Task ChhoroCancelsTheDraft()
     {
         using var db = _dbFactory.CreateContext();
