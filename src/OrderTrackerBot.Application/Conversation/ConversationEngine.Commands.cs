@@ -86,7 +86,7 @@ public partial class ConversationEngine
                 new MenuRow("unpaid orders", "Unpaid orders"), new MenuRow("cod pending", "COD pending"), new MenuRow("receipt", "Last order receipt (PDF)"), new MenuRow("edit order", "Last order edit"),
                 new MenuRow("new order (detailed)", "New order (form)"), new MenuRow("walkin", "Counter sale (walk-in)"), new MenuRow("label", "Shipping label"), BackToMenu
             }),
-            ["reports"] = ("📊 Reports", "📊 Reports\n Sales aur trends ek tap par.\n • [product] ka report — misaal: \"Lawn Suit ka report\"\n • expense likhein: \"expense 500 packaging\"\n • profit / profit today\n • sales by category [this week] — category ke hisaab se sale\n • margin — kis product par kitna discount de sakte hain\n • export orders 30 days", new[]
+            ["reports"] = ("📊 Reports", "📊 Reports\n Sales aur trends ek tap par.\n • [product] ka report — misaal: \"Lawn Suit ka report\"\n • expense likhein: \"expense 500 packaging\"\n • profit / profit today\n • sales by category [this week] — category ke hisaab se sale\n • margin — kis product par kitna discount de sakte hain\n • sawal poochein: \"sab se mehnga product\", \"kaun se customers wapas nahi aaye\"\n • export orders 30 days", new[]
             {
                 new MenuRow("today's summary", "Today's summary"), new MenuRow("trending products", "Trending products"),
                 new MenuRow("slow movers", "Slow movers"), new MenuRow("loyal customers", "Loyal customers"),
@@ -397,7 +397,10 @@ public partial class ConversationEngine
                 await HandleCategorySalesAsync(seller, cmd.Text, ct);
                 return;
             case CommandKind.Margin:
-                await HandleMarginAsync(seller, ct);
+                await HandleMarginAsync(seller, ct, lowestFirst: cmd.Text == "low");
+                return;
+            case CommandKind.Insight:
+                await HandleInsightAsync(seller, ctx, cmd, ct);
                 return;
             case CommandKind.Profit:
                 await HandleProfitAsync(seller, cmd.Text, ct);

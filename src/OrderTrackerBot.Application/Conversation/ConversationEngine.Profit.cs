@@ -26,6 +26,42 @@ public partial class ConversationEngine
             _ => (SellerClock.LocalDayRangeUtc(seller.TimeZoneId, now, -29).StartUtc, DateTime.MaxValue, "pichle 30 din")
         };
 
+        var (orderCount, counted, revenue, cost) = await ComputeProfitAsync(seller, start, end, ct);
+
+        if (orderCount == 0)
+        {
+            await ReplyAsync(seller, $"💰 Profit ({label}): is dauran koi order nahi hai.", ct);
+            return;
+        }
+
+        if (counted == 0)
+        {
+            await ReplyAsync(seller,
+                $"💰 Profit ({label}): abhi hisaab nahi ho sakta — kisi product ki cost save nahi hai.\n" +
+                "Product ke saath cost likhein, jaise: \"Kurti - 1800, cost 1200\".", ct);
+            return;
+        }
+
+        var skipped = orderCount - counted;
+        var skippedNote = skipped == 0 ? "" :
+            $"\n⚠️ {skipped} order(s) shamil nahi — cost maloom nahi. Cost likhein, jaise: \"Kurti - 1800, cost 1200\".";
+
+        var profit = revenue - cost;
+        var margin = revenue > 0 ? Math.Round(profit / revenue * 100m, 1) : 0m;
+        await ReplyAsync(seller,
+            $"💰 Profit — {label}\n\n" +
+            $"Orders: {counted}\n" +
+            $"Sales (delivery ke baghair): {Formatters.Money(revenue)}\n" +
+            $"Cost: {Formatters.Money(cost)}\n" +
+            $"Profit: {Formatters.Money(profit)} ({margin}%)" + skippedNote, ct);
+    }
+
+    /// <summary>
+    /// Sales (after discount, no delivery) and product cost of the active orders placed in [start, end). An order with any item whose cost is unknown is left out
+    /// (and shows in <c>Orders - Counted</c>) so profit is never overstated.
+    /// </summary>
+    private async Task<(int Orders, int Counted, decimal Revenue, decimal Cost)> ComputeProfitAsync(Seller seller, DateTime start, DateTime end, CancellationToken ct)
+    {
         var orders = await _db.Orders.AsNoTracking().Include(o => o.Items)
             .Where(o => o.SellerId == seller.Id && o.CreatedAt >= start && o.CreatedAt < end
                         && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
@@ -50,31 +86,6 @@ public partial class ConversationEngine
             counted++;
         }
 
-        if (orders.Count == 0)
-        {
-            await ReplyAsync(seller, $"💰 Profit ({label}): is dauran koi order nahi hai.", ct);
-            return;
-        }
-
-        if (counted == 0)
-        {
-            await ReplyAsync(seller,
-                $"💰 Profit ({label}): abhi hisaab nahi ho sakta — kisi product ki cost save nahi hai.\n" +
-                "Product ke saath cost likhein, jaise: \"Kurti - 1800, cost 1200\".", ct);
-            return;
-        }
-
-        var skipped = orders.Count - counted;
-        var skippedNote = skipped == 0 ? "" :
-            $"\n⚠️ {skipped} order(s) shamil nahi — cost maloom nahi. Cost likhein, jaise: \"Kurti - 1800, cost 1200\".";
-
-        var profit = revenue - cost;
-        var margin = revenue > 0 ? Math.Round(profit / revenue * 100m, 1) : 0m;
-        await ReplyAsync(seller,
-            $"💰 Profit — {label}\n\n" +
-            $"Orders: {counted}\n" +
-            $"Sales (delivery ke baghair): {Formatters.Money(revenue)}\n" +
-            $"Cost: {Formatters.Money(cost)}\n" +
-            $"Profit: {Formatters.Money(profit)} ({margin}%)" + skippedNote, ct);
+        return (orders.Count, counted, revenue, cost);
     }
 }
