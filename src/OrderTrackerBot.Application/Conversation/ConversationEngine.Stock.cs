@@ -72,7 +72,7 @@ public partial class ConversationEngine
         if (matches.Count != 1)
         {
             await ReplyAsync(seller, matches.Count == 0
-                ? $"\"{cmd.Text}\" catalog mein nahi mila."
+                ? $"\"{cmd.Text}\" catalog mein nahi mila. Catalog dekhne ke liye \"catalog\" likhein."
                 : $"\"{cmd.Text}\" se kai products milte hain: {string.Join(", ", matches.Select(Formatters.ProductLabel))} — poora naam likhein.", ct);
             return;
         }

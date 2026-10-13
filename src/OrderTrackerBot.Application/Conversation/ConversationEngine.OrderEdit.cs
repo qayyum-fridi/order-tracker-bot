@@ -46,7 +46,7 @@ public partial class ConversationEngine
 
         if (order is null)
         {
-            await ReplyAsync(seller, number is null ? "Abhi koi order nahi hai." : $"Order #{number} nahi mila.", ct);
+            await ReplyAsync(seller, number is null ? "Abhi koi order nahi hai." : $"Order #{number} nahi mila. Apne orders dekhne ke liye \"orders today\" likhein.", ct);
             return;
         }
         if (order.Status is OrderStatus.Cancelled or OrderStatus.Returned)
@@ -109,7 +109,7 @@ public partial class ConversationEngine
                 await ExecuteCommandAsync(seller, session, ctx, command, ct);
                 return;
             }
-            await ReplyAsync(seller, $"Samajh nahi aaya.\n\n{OrderEditHelp}", ct);
+            await ReplyAsync(seller, $"Maaf kijiye, samajh nahi aaya.\n\n{OrderEditHelp}", ct);
             return;
         }
 

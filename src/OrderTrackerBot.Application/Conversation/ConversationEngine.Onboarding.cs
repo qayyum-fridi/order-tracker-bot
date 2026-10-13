@@ -93,7 +93,7 @@ public partial class ConversationEngine
             // Looks like an order but the AI can't read it right now — say so instead of the misleading format hint.
             await ReplyAsync(seller,
                 "⚠️ Yeh order lag raha hai, lekin abhi main isay parh nahi pa raha (AI service available nahi). " +
-                "Thori der baad dobara bhejein. Tab tak 'naam - price' se product add kar saktay hain, ya 'done'/'skip' likhein.", ct);
+                "Thori der baad dobara bhejein. Tab tak 'naam - price' se product add kar sakte hain, ya 'done'/'skip' likhein.", ct);
             return true;
         }
 
@@ -225,7 +225,7 @@ public partial class ConversationEngine
                 const string askCatalog = "Ab products add karte hain. Neeche button dabayein, ya seedha number likh dein.";
                 if (DoneOrSkip.IsMatch(message))
                 {
-                    await ReplyAsync(seller, $"Ji theek hai — yeh tafseelat aap baad mein \"update business info\" likh kar add kar saktay hain.\n\n{askCatalog}", ct);
+                    await ReplyAsync(seller, $"Ji theek hai — yeh tafseelat aap baad mein \"update business info\" likh kar add kar sakte hain.\n\n{askCatalog}", ct);
                 }
                 else
                 {
@@ -242,8 +242,8 @@ public partial class ConversationEngine
                 var many = ManyProductsWords.Any(w => message.Contains(w, StringComparison.OrdinalIgnoreCase))
                            || message.Split(' ', StringSplitOptions.RemoveEmptyEntries).Any(w => int.TryParse(w, out var n) && n > 20);
                 await ReplyAsync(seller, many
-                    ? "Bohot khoob — aap ek saath kai products bhi bhej saktay hain, har line mein aik product likhein:\nLawn Suit - 3500\nKurti - 1800\nSugar 5 kg - 500\n\n" +
-                      "Ya, agar catalog bohat bara hai, Google Sheet mein bhi bhar kar uska link yahan bhej saktay hain — pehla column naam, doosra column price ho aur sheet \"Anyone with the link can view\" par set ho.\n\n" +
+                    ? "Bohot khoob — aap ek saath kai products bhi bhej sakte hain, har line mein aik product likhein:\nLawn Suit - 3500\nKurti - 1800\nSugar 5 kg - 500\n\n" +
+                      "Ya, agar catalog bohat bara hai, Google Sheet mein bhi bhar kar uska link yahan bhej sakte hain — pehla column naam, doosra column price ho aur sheet \"Anyone with the link can view\" par set ho.\n\n" +
                       "Jab tamam products add ho jayein to \"done\" likh dein."
                     : "Theek hai, barah-e-meharbani ek ek karke product ka naam aur price bataein — misaal ke taur par 'Lawn Suit - 3500'.", ct);
                 await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, "Ya, abhi kuch aur karna hai?",
@@ -257,7 +257,7 @@ public partial class ConversationEngine
                     StartTrial(seller);
                     SetState(session, ConversationState.Idle);
                     var reply = message.Equals("skip", StringComparison.OrdinalIgnoreCase)
-                        ? $"Ji theek hai — jab bhi chahein \"catalog\" likh kar dobara products add kar saktay hain.\n{TrialStartedText(seller)}"
+                        ? $"Ji theek hai — jab bhi chahein \"catalog\" likh kar dobara products add kar sakte hain.\n{TrialStartedText(seller)}"
                         : $"🎉 Mubarak ho, aapka setup mukammal ho gaya aur catalog save ho gayi hai.{TrialStartedText(seller)}\nAb jab bhi koi order aaye, usay forward kar dein ya 'new order: ...' likh kar darj karein.";
                     await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, $"{reply.TrimEnd()}\n\nAage kya karna hai? Neeche se chunein 👇",
                         "Options dekhein", AfterSetupSections, ct);

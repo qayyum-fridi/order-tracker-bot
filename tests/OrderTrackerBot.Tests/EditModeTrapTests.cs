@@ -109,7 +109,7 @@ public class EditModeTrapTests : IDisposable
 
         Assert.Equal(ConversationState.AwaitingOrderEdit, await StateAsync(db));
         Assert.Contains(_sent, m => m.Contains("Edit jaari hai") && m.Contains("done"));
-        Assert.DoesNotContain(_sent, m => m.Contains("Samajh nahi aaya"));
+        Assert.DoesNotContain(_sent, m => m.Contains("samajh nahi aaya"));
         var order = await db.Orders.Include(o => o.Items).AsNoTracking().FirstAsync(o => o.Id == id);
         Assert.Equal(OrderStatus.Pending, order.Status);
         Assert.Equal(1, order.Items.Single().Quantity);
@@ -314,7 +314,7 @@ public class EditModeTrapTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "kuch bhi", default);
 
         Assert.Equal(ConversationState.AwaitingOrderEdit, await StateAsync(db));
-        Assert.Contains(_sent, m => m.Contains("Samajh nahi aaya") && m.Contains("done"));
+        Assert.Contains(_sent, m => m.Contains("samajh nahi aaya") && m.Contains("done"));
     }
 
     public void Dispose() => _dbFactory.Dispose();

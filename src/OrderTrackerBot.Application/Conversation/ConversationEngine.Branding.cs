@@ -49,7 +49,7 @@ public partial class ConversationEngine
         if (kind is null)
         {
             await ReplyAsync(seller,
-                "🖼️ Aap apni receipt par apna logo aur banner laga saktay hain.\n\n" +
+                "🖼️ Aap apni receipt par apna logo aur banner laga sakte hain.\n\n" +
                 $"• Logo (chhota, square; naam ke saath): {State(branding?.Logo is not null)}\n" +
                 $"• Banner (lambi patti, taqreeban 3:1; receipt ke sab se upar): {State(branding?.Banner is not null)}\n\n" +
                 $"{BrandingHow}\n\nHatane ke liye: remove logo / remove banner\nDekhne ke liye: receipt", ct);

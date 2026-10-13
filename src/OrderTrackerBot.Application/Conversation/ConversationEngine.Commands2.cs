@@ -16,7 +16,7 @@ public partial class ConversationEngine
             .FirstOrDefaultAsync(o => o.SellerId == seller.Id && o.Id == cmd.Number, ct);
         if (order is null)
         {
-            await ReplyAsync(seller, $"Order #{cmd.Number} nahi mila.", ct);
+            await ReplyAsync(seller, $"Order #{cmd.Number} nahi mila. Apne orders dekhne ke liye \"orders today\" likhein.", ct);
             return;
         }
 

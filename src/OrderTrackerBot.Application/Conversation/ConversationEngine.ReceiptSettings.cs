@@ -58,7 +58,7 @@ public partial class ConversationEngine
         var size = NormalizeReceiptSize(text);
         if (size is null)
         {
-            await ReplyAsync(seller, "Size samajh nahi aaya. Likhein: receipt size 80mm, receipt size 58mm, receipt size A5 ya receipt size A4.", ct);
+            await ReplyAsync(seller, "Maaf kijiye, size samajh nahi aaya. Likhein: receipt size 80mm, receipt size 58mm, receipt size A5 ya receipt size A4.", ct);
             return;
         }
         seller.ReceiptSize = size == "A5" ? null : size;
@@ -96,7 +96,7 @@ public partial class ConversationEngine
         var order = await _db.Orders.FirstOrDefaultAsync(o => o.SellerId == seller.Id && o.Id == orderId, ct);
         if (order is null)
         {
-            await ReplyAsync(seller, $"Order #{cmd.Number} nahi mila.", ct);
+            await ReplyAsync(seller, $"Order #{cmd.Number} nahi mila. Apne orders dekhne ke liye \"orders today\" likhein.", ct);
             return;
         }
 
@@ -172,7 +172,7 @@ public partial class ConversationEngine
         var (order, fromList) = await FindReceiptOrderAsync(seller, ctx, new ParsedCommand { Kind = CommandKind.Receipt, Number = cmd.Number }, ct);
         if (order is null)
         {
-            await ReplyAsync(seller, cmd.Number is not null ? $"Order #{cmd.Number} nahi mila." : "Abhi koi order nahi hai.", ct);
+            await ReplyAsync(seller, cmd.Number is not null ? $"Order #{cmd.Number} nahi mila. Apne orders dekhne ke liye \"orders today\" likhein." : "Abhi koi order nahi hai.", ct);
             return;
         }
 
