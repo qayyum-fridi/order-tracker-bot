@@ -36,6 +36,7 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<WageEntry> WageEntries => Set<WageEntry>();
     public DbSet<CashDrawerSession> CashDrawerSessions => Set<CashDrawerSession>();
     public DbSet<CashMovement> CashMovements => Set<CashMovement>();
+    public DbSet<Payout> Payouts => Set<Payout>();
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -159,6 +160,7 @@ public class AppDbContext : DbContext, IAppDbContext
         modelBuilder.Entity<Loss>(e => e.HasIndex(x => new { x.SellerId, x.CreatedAt }));
         modelBuilder.Entity<WageEntry>(e => e.HasIndex(x => new { x.SellerId, x.CreatedAt }));
         modelBuilder.Entity<CashDrawerSession>(e => e.HasIndex(x => new { x.SellerId, x.OpenedAt }));
+        modelBuilder.Entity<Payout>(e => e.HasIndex(x => new { x.SellerId, x.ReceivedAt }));
         modelBuilder.Entity<CashMovement>(e =>
         {
             e.HasIndex(x => new { x.SellerId, x.CreatedAt });

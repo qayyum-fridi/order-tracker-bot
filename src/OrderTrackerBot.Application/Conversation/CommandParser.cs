@@ -108,7 +108,8 @@ public enum CommandKind
     Scan,
     BarcodeSet,
     CashDrawer,
-    CashMovement
+    CashMovement,
+    Payout
 }
 
 /// <summary>What to export: any of "orders", "customers", "catalog", "discounts" (empty = ask), and an optional orders period (today/yesterday/7d/30d/lastmonth).</summary>
@@ -684,6 +685,11 @@ public static class CommandParser
     private static readonly Regex EmailReceiptCmd = new(@"^email\s+(?:the\s+)?(?:receipt|bill|invoice)(?:\s+#?(?<n>\d{1,9}))?(?:\s+(?:to|ko)\s+(?<a>\S+@\S+))?$", Opts);
     private static readonly Regex PrinterHelpCmd = new(@"^(?:printer|thermal\s+printer|(?:print|printer)\s+(?:help|guide|setup))$", Opts);
 
+    // Courier / gateway payouts (ConversationEngine.Payouts.cs): payout 11700 TCS orders 1 2 3 fee 300 | payout pending | payouts | payout skip 12 | payout undo.
+    private static readonly Regex PayoutCmd = new(@"^(?:payouts?|settlements?)(?:\s+(?<rest>.+))?$", Opts);
+    private static readonly Regex AwaitingPayoutCmd = new(@"^(?:awaiting|pending|baqi)\s+(?:payouts?|settlements?)$", Opts);
+    private static readonly Regex PayoutAmountFirst = new(@"^(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d+)?)\s*(?<r>.*)$", Opts);
+
     // Labels, barcode scanning and the cash drawer (ConversationEngine.Labels.cs / Scan.cs / CashDrawer.cs).
     private static readonly Regex LabelSizeCmd = new(@"^labels?\s+size\s*:?\s*(?<v>.*)$", Opts);
     private static readonly Regex BusinessLabelCmd = new(@"^(?:(?:business|shop|dukan|store)\s+(?:labels?|stickers?)|labels?\s+(?:business|shop|dukan)|stickers?)$", Opts);
@@ -1030,6 +1036,20 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.SetEmail, Text = m.Groups["a"].Value.Trim() };
         if (PrinterHelpCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.PrinterHelp };
 
+        if (AwaitingPayoutCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Payout, Text = "pending" };
+        if ((m = PayoutCmd.Match(message)).Success)
+        {
+            var rest = m.Groups["rest"].Success ? m.Groups["rest"].Value.Trim() : "";
+            var word = rest.Split(' ', 2)[0].ToLowerInvariant();
+            var after = rest.Contains(' ') ? rest[(rest.IndexOf(' ') + 1)..].Trim() : "";
+            if (rest.Length == 0 || word is "pending" or "baqi" or "due" or "awaiting")
+                return new ParsedCommand { Kind = CommandKind.Payout, Text = "pending" };
+            if (word is "list" or "history" or "all") return new ParsedCommand { Kind = CommandKind.Payout, Text = "list" };
+            if (word is "undo") return new ParsedCommand { Kind = CommandKind.Payout, Text = "undo" };
+            if (word is "skip" or "ignore") return new ParsedCommand { Kind = CommandKind.Payout, Text = "skip", Text2 = after };
+            if (PayoutAmountFirst.Match(rest) is { Success: true } record)
+                return new ParsedCommand { Kind = CommandKind.Payout, Text = "record", Amount = ParseCashAmount(record.Groups["a"]), Text2 = record.Groups["r"].Value.Trim() };
+        }
         if ((m = LabelSizeCmd.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.LabelSize, Text = m.Groups["v"].Value.Trim() };
         if (BusinessLabelCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.BusinessLabel };
