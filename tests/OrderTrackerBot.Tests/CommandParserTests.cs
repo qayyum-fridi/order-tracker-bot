@@ -819,3 +819,25 @@ public class CommandParserTests
         Assert.Equal(CommandKind.FuzzyStatusUpdate, CommandParser.TryParse("Sara ka order deliver ho gaya")!.Kind);
     }
 }
+
+public class NewProductPrefixTests
+{
+    [Theory]
+    [InlineData("naya product: Kurti - 1800", "Kurti", 1800)]
+    [InlineData("new product: Dupatta - 600, cost 300,", "Dupatta", 600)]
+    [InlineData("Naya Product : Shawl - 2,200", "Shawl", 2200)]
+    public void TheMenuWording_AddsAProduct(string text, string name, int price)
+    {
+        var parsed = CommandParser.TryParse(text)!;
+        Assert.Equal(CommandKind.AddProduct, parsed.Kind);
+        Assert.Equal(name, parsed.Text);
+        Assert.Equal(price, parsed.Amount);
+    }
+
+    [Theory]
+    [InlineData("naya product hai Kurti")]
+    [InlineData("naya product: Kurti")]
+    public void SentencesWithoutAPrice_AreNotProductLines(string text) =>
+        Assert.NotEqual(CommandKind.AddProduct, CommandParser.TryParse(text)?.Kind);
+}
+

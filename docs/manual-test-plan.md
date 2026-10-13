@@ -26,6 +26,7 @@ Business used throughout: **Ayesha Collections, Lahore** (clothes + a few grocer
 ## 2. Catalog and product details
 | # | Send | Expect |
 |---|---|---|
+| 2.0 | `naya product: Kurti - 1800` (wording the menu shows) | Saved like `Kurti - 1800` |
 | 2.1 | `Lawn Suit - 3500, cost 2200, stock 20, color white` | Saved; confirmation echoes cost, stock, color. Quick bar after it: `walkin Lawn Suit 1` / `catalog` / `Menu` |
 | 2.2 | `Dupatta - 600, cost 300, stock 50` | Saved |
 | 2.3 | `Polo Shirt - 500, cost 300, stock 10, color white, fabric: cotton` | Saved with attribute fabric |

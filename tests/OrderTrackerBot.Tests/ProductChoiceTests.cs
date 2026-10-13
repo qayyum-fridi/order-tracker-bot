@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Moq;
 using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Ai;
@@ -56,6 +57,47 @@ public class ProductChoiceTests : IDisposable
 
         Assert.DoesNotContain(_sent, m => m.Contains("Reply 1 ya 2"));
         Assert.DoesNotContain(_sent, m => m.Contains("Kaunsa existing product"));
+    }
+
+    [Theory]
+    [InlineData("2")]       // asked "which existing product?" -> now waiting on a name
+    [InlineData("1")]       // asked for the new product's price
+    public async Task AProductLineSentWhileTheDraftWaitsOnAProduct_DropsTheDraftAndAddsTheProduct(string firstAnswer)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        OrderForUnknownProduct();
+        await engine.HandleIncomingMessageAsync(Phone, "Yusrah 03457278990 2 lawn order place karo", default);
+        await engine.HandleIncomingMessageAsync(Phone, firstAnswer, default);
+        _sent.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "Dupatta - 600, cost 300,", default);
+
+        Assert.DoesNotContain(_sent, m => m.Contains("catalog mein nahi mila"));
+        Assert.Contains(_sent, m => m.Contains("Dupatta") && m.Contains("add ho gaya"));
+        var dupatta = await db.Products.SingleAsync(p => p.Name == "Dupatta");
+        Assert.Equal(600m, dupatta.Price);
+        Assert.Equal(300m, dupatta.CostPrice);
+        Assert.Equal(0, await db.Orders.CountAsync());                    // the half-made order is not saved
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "Shawl - 900", default);   // and the seller is no longer stuck
+        Assert.Contains(_sent, m => m.Contains("Shawl") && m.Contains("add ho gaya"));
+    }
+
+    [Fact]
+    public async Task ARealProductNameOrPrice_StillAnswersTheQuestion()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        OrderForUnknownProduct();
+        await engine.HandleIncomingMessageAsync(Phone, "Yusrah 03457278990 2 lawn order place karo", default);
+        await engine.HandleIncomingMessageAsync(Phone, "1", default);
+        _sent.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "Rs. 4,200", default);
+
+        Assert.Contains(_sent, m => m.Contains("catalog mein add ho gaya"));
+        Assert.Contains(_sent, m => m.Contains("Confirm order"));
     }
 
     [Fact]
