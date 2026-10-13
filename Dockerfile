@@ -22,4 +22,8 @@ EXPOSE 8080
 
 COPY --from=build /app .
 
+# The deployed commit, shown by the bot's "version" command: docker compose build --build-arg GIT_SHA=$(git rev-parse HEAD)
+ARG GIT_SHA=unknown
+ENV Build__Version=$GIT_SHA
+
 ENTRYPOINT ["dotnet", "OrderTrackerBot.Api.dll"]

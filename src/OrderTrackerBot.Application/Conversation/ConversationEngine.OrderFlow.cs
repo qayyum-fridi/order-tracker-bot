@@ -18,6 +18,28 @@ public partial class ConversationEngine
     /// <summary>A sellable catalog listing plus its wholesale tiers; <see cref="Label"/> is what the AI sees and matches against.</summary>
     private sealed record CatalogEntry(Product Product, string Label, IReadOnlyList<PriceTier> Tiers);
 
+    internal const string NewProductButtonTitle = "➕ Naya product";
+    private const int ButtonTitleMax = 20;
+
+    /// <summary>One tap per near-miss product, titled "Name Rs.1800" (cut to the 20 characters a button holds; the same text is what comes back on a tap).</summary>
+    private static List<ProductSuggestion> BuildSuggestions(IReadOnlyList<CatalogEntry> catalog, IReadOnlyList<string> nearestLabels)
+    {
+        var result = new List<ProductSuggestion>();
+        foreach (var label in nearestLabels)
+        {
+            var entry = catalog.FirstOrDefault(c => c.Label == label);
+            if (entry is null) continue;
+            var price = " Rs." + entry.Product.Price.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+            var room = ButtonTitleMax - price.Length;
+            if (room < 4) continue;
+            var name = label.Length <= room ? label : label[..(room - 1)] + "…";
+            var title = name + price;
+            if (result.Any(r => r.Title == title)) continue;
+            result.Add(new ProductSuggestion { Title = title, Label = label });
+        }
+        return result;
+    }
+
     private async Task<List<CatalogEntry>> LoadCatalogAsync(Seller seller, CancellationToken ct)
     {
         var products = await _db.Products.Where(p => p.SellerId == seller.Id && p.IsActive).OrderBy(p => p.Id).ToListAsync(ct);
@@ -240,13 +262,23 @@ public partial class ConversationEngine
             ctx.PendingNewProductName = unresolved.ProductName;
             ctx.PendingMissingField = "ProductChoice";
             SetState(session, ConversationState.AwaitingOrderMissingFields);
-            // A near miss of a catalog name is most likely a typo: say which product it probably is.
-            var guess = TextDistance.Closest(unresolved.ProductName, (await LoadCatalogAsync(seller, ct)).Select(c => c.Label), 2);
-            await ReplyAsync(seller,
-                $"\"{unresolved.ProductName}\" aapke catalog mein nahi mila.\n\n" +
+            // A near miss of a catalog name is most likely a typo: offer the nearest products as taps (or name the closest one in the typed hint).
+            var catalog = await LoadCatalogAsync(seller, ct);
+            var nearest = TextDistance.Nearest(unresolved.ProductName, catalog.Select(c => c.Label), 2, 3);
+            var suggestions = _features.SuggestionButtons ? BuildSuggestions(catalog, nearest) : new List<ProductSuggestion>();
+            ctx.ProductSuggestions = suggestions.Count > 0 ? suggestions : null;
+            var intro = $"\"{unresolved.ProductName}\" aapke catalog mein nahi mila.\n\n" +
                 "1️⃣ Ye naya product hai — catalog mein add karoon?\n" +
-                "2️⃣ Ye kisi existing product ka doosra naam hai (batayein kaunsa)" +
-                (guess is null ? "" : $"\n\n💡 Kya aap \"{guess}\" keh rahe hain? Haan to likhein: 2 {guess}"), ct);
+                "2️⃣ Ye kisi existing product ka doosra naam hai (batayein kaunsa)";
+            if (suggestions.Count > 0)
+            {
+                var titles = suggestions.Select(s => s.Title).ToList();
+                if (titles.Count < 3) titles.Add(NewProductButtonTitle);
+                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, intro + "\n\n💡 Kya aap in mein se koi product keh rahe hain? Neeche se chunein:", titles, ct);
+                return;
+            }
+            var guess = nearest.Count > 0 ? nearest[0] : null;
+            await ReplyAsync(seller, intro + (guess is null ? "" : $"\n\n💡 Kya aap \"{guess}\" keh rahe hain? Haan to likhein: 2 {guess}"), ct);
             return;
         }
 

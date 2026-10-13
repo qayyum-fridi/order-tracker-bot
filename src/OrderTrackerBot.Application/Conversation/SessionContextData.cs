@@ -54,10 +54,19 @@ public sealed class OrderForCustomerData
     public DateTime At { get; set; } = DateTime.UtcNow;
 }
 
+/// <summary>A "did you mean ...?" tap offered for an unknown product name: the button title as sent, and the catalog label it stands for.</summary>
+public sealed class ProductSuggestion
+{
+    public string Title { get; set; } = "";
+    public string Label { get; set; } = "";
+}
+
 /// <summary>Everything an in-flight multi-turn flow needs, serialized to ConversationSession.ContextJson.</summary>
 public sealed class SessionContextData
 {
     public OrderForCustomerData? OrderForCustomer { get; set; }
+    /// <summary>The did-you-mean buttons last sent for the product question (<c>ProductChoice</c>); a tap on one is read as "2 &lt;label&gt;".</summary>
+    public List<ProductSuggestion>? ProductSuggestions { get; set; }
     public PendingOrderData? PendingOrder { get; set; }
     /// <summary>When the draft was first shown for confirmation (UTC). Set by the engine on persist; cleared with the draft.</summary>
     public DateTime? PendingOrderAskedAt { get; set; }

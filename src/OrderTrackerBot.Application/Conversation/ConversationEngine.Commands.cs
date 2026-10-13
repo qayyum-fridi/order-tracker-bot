@@ -126,7 +126,7 @@ public partial class ConversationEngine
                 new MenuRow("receipt settings", "Receipt settings"), new MenuRow("profit", "Profit"),
                 new MenuRow("stock", "Stock list"), BackToMenu
             }),
-            ["settings"] = ("⚙️ Settings", "⚙️ Settings\n • receipt design — receipt ka rang, title aur layout live tayyar karein\n • receipt size 80mm|58mm|A5|A4 · receipt header/contact/footer [text]\n • email aap@gmail.com — receipt email ke liye\n • printer — printer ki rehnumai\n • shortcut off — neeche ke buttons band karein\n • feedback: [aapka paigham] — hamein bot ke baare mein batayein", new[]
+            ["settings"] = ("⚙️ Settings", "⚙️ Settings\n • receipt design — receipt ka rang, title aur layout live tayyar karein\n • receipt size 80mm|58mm|A5|A4 · receipt header/contact/footer [text]\n • email aap@gmail.com — receipt email ke liye\n • printer — printer ki rehnumai\n • shortcut off — neeche ke buttons band karein\n • version — bot ka build version\n • feedback: [aapka paigham] — hamein bot ke baare mein batayein", new[]
             {
                 new MenuRow("update business info", "Business info"), new MenuRow("add payment", "Payment methods"),
                 new MenuRow("subscribe", "Plan / subscribe"), new MenuRow("logo", "Receipt logo / banner"), new MenuRow("export", "Export (Excel)"),
@@ -351,6 +351,9 @@ public partial class ConversationEngine
             case CommandKind.PaymentMethodPrompt:
                 await StartPaymentMethodInputAsync(seller, session, ct);
                 return;
+            case CommandKind.Version:
+                await ReplyAsync(seller, _build.Describe(), ct);
+                break;
             case CommandKind.Guide:
                 if (!string.IsNullOrWhiteSpace(_features.GuideUrl))
                     await ReplyAsync(seller, $"📖 Tasveeron wali guide (English / اردو):\n{_features.GuideUrl}", ct);
