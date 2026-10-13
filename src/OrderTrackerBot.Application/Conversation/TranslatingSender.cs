@@ -16,6 +16,8 @@ internal sealed class TranslatingSender : IWhatsAppSender
 {
     private const int MaxCachedTranslations = 5000;
     private const int MaxButtonLabel = 20, MaxRowOrSectionTitle = 24, MaxFlowCta = 30;
+    // WhatsApp refuses an interactive (buttons / list / flow) body over 1024 characters; a translation is often longer than the Roman Urdu it came from.
+    private const int MaxInteractiveBody = 1024;
     private static readonly ConcurrentDictionary<string, string> Cache = new();
     private static readonly Regex Digits = new("[0-9]+", RegexOptions.Compiled);
     private static readonly ConcurrentDictionary<string, string> ButtonLabelOrigins = new();
@@ -62,7 +64,7 @@ internal sealed class TranslatingSender : IWhatsAppSender
                 .Select((s, i) => new MenuSection(sectionTitles[i],
                     s.Rows.Select(r => new MenuRow(r.Id, FitOrOriginal(translated[next++], r.Title, MaxRowOrSectionTitle))).ToList()))
                 .ToList();
-            bodyText = translated[0];
+            bodyText = FitOrOriginal(translated[0], bodyText, MaxInteractiveBody);
             buttonLabel = FitOrOriginal(translated[1], buttonLabel, MaxButtonLabel);
         }
 
@@ -75,7 +77,7 @@ internal sealed class TranslatingSender : IWhatsAppSender
         if (target is not null)
         {
             var translated = await TranslateAsync(new[] { bodyText, ctaLabel }, target, cancellationToken);
-            bodyText = translated[0];
+            bodyText = FitOrOriginal(translated[0], bodyText, MaxInteractiveBody);
             ctaLabel = FitOrOriginal(translated[1], ctaLabel, MaxFlowCta);
         }
 
@@ -90,7 +92,7 @@ internal sealed class TranslatingSender : IWhatsAppSender
             // The language picker keeps its fixed labels; every other label is translated and remembered so a tap can be mapped back.
             var translatable = buttonLabels.Where(l => !Lang.ButtonLabels.Contains(l)).ToList();
             var translated = await TranslateAsync(translatable.Prepend(bodyText).ToList(), target, cancellationToken);
-            bodyText = translated[0];
+            bodyText = FitOrOriginal(translated[0], bodyText, MaxInteractiveBody);
 
             var shown = translatable.Select((l, i) => FitOrOriginal(translated[i + 1], l, MaxButtonLabel)).ToList();
             var collides = shown.GroupBy(s => s).Any(g => g.Count() > 1) || shown.Any(s => Lang.ButtonLabels.Contains(s));
