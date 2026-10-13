@@ -163,6 +163,8 @@ public partial class ConversationEngine
                 : result.Steps.Select(s => s.Trim()).ToList();
             if (steps.Count > 0)
             {
+                // Waiting for dates: nothing here is money or an order, and dates legitimately add digits (a day, a year) the seller spoke as words ("yakum", "do hazar chhabees").
+                if (seller.Session!.State == ConversationState.AwaitingCustomDateRange) return TurnDecision.Execute(CorrectMarginQuestion(transcript, steps));
                 // A rewrite that changes what was said is not run, and neither is the raw transcript: the seller is asked again.
                 var known = KnownVoiceNumbers(recent, catalog);
                 // Reason only (never the transcript text): makes refused rewrites visible in the logs.
