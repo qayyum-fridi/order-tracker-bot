@@ -54,6 +54,13 @@ public partial class ConversationEngine
         await HandleAnalysisAsync(seller, session, ctx, analysis, catalog, fromScreenshot: false, ct, message);
     }
 
+    private static readonly System.Text.RegularExpressions.Regex DiscountWords = new(
+        @"discount|coupon|promo|voucher|offer|code|sale|رعایت|ڈسکاؤنٹ|ڈسکاونٹ|کوپن|آفر|کوڈ|چھوٹ",
+        System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    private static readonly System.Text.RegularExpressions.Regex CategoryWords = new(
+        @"categor|qism|kism|کیٹیگری|کیٹگری|کیٹیگریز|قسم|زمرہ",
+        System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
     private async Task HandleAnalysisAsync(Seller seller, ConversationSession session, SessionContextData ctx, AiMessageAnalysis analysis,
         List<CatalogEntry> catalog, bool fromScreenshot, CancellationToken ct, string? sourceText = null)
     {
@@ -74,6 +81,16 @@ public partial class ConversationEngine
 
         if (analysis.Intent == "create_discount")
         {
+            // The model picks this for anything that starts "create ..." ("create category: Women Cloths"). Only a message that really talks
+            // about a discount may open the discount flow, which would otherwise swallow the seller's next messages as a discount code.
+            if (!string.IsNullOrWhiteSpace(sourceText) && !DiscountWords.IsMatch(sourceText))
+            {
+                await ReplyAsync(seller, CategoryWords.IsMatch(sourceText)
+                    ? "Category alag se nahi banti — product ke saath likhein: Polo Shirt - 500, category: Women Cloths.\nDekhne ke liye: catalog category"
+                    : "Samajh nahi aaya. Discount banana ho to \"create discount\" likhein, ya \"menu\" likhein.", ct);
+                return;
+            }
+
             SetState(session, ConversationState.AwaitingDiscountDetails);
             await ReplyAsync(seller, HowToText("discount"), ct);
             return;
