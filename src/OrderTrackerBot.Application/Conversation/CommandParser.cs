@@ -13,6 +13,8 @@ public enum CommandKind
     PendingOrders,
     TodaysSummary,
     Profit,
+    Margin,
+    CategorySales,
     Catalog,
     CatalogFilter,
     AddProduct,
@@ -157,6 +159,8 @@ public static class CommandParser
     private static readonly Regex Help = new(@"^(help|مدد|commands|what\s+can\s+i\s+do|how\s+to\s+use|madad\s+chahiye)$", Opts);
     private static readonly Regex Guide = new(@"^(guide|gaid|guide\s+dekhein|guide\s+dekhna|poora\s+guide|گائیڈ|گائڈ|گائیڈ\s+دیکھیں)$", Opts);
     private static readonly Regex VersionCmd = new(@"^(?:bot\s+)?(?:version|build|ورژن)$", Opts);
+    private static readonly Regex MarginCmd = new(@"^(?:margins?|margin\s+(?:list|report)|profit\s+margins?|discount\s+(?:room|limit)|munafa\s+per\s+product)$", Opts);
+    private static readonly Regex CategorySalesCmd = new(@"^(?:category[\s-]*wise\s+(?:sales?|report)|sales?\s+by\s+category|category\s+(?:sales?|report)|category\s+ki\s+sale|categories\s+sales?)(?:\s+(?<p>.+))?$", Opts);
     private static readonly Regex GuideLater = new(@"^baad\s+mein$", Opts);
     private static readonly Regex ChangeLanguage = new(@"^(change\s+language|language(\s+(badlein|badlo|change))?|zabaan\s+badlein|language\s+badal(na|ein)?|زبان\s+بدلیں)$", Opts);
     private static readonly Regex BusinessSetup = new(@"^(business\s+setup|setup|settings)$", Opts);
@@ -1135,6 +1139,13 @@ public static class CommandParser
         if (BusinessSetup.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.BusinessSetup };
         if (PaymentMethodPrompt.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.PaymentMethodPrompt };
         if (Guide.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Guide, Text = message.Contains("dekh", StringComparison.OrdinalIgnoreCase) || message.StartsWith("poora", StringComparison.OrdinalIgnoreCase) ? "full" : null };
+        if (CategorySalesCmd.Match(message) is { Success: true } catSales)
+        {
+            var periodText = catSales.Groups["p"].Success ? catSales.Groups["p"].Value.Trim() : null;
+            if (periodText is null) return new ParsedCommand { Kind = CommandKind.CategorySales };
+            if (ReportPeriods.TryParseKey(periodText, DateTime.UtcNow, out var catPeriod)) return new ParsedCommand { Kind = CommandKind.CategorySales, Text = catPeriod };
+        }
+        if (MarginCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Margin };
         if (VersionCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Version };
         if (GuideLater.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.GuideLater };
         if (Menu.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Menu };

@@ -24,16 +24,49 @@ public class WhatsAppSender : IWhatsAppSender
         _logger = logger;
     }
 
-    public async Task SendTextMessageAsync(string toPhoneNumber, string text, CancellationToken cancellationToken = default) =>
-        await PostAsync(toPhoneNumber, text, new SendMessageRequest
+    /// <summary>WhatsApp's limits: a text message holds 4096 characters, an interactive body 1024 (and neither may be empty).</summary>
+    internal const int MaxTextLength = 4096, MaxInteractiveBodyLength = 1024;
+
+    public async Task SendTextMessageAsync(string toPhoneNumber, string text, CancellationToken cancellationToken = default)
+    {
+        // An empty text is refused by Meta; an over-long one is sent in several messages instead of being lost.
+        foreach (var part in SplitForText(text))
+            await PostAsync(toPhoneNumber, part, new SendMessageRequest
+            {
+                To = toPhoneNumber,
+                Text = new SendMessageText { Body = part }
+            }, cancellationToken);
+    }
+
+    /// <summary>Cuts a long text into parts of at most <see cref="MaxTextLength"/>, at a line break (or space) when there is one; nothing is dropped.</summary>
+    internal static IReadOnlyList<string> SplitForText(string? text)
+    {
+        var rest = (text ?? "").Trim();
+        var parts = new List<string>();
+        while (rest.Length > MaxTextLength)
         {
-            To = toPhoneNumber,
-            Text = new SendMessageText { Body = text }
-        }, cancellationToken);
+            var cut = rest.LastIndexOf('\n', MaxTextLength - 1, MaxTextLength);
+            if (cut < MaxTextLength / 2) cut = rest.LastIndexOf(' ', MaxTextLength - 1, MaxTextLength);
+            if (cut < MaxTextLength / 2) cut = MaxTextLength;
+            parts.Add(rest[..cut].TrimEnd());
+            rest = rest[cut..].TrimStart();
+        }
+        if (rest.Length > 0) parts.Add(rest);
+        return parts;
+    }
+
+    private static bool FitsInteractive(string? body) => !string.IsNullOrWhiteSpace(body) && body.Length <= MaxInteractiveBodyLength;
 
     // Interactive messages fall back to plain text on failure so the seller is never left without a reply.
     public async Task SendButtonsMessageAsync(string toPhoneNumber, string bodyText, IReadOnlyList<string> buttonLabels, CancellationToken cancellationToken = default)
     {
+        // A body Meta would refuse (empty, over 1024) goes out as a plain message with the options listed, without a failed call first.
+        if (!FitsInteractive(bodyText))
+        {
+            await SendTextMessageAsync(toPhoneNumber, string.IsNullOrWhiteSpace(bodyText) ? string.Join(" / ", buttonLabels) : $"{bodyText}\n\n{string.Join(" / ", buttonLabels)}", cancellationToken);
+            return;
+        }
+
         var ok = await PostAsync(toPhoneNumber, bodyText, new SendInteractiveRequest
         {
             To = toPhoneNumber,
@@ -56,6 +89,12 @@ public class WhatsAppSender : IWhatsAppSender
 
     public async Task SendListMessageAsync(string toPhoneNumber, string bodyText, string buttonLabel, IReadOnlyList<MenuSection> sections, CancellationToken cancellationToken = default)
     {
+        if (!FitsInteractive(bodyText))
+        {
+            await SendTextMessageAsync(toPhoneNumber, string.IsNullOrWhiteSpace(bodyText) ? buttonLabel : bodyText, cancellationToken);
+            return;
+        }
+
         var ok = await PostAsync(toPhoneNumber, bodyText, new SendListRequest
         {
             To = toPhoneNumber,
@@ -91,7 +130,7 @@ public class WhatsAppSender : IWhatsAppSender
             "order" => (_options.OrderFlowId, "ORDER_FORM"),
             _ => ("", "")
         };
-        if (string.IsNullOrWhiteSpace(flowId) || string.IsNullOrWhiteSpace(_options.AccessToken))
+        if (string.IsNullOrWhiteSpace(flowId) || string.IsNullOrWhiteSpace(_options.AccessToken) || !FitsInteractive(bodyText))
             return Task.FromResult(false);
 
         return PostAsync(toPhoneNumber, bodyText, new SendFlowRequest

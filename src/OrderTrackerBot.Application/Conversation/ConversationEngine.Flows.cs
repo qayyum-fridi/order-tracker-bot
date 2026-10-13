@@ -108,9 +108,28 @@ public partial class ConversationEngine
             return;
         }
 
+        // "1 January se aaj tak": from a date until now.
+        if (TryParseOpenRange(message, out var openFrom))
+        {
+            await SendTrendingProductsAsync(seller, openFrom, $"{openFrom:d MMM} se aaj tak", ct, DateTime.UtcNow.AddDays(1));
+            return;
+        }
+
         if (!TryParseDateRange(message, out var from, out var to))
         {
-            await ReplyAsync(seller, "Date range samajh nahi aayi — try karein: \"1 May se 15 May\", \"pichle 3 mahine\" ya \"last quarter\"", ct);
+            // Not dates at all: a real command ("summary last week", "orders today") or a way out is not an answer to the date question. Leave it and run it.
+            if (CancelWords.Contains(message.Trim()))
+            {
+                await ReplyAsync(seller, "Theek hai, tareekh ka sawal band kar diya.", ct);
+                return;
+            }
+            if (CommandParser.TryParse(message) is { } command)
+            {
+                await ExecuteCommandAsync(seller, session, ctx, command, ct);
+                return;
+            }
+            SetState(session, ConversationState.AwaitingCustomDateRange); // still waiting: a wrong try must not lose the question
+            await ReplyAsync(seller, "Maaf kijiye, tareekh samajh nahi aayi. Barae meherbani likhein: \"1 May se 15 May\", \"1 January se aaj tak\", \"pichle 3 mahine\" ya \"last quarter\". Rokne ke liye \"cancel\".", ct);
             return;
         }
 
@@ -119,6 +138,25 @@ public partial class ConversationEngine
     }
 
     private static readonly string[] DateFormats = { "d MMM", "d MMMM", "d MMM yyyy", "d MMMM yyyy", "d/M", "d/M/yyyy", "yyyy-MM-dd", "MMM d", "MMMM d" };
+
+    private static readonly System.Text.RegularExpressions.Regex OpenRange = new(
+        @"^(?:since\s+)?(?<from>.+?)\s+(?:se|from|to|till|until)\s+(?:ab|abhi|aab|aaj|aj|now|today|date|present)(?:\s+tak)?$|^(?:since|from)\s+(?<from>.+)$",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>"1 January se aaj tak" / "since 1 January" / "1 Jan 2026 se ab tak": a start date and "until now". A day said as "yakum" / "یکم" counts as 1.</summary>
+    internal static bool TryParseOpenRange(string message, out DateTime from)
+    {
+        from = default;
+        var m = OpenRange.Match(message.Trim().TrimEnd('.', '،', '۔'));
+        if (!m.Success) return false;
+        var text = System.Text.RegularExpressions.Regex.Replace(m.Groups["from"].Value.Trim(), @"\b(?:yakum|yekam|1st)\b|یکم", "1", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var culture = System.Globalization.CultureInfo.InvariantCulture;
+        var style = System.Globalization.DateTimeStyles.AllowWhiteSpaces | System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal;
+        if (!DateTime.TryParseExact(text, DateFormats, culture, style, out var start)) return false;
+        if (start > DateTime.UtcNow) start = start.AddYears(-1); // no year typed: the most recent such date
+        from = start;
+        return true;
+    }
 
     private static bool TryParseDateRange(string message, out DateTime from, out DateTime to)
     {
