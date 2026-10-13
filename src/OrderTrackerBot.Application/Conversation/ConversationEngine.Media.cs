@@ -168,7 +168,7 @@ public partial class ConversationEngine
                 // Reason only (never the transcript text): makes refused rewrites visible in the logs.
                 if (WhyUnfaithful(transcript, string.Join("\n", steps), known) is { } why)
                     _logger?.LogWarning("Voice rewrite refused: {Reason} (risky={Risky})", why, StepsAreRisky(steps));
-                return DecideRewrite(transcript, steps, known);
+                return DecideRewrite(transcript, CorrectMarginQuestion(transcript, steps), known);
             }
         }
         // The AI was unavailable: the transcript goes to the deterministic engine, as before.
@@ -178,6 +178,27 @@ public partial class ConversationEngine
             return TurnDecision.Execute(new[] { transcript });
         return TurnDecision.Clarify(ParserFailureQuestion);
     }
+
+    /// <summary>
+    /// A voice rewrite must not turn an analysis question into the "create a discount code" how-to. When the seller talked about margin / profit and did not say anything
+    /// that makes a code (a code, a percent, an expiry), a bare "create discount" step is replaced by the margin report. Plain text rules, so it holds whatever the model did.
+    /// </summary>
+    public static IReadOnlyList<string> CorrectMarginQuestion(string transcript, IReadOnlyList<string> steps)
+    {
+        if (!steps.Any(IsBareCreateDiscount) || !MarginWords.IsMatch(transcript) || MakesACode.IsMatch(transcript)) return steps;
+        return steps.Select(st => IsBareCreateDiscount(st) ? "margin" : st).Distinct().ToList();
+    }
+
+    private static bool IsBareCreateDiscount(string step) =>
+        System.Text.RegularExpressions.Regex.IsMatch(step.Trim(), @"^(?:create|add|new|naya)\s+discount\.?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    private static readonly System.Text.RegularExpressions.Regex MarginWords = new(
+        @"margin|marjin|profit|munafa|nafa|مارجن|مارگن|پرافٹ|پروفٹ|پروفیٹ|منافع|نفع",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static readonly System.Text.RegularExpressions.Regex MakesACode = new(
+        @"\bcode\b|coupon|expire|%|percent|فیصد|کوڈ|کوپن|\d",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.Compiled);
 
     /// <summary>
     /// The safety gate for a rewritten voice turn. Faithful: run it. Unfaithful and it would change money or an order: refuse (no tap options that
