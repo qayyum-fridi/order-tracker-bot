@@ -62,7 +62,7 @@ public partial class ConversationEngine
             return;
         }
 
-        var hits = rows.Where(r => (r.City ?? "").Contains(place, StringComparison.OrdinalIgnoreCase) || (r.Address ?? "").Contains(place, StringComparison.OrdinalIgnoreCase)).ToList();
+        var hits = rows.Where(r => PlaceMatches(place, r.City) || PlaceMatches(place, r.Address)).ToList();
         if (hits.Count == 0)
         {
             await ReplyAsync(seller, $"📍 \"{place}\" ke naam wali koi city ya address kisi order mein nahi mili ({label}).\nSab shehron ka hisaab dekhne ke liye \"city wise orders\" likhein.", ct);
@@ -72,6 +72,36 @@ public partial class ConversationEngine
             $"📍 {place} — {label}\n\nOrders: {hits.Count}\nCustomers: {hits.Select(h => h.CustomerId).Distinct().Count()}\nSale: {Formatters.Money(hits.Sum(h => h.Total))}\n\n" +
             "Yeh customer ki city aur address mein likhe naam se milaya gaya hai (spelling alag ho to nahi milega).", ct);
         SuggestNext("customers", "city wise orders");
+    }
+
+    /// <summary>
+    /// Does the saved city / address name the place? Spaces, dashes and case are ignored ("Model Town" = "model-town" = "modeltown"), and one letter off still counts for a
+    /// place of 6+ letters ("Modal Town"), two for 10+. Shorter names must match exactly so "Ali" never matches "Alif".
+    /// </summary>
+    internal static bool PlaceMatches(string place, string? saved)
+    {
+        if (string.IsNullOrWhiteSpace(saved)) return false;
+        static string Norm(string v) => new string(v.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+        var wanted = Norm(place);
+        var text = Norm(saved);
+        if (wanted.Length == 0) return false;
+        var words = System.Text.RegularExpressions.Regex.Split(saved, @"[^\p{L}\p{N}]+").Where(w => w.Length > 0).Select(Norm).ToList();
+        for (var i = 0; i < words.Count; i++)
+        {
+            var joined = "";
+            for (var j = i; j < words.Count && joined.Length < wanted.Length; j++)
+            {
+                joined += words[j];
+                if (joined == wanted) return true;   // whole words: "Ali" is not "Alif"
+            }
+        }
+        if (wanted.Length >= 6 && text.Contains(wanted, StringComparison.Ordinal)) return true;
+        var allowed = wanted.Length >= 10 ? 2 : wanted.Length >= 6 ? 1 : 0;
+        if (allowed == 0) return false;
+        for (var length = wanted.Length - allowed; length <= wanted.Length + allowed; length++)
+            for (var start = 0; start + length <= text.Length; start++)
+                if (TextDistance.Levenshtein(wanted, text.Substring(start, length)) <= allowed) return true;
+        return false;
     }
 
     private async Task InsightReturnRateAsync(Seller seller, string? period, CancellationToken ct)
@@ -107,14 +137,14 @@ public partial class ConversationEngine
     {
         var (start, end, label) = InsightWindow(seller, period, "90d");
         var rows = await _db.Orders.AsNoTracking()
-            .Where(o => o.SellerId == seller.Id && o.CreatedAt >= start && o.CreatedAt < end && o.ShippedAt != null && o.DeliveredAt != null
+            .Where(o => o.SellerId == seller.Id && o.CreatedAt >= start && o.CreatedAt < end && o.DeliveredAt != null
                         && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
-            .Select(o => new { o.TrackingCourier, o.ShippedAt, o.DeliveredAt })
+            .Select(o => new { o.TrackingCourier, ShippedAt = o.ShippedAt ?? o.CreatedAt, FromOrder = o.ShippedAt == null, o.DeliveredAt })
             .ToListAsync(ct);
         if (rows.Count == 0)
         {
             await ReplyAsync(seller,
-                $"🚚 Delivery ka waqt ({label}): abhi hisaab ke liye data nahi.\nYeh tab banta hai jab aap \"mark 12 shipped\" aur phir \"mark 12 delivered\" likhte hain (courier ke liye \"tracking 12 TCS 12345\").", ct);
+                $"🚚 Delivery ka waqt ({label}): abhi hisaab ke liye data nahi.\nYeh tab banta hai jab aap \"mark 12 delivered\" likhte hain (courier ke liye \"tracking 12 TCS 12345\"; \"mark 12 shipped\" bhi likhein to bhejne se pohanchne tak ka sahi waqt aata hai).", ct);
             return;
         }
 
@@ -128,12 +158,14 @@ public partial class ConversationEngine
         }
 
         static double Days(DateTime from, DateTime to) => Math.Max(0, (to - from).TotalDays);
+        var fromOrder = scope.Count(r => r.FromOrder);
         var groups = scope.GroupBy(r => string.IsNullOrWhiteSpace(r.TrackingCourier) ? "Courier likha nahi" : r.TrackingCourier!.Trim(), StringComparer.OrdinalIgnoreCase)
-            .Select(g => (Name: g.Key, Orders: g.Count(), Avg: g.Average(r => Days(r.ShippedAt!.Value, r.DeliveredAt!.Value)), Max: g.Max(r => Days(r.ShippedAt!.Value, r.DeliveredAt!.Value))))
+            .Select(g => (Name: g.Key, Orders: g.Count(), Avg: g.Average(r => Days(r.ShippedAt, r.DeliveredAt!.Value)), Max: g.Max(r => Days(r.ShippedAt, r.DeliveredAt!.Value))))
             .OrderBy(g => g.Avg).ToList();
         var lines = groups.Select(g => $"• {g.Name}: average {Num((decimal)g.Avg)} din ({g.Orders} orders, sab se der {Num((decimal)g.Max)} din)");
         await ReplyAsync(seller,
-            $"🚚 Delivery ka waqt — {label}\n\n{string.Join("\n", lines)}\n\nYeh \"shipped\" likhne se \"delivered\" likhne tak ka waqt hai — aap jab likhte hain wohi gina jata hai.", ct);
+            $"🚚 Delivery ka waqt — {label}\n\n{string.Join("\n", lines)}\n\nYeh \"shipped\" likhne se \"delivered\" likhne tak ka waqt hai — aap jab likhte hain wohi gina jata hai." +
+            (fromOrder > 0 ? $"\nℹ️ {fromOrder} order(s) mein \"shipped\" nahi likha tha, un ka waqt order banne se ginta hai (zyada aa sakta hai)." : ""), ct);
         SuggestNext("orders today", "cod pending");
     }
 
@@ -230,17 +262,21 @@ public partial class ConversationEngine
     }
 
     /// <summary>"Lawn suit ka naya batch mangwana chahiye": the product's stock days against 7 / 14 days — the supplier's delivery time is the seller's to weigh.</summary>
-    private async Task InsightReorderAsync(Seller seller, string text, CancellationToken ct)
+    private async Task InsightReorderAsync(Seller seller, string text, int? leadDays, CancellationToken ct)
     {
         var named = await ProductsInTextAsync(seller, text, ct);
         if (named.Count == 0)
         {
-            await InsightStockEndingAsync(seller, 7, ct);
+            await InsightStockEndingAsync(seller, leadDays ?? 7, ct);
             return;
         }
         var rows = await StockRowsAsync(seller, named.Take(3).ToList(), ct);
         var blocks = rows.Select(r =>
         {
+            if (leadDays is { } lead && r.Product.StockQty > 0 && r.DaysLeft is { } left)
+                return StockRowDetail(r) + "\n→ " + (left <= lead ? $"⚠️ Haan, abhi order karein — stock {Num(left)} din ka hai aur supplier ko {lead} din lagte hain."
+                    : left <= lead * 2 ? $"Order ka waqt qareeb hai — stock {Num(left)} din ka hai, supplier ko {lead} din lagte hain."
+                    : $"Abhi zaroorat nahi — stock {Num(left)} din ka hai, supplier ko {lead} din lagte hain.");
             var verdict = r.Product.StockQty is null ? "Stock track nahi hota, is liye mashwara nahi de sakta."
                 : r.Product.StockQty <= 0 ? "⛔ Stock khatam hai — jald order karein."
                 : r.DaysLeft is null ? "Pichle din bikri nahi hui — abhi order ki zaroorat nazar nahi aati."
@@ -249,7 +285,20 @@ public partial class ConversationEngine
                 : "Abhi zaroorat nahi — stock do hafte se zyada chalega.";
             return StockRowDetail(r) + "\n→ " + verdict;
         });
-        await ReplyAsync(seller, string.Join("\n\n", blocks) + "\n\nYeh pichli bikri ki raftaar ka andaza hai; supplier ka waqt aap behtar jante hain.", ct);
+        await ReplyAsync(seller, string.Join("\n\n", blocks) + "\n\nYeh pichli bikri ki raftaar ka andaza hai." + (leadDays is null ? " Supplier ka waqt batane ke liye likhein: \"maal aane mein 5 din lagte hain\" — phir mashwara us ke hisab se hoga." : ""), ct);
+        SuggestNext("stock", "catalog");
+    }
+
+    /// <summary>"Maal aane mein 5 din lagte hain": remembered, and used by the re-order advice and the "stock khatam hone wala" list.</summary>
+    private async Task InsightSetLeadTimeAsync(Seller seller, SessionContextData ctx, int days, CancellationToken ct)
+    {
+        if (days is < 1 or > 120)
+        {
+            await ReplyAsync(seller, "Maaf kijiye, supplier ka waqt 1 se 120 din ke darmiyan likhein, jaise: \"maal aane mein 5 din lagte hain\".", ct);
+            return;
+        }
+        ctx.SupplierLeadDays = days;
+        await ReplyAsync(seller, $"✅ Yaad rakh liya: supplier se maal aane mein {days} din lagte hain.\nAb \"lawn suit ka naya batch mangwana chahiye\" ka jawab isi ke hisab se hoga.", ct);
         SuggestNext("stock", "catalog");
     }
 

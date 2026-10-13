@@ -332,6 +332,9 @@ public class InsightParserTests
     [InlineData("is mahine ki sale pichle mahine se kam hai ya zyada", CommandKind.Insight, "vsprev")]
     [InlineData("sab se zyada sale kis din hui", CommandKind.Insight, "avg")]
     [InlineData("average order value", CommandKind.Insight, "avg")]
+    [InlineData("maal aane mein 5 din lagte hain", CommandKind.Insight, "leadtime")]
+    [InlineData("supplier takes 10 days to deliver", CommandKind.Insight, "leadtime")]
+    [InlineData("polo shirt kitne din chalega", CommandKind.Insight, "stockdays")]
     [InlineData("munafa kitna hua is mahine", CommandKind.Profit, null)]
     public void MoreWaysToAsk(string text, CommandKind kind, string? topicOrText)
     {

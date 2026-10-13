@@ -42,6 +42,8 @@ internal static class InsightParser
     private static readonly Regex Left = W(@"bacha|bachi|bache|bachay|left|remaining|available|hai|baqi|بچا|بچی|بچے|باقی");
     private static readonly Regex Fastest = W(@"tez|fast|fastest|jaldi|best|behtar|quick\w*|تیز|جلدی");
     private static readonly Regex Breakdown = W(@"category\s*wise|breakdown|taqseem|tafseel|details?|تقسیم|تفصیل");
+    private static readonly Regex LeadSubject = W(@"supplier|suppliers|maal|mal|stock|lead\s*time|wholesaler|سپلائر|مال|اسٹاک");
+    private static readonly Regex LeadVerb = W(@"aane|aata|ata|ati|aati|lagta|lagte|lagti|lead\s*time|arrive\w*|takes?|deliver\w*|آنے|لگتے|لگتا|لگتی");
     private static readonly Regex AskWord = W(@"what|kya|how\s+(?:many|much)|kitn\w+|کتن\w+|کیا");
     private static readonly Regex MonthWord = W(@"month|mahine|mahina|mah|مہینے|مہینہ|ماہ");
     private static readonly Regex Pct = new(@"(?<n>\d{1,3}(?:\.\d+)?)\s*(?:%|percent|pc|fisad|فیصد)", Opts);
@@ -170,6 +172,9 @@ internal static class InsightParser
             || (CourierWord.IsMatch(text) && (DaysLast.IsMatch(text) || Fastest.IsMatch(text)))) return Topic("deliverytime");
 
         // --- stock
+        if (LeadSubject.IsMatch(text) && LeadVerb.IsMatch(text) && !How.IsMatch(text) && !Which.IsMatch(text) && DaysNumber.Match(text) is { Success: true } lead
+            && int.TryParse(lead.Groups["n"].Value, out var leadDays) && leadDays > 0)
+            return Topic("leadtime", leadDays);
         if (Track.IsMatch(text) && Not.IsMatch(text) && (Product.IsMatch(text) || StockWord.IsMatch(text))) return Topic("untracked");
         if ((StockWord.IsMatch(text) && Finish.IsMatch(text)) || LowStock.IsMatch(text)) return Topic("stockending", NumberOfDays(text));
         if (Reorder.IsMatch(text) && (StockWord.IsMatch(text) || Product.IsMatch(text) || Need.IsMatch(text))) return Topic("reorder");

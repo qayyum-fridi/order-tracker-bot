@@ -548,4 +548,52 @@ public class InsightReportTests : IDisposable
         var list = await AskAsync("kitna stock bacha hai");
         Assert.Contains("Polo Shirt", list);
     }
+
+    [Fact]
+    public async Task DeliveryTime_WithoutAShippedMark_CountsFromTheOrderAndSaysSo()
+    {
+        await SetupAsync();
+        var sara = await CustomerAsync("Sara");
+        var at = DateTime.UtcNow.AddDays(-10);
+        await OrderAsync(sara, at, price: 100, courier: "TCS", shippedAt: at.AddDays(1), deliveredAt: at.AddDays(3));   // 2 days
+        await OrderAsync(sara, at, price: 100, courier: "TCS", deliveredAt: at.AddDays(6));                              // never marked shipped: 6 days from the order
+
+        var reply = await AskAsync("TCS ka average delivery time kya hai");
+
+        Assert.Contains("TCS: average 4 din (2 orders, sab se der 6 din)", reply);
+        Assert.Contains("1 order(s) mein \"shipped\" nahi likha tha", reply);
+    }
+
+    [Fact]
+    public async Task SupplierLeadTime_IsRemembered_AndUsedByTheReorderAdvice()
+    {
+        await SetupAsync();
+        var sara = await CustomerAsync("Sara");
+        var polo = await ProductAsync("Polo Shirt", 500, stock: 10, createdAt: DateTime.UtcNow.AddDays(-60));
+        await OrderAsync(sara, DateTime.UtcNow.AddDays(-5), polo, 30);                  // 1 a day -> 10 days of stock
+
+        var before = await AskAsync("kya mujhe polo shirt ka naya batch mangwana chahiye");
+        Assert.Contains("maal aane mein 5 din lagte hain", before);                      // asks for the supplier's time
+
+        var set = await AskAsync("maal aane mein 12 din lagte hain");
+        Assert.Contains("12 din", set);
+
+        var urgent = await AskAsync("kya mujhe polo shirt ka naya batch mangwana chahiye");
+        Assert.Contains("abhi order karein — stock 10 din ka hai aur supplier ko 12 din lagte hain", urgent);
+
+        await AskAsync("supplier se maal aane mein 7 din lagte hain");
+        var calm = await AskAsync("kya mujhe polo shirt ka naya batch mangwana chahiye");
+        Assert.Contains("Order ka waqt qareeb hai", calm);                               // 10 days left, lead 7: between 7 and 14
+    }
+
+    [Theory]
+    [InlineData("Model Town", "House 5, Model Town", true)]
+    [InlineData("model-town", "Model Town Lahore", true)]
+    [InlineData("Modal Town", "Model Town", true)]        // one letter off
+    [InlineData("Gulbarg", "Gulberg III", true)]
+    [InlineData("Ali", "Alif Road", false)]               // short names must be exact
+    [InlineData("Bahria Town", "Model Town", false)]
+    [InlineData("Lahore", null, false)]
+    public void PlaceMatching_IgnoresSpacingAndOneLetter(string place, string? saved, bool expected) =>
+        Assert.Equal(expected, ConversationEngine.PlaceMatches(place, saved));
 }
