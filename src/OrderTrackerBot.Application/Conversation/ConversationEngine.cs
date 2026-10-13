@@ -310,6 +310,9 @@ public partial class ConversationEngine
             return;
         }
 
+        // A scanner types a product's barcode as a message: a code that is some product's barcode goes to the scan cart.
+        if (await TryHandleScannedCodeAsync(seller, ctx, message, ct)) return;
+
         var command = CommandParser.TryParse(message);
         if (command is not null)
         {

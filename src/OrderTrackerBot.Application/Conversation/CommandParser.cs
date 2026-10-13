@@ -101,7 +101,14 @@ public enum CommandKind
     OrderNote,
     SetEmail,
     EmailReceipt,
-    PrinterHelp
+    PrinterHelp,
+    ShippingLabel,
+    BusinessLabel,
+    LabelSize,
+    Scan,
+    BarcodeSet,
+    CashDrawer,
+    CashMovement
 }
 
 /// <summary>What to export: any of "orders", "customers", "catalog", "discounts" (empty = ask), and an optional orders period (today/yesterday/7d/30d/lastmonth).</summary>
@@ -658,6 +665,31 @@ public static class CommandParser
     private static readonly Regex EmailReceiptCmd = new(@"^email\s+(?:the\s+)?(?:receipt|bill|invoice)(?:\s+#?(?<n>\d{1,9}))?(?:\s+(?:to|ko)\s+(?<a>\S+@\S+))?$", Opts);
     private static readonly Regex PrinterHelpCmd = new(@"^(?:printer|thermal\s+printer|(?:print|printer)\s+(?:help|guide|setup))$", Opts);
 
+    // Labels, barcode scanning and the cash drawer (ConversationEngine.Labels.cs / Scan.cs / CashDrawer.cs).
+    private static readonly Regex LabelSizeCmd = new(@"^labels?\s+size\s*:?\s*(?<v>.*)$", Opts);
+    private static readonly Regex BusinessLabelCmd = new(@"^(?:(?:business|shop|dukan|store)\s+(?:labels?|stickers?)|labels?\s+(?:business|shop|dukan)|stickers?)$", Opts);
+    private static readonly Regex ShippingLabelCmd = new(@"^(?:(?:shipping|parcel|courier|delivery)\s+)?labels?(?:\s+#?(?<n>\d{1,9}))?(?:\s+(?:for\s+|ka\s+)?(?<name>\D.*))?$", Opts);
+    private static readonly Regex ScanCmd = new(@"^(?:scan|scanner)(?:\s+(?<v>.+))?$", Opts);
+    private static readonly Regex BarcodeRemoveCmd = new(@"^barcode\s+(?:remove|off|hata\w*|delete|clear)\s+(?<name>.+)$", Opts);
+    private static readonly Regex BarcodeSetCmd = new(@"^(?:barcode|sku)\s+(?<name>.+?)\s+(?<code>[A-Za-z0-9\-]{4,40})$", Opts);
+    private static readonly Regex BarcodeHelpCmd = new(@"^barcodes?$", Opts);
+    private const string CashAmount = @"(?<amt>\d[\d,]*(?:\.\d+)?)";
+    private static readonly Regex DrawerCmd = new(@"^(?:cash\s*drawer|drawer|galla|cash\s*box|cashbox)(?:\s+(?<act>open|close|status|history|balance|khol\w*|band\w*))?(?:\s+" + CashAmount + @")?(?:\s+(?<note>.+))?$", Opts);
+    private static readonly Regex CashOpenCloseCmd = new(@"^cash\s+(?<act>open|close|status|history|balance)(?:\s+" + CashAmount + @")?(?:\s+(?<note>.+))?$", Opts);
+    private static readonly Regex CashMoveCmd = new(@"^cash\s+(?<k>in|out|sale|undo|jama|nikala|nikalo|bikri)(?:\s+" + CashAmount + @")?(?:\s+(?<note>.+))?$", Opts);
+    private static readonly Regex CashAloneCmd = new(@"^(?:cash|galla)$", Opts);
+
+    private static decimal? ParseCashAmount(Group g) =>
+        g.Success && decimal.TryParse(g.Value.Replace(",", ""), System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : null;
+
+    private static string DrawerAction(string? word)
+    {
+        var w = (word ?? "").ToLowerInvariant();
+        return w.StartsWith("open") || w.StartsWith("khol") ? "open"
+            : w.StartsWith("close") || w.StartsWith("band") ? "close"
+            : w == "history" ? "history" : "status";
+    }
+
     // "Ali koi customer hai?", "Ali naam ka koi customer hai, yeh mujhe bataen": does this person exist? Answered by the customer search.
     private static readonly Regex CustomerExists = new(@"^(\p{L}[\p{L}\s]{0,30}?)(?:\s+naam\s+" + Of + @")?\s+(?:koi\s+)?customer\s+(?:hai|hain|exist\w*|milta\w*|mil\s+sakta\w*)\b", Opts);
     private static readonly Regex FuzzyStatusUpdate = new(@"^(.+?)\s+" + Of + @"\s+(?:order|آرڈر)\s+.*?(deliver|ship|pending|bhej|return|wapas|wapis|waapas|ڈیلیور|شپ|پینڈنگ|واپس|ریٹرن)", Opts);
@@ -978,6 +1010,35 @@ public static class CommandParser
         if ((m = SetEmailCmd.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.SetEmail, Text = m.Groups["a"].Value.Trim() };
         if (PrinterHelpCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.PrinterHelp };
+
+        if ((m = LabelSizeCmd.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.LabelSize, Text = m.Groups["v"].Value.Trim() };
+        if (BusinessLabelCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.BusinessLabel };
+        if ((m = ShippingLabelCmd.Match(message)).Success)
+            return new ParsedCommand
+            {
+                Kind = CommandKind.ShippingLabel,
+                Number = m.Groups["n"].Success ? int.Parse(m.Groups["n"].Value) : null,
+                Text = m.Groups["name"].Success ? m.Groups["name"].Value.Trim() : null
+            };
+        if ((m = ScanCmd.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.Scan, Text = m.Groups["v"].Success ? m.Groups["v"].Value.Trim() : "" };
+        if ((m = BarcodeRemoveCmd.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.BarcodeSet, Text = m.Groups["name"].Value.Trim(), Text2 = null };
+        if ((m = BarcodeSetCmd.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.BarcodeSet, Text = m.Groups["name"].Value.Trim(), Text2 = m.Groups["code"].Value };
+        if (BarcodeHelpCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Scan, Text = "help" };
+        if ((m = CashMoveCmd.Match(message)).Success)
+        {
+            var kind = m.Groups["k"].Value.ToLowerInvariant();
+            var normalized = kind is "jama" ? "in" : kind is "nikala" or "nikalo" ? "out" : kind is "bikri" ? "sale" : kind;
+            return new ParsedCommand { Kind = CommandKind.CashMovement, Text = normalized, Amount = ParseCashAmount(m.Groups["amt"]), Text2 = m.Groups["note"].Success ? m.Groups["note"].Value.Trim() : null };
+        }
+        if ((m = CashOpenCloseCmd.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.CashDrawer, Text = DrawerAction(m.Groups["act"].Value), Amount = ParseCashAmount(m.Groups["amt"]), Text2 = m.Groups["note"].Success ? m.Groups["note"].Value.Trim() : null };
+        if ((m = DrawerCmd.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.CashDrawer, Text = DrawerAction(m.Groups["act"].Value), Amount = ParseCashAmount(m.Groups["amt"]), Text2 = m.Groups["note"].Success ? m.Groups["note"].Value.Trim() : null };
+        if (CashAloneCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CashDrawer, Text = "status" };
 
         if ((m = CatalogSheetLink.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.ImportCatalogSheet, Text = m.Value };

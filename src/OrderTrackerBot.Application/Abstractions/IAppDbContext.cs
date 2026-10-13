@@ -30,6 +30,8 @@ public interface IAppDbContext
     DbSet<Expense> Expenses { get; }
     DbSet<Loss> Losses { get; }
     DbSet<WageEntry> WageEntries { get; }
+    DbSet<CashDrawerSession> CashDrawerSessions { get; }
+    DbSet<CashMovement> CashMovements { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

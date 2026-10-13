@@ -29,6 +29,8 @@ public class Seller
     public string? ReceiptSize { get; set; }
     /// <summary>Line printed at the bottom of every receipt instead of the default thank-you ("receipt footer ...").</summary>
     public string? ReceiptFooter { get; set; }
+    /// <summary>Label sheet for shipping / business labels: null/"4x6" (default), "A6" or "50x30" (mm sticker) ("label size a6").</summary>
+    public string? LabelSize { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>Free trial end; null until onboarding completes (trial starts then).</summary>

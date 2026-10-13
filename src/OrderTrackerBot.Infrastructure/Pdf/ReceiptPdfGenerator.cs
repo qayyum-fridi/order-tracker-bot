@@ -64,6 +64,85 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
         }
     }
 
+    private static PageSize LabelPage(string? size) => size?.Trim().ToLowerInvariant() switch
+    {
+        "a6" => PageSizes.A6,
+        "50x30" => new PageSize(50, 30, Unit.Millimetre),
+        _ => new PageSize(101.6f, 152.4f, Unit.Millimetre) // 4 x 6 inch: the standard courier label
+    };
+
+    public byte[] GenerateShippingLabel(ShippingLabelData d)
+    {
+        // A 50x30mm sticker cannot hold an address: use the standard label instead.
+        var size = string.Equals(d.LabelSize, "50x30", StringComparison.OrdinalIgnoreCase) ? "4x6" : d.LabelSize;
+        return Document.Create(doc => doc.Page(page =>
+        {
+            page.Size(LabelPage(size));
+            page.Margin(5, Unit.Millimetre);
+            page.DefaultTextStyle(Base.FontSize(11).FontColor(Colors.Black));
+
+            page.Content().Border(1.5f).Padding(8).Column(col =>
+            {
+                col.Spacing(5);
+                col.Item().Text("FROM").FontSize(8).Bold();
+                col.Item().Text(d.BusinessName).FontSize(12).Bold();
+                var from = string.Join(" · ", new[] { d.BusinessPhone, d.BusinessCity }.Where(s => !string.IsNullOrWhiteSpace(s)));
+                if (from.Length > 0) col.Item().Text(from).FontSize(10);
+                col.Item().LineHorizontal(1);
+
+                col.Item().Text("TO").FontSize(9).Bold();
+                col.Item().Text(d.CustomerName).FontSize(20).Bold();
+                if (!string.IsNullOrWhiteSpace(d.CustomerPhone)) col.Item().Text(d.CustomerPhone).FontSize(16).Bold();
+                if (!string.IsNullOrWhiteSpace(d.CustomerAddress)) col.Item().Text(d.CustomerAddress).FontSize(14);
+                col.Item().LineHorizontal(1);
+
+                col.Item().Row(row =>
+                {
+                    row.RelativeItem().Text($"Order #{d.OrderId}").FontSize(16).Bold();
+                    row.AutoItem().Text(d.IsCod ? $"COD {Money(d.CodAmount)}" : "PREPAID").FontSize(16).Bold();
+                });
+                if (!string.IsNullOrWhiteSpace(d.ItemsSummary)) col.Item().Text(d.ItemsSummary).FontSize(10);
+                if (!string.IsNullOrWhiteSpace(d.TrackingNumber))
+                    col.Item().Text($"{d.TrackingCourier} {d.TrackingNumber}".Trim()).FontSize(11).Bold();
+                if (!string.IsNullOrWhiteSpace(d.Notes)) col.Item().Text($"Note: {d.Notes}").FontSize(10);
+            });
+        })).GeneratePdf();
+    }
+
+    public byte[] GenerateBusinessLabel(BusinessLabelData d)
+    {
+        try
+        {
+            return RenderBusinessLabel(d);
+        }
+        catch when (d.Logo is not null)
+        {
+            return RenderBusinessLabel(d with { Logo = null }); // a logo the PDF engine cannot draw must not cost the seller the label
+        }
+    }
+
+    private static byte[] RenderBusinessLabel(BusinessLabelData d)
+    {
+        var small = string.Equals(d.LabelSize, "50x30", StringComparison.OrdinalIgnoreCase);
+        return Document.Create(doc => doc.Page(page =>
+        {
+            page.Size(LabelPage(d.LabelSize));
+            page.Margin(small ? 2 : 6, Unit.Millimetre);
+            page.DefaultTextStyle(Base.FontSize(small ? 7 : 12).FontColor(Colors.Black));
+
+            page.Content().AlignMiddle().AlignCenter().Column(col =>
+            {
+                col.Spacing(small ? 1 : 6);
+                if (d.Logo is not null) col.Item().AlignCenter().Height(small ? 22 : 90).Image(d.Logo).FitArea();
+                col.Item().AlignCenter().Text(d.BusinessName).FontSize(small ? 11 : 26).Bold();
+                if (!string.IsNullOrWhiteSpace(d.City)) col.Item().AlignCenter().Text(d.City);
+                if (!string.IsNullOrWhiteSpace(d.Phone)) col.Item().AlignCenter().Text($"WhatsApp: {d.Phone}").FontSize(small ? 8 : 14).Bold();
+                if (!string.IsNullOrWhiteSpace(d.InstagramHandle)) col.Item().AlignCenter().Text(d.InstagramHandle);
+                if (!string.IsNullOrWhiteSpace(d.Tagline)) col.Item().AlignCenter().Text(d.Tagline).Italic();
+            });
+        })).GeneratePdf();
+    }
+
     /// <summary>Roll width in mm for "80mm" / "58mm" (thermal printers); null for the sheet sizes.</summary>
     private static float? ThermalWidthMm(string? paperSize) => paperSize?.Trim().ToLowerInvariant() switch
     {

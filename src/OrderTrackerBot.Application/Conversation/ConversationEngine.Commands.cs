@@ -294,6 +294,27 @@ public partial class ConversationEngine
             case CommandKind.PrinterHelp:
                 await HandlePrinterHelpAsync(seller, ct);
                 return;
+            case CommandKind.ShippingLabel:
+                await HandleShippingLabelAsync(seller, session, ctx, cmd, ct);
+                return;
+            case CommandKind.BusinessLabel:
+                await HandleBusinessLabelAsync(seller, ct);
+                return;
+            case CommandKind.LabelSize:
+                await HandleLabelSizeAsync(seller, cmd.Text, ct);
+                return;
+            case CommandKind.Scan:
+                await HandleScanCommandAsync(seller, session, ctx, cmd.Text, ct);
+                return;
+            case CommandKind.BarcodeSet:
+                await HandleBarcodeSetAsync(seller, session, ctx, cmd.Text!, cmd.Text2, ct);
+                return;
+            case CommandKind.CashDrawer:
+                await HandleCashDrawerAsync(seller, cmd, ct);
+                return;
+            case CommandKind.CashMovement:
+                await HandleCashMovementAsync(seller, cmd, ct);
+                return;
             case CommandKind.ProductReport:
                 await HandleProductReportAsync(seller, cmd.Text!, ct);
                 return;
@@ -1098,6 +1119,8 @@ public partial class ConversationEngine
                 : "\nSales reports se yeh order nikal diya gaya hai.";
         if (newStatus == OrderStatus.Shipped && string.IsNullOrEmpty(order.TrackingNumber))
             reply += "\nTracking number add karna hai? (\"add tracking: courier, number\")";
+        if (newStatus == OrderStatus.Shipped)
+            reply += $"\nParcel label chahiye? (\"label {order.Id}\")";
 
         var askCodCollected = newStatus == OrderStatus.Delivered && order.PaymentMethod == OrderPaymentMethod.Cod && order.PaymentStatus == PaymentStatus.Unpaid;
         if (askCodCollected)

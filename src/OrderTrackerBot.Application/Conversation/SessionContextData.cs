@@ -50,6 +50,8 @@ public sealed class SessionContextData
     public string? PendingMissingField { get; set; }
     public List<string>? ClarificationOptions { get; set; }
     public string? PendingNewProductName { get; set; }
+    /// <summary>Products scanned with a barcode scanner and not yet turned into an order (product id -> pieces); "scan done" makes the order draft.</summary>
+    public Dictionary<int, int>? ScanCart { get; set; }
     /// <summary>Saved customer whose phone matches the draft's but whose name differs ("Muhammad Ali" for "Ali"); asked about before saving.</summary>
     public string? PendingCustomerMatchName { get; set; }
     /// <summary>Products the seller named ("naye products hain") that the bot is still waiting to get a price for.</summary>

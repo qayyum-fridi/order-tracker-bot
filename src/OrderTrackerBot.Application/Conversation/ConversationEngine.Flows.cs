@@ -20,7 +20,7 @@ public partial class ConversationEngine
         if (order is null) return;
 
         var collected = MarkFullyPaid(seller, order);
-        await ReplyAsync(seller, $"✅ {Formatters.Money(collected)} COD collected — payment marked PAID", ct);
+        await ReplyAsync(seller, $"✅ {Formatters.Money(collected)} COD collected — payment marked PAID" + await DrawerHintAfterCodAsync(seller, ct), ct);
     }
 
     private async Task HandleRuntimeFilterChoiceAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
