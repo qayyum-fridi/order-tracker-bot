@@ -94,8 +94,11 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "Set is_ambiguous_item_grouping=true only when 2+ distinct items for ONE customer are named in a way that could mean either separate " +
             "orders or one combined order (e.g. \"2 suits, red and blue, for Ayesha\"). " +
             "If the input is a payment receipt, set intent=unclear, is_order_attempt=false and fill receipt (amount, provider, transaction id). " +
-            "If the message is unclear, set is_order_attempt=false and return a short Roman Urdu clarification_question with 2-3 short " +
-            "clarification_options the seller can pick by number.";
+            "If the message is unclear, or could mean several different things the bot can do, set is_order_attempt=false and return a short Roman Urdu " +
+            "clarification_question with 2-4 short clarification_options the seller can pick. Think of what the seller most plausibly wants: every different bot action " +
+            "that fits their words is one option, written EXACTLY as the typed bot command (for example \"label 12\", \"business label\", \"receipt 12\", \"email receipt 12\", " +
+            "\"printer\", \"drawer open\", \"cash in\", \"cash out\", \"scan\", \"barcode\", \"orders today\", \"catalog\", \"create discount\"; use a real order id from the latest orders when one is needed), " +
+            "at most 20 characters each. Never guess one action when several fit: offer them all.";
 
         if (context.PendingPriceProducts.Count > 0)
             systemPrompt +=
@@ -217,6 +220,10 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "\"delivery 250\", \"catalog\" for any request to see/show the catalog). A seller who wants to create/add a discount, in any wording or just describing it " +
             "(\"naya discount banain\", \"ye ek naya discount hai jo product ke liye hoga\"), gives the command \"create discount\" (action command); only when they also said the code and the value " +
             "write \"create discount: CODE, 10 percent\" or \"create discount: CODE, Rs.50 flat\" (append \", expires <duration or date>\" if said, e.g. \"expires 15 days\"). " +
+            "More typed commands the bot understands: \"receipt 12\", \"receipt size 80mm\" (or 58mm, A5, A4), \"receipt footer <line>\", \"note 12 gift wrap\" (an order note), " +
+            "\"email receipt 12\", \"email <address>\", \"label 12\" (a parcel label), \"business label\" (the shop's sticker), \"label size a6\", \"printer\" (how to print), " +
+            "\"drawer open 5000\", \"cash in 500 <why>\", \"cash out 300 <why>\", \"cash sale 1200\", \"drawer close 18000\", \"drawer\" (the cash drawer / galla), " +
+            "\"barcode <product> <code>\", \"scan done\" (a scanned cart becomes an order). "+
             "ORDER STATUS: the only statuses are pending, shipped, delivered, returned, cancelled (plus paid for payment). The command is \"mark <order id> <status>\" using the real id from the " +
             "latest orders list above (\"Order #13 Hassan\" -> 13; the numbers in the examples are NOT real). Map the seller's words by meaning: shipped = bhej diya / courier ko de diya / dispatch / ship kar do; " +
             "delivered = complete / completed / mukammal / ho chuka / customer ko mil gaya / pohanch gaya (an order that is \"complete\" is DELIVERED, never shipped); returned = wapas aa gaya; " +

@@ -112,7 +112,8 @@ public partial class ConversationEngine
     /// <summary>The seller's own words (shop, customers, products) given to the speech model so names are heard correctly.</summary>
     private async Task<List<string>> BuildVoiceVocabularyAsync(Seller seller, CancellationToken ct)
     {
-        var names = new List<string>();
+        // Bot vocabulary first (the keyword list is capped): "catalog mein add kar dein" was heard as "address mein".
+        var names = new List<string> { "catalog", "product", "products", "order", "delivery" };
         if (!string.IsNullOrWhiteSpace(seller.BusinessName)) names.Add(seller.BusinessName);
         names.AddRange(await _db.Customers.Where(c => c.SellerId == seller.Id && c.DeletedAt == null)
             .OrderByDescending(c => c.Id).Select(c => c.Name).Take(40).ToListAsync(ct));

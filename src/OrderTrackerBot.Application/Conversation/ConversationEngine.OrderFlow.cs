@@ -54,6 +54,13 @@ public partial class ConversationEngine
         await HandleAnalysisAsync(seller, session, ctx, analysis, catalog, fromScreenshot: false, ct, message);
     }
 
+    private static readonly System.Text.RegularExpressions.Regex DiscountWords = new(
+        @"discount|coupon|promo|voucher|offer|code|sale|رعایت|ڈسکاؤنٹ|ڈسکاونٹ|کوپن|آفر|کوڈ|چھوٹ",
+        System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    private static readonly System.Text.RegularExpressions.Regex CategoryWords = new(
+        @"categor|qism|kism|کیٹیگری|کیٹگری|کیٹیگریز|قسم|زمرہ",
+        System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
     private async Task HandleAnalysisAsync(Seller seller, ConversationSession session, SessionContextData ctx, AiMessageAnalysis analysis,
         List<CatalogEntry> catalog, bool fromScreenshot, CancellationToken ct, string? sourceText = null)
     {
@@ -74,6 +81,16 @@ public partial class ConversationEngine
 
         if (analysis.Intent == "create_discount")
         {
+            // The model picks this for anything that starts "create ..." ("create category: Women Cloths"). Only a message that really talks
+            // about a discount may open the discount flow, which would otherwise swallow the seller's next messages as a discount code.
+            if (!string.IsNullOrWhiteSpace(sourceText) && !DiscountWords.IsMatch(sourceText))
+            {
+                await ReplyAsync(seller, CategoryWords.IsMatch(sourceText)
+                    ? "Category alag se nahi banti — product ke saath likhein: Polo Shirt - 500, category: Women Cloths.\nDekhne ke liye: catalog category"
+                    : "Samajh nahi aaya. Discount banana ho to \"create discount\" likhein, ya \"menu\" likhein.", ct);
+                return;
+            }
+
             SetState(session, ConversationState.AwaitingDiscountDetails);
             await ReplyAsync(seller, HowToText("discount"), ct);
             return;
@@ -223,10 +240,13 @@ public partial class ConversationEngine
             ctx.PendingNewProductName = unresolved.ProductName;
             ctx.PendingMissingField = "ProductChoice";
             SetState(session, ConversationState.AwaitingOrderMissingFields);
+            // A near miss of a catalog name is most likely a typo: say which product it probably is.
+            var guess = TextDistance.Closest(unresolved.ProductName, (await LoadCatalogAsync(seller, ct)).Select(c => c.Label), 2);
             await ReplyAsync(seller,
                 $"\"{unresolved.ProductName}\" aapke catalog mein nahi mila.\n\n" +
                 "1️⃣ Ye naya product hai — catalog mein add karoon?\n" +
-                "2️⃣ Ye kisi existing product ka doosra naam hai (batayein kaunsa)", ct);
+                "2️⃣ Ye kisi existing product ka doosra naam hai (batayein kaunsa)" +
+                (guess is null ? "" : $"\n\n💡 Kya aap \"{guess}\" keh rahe hain? Haan to likhein: 2 {guess}"), ct);
             return;
         }
 
@@ -243,6 +263,18 @@ public partial class ConversationEngine
             ctx.PendingMissingField = "Phone";
             SetState(session, ConversationState.AwaitingOrderMissingFields);
             await ReplyAsync(seller, "Customer ka phone number bhi bataiye?", ct);
+            return;
+        }
+
+        // "Ali" with the phone of the saved "Muhammad Ali": ask before a second, split customer record is created.
+        if (!pending.CustomerMatchResolved && await FindRelatedCustomerByPhoneAsync(seller, pending, ct) is { } related)
+        {
+            ctx.PendingMissingField = "CustomerMatch";
+            ctx.PendingCustomerMatchName = related.Name;
+            SetState(session, ConversationState.AwaitingOrderMissingFields);
+            await ReplyAsync(seller,
+                $"Is phone number par pehle se \"{related.Name}\" saved hai. \"{pending.CustomerName}\" wohi customer hai?\n\n" +
+                $"1️⃣ Haan, wohi — \"{related.Name}\" ke naam se save karein\n2️⃣ Nahi, \"{pending.CustomerName}\" naya customer hai", ct);
             return;
         }
 
@@ -633,12 +665,52 @@ public partial class ConversationEngine
                 await ContinueResolvingDraftAsync(seller, session, ctx, ct);
                 return;
 
+            case "CustomerMatch":
+            {
+                var answer = message.Trim().TrimEnd('.');
+                if (answer != "1" && answer != "2")
+                {
+                    await ReplyAsync(seller, "Reply 1 (wohi customer) ya 2 (naya customer).", ct);
+                    return;
+                }
+                if (answer == "1" && !string.IsNullOrWhiteSpace(ctx.PendingCustomerMatchName)) pending.CustomerName = ctx.PendingCustomerMatchName;
+                pending.CustomerMatchResolved = true;
+                ctx.PendingCustomerMatchName = null;
+                ctx.PendingMissingField = null;
+                await ContinueResolvingDraftAsync(seller, session, ctx, ct);
+                return;
+            }
+
             default:
                 SetState(session, ConversationState.Idle);
                 ctx.PendingOrder = null;
                 await ReplyAsync(seller, "Order draft clear kar diya. Dobara try karein.", ct);
                 return;
         }
+    }
+
+    /// <summary>
+    /// A saved customer with this draft's phone (last 10 digits) and a related but different name: they share a name word ("Ali" / "Muhammad Ali").
+    /// Null when a customer with exactly this name exists (that one is used, as before) or when the only phone match is an unrelated name (a shared family phone).
+    /// </summary>
+    private async Task<Customer?> FindRelatedCustomerByPhoneAsync(Seller seller, PendingOrderData pending, CancellationToken ct)
+    {
+        var digits = new string((pending.Phone ?? "").Where(char.IsDigit).ToArray());
+        var name = pending.CustomerName?.Trim();
+        if (digits.Length < 10 || string.IsNullOrEmpty(name)) return null;
+        var last10 = digits[^10..];
+
+        var sameName = name.ToLower();
+        if (await _db.Customers.AnyAsync(c => c.SellerId == seller.Id && c.Name.ToLower() == sameName, ct)) return null;
+
+        var candidates = await _db.Customers
+            .Where(c => c.SellerId == seller.Id && c.DeletedAt == null && c.Phone != null && c.Phone.EndsWith(last10))
+            .OrderBy(c => c.Id).Take(5).ToListAsync(ct);
+
+        static HashSet<string> Words(string s) => s.Split(new[] { ' ', '.', ',', '-' }, StringSplitOptions.RemoveEmptyEntries)
+            .Where(w => w.Length >= 2).Select(w => w.ToLowerInvariant()).ToHashSet();
+        var wanted = Words(name);
+        return candidates.FirstOrDefault(c => Words(c.Name).Overlaps(wanted));
     }
 
     private static void ApplyResolvedProductToPendingItem(PendingOrderData pending, string originalName, CatalogEntry entry)

@@ -14,13 +14,19 @@ public partial class ConversationEngine
         ctx.CodCollectedOrderId = null;
         SetState(session, ConversationState.Idle);
 
-        if (!CommandParser.IsAffirmative(message) || orderId is null) return;
+        if (!CommandParser.IsAffirmative(message) || orderId is null)
+        {
+            // Not a yes: a real command sent instead of the answer must run, not vanish without a reply.
+            if (!CommandParser.IsNegative(message) && CommandParser.TryParse(message) is { } other)
+                await ExecuteCommandAsync(seller, session, ctx, other, ct);
+            return;
+        }
 
         var order = await _db.Orders.FirstOrDefaultAsync(o => o.Id == orderId && o.SellerId == seller.Id, ct);
         if (order is null) return;
 
         var collected = MarkFullyPaid(seller, order);
-        await ReplyAsync(seller, $"✅ {Formatters.Money(collected)} COD collected — payment marked PAID", ct);
+        await ReplyAsync(seller, $"✅ {Formatters.Money(collected)} COD collected — payment marked PAID" + await DrawerHintAfterCodAsync(seller, ct), ct);
     }
 
     private async Task HandleRuntimeFilterChoiceAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)

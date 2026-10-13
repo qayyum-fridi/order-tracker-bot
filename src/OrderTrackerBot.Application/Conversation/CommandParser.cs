@@ -94,7 +94,21 @@ public enum CommandKind
     PaymentMethodPrompt,
     ImportCatalogSheet,
     ImportHelp,
-    ImportTemplate
+    ImportTemplate,
+    ReceiptSettings,
+    ReceiptSize,
+    ReceiptFooter,
+    OrderNote,
+    SetEmail,
+    EmailReceipt,
+    PrinterHelp,
+    ShippingLabel,
+    BusinessLabel,
+    LabelSize,
+    Scan,
+    BarcodeSet,
+    CashDrawer,
+    CashMovement
 }
 
 /// <summary>What to export: any of "orders", "customers", "catalog", "discounts" (empty = ask), and an optional orders period (today/yesterday/7d/30d/lastmonth).</summary>
@@ -629,9 +643,28 @@ public static class CommandParser
         if (PaidPhrase.IsMatch(phrase)) return "paid";
         if (PendingPhrase.IsMatch(phrase)) return "pending";
         if (ReturnedPhrase.IsMatch(phrase)) return "returned";
-        return null;
+        return FuzzyStatusWord(phrase);
     }
-    private static readonly Regex CancelOrder = new(@"^cancel\s+order\s+(\d+)$", Opts);
+
+    private static readonly string[] StatusWords = { "shipped", "delivered", "pending", "returned" };
+
+    /// <summary>A one-word status with a typo ("shiped", "delivred", "pendng"): the status it is a near miss of, else null.</summary>
+    private static string? FuzzyStatusWord(string phrase) =>
+        phrase.Length < 5 || phrase.Contains(' ') ? null : TextDistance.Closest(phrase, StatusWords, 2);
+
+    private static readonly Regex PriceCurrency = new(@"(?<=[-–=]\s*)(?:rs\.?|pkr)\s*", Opts);
+    private static readonly Regex ThousandsComma = new(@"(?<=\d),(?=\d{3}(?!\d))", Opts);
+
+    /// <summary>"Chadar - Rs. 2,200" -> "Chadar - 2200": the currency marker after the dash and thousands commas are dropped before a product line is read.</summary>
+    public static string NormalizeProductPriceText(string text) => ThousandsComma.Replace(PriceCurrency.Replace(text, ""), "");
+
+    private static readonly Regex PercentSign = new(@"(\d)\s*%", Opts);
+    private static readonly Regex CodeThenValue = new(@"^(?<code>[A-Za-z][A-Za-z0-9_-]{1,29})\s+(?=\d|rs\b)", Opts);
+
+    /// <summary>"EID10 10%" / "EID10 10 percent" / "EID10 Rs.50 flat" -> "EID10, 10 percent" / "EID10, Rs.50 flat" (the format the discount reader expects).</summary>
+    public static string NormalizeDiscountSpec(string text) =>
+        CodeThenValue.Replace(PercentSign.Replace(text.Trim(), "$1 percent"), "${code}, ");
+    private static readonly Regex CancelOrder = new(@"^cancel\s+(?:order\s+)?#?(\d+)$", Opts);
     private static readonly Regex Undo = new(@"^undo$", Opts);
     private static readonly Regex PaymentLink = new(@"^payment\s+link(?:\s+(\d+))?$", Opts);
     private static readonly Regex AddPaymentMethod = new(@"^add\s+payment:\s*(jazzcash|easypaisa|bank|safepay)\s*(?:,\s*(.+))?$", Opts);
@@ -639,7 +672,45 @@ public static class CommandParser
     private static readonly Regex CodPending = new(@"^cod\s+pending$", Opts);
     private static readonly Regex AddTracking = new(@"^add\s+tracking:\s*(.+?)\s*,\s*(.+)$", Opts);
     private static readonly Regex TrackingLookup = new(@"^(.+?)\s+(?:ka|کا)\s+(?:tracking|ٹریکنگ)$", Opts);
-    private static readonly Regex CustomerOrderLookup = new(@"^(.+?)\s+" + Of + @"\s+(?:order|آرڈر)$", Opts);
+    // Trailing request words are allowed ("Ali ka order khol do", "Ali ka order dikhao bhai"); anything that changes the order (cancel, edit...) is not.
+    private static readonly Regex CustomerOrderLookup = new(@"^(.+?)\s+" + Of + @"\s+(?:order|آرڈر)(?:\s+(?:khol\w*|dikha\w*|bata\w*|dekh\w*|show|کھول|دکھا\w*|بتا\w*)(?:\s+(?:de|do|dein|den|dedo|kar|karo|please|plz|bhai|ji|دو|دیں))*)?$", Opts);
+
+    // Receipt settings, order note, email and printer help (ConversationEngine.ReceiptSettings.cs). Anchored and specific so nothing else is caught.
+    private static readonly Regex ReceiptSettingsCmd = new(@"^receipts?\s+(?:settings?|options?)$", Opts);
+    private static readonly Regex ReceiptSizeCmd = new(@"^receipts?\s+(?:size|paper)\s*:?\s*(?<v>.+)$", Opts);
+    private static readonly Regex ReceiptFooterCmd = new(@"^receipts?\s+footer\s*:?\s*(?<v>.*)$", Opts);
+    private static readonly Regex OrderNoteCmd = new(@"^(?:note|order\s+note)\s+#?(?<n>\d{1,9})\s*:?\s*(?<t>.*)$", Opts);
+    private static readonly Regex SetEmailCmd = new(@"^email\s*:?\s+(?<a>\S+@\S+|off|hata\s*do|hata|remove|delete|clear)$", Opts);
+    private static readonly Regex EmailReceiptCmd = new(@"^email\s+(?:the\s+)?(?:receipt|bill|invoice)(?:\s+#?(?<n>\d{1,9}))?(?:\s+(?:to|ko)\s+(?<a>\S+@\S+))?$", Opts);
+    private static readonly Regex PrinterHelpCmd = new(@"^(?:printer|thermal\s+printer|(?:print|printer)\s+(?:help|guide|setup))$", Opts);
+
+    // Labels, barcode scanning and the cash drawer (ConversationEngine.Labels.cs / Scan.cs / CashDrawer.cs).
+    private static readonly Regex LabelSizeCmd = new(@"^labels?\s+size\s*:?\s*(?<v>.*)$", Opts);
+    private static readonly Regex BusinessLabelCmd = new(@"^(?:(?:business|shop|dukan|store)\s+(?:labels?|stickers?)|labels?\s+(?:business|shop|dukan)|stickers?)$", Opts);
+    private static readonly Regex ShippingLabelCmd = new(@"^(?:(?:shipping|parcel|courier|delivery)\s+)?labels?(?:\s+#?(?<n>\d{1,9}))?(?:\s+(?:for\s+|ka\s+)?(?<name>\D.*))?$", Opts);
+    private static readonly Regex ScanCmd = new(@"^(?:scan|scanner)(?:\s+(?<v>.+))?$", Opts);
+    private static readonly Regex BarcodeRemoveCmd = new(@"^barcode\s+(?:remove|off|hata\w*|delete|clear)\s+(?<name>.+)$", Opts);
+    private static readonly Regex BarcodeSetCmd = new(@"^(?:barcode|sku)\s+(?<name>.+?)\s+(?<code>[A-Za-z0-9\-]{4,40})$", Opts);
+    private static readonly Regex BarcodeHelpCmd = new(@"^barcodes?$", Opts);
+    private const string CashAmount = @"(?<amt>\d[\d,]*(?:\.\d+)?)";
+    private static readonly Regex DrawerCmd = new(@"^(?:cash\s*drawer|drawer|galla|cash\s*box|cashbox)(?:\s+(?<act>open|close|status|history|balance|khol\w*|band\w*))?(?:\s+" + CashAmount + @")?(?:\s+(?<note>.+))?$", Opts);
+    private static readonly Regex CashOpenCloseCmd = new(@"^cash\s+(?<act>open|close|status|history|balance)(?:\s+" + CashAmount + @")?(?:\s+(?<note>.+))?$", Opts);
+    private static readonly Regex CashMoveCmd = new(@"^cash\s+(?<k>in|out|sale|undo|jama|nikala|nikalo|bikri)(?:\s+" + CashAmount + @")?(?:\s+(?<note>.+))?$", Opts);
+    private static readonly Regex CashAloneCmd = new(@"^(?:cash|galla)$", Opts);
+
+    private static decimal? ParseCashAmount(Group g) =>
+        g.Success && decimal.TryParse(g.Value.Replace(",", ""), System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : null;
+
+    private static string DrawerAction(string? word)
+    {
+        var w = (word ?? "").ToLowerInvariant();
+        return w.StartsWith("open") || w.StartsWith("khol") ? "open"
+            : w.StartsWith("close") || w.StartsWith("band") ? "close"
+            : w == "history" ? "history" : "status";
+    }
+
+    // "Ali koi customer hai?", "Ali naam ka koi customer hai, yeh mujhe bataen": does this person exist? Answered by the customer search.
+    private static readonly Regex CustomerExists = new(@"^(\p{L}[\p{L}\s]{0,30}?)(?:\s+naam\s+" + Of + @")?\s+(?:koi\s+)?customer\s+(?:hai|hain|exist\w*|milta\w*|mil\s+sakta\w*)\b", Opts);
     private static readonly Regex FuzzyStatusUpdate = new(@"^(.+?)\s+" + Of + @"\s+(?:order|آرڈر)\s+.*?(deliver|ship|pending|bhej|return|wapas|wapis|waapas|ڈیلیور|شپ|پینڈنگ|واپس|ریٹرن)", Opts);
     private static readonly Regex CreateDiscount = new(@"^create\s+discount:\s*(.+)$", Opts);
     private static readonly Regex DiscountList = new(@"^discount\s+list$", Opts);
@@ -778,7 +849,7 @@ public static class CommandParser
     public static bool TryParseProductLine(string line, out ProductLine? product)
     {
         product = null;
-        var text = line.Trim();
+        var text = NormalizeProductPriceText(line.Trim());
 
         var detailed = ProductWithDetails.Match(text);
         if (detailed.Success && TryParseProductDetails(detailed.Groups[3].Value, out var extras))
@@ -941,6 +1012,53 @@ public static class CommandParser
         if (message.StartsWith('/') && ExpandSlashCommand(message) is { } expanded) message = expanded;
         Match m;
 
+        if (ReceiptSettingsCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ReceiptSettings };
+        if ((m = ReceiptSizeCmd.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.ReceiptSize, Text = m.Groups["v"].Value.Trim() };
+        if ((m = ReceiptFooterCmd.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.ReceiptFooter, Text = m.Groups["v"].Value.Trim() };
+        if ((m = OrderNoteCmd.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.OrderNote, Number = int.Parse(m.Groups["n"].Value), Text = m.Groups["t"].Value.Trim() };
+        if ((m = EmailReceiptCmd.Match(message)).Success)
+            return new ParsedCommand
+            {
+                Kind = CommandKind.EmailReceipt,
+                Number = m.Groups["n"].Success ? int.Parse(m.Groups["n"].Value) : null,
+                Text2 = m.Groups["a"].Success ? m.Groups["a"].Value : null
+            };
+        if ((m = SetEmailCmd.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.SetEmail, Text = m.Groups["a"].Value.Trim() };
+        if (PrinterHelpCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.PrinterHelp };
+
+        if ((m = LabelSizeCmd.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.LabelSize, Text = m.Groups["v"].Value.Trim() };
+        if (BusinessLabelCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.BusinessLabel };
+        if ((m = ShippingLabelCmd.Match(message)).Success)
+            return new ParsedCommand
+            {
+                Kind = CommandKind.ShippingLabel,
+                Number = m.Groups["n"].Success ? int.Parse(m.Groups["n"].Value) : null,
+                Text = m.Groups["name"].Success ? m.Groups["name"].Value.Trim() : null
+            };
+        if ((m = ScanCmd.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.Scan, Text = m.Groups["v"].Success ? m.Groups["v"].Value.Trim() : "" };
+        if ((m = BarcodeRemoveCmd.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.BarcodeSet, Text = m.Groups["name"].Value.Trim(), Text2 = null };
+        if ((m = BarcodeSetCmd.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.BarcodeSet, Text = m.Groups["name"].Value.Trim(), Text2 = m.Groups["code"].Value };
+        if (BarcodeHelpCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Scan, Text = "help" };
+        if ((m = CashMoveCmd.Match(message)).Success)
+        {
+            var kind = m.Groups["k"].Value.ToLowerInvariant();
+            var normalized = kind is "jama" ? "in" : kind is "nikala" or "nikalo" ? "out" : kind is "bikri" ? "sale" : kind;
+            return new ParsedCommand { Kind = CommandKind.CashMovement, Text = normalized, Amount = ParseCashAmount(m.Groups["amt"]), Text2 = m.Groups["note"].Success ? m.Groups["note"].Value.Trim() : null };
+        }
+        if ((m = CashOpenCloseCmd.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.CashDrawer, Text = DrawerAction(m.Groups["act"].Value), Amount = ParseCashAmount(m.Groups["amt"]), Text2 = m.Groups["note"].Success ? m.Groups["note"].Value.Trim() : null };
+        if ((m = DrawerCmd.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.CashDrawer, Text = DrawerAction(m.Groups["act"].Value), Amount = ParseCashAmount(m.Groups["amt"]), Text2 = m.Groups["note"].Success ? m.Groups["note"].Value.Trim() : null };
+        if (CashAloneCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CashDrawer, Text = "status" };
+
         if ((m = CatalogSheetLink.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.ImportCatalogSheet, Text = m.Value };
         if (Start.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Start };
@@ -970,6 +1088,8 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.MenuCategory, Text = m.Groups[1].Value.ToLowerInvariant() };
         if (CustomerList.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CustomerList };
         if ((m = CustomerSearch.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.CustomerSearch, Text = m.Groups[1].Value.Trim() };
+        if ((m = CustomerExists.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.CustomerSearch, Text = m.Groups[1].Value.Trim() };
         if ((m = DeleteCustomer.Match(message)).Success)
         {
@@ -1128,7 +1248,7 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.CustomerOrderLookup, Text = m.Groups[1].Value.Trim() };
 
         if ((m = CreateDiscount.Match(message)).Success)
-            return new ParsedCommand { Kind = CommandKind.CreateDiscount, Text = m.Groups[1].Value.Trim() };
+            return new ParsedCommand { Kind = CommandKind.CreateDiscount, Text = NormalizeDiscountSpec(m.Groups[1].Value) };
 
         if (DiscountList.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DiscountList };
 

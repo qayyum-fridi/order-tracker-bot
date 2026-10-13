@@ -34,6 +34,8 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<Expense> Expenses => Set<Expense>();
     public DbSet<Loss> Losses => Set<Loss>();
     public DbSet<WageEntry> WageEntries => Set<WageEntry>();
+    public DbSet<CashDrawerSession> CashDrawerSessions => Set<CashDrawerSession>();
+    public DbSet<CashMovement> CashMovements => Set<CashMovement>();
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -156,5 +158,11 @@ public class AppDbContext : DbContext, IAppDbContext
         modelBuilder.Entity<Expense>(e => e.HasIndex(x => new { x.SellerId, x.CreatedAt }));
         modelBuilder.Entity<Loss>(e => e.HasIndex(x => new { x.SellerId, x.CreatedAt }));
         modelBuilder.Entity<WageEntry>(e => e.HasIndex(x => new { x.SellerId, x.CreatedAt }));
+        modelBuilder.Entity<CashDrawerSession>(e => e.HasIndex(x => new { x.SellerId, x.OpenedAt }));
+        modelBuilder.Entity<CashMovement>(e =>
+        {
+            e.HasIndex(x => new { x.SellerId, x.CreatedAt });
+            e.HasOne(x => x.Session).WithMany(x => x.Movements).HasForeignKey(x => x.SessionId).OnDelete(DeleteBehavior.Cascade);
+        });
     }
 }

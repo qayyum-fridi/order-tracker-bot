@@ -15,7 +15,6 @@ public static class SellerAccountReset
     public static async Task ResetAsync(IAppDbContext db, Seller seller, CancellationToken ct)
     {
         db.Orders.RemoveRange(await db.Orders.Where(o => o.SellerId == seller.Id).ToListAsync(ct));
-        await db.SaveChangesAsync(ct);
         db.Customers.RemoveRange(await db.Customers.Where(c => c.SellerId == seller.Id).ToListAsync(ct));
         db.Products.RemoveRange(await db.Products.Where(p => p.SellerId == seller.Id).ToListAsync(ct));
         db.Discounts.RemoveRange(await db.Discounts.Where(d => d.SellerId == seller.Id).ToListAsync(ct));
@@ -28,11 +27,17 @@ public static class SellerAccountReset
         db.Expenses.RemoveRange(await db.Expenses.Where(x => x.SellerId == seller.Id).ToListAsync(ct));
         db.Losses.RemoveRange(await db.Losses.Where(x => x.SellerId == seller.Id).ToListAsync(ct));
         db.WageEntries.RemoveRange(await db.WageEntries.Where(x => x.SellerId == seller.Id).ToListAsync(ct));
+        db.CashMovements.RemoveRange(await db.CashMovements.Where(x => x.SellerId == seller.Id).ToListAsync(ct));
+        db.CashDrawerSessions.RemoveRange(await db.CashDrawerSessions.Where(x => x.SellerId == seller.Id).ToListAsync(ct));
 
         seller.BusinessName = null;
         seller.City = null;
         seller.BusinessType = null;
         seller.InstagramHandle = null;
+        seller.Email = null;
+        seller.ReceiptSize = null;
+        seller.ReceiptFooter = null;
+        seller.LabelSize = null;
         seller.OnboardingComplete = false;
         seller.PreferredLanguage = Lang.RomanUrdu;
     }

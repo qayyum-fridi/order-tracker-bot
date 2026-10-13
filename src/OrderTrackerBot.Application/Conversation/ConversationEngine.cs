@@ -33,6 +33,7 @@ public partial class ConversationEngine
     private readonly MediaRateLimiter? _mediaLimiter;
     private readonly TimeProvider _clock;
     private readonly IAudioTranscriber? _transcriber;
+    private readonly IMerchantEmailSender? _email;
     private readonly MessageLoggingSender _turn;
     private Seller? _turnSeller;
     private SessionContextData? _turnCtx;
@@ -41,8 +42,10 @@ public partial class ConversationEngine
         BillingOptions? billing = null, IWhatsAppMediaClient? media = null, IInstagramClient? instagram = null, ICatalogSheetImporter? catalogSheets = null,
         IReceiptPdfGenerator? receiptPdf = null, IExportFileWriter? exportWriter = null, FeatureOptions? features = null,
         IIssueReporter? issues = null, IAudioTranscriber? transcriber = null, IImportFileReader? importReader = null,
-        INewSellerNotifier? newSellers = null, MediaRateLimiter? mediaLimiter = null, TimeProvider? clock = null)
+        INewSellerNotifier? newSellers = null, MediaRateLimiter? mediaLimiter = null, TimeProvider? clock = null,
+        IMerchantEmailSender? emailSender = null)
     {
+        _email = emailSender;
         _clock = clock ?? TimeProvider.System;
         _newSellers = newSellers;
         _mediaLimiter = mediaLimiter;
@@ -284,12 +287,31 @@ public partial class ConversationEngine
 
     private async Task HandleIdleAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
+        // Waiting for new products' prices, but the seller clearly asks for something else ("Kashif ka naya order likho"): park the price
+        // question for this turn so the message is read on its own, and put it back unless this turn started its own price question.
+        var parkedPrices = ctx.PendingPriceProducts is { Count: > 0 } && CommonWordPathRouter.ShouldLeavePriceWait(message) ? ctx.PendingPriceProducts : null;
+        if (parkedPrices is not null) ctx.PendingPriceProducts = null;
+        try
+        {
+            await HandleIdleCoreAsync(seller, session, ctx, message, ct);
+        }
+        finally
+        {
+            if (parkedPrices is not null) ctx.PendingPriceProducts ??= parkedPrices;
+        }
+    }
+
+    private async Task HandleIdleCoreAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
+    {
         var decision = TurnGate.DecideTyped(message);
         if (decision.Kind == DecisionKind.Reject)
         {
             await ReplyAsync(seller, decision.Message!, ct);
             return;
         }
+
+        // A scanner types a product's barcode as a message: a code that is some product's barcode goes to the scan cart.
+        if (await TryHandleScannedCodeAsync(seller, ctx, message, ct)) return;
 
         var command = CommandParser.TryParse(message);
         if (command is not null)

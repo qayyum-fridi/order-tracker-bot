@@ -303,6 +303,26 @@ curl -X POST "https://graph.facebook.com/v20.0/$PHONE_NUMBER_ID/conversational_a
 
   The same file also sets three ice breakers (tappable prompts WhatsApp shows in a chat that has no messages yet).
 
+## Receipt settings, thermal printers and email receipts
+
+Per-seller commands (all in chat, Roman Urdu / English): `receipt settings`, `receipt size 80mm|58mm|A5|A4`, `receipt footer <line>` (`off` to clear),
+`note 12 <text>` (order note, also printed on the receipt; `note 12 off`), `email ali@shop.com`, `email receipt 12 [to buyer@mail.com]`, `printer` (how to print).
+
+- The bot never talks to a printer. It makes the PDF in the chosen paper size (80mm / 58mm are continuous-height thermal rolls) and the seller prints it
+  from their phone (e.g. RawBT / Bluetooth Print for Bluetooth thermal printers) or computer. The `printer` command explains the steps.
+- Email is off until `MerchantEmail:SmtpUser` and `MerchantEmail:SmtpPassword` are set (compose: `MERCHANT_EMAIL_USER`, `MERCHANT_EMAIL_PASSWORD`; host/port default to Gmail STARTTLS 587).
+  Gmail SMTP is fine to try it; for real volume use a transactional provider (SES, SendGrid, Resend) on your own domain with SPF/DKIM. At most 20 emails per seller per hour (in memory).
+  By default a receipt goes to the seller's own saved address; it goes to someone else only when the seller types that address in the command.
+- New `Sellers` columns `Email`, `ReceiptSize`, `ReceiptFooter` are added on Sqlite by the patcher; **SQL Server needs a migration**. `reset account` clears them.
+
+## Labels, barcode scanner and cash drawer
+
+- **Labels:** `label 12` (parcel label PDF: from/to, COD amount, items, tracking), `business label` (shop sticker), `label size 4x6|a6|50x30`. Print on a 4x6 thermal label printer or an A6 sheet.
+- **Scanner:** give each product a code once (`barcode Lawn Suit 8961234567890`), then scan with a USB/Bluetooth scanner (it types the code into the WhatsApp chat). Each scan adds a piece to a cart;
+  `scan done` starts the order, `scan cart`, `scan clear`. Codes that are not a product's barcode are ignored by the scanner logic. Reading barcodes from photos is not supported.
+- **Cash drawer:** `drawer open 5000`, `cash in 500 <why>`, `cash out 300 <why>`, `cash sale 1200`, `drawer` (what it should hold), `drawer close <counted>` (shows the difference), `drawer history`.
+  COD orders marked paid while the drawer is open count as cash; bank/wallet payments do not. New tables `CashDrawerSessions` and `CashMovements`: Sqlite patcher creates them, SQL Server needs a migration.
+
 ## Known limitations / roadmap
 
 These match the spec's own version tags (V2/V3/V4) and are intentionally out of scope
