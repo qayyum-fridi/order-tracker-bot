@@ -841,3 +841,25 @@ public class NewProductPrefixTests
         Assert.NotEqual(CommandKind.AddProduct, CommandParser.TryParse(text)?.Kind);
 }
 
+public class ProductLineEndingInStockTests
+{
+    [Theory]
+    [InlineData("Dupatta - 600, cost 300, stock 50", "Dupatta", 600)]
+    [InlineData("Kurti - 1800, stock 10", "Kurti", 1800)]
+    [InlineData("Dupatta - 600, cost 300,", "Dupatta", 600)]
+    public void AProductLineWithTrailingStock_IsAProduct_NotAStockCommand(string text, string name, int price)
+    {
+        var parsed = CommandParser.TryParse(text)!;
+        Assert.Equal(CommandKind.AddProduct, parsed.Kind);
+        Assert.Equal(name, parsed.Text);
+        Assert.Equal(price, parsed.Amount);
+    }
+
+    [Theory]
+    [InlineData("Kurti stock 20")]
+    [InlineData("stock Kurti 20")]
+    [InlineData("Kurti ka stock 20")]
+    [InlineData("stock Kurti +10")]
+    public void PlainStockCommands_AreUnchanged(string text) => Assert.Equal(CommandKind.Stock, CommandParser.TryParse(text)!.Kind);
+}
+

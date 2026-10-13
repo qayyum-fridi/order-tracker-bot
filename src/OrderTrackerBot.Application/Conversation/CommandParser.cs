@@ -1143,7 +1143,8 @@ public static class CommandParser
         if (TryParseLossOrWage(message) is { } lossOrWage) return lossOrWage;
         if (StockList.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Stock };
         if ((m = StockOff.Match(message)).Success) return new ParsedCommand { Kind = CommandKind.Stock, Text = m.Groups["name"].Value.Trim(), Text2 = "off" };
-        if ((m = StockSet.Match(message)).Success)
+        // "Kurti - 1800, stock 10" ends in a stock amount but is a product line (price + details), not "Kurti stock 10".
+        if (!TryParseProductLine(message, out _) && (m = StockSet.Match(message)).Success)
             return new ParsedCommand
             {
                 Kind = CommandKind.Stock, Text = m.Groups["name"].Value.Trim(), Text2 = m.Groups["sign"].Success ? "add" : "set",

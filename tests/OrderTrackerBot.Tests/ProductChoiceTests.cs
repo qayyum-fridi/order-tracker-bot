@@ -100,6 +100,26 @@ public class ProductChoiceTests : IDisposable
         Assert.Contains(_sent, m => m.Contains("Confirm order"));
     }
 
+    [Theory]
+    [InlineData("naya product: Dupatta - 600, cost 300", 600, 300, null)]
+    [InlineData("Dupatta - 600, cost 300, stock 50", 600, 300, 50)]
+    [InlineData("Dupatta - 600, cost 300,", 600, 300, null)]
+    public async Task TheCatalogMenuWordings_AddTheProduct_ThroughTheEngine(string text, int price, int cost, int? stock)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "add product", default);   // the menu's "Add product" row
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, text, default);
+
+        Assert.DoesNotContain(_sent, m => m.Contains("catalog mein nahi mila"));
+        var dupatta = await db.Products.SingleAsync(p => p.Name == "Dupatta");
+        Assert.Equal(price, dupatta.Price);
+        Assert.Equal(cost, dupatta.CostPrice);
+        Assert.Equal(stock, dupatta.StockQty);
+    }
+
     [Fact]
     public async Task ChhoroCancelsTheDraft()
     {
