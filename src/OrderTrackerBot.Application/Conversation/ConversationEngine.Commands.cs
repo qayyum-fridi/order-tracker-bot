@@ -814,8 +814,19 @@ public partial class ConversationEngine
         needPrice = stillWaiting;
 
         var reply = saved.Count == 0 ? "" : $"✅ {saved.Count} product{(saved.Count == 1 ? "" : "s")} catalog mein add ho gaye:\n{string.Join("\n", saved)}\n\n";
+
+        // Names the seller listed without a price that are already in the catalog: say so, instead of silently skipping them.
+        var already = products.Where(p => p.Price is null).Select(p => p.Name).Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(n => activeNames.Contains(n, StringComparer.OrdinalIgnoreCase)).ToList();
+        if (already.Count > 0)
+        {
+            var existingProducts = await _db.Products.Where(p => p.SellerId == seller.Id && p.IsActive).ToListAsync(ct);
+            reply += "ℹ️ Pehle se catalog mein hain: " + string.Join(", ", already.Select(n =>
+                existingProducts.FirstOrDefault(p => p.Name.Equals(n, StringComparison.OrdinalIgnoreCase)) is { } e ? $"{Formatters.ProductLabel(e)} ({Formatters.Money(e.Price)})" : n)) +
+                "\nPrice badalni ho to likhein: " + already[0] + " - 700\n\n";
+        }
         if (needPrice.Count > 0)
-            reply += "📦 Samajh gaya — yeh naye products hain, order nahi:\n" +
+            reply += "📦 Samajh gaya — yeh naye products hain:\n" +
                      string.Join("\n", needPrice.Select(n => $"• {n}{(ctx.PendingProductExtras is { } extras && extras.FirstOrDefault(e => string.Equals(e.Key, n, StringComparison.OrdinalIgnoreCase)) is { Value: not null } found ? ExtrasText(found.Value) : "")}")) +
                      "\n\nBas har product ki sale price bata dein (misaal: 'Kurti - 1800' ya \"teenon ki 5000\") — jo kuch aap ne bataya hai (cost, stock) woh yaad hai.";
         if (needPrice.Count > 0) reply += "\n\n" + PriceHowToText(needPrice[0]);

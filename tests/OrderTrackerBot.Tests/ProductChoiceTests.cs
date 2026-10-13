@@ -180,6 +180,26 @@ public class ProductChoiceTests : IDisposable
     }
 
     [Fact]
+    public async Task NamingProducts_SaysWhichOnesAreAlreadyInTheCatalog_AndNeverCallsThemNotOrders()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);                // catalog has Kurti - 1800
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis
+            {
+                Intent = "add_products",
+                NewProducts = { new AiNewProduct { Name = "Chadar" }, new AiNewProduct { Name = "Kurti" } }
+            });
+
+        await engine.HandleIncomingMessageAsync(Phone, "teen chadar aur do kurti naye products hain", default);
+
+        Assert.Contains(_sent, m => m.Contains("Pehle se catalog mein hain") && m.Contains("Kurti") && m.Contains("1,800"));
+        Assert.Contains(_sent, m => m.Contains("naye products hain") && m.Contains("Chadar"));
+        Assert.DoesNotContain(_sent, m => m.Contains("order nahi"));
+        Assert.Equal(1, await db.Products.CountAsync(p => p.Name == "Kurti"));
+    }
+
+    [Fact]
     public async Task ChhoroCancelsTheDraft()
     {
         using var db = _dbFactory.CreateContext();
