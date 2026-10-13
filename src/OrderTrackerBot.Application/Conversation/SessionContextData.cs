@@ -45,9 +45,19 @@ public sealed class PendingOrderData
     public bool CustomerMatchResolved { get; set; }
 }
 
+/// <summary>"order for Sara": the next idle message is read as that saved customer's items instead of asking for name and phone again.</summary>
+public sealed class OrderForCustomerData
+{
+    public string Name { get; set; } = "";
+    public string? Phone { get; set; }
+    public string? Address { get; set; }
+    public DateTime At { get; set; } = DateTime.UtcNow;
+}
+
 /// <summary>Everything an in-flight multi-turn flow needs, serialized to ConversationSession.ContextJson.</summary>
 public sealed class SessionContextData
 {
+    public OrderForCustomerData? OrderForCustomer { get; set; }
     public PendingOrderData? PendingOrder { get; set; }
     /// <summary>When the draft was first shown for confirmation (UTC). Set by the engine on persist; cleared with the draft.</summary>
     public DateTime? PendingOrderAskedAt { get; set; }

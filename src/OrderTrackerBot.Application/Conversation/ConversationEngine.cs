@@ -31,6 +31,7 @@ public partial class ConversationEngine
     private readonly IIssueReporter? _issues;
     private readonly Microsoft.Extensions.Logging.ILogger<ConversationEngine>? _logger;
     private DateTime? _sentAtUtc;
+    private List<string>? _nextActions;
 
     /// <summary>The time to stamp on a record made by this turn: the real send time of a delayed message (within 3 days, never in the future), else now.</summary>
     private DateTime RecordTimeUtc()
@@ -90,6 +91,7 @@ public partial class ConversationEngine
     public async Task HandleIncomingMessageAsync(string fromPhoneNumber, string rawMessage, CancellationToken ct = default, DateTime? sentAtUtc = null)
     {
         _sentAtUtc = sentAtUtc;
+        _nextActions = null;
         _turn.Reset();
         _turnSeller = null;
         _turnCtx = null;
@@ -324,6 +326,8 @@ public partial class ConversationEngine
             await ReplyAsync(seller, decision.Message!, ct);
             return;
         }
+
+        if (await TryHandleOrderForCustomerItemsAsync(seller, session, ctx, message, ct)) return;
 
         // A scanner types a product's barcode as a message: a code that is some product's barcode goes to the scan cart.
         if (await TryHandleScannedCodeAsync(seller, ctx, message, ct)) return;

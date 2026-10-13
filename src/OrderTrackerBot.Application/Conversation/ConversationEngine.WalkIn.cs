@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Ai;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
@@ -74,6 +75,22 @@ public sealed partial class ConversationEngine
         }
 
         var catalog = await LoadCatalogAsync(seller, ct);
+        var pending = BuildPendingFromWalkIn(catalog, sale);
+
+        pending.CustomerName = WalkInCustomer;
+        pending.OrderSource = "offline";
+        pending.PaymentMethodText = sale.Payment ?? "cash";
+        pending.PaidInFull = true;
+        pending.DeliveryCharge = 0;
+        if (sale.DaysAgo > 0) pending.SoldAt = RecordTimeUtc().AddDays(-sale.DaysAgo);
+
+        ctx.PendingOrder = pending;
+        await ContinueResolvingDraftAsync(seller, session, ctx, ct);
+    }
+
+    /// <summary>Items typed as "Kurti 2, Dupatta" / "Chai - 200" become draft lines: catalog items priced from the catalog, "name - price" items at the stated price.</summary>
+    private static PendingOrderData BuildPendingFromWalkIn(List<CatalogEntry> catalog, WalkInSale sale)
+    {
         var draft = new AiOrderDraft();
         foreach (var item in sale.Items.Where(i => i.Price is null))
             draft.Items.Add(new AiOrderItemDraft { ProductName = item.Name, Quantity = item.Quantity, MatchedCatalogProductName = FindCatalogEntry(catalog, item.Name)?.Label });
@@ -89,15 +106,53 @@ public sealed partial class ConversationEngine
             }
             pending.Items.Add(line);
         }
+        return pending;
+    }
 
-        pending.CustomerName = WalkInCustomer;
-        pending.OrderSource = "offline";
-        pending.PaymentMethodText = sale.Payment ?? "cash";
-        pending.PaidInFull = true;
-        pending.DeliveryCharge = 0;
-        if (sale.DaysAgo > 0) pending.SoldAt = RecordTimeUtc().AddDays(-sale.DaysAgo);
+    private async Task HandleOrderForCustomerAsync(Seller seller, ConversationSession session, SessionContextData ctx, string name, CancellationToken ct)
+    {
+        var lower = name.ToLower();
+        var all = await _db.Customers.Where(c => c.SellerId == seller.Id && c.DeletedAt == null && c.Name.ToLower().Contains(lower)).Take(10).ToListAsync(ct);
+        var matches = all.Where(c => c.Name.Equals(name, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (matches.Count == 0) matches = all;
 
+        if (matches.Count == 0)
+        {
+            await ReplyAsync(seller, $"\"{name}\" naam ka customer saved nahi hai. Naye customer ka order seedha likhein, jaise: {name}: Kurti 2, 0300xxxxxxx", ct);
+            return;
+        }
+        if (matches.Count > 1)
+        {
+            await AskClarificationAsync(seller, session, ctx, $"\"{name}\" se {matches.Count} customers milte hain — kis ke liye order?",
+                matches.Take(9).Select(c => $"order for {c.Name}").ToList(), ct);
+            return;
+        }
+
+        var customer = matches[0];
+        ctx.OrderForCustomer = new OrderForCustomerData { Name = customer.Name, Phone = customer.Phone, Address = customer.Address, At = DateTime.UtcNow };
+        await ReplyAsync(seller,
+            $"📝 {customer.Name} ke liye order — items likhein, jaise:\nKurti 2, Dupatta\nya: Lawn Suit - 3200\n(Phone/address pehle se saved hain.)", ct);
+    }
+
+    /// <summary>The message after "order for Sara": read as her items. A real command, or anything that is not items, drops the request and runs as usual.</summary>
+    private async Task<bool> TryHandleOrderForCustomerItemsAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
+    {
+        if (ctx.OrderForCustomer is not { } target) return false;
+        ctx.OrderForCustomer = null;
+        if (DateTime.UtcNow - target.At > TimeSpan.FromMinutes(10)) return false;
+        if (CommandParser.TryParse(message) is not null || CommandParser.IsAffirmative(message) || CommandParser.IsNegative(message)) return false;
+
+        var sale = ParseWalkIn(message);
+        if (sale.Items.Count == 0 || sale.Items.Any(i => i.Name == "Counter sale")) return false;
+
+        var pending = BuildPendingFromWalkIn(await LoadCatalogAsync(seller, ct), sale);
+        pending.CustomerName = target.Name;
+        pending.Phone = target.Phone;
+        pending.Address = target.Address;
+        pending.PaymentMethodText = sale.Payment;
+        pending.CustomerMatchResolved = true; // she is the saved customer: no "same customer?" question
         ctx.PendingOrder = pending;
         await ContinueResolvingDraftAsync(seller, session, ctx, ct);
+        return true;
     }
 }
