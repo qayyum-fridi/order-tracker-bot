@@ -41,12 +41,45 @@ public partial class ConversationEngine
             $"📦 {Formatters.ProductLabel(product)} — Report",
             "",
             $"Last 30 din: {last30.Count} orders, {last30.Sum(i => i.Quantity)} units, {Formatters.Money(last30.Sum(i => i.Quantity * i.UnitPrice))}",
+            MonthComparisonLine(seller, items.Select(i => (i.CreatedAt, i.Quantity, i.UnitPrice))),
             $"Ab tak total: {items.Count} orders, {items.Sum(i => i.Quantity)} units, {Formatters.Money(items.Sum(i => i.Quantity * i.UnitPrice))}",
             $"Customers: {items.Select(i => i.CustomerId).Distinct().Count()}",
             $"Last order: {(daysAgo == 0 ? "aaj" : $"{daysAgo} din pehle")}"
         };
         if (product.StockQty is { } stock) lines.Add($"Stock: {stock}");
         await ReplyAsync(seller, string.Join("\n", lines), ct);
+    }
+
+    /// <summary>
+    /// This month so far against the same number of days of last month (a fair comparison part-way through a month), plus last month in full. Items are the product's
+    /// non-cancelled, non-returned order lines. "kam" / "behtar" is said by units and by amount only when they agree.
+    /// </summary>
+    private static string MonthComparisonLine(Seller seller, IEnumerable<(DateTime CreatedAt, int Quantity, decimal UnitPrice)> items)
+    {
+        var now = DateTime.UtcNow;
+        var thisMonth = SellerClock.CurrentMonthRangeUtc(seller.TimeZoneId, now);
+        var lastMonth = SellerClock.PreviousMonthRangeUtc(seller.TimeZoneId, now);
+        var days = Math.Max(1, (int)Math.Ceiling((now - thisMonth.StartUtc).TotalDays));
+        var sameWindowEnd = lastMonth.StartUtc.AddDays(days) < lastMonth.EndUtc ? lastMonth.StartUtc.AddDays(days) : lastMonth.EndUtc;
+        var list = items.ToList();
+
+        (int Units, decimal Amount) Sum(DateTime from, DateTime to) =>
+            list.Where(i => i.CreatedAt >= from && i.CreatedAt < to).Aggregate((Units: 0, Amount: 0m), (a, i) => (a.Units + i.Quantity, a.Amount + i.Quantity * i.UnitPrice));
+        var now1 = Sum(thisMonth.StartUtc, thisMonth.EndUtc);
+        var before = Sum(lastMonth.StartUtc, sameWindowEnd);
+        var full = Sum(lastMonth.StartUtc, lastMonth.EndUtc);
+
+        string verdict;
+        if (before.Units == 0 && now1.Units == 0) verdict = "dono mahine mein koi sale nahi";
+        else if (before.Units == 0) verdict = "pichle maah isi muddat mein koi sale nahi thi — behtar ✅";
+        else if (now1.Units > before.Units && now1.Amount >= before.Amount) verdict = $"behtar ✅ (+{(now1.Units - before.Units) * 100 / before.Units}% units)";
+        else if (now1.Units < before.Units && now1.Amount <= before.Amount) verdict = $"kam ⚠️ ({(now1.Units - before.Units) * 100 / before.Units}% units)";
+        else if (now1.Units == before.Units && now1.Amount == before.Amount) verdict = "barabar";
+        else verdict = "milajula (units aur raqam alag disha mein)";
+
+        return $"Is maah ({days} din): {now1.Units} units, {Formatters.Money(now1.Amount)}\n" +
+               $"Pichla maah (pehle {days} din): {before.Units} units, {Formatters.Money(before.Amount)} → {verdict}\n" +
+               $"Pichla maah (poora): {full.Units} units, {Formatters.Money(full.Amount)}";
     }
 
     private async Task HandleDiscountPerformanceAsync(Seller seller, string? period, CancellationToken ct)
