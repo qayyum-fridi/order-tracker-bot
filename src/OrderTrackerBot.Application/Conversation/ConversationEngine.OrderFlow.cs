@@ -303,7 +303,7 @@ public partial class ConversationEngine
         }
 
         SetState(session, ConversationState.AwaitingOrderConfirmation);
-        await ReplyAsync(seller, BuildConfirmationText(seller.PreferredLanguage, pending), ct);
+        await SendDraftConfirmationAsync(seller, BuildConfirmationText(seller.PreferredLanguage, pending), ct);
     }
 
     private async Task ApplyDiscountAsync(Seller seller, PendingOrderData pending, CancellationToken ct)
@@ -426,6 +426,24 @@ public partial class ConversationEngine
         return string.Join("\n", lines);
     }
 
+    // Labels double as the typed commands they stand for (a tap arrives as its label; the translating sender maps translated labels back).
+    internal static readonly string[] ConfirmButtonLabels = { "✅ Save", "✏️ Edit", "❌ Cancel" };
+    private static readonly string[] ConfirmButtonCommands = { "yes", "edit", "cancel" };
+    private const string ConfirmTypedHint = "Reply YES to save, ya EDIT to fix.";
+    private const int MaxButtonBodyLength = 1000;
+
+    /// <summary>The order draft with Save / Edit / Cancel taps; plain text with the typed hint when buttons are off or the draft is too long for a button message.</summary>
+    private async Task SendDraftConfirmationAsync(Seller seller, string text, CancellationToken ct)
+    {
+        var body = text.EndsWith(ConfirmTypedHint, StringComparison.Ordinal) ? text[..^ConfirmTypedHint.Length] + "Barae meherbani neeche se chunein:" : text;
+        if (!_features.ConfirmButtons || body.Length > MaxButtonBodyLength)
+        {
+            await ReplyAsync(seller, text, ct);
+            return;
+        }
+        await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, body, ConfirmButtonLabels, ct);
+    }
+
     private static bool IsPack(PendingOrderItemData item) => item.UnitType != "piece" || item.UnitQty != 1;
 
     private static string ItemLabel(PendingOrderItemData item) =>
@@ -518,7 +536,7 @@ public partial class ConversationEngine
         if (CommandParser.TryFindAdvanceInOrderText(message, out var typedAdvance) && message.Trim().Length <= 30 && ctx.PendingOrder is { } advanceDraft)
         {
             advanceDraft.AdvancePaid = typedAdvance;
-            await ReplyAsync(seller, BuildConfirmationText(seller.PreferredLanguage, advanceDraft), ct);
+            await SendDraftConfirmationAsync(seller, BuildConfirmationText(seller.PreferredLanguage, advanceDraft), ct);
             return;
         }
 
@@ -526,7 +544,7 @@ public partial class ConversationEngine
         {
             draft.DeliveryCharge = delivery;
             draft.Total = OrderTotal(draft.Subtotal, draft.DiscountAmount, delivery);
-            await ReplyAsync(seller, BuildConfirmationText(seller.PreferredLanguage, draft), ct);
+            await SendDraftConfirmationAsync(seller, BuildConfirmationText(seller.PreferredLanguage, draft), ct);
             return;
         }
 
@@ -538,7 +556,7 @@ public partial class ConversationEngine
             return;
         }
 
-        await ReplyAsync(seller, "Reply YES to save, ya EDIT to fix.", ct);
+        await SendDraftConfirmationAsync(seller, "Maaf kijiye, yeh samajh nahi aaya.\n" + ConfirmTypedHint, ct);
     }
 
     /// <summary>

@@ -76,7 +76,7 @@ public partial class ConversationEngine
         _transcriber = transcriber;
         _importReader = importReader;
         // Unconfigured (e.g. unit tests) means off; the app registers FeatureOptions with its real defaults.
-        _features = features ?? new FeatureOptions { ShortcutButtons = false };
+        _features = features ?? new FeatureOptions { ShortcutButtons = false, ConfirmButtons = false };
     }
 
     private static readonly ConversationState[] OnboardingStates =
@@ -123,6 +123,18 @@ public partial class ConversationEngine
         var ctx = SessionContextData.FromJson(session.ContextJson);
         _turnSeller = seller;
         _turnCtx = ctx;
+
+        // A tap on the draft's Save / Edit / Cancel buttons arrives as its label: it acts as typed yes / edit / cancel, and is told apart from a stale tap.
+        if (Array.IndexOf(ConfirmButtonLabels, message.Trim()) is var tapped and >= 0)
+        {
+            if (session.State == ConversationState.AwaitingOrderConfirmation) message = ConfirmButtonCommands[tapped];
+            else
+            {
+                await ReplyAsync(seller, "ℹ️ Yeh button kisi purane order ka tha. Naya order likhein, ya \"menu\" likhein.", ct);
+                await PersistAsync(session, ctx, ct);
+                return;
+            }
+        }
 
         // "kya karun" / "kaise karun" / "?" — a tip for the current step, from any state, without touching it.
         if (CommandParser.IsGuidanceRequest(message))
@@ -439,6 +451,9 @@ public sealed class FeatureOptions
 
     /// <summary>Quick-action buttons (Guide / New order / Menu) after finished replies.</summary>
     public bool ShortcutButtons { get; set; } = true;
+
+    /// <summary>Save / Edit / Cancel as tap buttons under an order draft (typed YES / EDIT / cancel keep working).</summary>
+    public bool ConfirmButtons { get; set; } = true;
 
     /// <summary>Public link to the illustrated English/Urdu guide, sent with the Guide command. Empty = no link.</summary>
     public string GuideUrl { get; set; } = "";
