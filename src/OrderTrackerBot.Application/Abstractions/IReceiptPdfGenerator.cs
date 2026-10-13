@@ -37,7 +37,8 @@ public sealed record ReceiptData(
     string? Footer = null,
     string? Notes = null,
     string? Header = null,
-    string? Contact = null);
+    string? Contact = null,
+    ReceiptDesign? Design = null);
 
 /// <summary>A parcel label: who it is from and to, what to collect on delivery, the order number and tracking.</summary>
 public sealed record ShippingLabelData(

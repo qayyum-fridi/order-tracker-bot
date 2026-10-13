@@ -29,6 +29,8 @@ public class Seller
     public string? ReceiptSize { get; set; }
     /// <summary>Line printed at the bottom of every receipt instead of the default thank-you ("receipt footer ...").</summary>
     public string? ReceiptFooter { get; set; }
+    /// <summary>The seller's own receipt look (colour, title, layout, what to show) as JSON; null = standard look ("receipt design").</summary>
+    public string? ReceiptDesignJson { get; set; }
     /// <summary>Short line printed under the shop name on every receipt ("receipt header ...").</summary>
     public string? ReceiptHeader { get; set; }
     /// <summary>Contact line printed under the shop name, e.g. email and extra phone numbers ("receipt contact ...").</summary>

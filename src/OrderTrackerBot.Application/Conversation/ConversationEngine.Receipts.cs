@@ -74,7 +74,7 @@ public partial class ConversationEngine
     /// The receipt PDF for one order, in the seller's paper size, with their footer and the order's note. Invoices are serially numbered per seller; the number is
     /// given the first time one is issued and kept on re-sends. <c>NumberIsNew</c> tells the caller to give the number back when the receipt could not be delivered.
     /// </summary>
-    private async Task<(byte[] Pdf, bool NumberIsNew)> RenderReceiptAsync(Seller seller, Order order, SellerBranding? branding, CancellationToken ct)
+    private async Task<(byte[] Pdf, bool NumberIsNew)> RenderReceiptAsync(Seller seller, Order order, SellerBranding? branding, CancellationToken ct, bool preview = false)
     {
         var payTo = order.PaymentStatus == PaymentStatus.Paid || order.PaymentMethod == OrderPaymentMethod.Cod
             ? new List<string>()
@@ -82,7 +82,7 @@ public partial class ConversationEngine
                 .Select(p => $"{p.Type}: {p.AccountNumberOrId}").ToList();
 
         var tz = SellerClock.Resolve(seller.TimeZoneId);
-        var numberIsNew = order.ReceiptNumber is null;
+        var numberIsNew = !preview && order.ReceiptNumber is null; // a design preview never takes a serial number
         if (numberIsNew)
             order.ReceiptNumber = (await _db.Orders.Where(o => o.SellerId == seller.Id).MaxAsync(o => o.ReceiptNumber, ct) ?? 0) + 1;
 
@@ -101,7 +101,8 @@ public partial class ConversationEngine
             ReceiptNumber: order.ReceiptNumber, Ntn: seller.Ntn, Strn: seller.Strn,
             SalesTaxRate: order.SalesTaxRate, SalesTaxAmount: SalesTax.Amount(order),
             PaperSize: NormalizeReceiptSize(seller.ReceiptSize) ?? "A5", Footer: seller.ReceiptFooter, Notes: order.Notes,
-            Header: seller.ReceiptHeader, Contact: seller.ReceiptContact));
+            Header: seller.ReceiptHeader, Contact: seller.ReceiptContact,
+            Design: ReceiptDesign.FromJson(seller.ReceiptDesignJson)));
         return (pdf, numberIsNew);
     }
 
