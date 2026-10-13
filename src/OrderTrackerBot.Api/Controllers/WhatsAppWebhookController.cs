@@ -69,9 +69,11 @@ public class WhatsAppWebhookController : ControllerBase
         foreach (var (from, type, id) in payload.ExtractUnsupportedMessages())
             messages.Add(new WebhookMessage(IdOrNew(id), WebhookMessageKind.Unsupported, from, Type: type));
 
+        var sentAt = payload.SentAtById();
         var accepted = true;
-        foreach (var message in messages)
+        foreach (var original in messages)
         {
+            var message = sentAt.TryGetValue(original.Id, out var ts) ? original with { SentAt = ts } : original;
             // Not tied to the request token: once Meta's payload is read, recording it must not be cancelled by a dropped connection.
             var result = await _inbox.AcceptAsync(message, CancellationToken.None);
             if (result == InboxResult.QueueFull)

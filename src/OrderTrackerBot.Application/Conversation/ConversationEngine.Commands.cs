@@ -315,6 +315,12 @@ public partial class ConversationEngine
             case CommandKind.CashMovement:
                 await HandleCashMovementAsync(seller, cmd, ct);
                 return;
+            case CommandKind.OrderForCustomer:
+                await HandleOrderForCustomerAsync(seller, session, ctx, cmd.Text!, ct);
+                return;
+            case CommandKind.WalkInSale:
+                await HandleWalkInSaleAsync(seller, session, ctx, cmd.Text!, ct);
+                return;
             case CommandKind.Payout:
                 await HandlePayoutAsync(seller, cmd, ct);
                 return;
@@ -920,6 +926,7 @@ public partial class ConversationEngine
             existing.Price = line.Price;
             existing.IsActive = true;
             ApplyProductExtras(existing, line.Extras);
+            SuggestNext($"walkin {existing.Name} 1", "catalog", "stock");
             return (existing, true);
         }
 
@@ -927,6 +934,7 @@ public partial class ConversationEngine
         ApplyProductExtras(product, line.Extras);
         _db.Products.Add(product);
         await _db.SaveChangesAsync(ct);
+        SuggestNext($"walkin {product.Name} 1", "catalog", "stock");
         return (product, false);
     }
 

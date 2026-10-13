@@ -30,6 +30,15 @@ public partial class ConversationEngine
     private readonly FeatureOptions _features;
     private readonly IIssueReporter? _issues;
     private readonly Microsoft.Extensions.Logging.ILogger<ConversationEngine>? _logger;
+    private DateTime? _sentAtUtc;
+    private List<string>? _nextActions;
+
+    /// <summary>The time to stamp on a record made by this turn: the real send time of a delayed message (within 3 days, never in the future), else now.</summary>
+    private DateTime RecordTimeUtc()
+    {
+        var now = DateTime.UtcNow;
+        return _sentAtUtc is { } sent && sent <= now && now - sent <= TimeSpan.FromDays(3) ? sent : now;
+    }
     private readonly INewSellerNotifier? _newSellers;
     private readonly MediaRateLimiter? _mediaLimiter;
     private readonly TimeProvider _clock;
@@ -75,8 +84,14 @@ public partial class ConversationEngine
         ConversationState.OnboardingCatalogSize, ConversationState.OnboardingAddProduct, ConversationState.OnboardingStartChoice
     };
 
-    public async Task HandleIncomingMessageAsync(string fromPhoneNumber, string rawMessage, CancellationToken ct = default)
+    /// <summary>
+    /// <paramref name="sentAtUtc"/> is when the message was really sent. A seller whose phone was offline sends entries that arrive much later;
+    /// records created from them (orders, expenses) keep the send time, not the arrival time.
+    /// </summary>
+    public async Task HandleIncomingMessageAsync(string fromPhoneNumber, string rawMessage, CancellationToken ct = default, DateTime? sentAtUtc = null)
     {
+        _sentAtUtc = sentAtUtc;
+        _nextActions = null;
         _turn.Reset();
         _turnSeller = null;
         _turnCtx = null;
@@ -311,6 +326,8 @@ public partial class ConversationEngine
             await ReplyAsync(seller, decision.Message!, ct);
             return;
         }
+
+        if (await TryHandleOrderForCustomerItemsAsync(seller, session, ctx, message, ct)) return;
 
         // A scanner types a product's barcode as a message: a code that is some product's barcode goes to the scan cart.
         if (await TryHandleScannedCodeAsync(seller, ctx, message, ct)) return;

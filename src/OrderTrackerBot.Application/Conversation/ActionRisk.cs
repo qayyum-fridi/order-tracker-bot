@@ -14,7 +14,7 @@ public static class ActionRisk
         CommandKind.MarkStatus, CommandKind.MarkAllPendingShipped, CommandKind.FuzzyStatusUpdate, CommandKind.CancelOrder,
         CommandKind.DeleteProduct, CommandKind.DeleteCustomer, CommandKind.EditProduct, CommandKind.PriceTiers,
         CommandKind.OrderPayment, CommandKind.OrderDeliveryCharge, CommandKind.CustomerUpdate, CommandKind.Broadcast,
-        CommandKind.CashDrawer, CommandKind.CashMovement, CommandKind.Payout
+        CommandKind.CashDrawer, CommandKind.CashMovement, CommandKind.Payout, CommandKind.WalkInSale
     };
 
     // Money or order-state words. A step that is not a parsed command (e.g. "price 5000") still counts as risky when it names one of these.

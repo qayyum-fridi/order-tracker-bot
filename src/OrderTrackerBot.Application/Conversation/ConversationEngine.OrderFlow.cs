@@ -258,7 +258,7 @@ public partial class ConversationEngine
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(pending.Phone))
+        if (string.IsNullOrWhiteSpace(pending.Phone) && !pending.PaidInFull)
         {
             ctx.PendingMissingField = "Phone";
             SetState(session, ConversationState.AwaitingOrderMissingFields);
@@ -267,7 +267,7 @@ public partial class ConversationEngine
         }
 
         // "Ali" with the phone of the saved "Muhammad Ali": ask before a second, split customer record is created.
-        if (!pending.CustomerMatchResolved && await FindRelatedCustomerByPhoneAsync(seller, pending, ct) is { } related)
+        if (!pending.PaidInFull && !pending.CustomerMatchResolved && await FindRelatedCustomerByPhoneAsync(seller, pending, ct) is { } related)
         {
             ctx.PendingMissingField = "CustomerMatch";
             ctx.PendingCustomerMatchName = related.Name;
@@ -280,7 +280,7 @@ public partial class ConversationEngine
 
         await ApplyDiscountAsync(seller, pending, ct);
 
-        var duplicate = await FindPossibleDuplicateAsync(seller, pending, ct);
+        var duplicate = pending.PaidInFull ? null : await FindPossibleDuplicateAsync(seller, pending, ct); // two counter buyers may buy the same thing
         if (duplicate is not null)
         {
             pending.DuplicateOfOrderId = duplicate.Id;
@@ -400,7 +400,10 @@ public partial class ConversationEngine
 
         if (!string.IsNullOrWhiteSpace(pending.Phone)) lines.Add($"Phone: {pending.Phone}");
         if (!string.IsNullOrWhiteSpace(pending.Address)) lines.Add($"Address: {pending.Address}");
-        lines.Add($"Payment: {PaymentLabel(ResolvePaymentMethod(pending.PaymentMethodText), pending.PaymentMethodText)}");
+        lines.Add(pending.PaidInFull
+            ? $"Payment: {(ResolvePaymentMethod(pending.PaymentMethodText) == OrderPaymentMethod.Cod ? "Cash" : pending.PaymentMethodText)} — counter sale, paid"
+              + (pending.SoldAt is { } soldAt ? $" ({soldAt:dd MMM} ki sale)" : "")
+            : $"Payment: {PaymentLabel(ResolvePaymentMethod(pending.PaymentMethodText), pending.PaymentMethodText)}");
         if (pending.CommentLeadNumber is { } leadNumber) lines.Add($"Source: Instagram comment lead #{leadNumber}");
         else if (!string.IsNullOrWhiteSpace(pending.OrderSource)) lines.Add($"Source: {Formatters.SourceLabel(pending.OrderSource)}");
         if (pending.DiscountAmount > 0) lines.Add($"Discount ({pending.DiscountCode?.ToUpperInvariant()}): -{Formatters.Money(pending.DiscountAmount)}");
@@ -787,9 +790,17 @@ public partial class ConversationEngine
             DiscountAmount = pending.DiscountAmount,
             DeliveryCharge = pending.DeliveryCharge ?? seller.DefaultDeliveryCharge,
             Total = OrderTotal(pending.Subtotal, pending.DiscountAmount, pending.DeliveryCharge ?? seller.DefaultDeliveryCharge),
-            SalesTaxRate = seller.SalesTaxRate
+            SalesTaxRate = seller.SalesTaxRate,
+            CreatedAt = pending.SoldAt ?? RecordTimeUtc()
         };
-        if (pending.AdvancePaid is > 0 and var advance)
+        if (pending.PaidInFull)
+        {
+            order.Status = OrderStatus.Delivered;
+            order.PaymentStatus = PaymentStatus.Paid;
+            order.AmountPaid = order.Total;
+            order.PaidAt = order.CreatedAt;
+        }
+        else if (pending.AdvancePaid is > 0 and var advance)
         {
             order.AmountPaid = Math.Min(advance, order.Total);
             if (advance >= order.Total)
