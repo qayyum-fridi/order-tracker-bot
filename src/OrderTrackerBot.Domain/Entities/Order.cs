@@ -30,6 +30,11 @@ public class Order
     /// <summary>Per-seller serial number given the first time a receipt/invoice is issued (1, 2, 3...); null until then.</summary>
     public int? ReceiptNumber { get; set; }
 
+    /// <summary>The courier / gateway payout this order was settled by (null until one is recorded); see <see cref="Payout"/>.</summary>
+    public int? PayoutId { get; set; }
+    /// <summary>When the order stopped waiting for a payout: a payout was recorded for it, or the seller said the cash reached them directly ("payout skip 12").</summary>
+    public DateTime? PayoutSettledAt { get; set; }
+
     public string? TrackingCourier { get; set; }
     public string? TrackingNumber { get; set; }
 

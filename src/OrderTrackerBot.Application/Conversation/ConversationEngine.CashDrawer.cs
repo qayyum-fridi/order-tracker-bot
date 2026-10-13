@@ -24,10 +24,10 @@ public partial class ConversationEngine
 
     private async Task<CashSummary> SummariseCashAsync(Seller seller, CashDrawerSession session, DateTime untilUtc, CancellationToken ct)
     {
-        // COD cash comes in when the order is marked paid. Sqlite cannot SUM decimals, so the few orders of one shift are added up in memory.
+        // COD cash comes in when the order is marked paid. Money a courier / gateway paid out later (PayoutId set) went to the bank, not the drawer. Sqlite cannot SUM decimals, so the few orders of one shift are added up in memory.
         var codOrders = await _db.Orders.AsNoTracking()
             .Where(o => o.SellerId == seller.Id && o.PaymentMethod == OrderPaymentMethod.Cod && o.PaymentStatus == PaymentStatus.Paid
-                        && o.PaidAt != null && o.PaidAt >= session.OpenedAt && o.PaidAt <= untilUtc
+                        && o.PayoutId == null && o.PaidAt != null && o.PaidAt >= session.OpenedAt && o.PaidAt <= untilUtc
                         && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
             .ToListAsync(ct);
         var cod = codOrders.Sum(o => OrderMoney.Received(o));

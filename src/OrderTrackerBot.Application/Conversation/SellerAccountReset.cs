@@ -27,6 +27,7 @@ public static class SellerAccountReset
         db.Expenses.RemoveRange(await db.Expenses.Where(x => x.SellerId == seller.Id).ToListAsync(ct));
         db.Losses.RemoveRange(await db.Losses.Where(x => x.SellerId == seller.Id).ToListAsync(ct));
         db.WageEntries.RemoveRange(await db.WageEntries.Where(x => x.SellerId == seller.Id).ToListAsync(ct));
+        db.Payouts.RemoveRange(await db.Payouts.Where(x => x.SellerId == seller.Id).ToListAsync(ct));
         db.CashMovements.RemoveRange(await db.CashMovements.Where(x => x.SellerId == seller.Id).ToListAsync(ct));
         db.CashDrawerSessions.RemoveRange(await db.CashDrawerSessions.Where(x => x.SellerId == seller.Id).ToListAsync(ct));
 

@@ -323,6 +323,11 @@ Per-seller commands (all in chat, Roman Urdu / English): `receipt settings`, `re
 - **Cash drawer:** `drawer open 5000`, `cash in 500 <why>`, `cash out 300 <why>`, `cash sale 1200`, `drawer` (what it should hold), `drawer close <counted>` (shows the difference), `drawer history`.
   COD orders marked paid while the drawer is open count as cash; bank/wallet payments do not. New tables `CashDrawerSessions` and `CashMovements`: Sqlite patcher creates them, SQL Server needs a migration.
 
+## Courier / gateway payouts
+
+`payout pending` (what couriers still owe for delivered COD orders, by courier), `payout 11700 TCS orders 1 2 3 fee 300` (money arrived: orders settle, are marked paid, and the amount is checked against what they should have brought),
+`payouts` / `payout list`, `payout skip 12 13` (cash came directly), `payout undo`. New table `Payouts` and `Orders.PayoutId` / `PayoutSettledAt`: Sqlite patcher creates them, SQL Server needs a migration.
+
 ## Known limitations / roadmap
 
 These match the spec's own version tags (V2/V3/V4) and are intentionally out of scope

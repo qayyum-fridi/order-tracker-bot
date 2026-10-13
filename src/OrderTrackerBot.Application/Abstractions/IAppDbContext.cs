@@ -32,6 +32,7 @@ public interface IAppDbContext
     DbSet<WageEntry> WageEntries { get; }
     DbSet<CashDrawerSession> CashDrawerSessions { get; }
     DbSet<CashMovement> CashMovements { get; }
+    DbSet<Payout> Payouts { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
