@@ -88,6 +88,7 @@ public enum CommandKind
     DiscountPerformance,
     NewOrderHelp,
     Guide,
+    Version,
     GuideLater,
     ChangeLanguage,
     BusinessSetup,
@@ -155,6 +156,7 @@ public static class CommandParser
     private static readonly Regex Greeting = new(@"^(hi|hello|hey|salam|assalam[u]?\s*alaikum|asalam[u]?\s*alaikum)$", Opts);
     private static readonly Regex Help = new(@"^(help|مدد)$", Opts);
     private static readonly Regex Guide = new(@"^(guide|gaid|guide\s+dekhein|guide\s+dekhna|poora\s+guide|گائیڈ|گائڈ|گائیڈ\s+دیکھیں)$", Opts);
+    private static readonly Regex VersionCmd = new(@"^(?:bot\s+)?(?:version|build|ورژن)$", Opts);
     private static readonly Regex GuideLater = new(@"^baad\s+mein$", Opts);
     private static readonly Regex ChangeLanguage = new(@"^(change\s+language|language(\s+(badlein|badlo|change))?|zabaan\s+badlein|language\s+badal(na|ein)?|زبان\s+بدلیں)$", Opts);
     private static readonly Regex BusinessSetup = new(@"^(business\s+setup|setup|settings)$", Opts);
@@ -1133,6 +1135,7 @@ public static class CommandParser
         if (BusinessSetup.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.BusinessSetup };
         if (PaymentMethodPrompt.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.PaymentMethodPrompt };
         if (Guide.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Guide, Text = message.Contains("dekh", StringComparison.OrdinalIgnoreCase) || message.StartsWith("poora", StringComparison.OrdinalIgnoreCase) ? "full" : null };
+        if (VersionCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Version };
         if (GuideLater.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.GuideLater };
         if (Menu.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Menu };
         if (OrdersToday.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.OrdersToday };

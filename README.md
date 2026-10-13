@@ -195,6 +195,7 @@ Server container, bound to `127.0.0.1` only.
 
 ```bash
 cp .env.example .env   # fill in WhatsApp + OpenAI credentials and a strong SQL password
+export GIT_SHA=$(git rev-parse HEAD)   # shown by the bot's "version" command; unset = "unknown"
 docker compose up -d --build
 ```
 

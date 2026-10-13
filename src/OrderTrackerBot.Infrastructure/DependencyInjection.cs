@@ -78,6 +78,7 @@ public static class DependencyInjection
         services.AddHttpClient<InstagramClient>();
         services.AddScoped<IInstagramClient>(sp => sp.GetRequiredService<InstagramClient>());
         services.AddSingleton(configuration.GetSection(BillingOptions.SectionName).Get<BillingOptions>() ?? new BillingOptions());
+        services.AddSingleton(new BuildInfo { Version = configuration[$"{BuildInfo.SectionName}:Version"] ?? configuration["GIT_SHA"] });
         services.AddSingleton(configuration.GetSection(FeatureOptions.SectionName).Get<FeatureOptions>() ?? new FeatureOptions());
 
         services.AddSingleton<IReceiptPdfGenerator, Pdf.ReceiptPdfGenerator>();

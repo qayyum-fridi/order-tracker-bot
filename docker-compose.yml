@@ -1,6 +1,9 @@
 services:
   order-tracker-api:
-    build: .
+    build:
+      context: .
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown} # export GIT_SHA=$(git rev-parse HEAD) before docker compose up --build
     container_name: order-tracker-api
     restart: unless-stopped
     ports:
