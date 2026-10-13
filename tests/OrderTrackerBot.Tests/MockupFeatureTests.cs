@@ -1019,13 +1019,32 @@ public class MockupFeatureTests : IDisposable
             p => { Assert.Equal("Wool Dupatta", p.Name); Assert.Equal(800m, p.Price); });
     }
 
-    private ConversationEngine VoiceEngine(AppDbContext db, string transcript)
+    private ConversationEngine VoiceEngine(AppDbContext db, string transcript, Microsoft.Extensions.Logging.ILogger<ConversationEngine>? logger = null)
     {
         _media.Setup(m => m.DownloadAsync("voice-ctx", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
         var transcriber = new Mock<IAudioTranscriber>();
         transcriber.SetupGet(t => t.IsConfigured).Returns(true);
         transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>())).ReturnsAsync(transcript);
-        return new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object);
+        return new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object, logger: logger);
+    }
+
+    [Fact]
+    public async Task VoiceNote_RefusedRewrite_LogsTheReason_NotTheTranscript()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        var logger = new Mock<Microsoft.Extensions.Logging.ILogger<ConversationEngine>>();
+        logger.Setup(l => l.IsEnabled(It.IsAny<Microsoft.Extensions.Logging.LogLevel>())).Returns(true);
+        var voice = VoiceEngine(db, "kurti ki qeemat badal do", logger.Object);
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "order 1 advance 777777" }, Actions = { "command" } });
+        AiReturns(new AiMessageAnalysis { Intent = "unclear" });
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        logger.Verify(l => l.Log(Microsoft.Extensions.Logging.LogLevel.Warning, It.IsAny<Microsoft.Extensions.Logging.EventId>(),
+            It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("Voice rewrite refused") && !v.ToString()!.Contains("qeemat")),
+            It.IsAny<Exception?>(), It.IsAny<Func<It.IsAnyType, Exception?, string>>()), Times.AtLeastOnce);
     }
 
     [Fact]

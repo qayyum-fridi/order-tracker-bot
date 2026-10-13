@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Ai;
@@ -163,7 +164,11 @@ public partial class ConversationEngine
             if (steps.Count > 0)
             {
                 // A rewrite that changes what was said is not run, and neither is the raw transcript: the seller is asked again.
-                return DecideRewrite(transcript, steps, KnownVoiceNumbers(recent, catalog));
+                var known = KnownVoiceNumbers(recent, catalog);
+                // Reason only (never the transcript text): makes refused rewrites visible in the logs.
+                if (WhyUnfaithful(transcript, string.Join("\n", steps), known) is { } why)
+                    _logger?.LogWarning("Voice rewrite refused: {Reason} (risky={Risky})", why, StepsAreRisky(steps));
+                return DecideRewrite(transcript, steps, known);
             }
         }
         // The AI was unavailable: the transcript goes to the deterministic engine, as before.
