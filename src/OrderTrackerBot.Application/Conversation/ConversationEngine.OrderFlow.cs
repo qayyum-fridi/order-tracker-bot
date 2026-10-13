@@ -572,9 +572,29 @@ public partial class ConversationEngine
         foreach (var order in saved) await CheckLoyaltyThresholdAsync(seller, session, ctx, order, ct);
     }
 
+    /// <summary>"1", "2", "2 lawn suit" or a bare price: the replies the product questions ask for.</summary>
+    private static bool IsProductStepAnswer(string message) =>
+        System.Text.RegularExpressions.Regex.IsMatch(message.Trim(), @"^(?:[12](?:\s+.+)?|(?:rs\.?\s*)?\d[\d,]*(?:\.\d+)?)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
     private async Task HandleOrderMissingFieldAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         var pending = ctx.PendingOrder!;
+
+        // A real command (e.g. "Dupatta - 600, cost 300") sent while the draft waits on "which product?" is not an answer: drop the draft and run it,
+        // instead of searching the catalog for the command text over and over.
+        if (ctx.PendingMissingField is "ProductChoice" or "MappedProductName" or "NewProductPrice"
+            && !IsProductStepAnswer(message)
+            && CommandParser.TryParse(message) is { } leave
+            && (ctx.PendingMissingField != "MappedProductName" || FindCatalogEntry(await LoadCatalogAsync(seller, ct), message.Trim()) is null))
+        {
+            ctx.PendingOrder = null;
+            ctx.PendingNewProductName = null;
+            ctx.PendingMissingField = null;
+            SetState(session, ConversationState.Idle);
+            await ReplyAsync(seller, "Pichla adhoora order chhor diya.", ct);
+            await ExecuteCommandAsync(seller, session, ctx, leave, ct);
+            return;
+        }
 
         switch (ctx.PendingMissingField)
         {
