@@ -106,6 +106,20 @@ public class ConfirmButtonTests : IDisposable
     }
 
     [Fact]
+    public async Task DoubleTapOrRepeatedSave_CreatesOnlyOneOrder()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await DraftAsync(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "✅ Save", default);
+        await engine.HandleIncomingMessageAsync(Phone, "✅ Save", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        Assert.Equal(1, await OrdersAsync(db));
+        Assert.Contains(_text, t => t.Contains("purane order ka tha"));
+    }
+
+    [Fact]
     public async Task TypedYes_StillWorks()
     {
         using var db = _dbFactory.CreateContext();
