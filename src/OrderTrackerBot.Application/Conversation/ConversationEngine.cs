@@ -30,6 +30,7 @@ public partial class ConversationEngine
     private readonly FeatureOptions _features;
     private readonly IIssueReporter? _issues;
     private readonly Microsoft.Extensions.Logging.ILogger<ConversationEngine>? _logger;
+    private static readonly System.Text.RegularExpressions.Regex BareAmount = new(@"^(?:rs\.?\s*|pkr\s*)?(?<n>\d[\d,]*(?:\.\d+)?)(?:\s*(?:rs|rupay|rupees|روپے))?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
     private DateTime? _sentAtUtc;
     private List<string>? _nextActions;
 
@@ -328,6 +329,14 @@ public partial class ConversationEngine
         }
 
         if (await TryHandleOrderForCustomerItemsAsync(seller, session, ctx, message, ct)) return;
+
+        // Waiting for the price of ONE new product and the seller sends just an amount ("9000", "Rs. 9,000"): that is its price. Plain code, no AI guess.
+        if (ctx.PendingPriceProducts is { Count: 1 } waiting && BareAmount.Match(message.Trim()) is { Success: true } bare
+            && decimal.TryParse(bare.Groups["n"].Value.Replace(",", ""), System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var amount) && amount > 0)
+        {
+            await HandleNewProductsAsync(seller, ctx, new[] { new AiNewProduct { Name = waiting[0], Price = amount } }, message, ct);
+            return;
+        }
 
         // A scanner types a product's barcode as a message: a code that is some product's barcode goes to the scan cart.
         if (await TryHandleScannedCodeAsync(seller, ctx, message, ct)) return;
