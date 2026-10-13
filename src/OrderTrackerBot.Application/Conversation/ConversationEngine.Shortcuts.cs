@@ -30,7 +30,7 @@ public partial class ConversationEngine
         {
             // What the seller most likely wants after this very action (each label is a runnable command); the generic bar comes back on the next plain reply.
             // At most two follow-ups, then Menu, so the full command list is never more than a tap away.
-            await _sender.SendButtonsMessageAsync(phone, urdu ? "👉 اگلا قدم؟" : "👉 Agla qadam?", next.Take(2).Append(MenuLabel(seller.PreferredLanguage)).ToList(), ct);
+            await _sender.SendButtonsMessageAsync(phone, urdu ? "👉 اگلا قدم؟" : "👉 Aap agla kya karna chahenge?", next.Take(2).Append(MenuLabel(seller.PreferredLanguage)).ToList(), ct);
             await PersistAsync(session, ctx, ct);
             return;
         }

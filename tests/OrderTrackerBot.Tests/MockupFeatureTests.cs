@@ -418,7 +418,7 @@ public class MockupFeatureTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "add Shalwar 1", default);
         Assert.Contains(_sent, m => m.Contains("\"Shalwar\" catalog mein nahi mila"));
         await engine.HandleIncomingMessageAsync(Phone, "kuch bhi", default);
-        Assert.Contains(_sent, m => m.Contains("Samajh nahi aaya") && m.Contains("done"));
+        Assert.Contains(_sent, m => m.Contains("samajh nahi aaya") && m.Contains("done"));
 
         await engine.HandleIncomingMessageAsync(Phone, "orders today", default);           // a real command leaves edit mode
         Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
@@ -1347,7 +1347,7 @@ public class MockupFeatureTests : IDisposable
         await engine.HandleAudioMessageAsync(Phone, "voice-ctx");
 
         Assert.False(await db.Products.AnyAsync());
-        Assert.Contains(_sent, m => m.Contains("Samajh nahi aaya"));
+        Assert.Contains(_sent, m => m.Contains("samajh nahi aaya"));
     }
 
     [Fact]

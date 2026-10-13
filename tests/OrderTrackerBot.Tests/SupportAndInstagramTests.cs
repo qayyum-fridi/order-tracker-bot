@@ -340,7 +340,7 @@ public class SupportAndInstagramTests : IDisposable
         _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), "wo waala", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiMessageAnalysis { Intent = "unclear" });
         await engine.HandleIncomingMessageAsync(Phone, "wo waala", default);
-        Assert.Contains("Mujhe samajh nahi aaya", _sent[^1]);
+        Assert.Contains("mujhe aapki baat samajh nahi aayi", _sent[^1]);
 
         AiReturnsOrder("Bilal", "Kurti", "03001112222");
         await engine.HandleIncomingMessageAsync(Phone, "Bilal, 1 kurti, 03001112222", default);

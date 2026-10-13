@@ -291,7 +291,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "catalog", default);
 
         Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
-        Assert.Contains(_sentMessages, m => m.Contains("Adhoora order chhod diya"));
+        Assert.Contains(_sentMessages, m => m.Contains("Pichla adhoora order mansookh kar diya"));
         Assert.Contains(_sentMessages, m => m.Contains("Aapka Catalog"));
     }
 
@@ -346,7 +346,7 @@ public class ConversationEngineTests : IDisposable
             .ReturnsAsync(new AiMessageAnalysis
             {
                 IsOrderAttempt = false,
-                ClarificationQuestion = "Mujhe samajh nahi aaya 🤔 Kya aap:",
+                ClarificationQuestion = "Maaf kijiye, mujhe aapki baat samajh nahi aayi 🙏 Kya aap yeh kehna chahte hain:",
                 ClarificationOptions = { "Naya order add karna chahte hain", "Kisi order ka status update karna chahte hain" }
             });
 
@@ -1760,13 +1760,13 @@ public class ConversationEngineTests : IDisposable
             .ReturnsAsync(new AiMessageAnalysis
             {
                 IsOrderAttempt = false,
-                ClarificationQuestion = "Mujhe samajh nahi aaya 🤔 Kya aap:",
+                ClarificationQuestion = "Maaf kijiye, mujhe aapki baat samajh nahi aayi 🙏 Kya aap yeh kehna chahte hain:",
                 ClarificationOptions = { "Naya order add karna chahte hain", "Kisi order ka status update karna chahte hain" }
             });
 
         await engine.HandleIncomingMessageAsync(Phone, "wo waala order kal tak bhej dena", default);
 
-        Assert.Contains(_sentMessages, m => m.Contains("Mujhe samajh nahi aaya"));
+        Assert.Contains(_sentMessages, m => m.Contains("mujhe aapki baat samajh nahi aayi"));
 
         var session = await db.Sessions.FirstAsync();
         Assert.Equal(ConversationState.AwaitingClarificationChoice, session.State);
@@ -1996,7 +1996,7 @@ public class ConversationEngineTests : IDisposable
         _sentMessages.Clear();
 
         await engine.HandleIncomingMessageAsync(Phone, "help", default);
-        Assert.DoesNotContain(_sentMessages, m => m.Contains("Reply 1 ya 2"));
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("Barae meherbani 1 ya 2"));
         Assert.Equal(ConversationState.AwaitingDuplicateOrderConfirmation, (await db.Sessions.FirstAsync()).State);
 
         // The duplicate prompt is still open afterward — "1" still saves the second order.
@@ -2242,7 +2242,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, message, default);
 
         Assert.Contains(_sentMessages, m => m.Contains(label, StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(_sentMessages, m => m.Contains("Samajh nahi aaya"));
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("samajh nahi aaya"));
     }
 
     [Theory]

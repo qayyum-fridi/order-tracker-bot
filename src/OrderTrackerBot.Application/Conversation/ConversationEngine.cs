@@ -105,7 +105,7 @@ public partial class ConversationEngine
 
     private async Task HandleIncomingCoreAsync(string fromPhoneNumber, string rawMessage, CancellationToken ct)
     {
-        var message = (rawMessage ?? string.Empty).Trim();
+        var message = TextHygiene.StripInvisible(rawMessage ?? string.Empty).Trim();
         if (message.Length == 0) return;
 
         _db.MessageLogs.Add(new MessageLog { Phone = fromPhoneNumber, Direction = "inbound", RawText = message });
@@ -298,9 +298,9 @@ public partial class ConversationEngine
     /// <summary>Screen 3c: something threw while handling a message — tell the seller instead of going silent.</summary>
     public Task SendSystemErrorAsync(string fromPhoneNumber, string? issueCode = null, CancellationToken ct = default) =>
         _sender.SendTextMessageAsync(fromPhoneNumber,
-            "⚠️ Kuch masla ho gaya — aapka kaam save nahi ho saka.\n" +
-            "Dobara try karein, ya thodi der baad koshish karein.\n\n" +
-            "Aapka message safe hai — kuch delete nahi hua." +
+            "⚠️ Maaf kijiye, ek technical masla pesh aaya — aapka kaam save nahi ho saka.\n" +
+            "Barae meherbani thori der baad dobara koshish karein.\n\n" +
+            "Aapka message mehfooz hai, kuch delete nahi hua." +
             (issueCode is null ? "" : $"\n\nSupport ko batana ho to yeh code bataein: {issueCode}"), ct);
 
     private async Task HandleIdleAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)

@@ -55,7 +55,7 @@ public class ProductChoiceTests : IDisposable
 
         await engine.HandleIncomingMessageAsync(Phone, "2 Kurti", default);
 
-        Assert.DoesNotContain(_sent, m => m.Contains("Reply 1 ya 2"));
+        Assert.DoesNotContain(_sent, m => m.Contains("Barae meherbani 1 ya 2"));
         Assert.DoesNotContain(_sent, m => m.Contains("Kaunsa existing product"));
     }
 

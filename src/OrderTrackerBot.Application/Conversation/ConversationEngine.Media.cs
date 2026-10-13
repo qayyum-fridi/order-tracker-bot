@@ -192,14 +192,14 @@ public partial class ConversationEngine
     private static bool StepsAreRisky(IEnumerable<string> steps) => steps.Any(ActionRisk.IsRiskyStep);
 
     private const string RejectedUnfaithful =
-        "Yeh poori tarah samajh nahi aaya, is liye kuch nahi badla. Ek baar likh kar bhejein, jo chahiye wo saaf alfaz mein.";
+        "Maaf kijiye, aapki baat poori tarah samajh nahi aayi, is liye koi tabdeeli nahi ki gayi. Barae meherbani apni baat saaf alfaz mein likh kar bhej dein.";
 
     // Three different outcomes, three different replies: a rewrite that changed the meaning, a transcript nothing could read, and (above) a rewrite
     // that was used. None of them runs a step.
     private const string UnfaithfulQuestion =
-        "Yeh poori tarah samajh nahi aaya — rakam, quantity ya \"nahi\" wali baat alag alag likh kar dobara bhejein.";
+        "Maaf kijiye, yeh poori tarah samajh nahi aaya. Barae meherbani rakam, quantity ya \"nahi\" wali baat alag alag likh kar dobara bhej dein.";
     private const string ParserFailureQuestion =
-        "Samajh nahi aaya. Dobara bolein, ya likh kar bhejein (jaise \"Kurti - 1800\" ya \"order confirm\").";
+        "Maaf kijiye, samajh nahi aaya. Barae meherbani dobara bolein, ya likh kar bhejein (jaise \"Kurti - 1800\" ya \"order confirm\").";
 
     /// <summary>Ids, totals and prices the model was shown for this voice note: a rewrite may legitimately use them ("pichla order" -> "edit order 105").</summary>
     private static IReadOnlySet<long> KnownVoiceNumbers(IEnumerable<Order> recent, IEnumerable<CatalogEntry> catalog)
@@ -397,7 +397,7 @@ public partial class ConversationEngine
 
         if (!seller.OnboardingComplete)
         {
-            await ReplyAsync(seller, "Pehle setup complete kar lein — phir screenshot bhej saktay hain.", ct);
+            await ReplyAsync(seller, "Pehle setup complete kar lein — phir screenshot bhej sakte hain.", ct);
             await PersistAsync(session, ctx, ct);
             return;
         }

@@ -105,7 +105,7 @@ public partial class ConversationEngine
 
         lines.Add("");
         var listIndex = ctx.LastListCustomerIds?.IndexOf(customer.Id) ?? -1;
-        lines.Add($"\"delete customer {(listIndex >= 0 ? (listIndex + 1).ToString() : customer.Name.ToLower())}\" se remove kar saktay hain.");
+        lines.Add($"\"delete customer {(listIndex >= 0 ? (listIndex + 1).ToString() : customer.Name.ToLower())}\" se remove kar sakte hain.");
         await ReplyAsync(seller, string.Join("\n", lines), ct);
     }
 
@@ -139,7 +139,7 @@ public partial class ConversationEngine
         SetState(session, ConversationState.AwaitingDeleteCustomerConfirmation);
         await ReplyAsync(seller,
             $"⚠️ {customer.Name} ({ActiveOrderCount(customer)} orders, {Formatters.Money(TotalSpent(customer))}) ko remove karna confirm karein?\n" +
-            $"Order history hide ho jayegi lekin permanently delete nahi hogi — {RestoreWindowDays} din tak restore kar saktay hain.\n\nReply YES to confirm.", ct);
+            $"Order history hide ho jayegi lekin permanently delete nahi hogi — {RestoreWindowDays} din tak restore kar sakte hain.\n\nReply YES to confirm.", ct);
     }
 
     private async Task HandleDeleteCustomerConfirmationAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
@@ -160,7 +160,7 @@ public partial class ConversationEngine
 
         customer.DeletedAt = DateTime.UtcNow;
         await ReplyAsync(seller,
-            $"✅ {customer.Name} remove kar diya gaya. \"restore customer {customer.Name.ToLower()}\" se {RestoreWindowDays} din tak wapas la saktay hain — " +
+            $"✅ {customer.Name} remove kar diya gaya. \"restore customer {customer.Name.ToLower()}\" se {RestoreWindowDays} din tak wapas la sakte hain — " +
             $"uske baad permanently delete ho jayega.", ct);
     }
 

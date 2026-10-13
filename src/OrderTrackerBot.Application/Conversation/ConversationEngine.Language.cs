@@ -18,7 +18,7 @@ public partial class ConversationEngine
     {
         (Lang.UrduScript, true) => "✅ ٹھیک ہے، ہم اردو میں بات کریں گے۔\n(ٹائپ کر کے جواب دینا بھی چلتا ہے — زبان کبھی بھی \"change language\" سے بدل سکتے ہیں)\n\nاب کیا کرنا چاہیں گے؟",
         (Lang.English, true) => "✅ Alright, we'll continue in English.\n(You can also just type your reply — change the language anytime with \"change language\")\n\nWhat would you like to do?",
-        (_, true) => "✅ Theek hai, Roman Urdu mein baat karenge.\n(Typed reply bhi chal jata hai, button zaroori nahi — language kabhi bhi \"change language\" se badal saktay hain)\n\nAb kya karna chahenge?",
+        (_, true) => "✅ Theek hai, Roman Urdu mein baat karenge.\n(Typed reply bhi chal jata hai, button zaroori nahi — language kabhi bhi \"change language\" se badal sakte hain)\n\nAb kya karna chahenge?",
         (Lang.UrduScript, false) => "✅ ٹھیک ہے — اب اردو میں بات ہوگی۔\n\nکیا کرنا چاہیں گے؟",
         (Lang.English, false) => "✅ Great — switching to English. All replies (menu, guide, orders) will now show in English.\n\nWhat would you like to do?",
         _ => "✅ Theek hai — ab Roman Urdu mein baat hogi.\n\nKya karna chahenge?"

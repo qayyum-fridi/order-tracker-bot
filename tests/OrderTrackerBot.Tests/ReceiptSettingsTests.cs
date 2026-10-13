@@ -203,7 +203,7 @@ public class ReceiptSettingsEngineTests : IDisposable
         await Engine(db).HandleIncomingMessageAsync(Phone, "receipt size huge", default);
 
         Assert.Null((await db.Sellers.AsNoTracking().FirstAsync()).ReceiptSize);
-        Assert.Contains(_sent, m => m.Contains("Size samajh nahi aaya"));
+        Assert.Contains(_sent, m => m.Contains("size samajh nahi aaya"));
     }
 
     [Fact]

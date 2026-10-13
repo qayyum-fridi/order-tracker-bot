@@ -36,7 +36,7 @@ public partial class ConversationEngine
         var size = NormalizeLabelSize(text);
         if (size is null)
         {
-            await ReplyAsync(seller, "Size samajh nahi aaya. Likhein: label size 4x6, label size a6 ya label size 50x30.", ct);
+            await ReplyAsync(seller, "Maaf kijiye, size samajh nahi aaya. Likhein: label size 4x6, label size a6 ya label size 50x30.", ct);
             return;
         }
         seller.LabelSize = size == "4x6" ? null : size;
@@ -77,7 +77,7 @@ public partial class ConversationEngine
         var (order, fromList) = await FindReceiptOrderAsync(seller, ctx, new ParsedCommand { Kind = CommandKind.Receipt, Number = cmd.Number, Text = cmd.Text }, ct);
         if (order is null)
         {
-            await ReplyAsync(seller, cmd.Number is not null ? $"Order #{cmd.Number} nahi mila."
+            await ReplyAsync(seller, cmd.Number is not null ? $"Order #{cmd.Number} nahi mila. Apne orders dekhne ke liye \"orders today\" likhein."
                 : $"{cmd.Text} ka koi order nahi mila.", ct);
             return;
         }
