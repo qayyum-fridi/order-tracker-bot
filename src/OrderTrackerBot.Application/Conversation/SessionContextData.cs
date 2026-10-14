@@ -110,6 +110,8 @@ public sealed class SessionContextData
 
     /// <summary>WhatsApp media id of the uploaded import file, re-downloaded on YES so the parsed rows needn't be stored.</summary>
     public string? PendingImportMediaId { get; set; }
+    /// <summary>Its file name, so the re-read on YES labels a CSV sheet the same way the check did.</summary>
+    public string? PendingImportFileName { get; set; }
     /// <summary>The state the upload arrived in (a mid-onboarding seller goes back there after YES/NO).</summary>
     public ConversationState? ImportReturnState { get; set; }
 
