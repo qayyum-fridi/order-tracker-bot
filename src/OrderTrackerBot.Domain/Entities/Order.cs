@@ -27,6 +27,8 @@ public class Order
     public decimal SalesTaxRate { get; set; }
     /// <summary>Income tax a courier / payment gateway held back from the seller's payout for this order (seller-only; never on receipts).</summary>
     public decimal TaxWithheld { get; set; }
+    /// <summary>What the courier actually charged the seller for this parcel ("courier fee 12 250"); null = not written down. Seller-only; never on receipts. Separate from <see cref="DeliveryCharge"/>, which is what the buyer pays.</summary>
+    public decimal? CourierFee { get; set; }
     /// <summary>Per-seller serial number given the first time a receipt/invoice is issued (1, 2, 3...); null until then.</summary>
     public int? ReceiptNumber { get; set; }
 

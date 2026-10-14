@@ -70,6 +70,8 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 | One product's sales, this month against last | `Polo Shirt ka report` |
 | Margin / how much discount a product can take | `margin` · `margin list` · `profit margin` · `discount room` |
 | Expenses | `expense 500 packaging` · `kharcha 800 petrol` · `expenses` · `monthly net` |
+| Supplier of a product | `supplier Lawn Suit Shah Alam` · `supplier Lawn Suit: Shah Alam` · `supplier Shah Alam: Lawn Suit, Kurti` (several at once) · `Lawn Suit ka supplier Shah Alam` · `supplier remove Lawn Suit` · `suppliers` (sale and profit per supplier) |
+| What the courier charged for a parcel | `courier fee 12 250` · `order 12 courier fee 250` · `courier fee report` (fees against the delivery charged to buyers) |
 | Payment link / methods | `payment link` · `add payment: jazzcash, 03001234567` |
 | Cash drawer | (`gala` · `galla` = `drawer`) `drawer open 5000` · `cash in 500 float` · `cash out 300 chai` · `drawer` · `drawer close 12000` |
 | Courier payouts | `payout pending` · `courier payout` · `payout 11700 TCS orders 1 2 3` · `payout list` |

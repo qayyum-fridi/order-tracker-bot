@@ -29,6 +29,7 @@ public partial class ConversationEngine
             case "priceup": await InsightPriceReviewAsync(seller, text, ct); break;
             case "whatif": await InsightDiscountWhatIfAsync(seller, text, cmd.Amount ?? 0, ct); break;
             case "discgiven": await InsightDiscountGivenAsync(seller, period, ct); break;
+            case "courierfees": await InsightCourierFeesAsync(seller, period, ct); break;
             case "inactive": await InsightInactiveCustomersAsync(seller, ctx, (int)(cmd.Amount ?? 30), ct); break;
             case "topcustomers": await InsightTopCustomersAsync(seller, ctx, period, ct); break;
             case "newcustomers": await InsightNewCustomersAsync(seller, ctx, period, ct); break;

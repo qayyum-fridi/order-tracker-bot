@@ -85,6 +85,7 @@ public class AppDbContext : DbContext, IAppDbContext
             e.Property(o => o.Total).HasColumnType("decimal(18,2)");
             e.Property(o => o.SalesTaxRate).HasColumnType("decimal(5,2)");
             e.Property(o => o.TaxWithheld).HasColumnType("decimal(18,2)");
+            e.Property(o => o.CourierFee).HasColumnType("decimal(18,2)");
             e.HasIndex(o => new { o.SellerId, o.ReceiptNumber }).IsUnique();
             e.HasIndex(o => new { o.SellerId, o.CreatedAt }); // date-range reports (today, weekly, export, profit)
             e.HasIndex(o => new { o.SellerId, o.Status });    // status filters (pending/shipped/unpaid lists, counts)

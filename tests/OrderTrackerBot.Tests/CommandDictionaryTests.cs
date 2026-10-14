@@ -210,6 +210,13 @@ public class CommandDictionaryTests
     [InlineData("sales by category", CommandKind.CategorySales)]
     [InlineData("category wise sales", CommandKind.CategorySales)]
     [InlineData("Polo Shirt ka report", CommandKind.ProductReport)]
+    [InlineData("supplier Lawn Suit Shah Alam", CommandKind.SupplierSet)]
+    [InlineData("Lawn Suit ka supplier Shah Alam", CommandKind.SupplierSet)]
+    [InlineData("supplier remove Lawn Suit", CommandKind.SupplierSet)]
+    [InlineData("suppliers", CommandKind.Insight)]
+    [InlineData("courier fee 12 250", CommandKind.OrderCourierFee)]
+    [InlineData("order 12 courier fee 250", CommandKind.OrderCourierFee)]
+    [InlineData("courier fee report", CommandKind.Insight)]
     public void DocumentedPhrase_ParsesToItsCommand(string phrase, CommandKind expected) =>
         Assert.Equal(expected, CommandParser.TryParse(phrase)?.Kind);
 

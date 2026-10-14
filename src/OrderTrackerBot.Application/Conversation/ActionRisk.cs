@@ -13,7 +13,7 @@ public static class ActionRisk
     {
         CommandKind.MarkStatus, CommandKind.MarkAllPendingShipped, CommandKind.FuzzyStatusUpdate, CommandKind.CancelOrder,
         CommandKind.DeleteProduct, CommandKind.DeleteCustomer, CommandKind.EditProduct, CommandKind.PriceTiers,
-        CommandKind.OrderPayment, CommandKind.OrderDeliveryCharge, CommandKind.CustomerUpdate, CommandKind.Broadcast,
+        CommandKind.OrderPayment, CommandKind.OrderDeliveryCharge, CommandKind.OrderCourierFee, CommandKind.SupplierSet, CommandKind.CustomerUpdate, CommandKind.Broadcast,
         CommandKind.CashDrawer, CommandKind.CashMovement, CommandKind.Payout, CommandKind.WalkInSale
     };
 

@@ -166,6 +166,7 @@ internal static class AdvancedInsightParser
         if (Courier.IsMatch(text) && Return.IsMatch(text) && Regex.IsMatch(text, @"kis|konsi|kaun\w*|which|zyada|most|کس|کون\w*|زیادہ", Opts)) return Topic("courierreturns");
         if ((Return.IsMatch(text) || Cancel.IsMatch(text)) && DeliveryCharge.IsMatch(text)) return Topic("returnloss");
         if (DeliveryTime.IsMatch(text) && Outside.IsMatch(text)) return Topic("citydelivery");
+        if (Courier.IsMatch(text) && Regex.IsMatch(text, @"fee|fees|bill|ko\s+kitna\s+diya|kitna\s+diya|فیس|بل", Opts) && !Return.IsMatch(text) && !Cancel.IsMatch(text)) return Topic("courierfees");
 
         // --- cash
         if (Drawer.IsMatch(text) && Short.IsMatch(text) && period is not "today" && (period is not null || DaysNumber.IsMatch(text) || Regex.IsMatch(text, @"kis\s+din|which\s+day|hafte|week|کس\s+دن|ہفتے", Opts)))
