@@ -63,6 +63,32 @@ public class CommandParserTests
         Assert.Equal(expected, CommandParser.TryParse(message)?.Kind);
     }
 
+    [Theory]
+    [InlineData("3 Piece Lawn Suit - 3500", "3 Piece Lawn Suit", 3500)]
+    [InlineData("Design 1203 - 3500", "Design 1203", 3500)]
+    [InlineData("Lawn Suit 2-piece - 2500", "Lawn Suit 2-piece", 2500)]
+    [InlineData("3 Piece Lawn - 3500, stock 5", "3 Piece Lawn", 3500)]
+    [InlineData("Design 1203 - Rs. 3500, cost 2400, category lawn", "Design 1203", 3500)]
+    public void ProductNamesMayContainDigits(string line, string name, int price)
+    {
+        Assert.True(CommandParser.TryParseProductLine(line, out ProductLine? p));
+        Assert.Equal(name, p!.Name);
+        Assert.Equal(price, p.Price);
+    }
+
+    [Theory]
+    [InlineData("order 12 - 500")]
+    [InlineData("House 5 - 300")]
+    [InlineData("Rs 500 - 300")]
+    [InlineData("12345 - 500")]
+    public void DigitNamesThatAreNotProducts_StayRejected(string line) => Assert.False(CommandParser.TryParseProductLine(line, out ProductLine? _));
+
+    [Theory]
+    [InlineData("Lawn Suit 3pc - 3500, cost 2400, stock 20, category lawn")]
+    [InlineData("Kurti - 1800, cost 1100, stock 15, category stitched")]
+    [InlineData("Dupatta - 600")]
+    public void OnboardingExampleLines_AreProductLines(string line) => Assert.Equal(CommandKind.AddProduct, CommandParser.TryParse(line)!.Kind);
+
     [Fact]
     public void FillerIsStrippedBeforeACustomerName()
     {

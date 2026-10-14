@@ -317,7 +317,7 @@ public partial class ConversationEngine
         if (groups.Count == 0)
         {
             await ReplyAsync(seller,
-                $"ℹ️ Aapke {all.Count} products mein se kisi ki category set nahi. Set karne ke liye likhein, jaise: \"Kurti - 1800, category kapray\".", ct);
+                $"ℹ️ Aapke {all.Count} products mein se kisi ki category set nahi. Set karne ke liye likhein, jaise: \"{Industry(seller).FullProduct}\".", ct);
             return;
         }
         var lines = string.Join("\n", groups.Take(15).Select(g => $"• {g.Key}: {g.Count()} products"));
@@ -347,7 +347,7 @@ public partial class ConversationEngine
             if (sb.Length > 3000) { sb.Append("\n\n…baqi categories chhoti list ke liye \"catalog\" likhein."); break; }
         }
         if (all.All(p => string.IsNullOrWhiteSpace(p.Category)))
-            sb.Append("\n\nCategory set karne ke liye likhein, jaise: \"Kurti - 1800, category kapray\".");
+            sb.Append($"\n\nCategory set karne ke liye likhein, jaise: \"{Industry(seller).FullProduct}\".");
         await ReplyAsync(seller, sb.ToString(), ct);
         SuggestNext("sales by category", "catalog");
     }

@@ -95,6 +95,7 @@ public enum CommandKind
     Guide,
     Version,
     SetupCheck,
+    Industry,
     GuideLater,
     ChangeLanguage,
     BusinessSetup,
@@ -162,6 +163,8 @@ public static class CommandParser
     private static readonly Regex Greeting = new(@"^(hi|hello|hey|salam|assalam[u]?\s*alaikum|asalam[u]?\s*alaikum)$", Opts);
     private static readonly Regex Help = new(@"^(help|مدد|commands|what\s+can\s+i\s+do|how\s+to\s+use|madad\s+chahiye)$", Opts);
     private static readonly Regex Guide = new(@"^(guide|gaid|guide\s+dekhein|guide\s+dekhna|poora\s+guide|گائیڈ|گائڈ|گائیڈ\s+دیکھیں)$", Opts);
+    // "industry" / "business type clothing" / "dukaan ki qism grocery": pick the kind of shop (examples, tips); Text = what was written (null = show the choices).
+    private static readonly Regex IndustryCmd = new(@"^(?:industry|business\s+type|shop\s+type|dukaan\s+(?:ki\s+)?(?:qism|type)|کاروبار\s+کی\s+قسم)(?:\s*[:=]?\s+(?<v>.+))?$", Opts);
     private static readonly Regex SetupCheckCmd = new(@"^(?:data\s+check|setup\s+check|data\s+checklist|checklist|setup\s+status|data\s+theek\s*hai|ڈیٹا\s*چیک|چیک\s*لسٹ)$", Opts);
     private static readonly Regex VersionCmd = new(@"^(?:bot\s+)?(?:version|build|ورژن)$", Opts);
     private static readonly Regex MarginCmd = new(@"^(?:margins?|margin\s+(?:list|report)|profit\s+margins?|discount\s+(?:room|limit)|munafa\s+per\s+product)$", Opts);
@@ -772,6 +775,13 @@ public static class CommandParser
     // "Lawn Suit - 3500" / "Lawn suite-3500" / "Kurti = 1800" with no command prefix. The name has no digits,
     // commas or colons, so real orders ("Sara, 1 kurti, 0300...") never match.
     private static readonly Regex BareProductLine = new(@"^([^\d,:\n]{2,50}?)\s*[-–=]\s*(\d{1,7}(?:\.\d+)?)$", Opts);
+    // Names with digits ("3 Piece Lawn Suit", "Design 1203", "Lawn Suit 2-piece"): the same line shapes, but the name must look like a product, not a
+    // bookkeeping / address fragment ("order 12 - 500", "House 5 - 300").
+    private static readonly Regex BareProductLineDigits = new(@"^([^,:\n]{2,50}?)\s*[-–=]\s*(?:rs\.?\s*)?(\d{1,7}(?:\.\d+)?)$", Opts);
+    private static readonly Regex DigitNameBlocked = new(
+        @"^(?:order|orders|order\s*id|rs|pkr|price|qty|quantity|stock|house|street|st|flat|plot|room|phone|mobile|no|number|id|mark|cancel|edit|delete|remove|discount|code|total|paid|advance|delivery|expense|cash|payout|courier|label|receipt|note|barcode|scan)\b", Opts);
+    private static bool DigitNameLooksLikeProduct(string name) =>
+        name.Count(char.IsLetter) >= 3 && !Regex.IsMatch(name, @"[-–=]\s*(?:rs\.?\s*)?\d{2,}") && !DigitNameBlocked.IsMatch(name.Trim()) && !IsAddressFragment(name.Trim());
     private static readonly HashSet<string> BookkeepingWords = new(StringComparer.OrdinalIgnoreCase)
     {
         "price", "prices", "discount", "discounts", "qty", "quantity", "stock", "delivery", "advance", "cost", "total", "amount", "rate",
@@ -817,6 +827,7 @@ public static class CommandParser
     }
 
     // "Polo Shirt - 500, cost 300, stock 10": the first number is the sale price, the rest are comma/semicolon/pipe separated details.
+    private static readonly Regex ProductWithDetailsDigits = new(@"^([^,;:|\n]{2,50}?)\s*[-–=]\s*(?:rs\.?\s*)?(\d{1,7}(?:\.\d+)?)\s*[,;|]\s*(.+)$", Opts);
     private static readonly Regex ProductWithDetails = new(@"^([^\d,;:|\n]{2,50}?)\s*[-–=]\s*(?:rs\.?\s*)?(\d{1,7}(?:\.\d+)?)\s*[,;|]\s*(.+)$", Opts);
     private static readonly Regex KnownDetail = new(
         @"^(?<key>cost price|purchase price|kharid price|buying price|cost|purchase|kharid|khareed|stock|quantity|qty|tadad|maal|colour|color|rang|size|category|qism|kism|sku)\b\s*[:=]?\s*(?<val>.+)$", Opts);
@@ -917,6 +928,12 @@ public static class CommandParser
             product = new ProductLine(detailed.Groups[1].Value.Trim(), decimal.Parse(detailed.Groups[2].Value), "piece", 1, extras);
             return true;
         }
+        detailed = ProductWithDetailsDigits.Match(text);
+        if (detailed.Success && DigitNameLooksLikeProduct(detailed.Groups[1].Value) && TryParseProductDetails(detailed.Groups[3].Value, out extras))
+        {
+            product = SplitUnit(detailed.Groups[1].Value, decimal.Parse(detailed.Groups[2].Value)) with { Extras = extras };
+            return true;
+        }
         var m = UnitProductLine.Match(text);
         if (m.Success && NormalizeUnit(m.Groups[3].Value) is { } unit)
         {
@@ -925,6 +942,11 @@ public static class CommandParser
         }
 
         m = BareProductLine.Match(text);
+        if (!m.Success && BareProductLineDigits.Match(text) is { Success: true } digits && DigitNameLooksLikeProduct(digits.Groups[1].Value))
+        {
+            product = SplitUnit(digits.Groups[1].Value, decimal.Parse(digits.Groups[2].Value));
+            return true;
+        }
         if (!m.Success || m.Groups[1].Value.Trim().Length == 0) return false;
         // "Price -500", "Qty -1": a bookkeeping word with a number is a failed instruction (the minus sign is not a separator), not a product.
         if (BookkeepingWords.Contains(m.Groups[1].Value.Trim())) return false;
@@ -1162,6 +1184,8 @@ public static class CommandParser
             if (ReportPeriods.TryParseKey(periodText, DateTime.UtcNow, out var catPeriod)) return new ParsedCommand { Kind = CommandKind.CategorySales, Text = catPeriod };
         }
         if (MarginCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Margin };
+        if (IndustryCmd.Match(message) is { Success: true } industry)
+            return new ParsedCommand { Kind = CommandKind.Industry, Text = industry.Groups["v"].Success ? industry.Groups["v"].Value.Trim() : null };
         if (SetupCheckCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.SetupCheck };
         if (VersionCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Version };
         if (GuideLater.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.GuideLater };

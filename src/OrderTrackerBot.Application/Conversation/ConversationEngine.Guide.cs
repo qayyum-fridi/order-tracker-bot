@@ -10,18 +10,21 @@ public partial class ConversationEngine
     private static readonly string[] GuideTopicButtons = { "Poora guide", "Sirf orders", "Sirf payments" };
     private static readonly string[] GuideStepButtons = { "Next ➜", "Guide band karein" };
 
-    private const string GuideOrdersBody =
-        "Customer ka message copy ya forward karein, ya khud likhein:\n\"Ayesha, 2 suit, 03001234567\"\nBaqi tafseel bot khud samajh kar order tayyar kar dega.";
+    private static string GuideOrdersBodyFor(Seller? seller) =>
+        $"Customer ka message copy ya forward karein, ya khud likhein:\n\"{IndustryProfiles.Resolve(seller?.BusinessType).OrderExample}\"\nBaqi tafseel bot khud samajh kar order tayyar kar dega.";
 
-    private static readonly string[] GuideFullSteps =
+    /// <summary>The 4-step guide; step 1's order example is the one of the seller's kind of shop.</summary>
+    private static string[] GuideStepsFor(Seller? seller)
     {
-        "📖 Step 1/4 — Order Save Karna\n" + GuideOrdersBody,
-        "📖 Step 2/4 — Orders Dekhna\nLikhein: \"orders today\" ya \"pending orders\".\nOrders ki list foran bhej di jayegi.",
-        "📖 Step 3/4 — Status Tabdeel Karna\nOrder rawana kar diya ho to likhein: \"mark 1 shipped\".\nDelivery mukammal ho jaye to likhein: \"mark 1 delivered\".",
-        "📖 Step 4/4 — Madad\nKisi bhi waqt \"menu\" ya \"guide\" likhein, rehnumai dobara dastiyab hogi.\n🎉 Aap tayyar hain — ab pehla order likh kar dekhein."
-    };
+        return new[]
+        {
+            "📖 Step 1/4 — Order Save Karna\n" + GuideOrdersBodyFor(seller),
+            "📖 Step 2/4 — Orders Dekhna\nLikhein: \"orders today\" ya \"pending orders\".\nOrders ki list foran bhej di jayegi.",
+            "📖 Step 3/4 — Status Tabdeel Karna\nOrder rawana kar diya ho to likhein: \"mark 1 shipped\".\nDelivery mukammal ho jaye to likhein: \"mark 1 delivered\".",
+            "📖 Step 4/4 — Madad\nKisi bhi waqt \"menu\" ya \"guide\" likhein, rehnumai dobara dastiyab hogi.\n🎉 Aap tayyar hain — ab pehla order likh kar dekhein."
+        };
+    }
 
-    private const string GuideOrdersOnly = "📖 Order Save Karna\n" + GuideOrdersBody;
 
     private const string GuidePaymentsOnly =
         "📖 Payments\nCustomer ko payment ki tafseel bhejne ke liye likhein: \"payment link\".\nPayment mosool hone par likhein: \"mark 4 paid\".\nApna JazzCash / Easypaisa number darj karne ke liye likhein: \"add payment: jazzcash, 0300-1234567\".";
@@ -36,7 +39,7 @@ public partial class ConversationEngine
         {
             ctx.GuideTopic = "full";
             ctx.GuideStep = 1;
-            await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, GuideFullSteps[0], GuideStepButtons, ct);
+            await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, GuideStepsFor(seller)[0], GuideStepButtons, ct);
             return;
         }
 
@@ -58,7 +61,7 @@ public partial class ConversationEngine
                     return;
                 case "sirf orders" or "orders" or "2":
                     ExitGuide(session, ctx);
-                    await ReplyAsync(seller, GuideOrdersOnly, ct);
+                    await ReplyAsync(seller, "📖 Order Save Karna\n" + GuideOrdersBodyFor(seller), ct);
                     return;
                 case "sirf payments" or "payments" or "3":
                     ExitGuide(session, ctx);
@@ -69,14 +72,15 @@ public partial class ConversationEngine
         else if (choice is "next" or "agla" or "aage")
         {
             ctx.GuideStep++;
-            if (ctx.GuideStep >= GuideFullSteps.Length)
+            var steps = GuideStepsFor(seller);
+            if (ctx.GuideStep >= steps.Length)
             {
                 ExitGuide(session, ctx);
-                await ReplyAsync(seller, GuideFullSteps[^1], ct);
+                await ReplyAsync(seller, steps[^1], ct);
             }
             else
             {
-                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, GuideFullSteps[ctx.GuideStep - 1], GuideStepButtons, ct);
+                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, steps[ctx.GuideStep - 1], GuideStepButtons, ct);
             }
             return;
         }
