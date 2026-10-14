@@ -556,6 +556,24 @@ public class DataImportTests : IDisposable
     }
 
     [Fact]
+    public async Task OwnLayout_NewUnitWordsInAFile_AreStoredAsTheirUnit()
+    {
+        using var db = _dbFactory.CreateContext();
+        var (engine, _) = await SetUpImportAsync(db, Grid(("Sheet1", new[]
+        {
+            Row("Item", "Price", "Unit"),
+            Row("Socks", 300, "Pairs"),
+            Row("Thread", 150, "Roll")
+        })));
+
+        await engine.HandleDocumentMessageAsync(Phone, "m1", "stock.xlsx", XlsxMime);
+        await engine.HandleIncomingMessageAsync(Phone, "Yes", default);
+
+        Assert.Equal("pair", (await db.Products.SingleAsync(p => p.Name == "Socks")).UnitType);
+        Assert.Equal("roll", (await db.Products.SingleAsync(p => p.Name == "Thread")).UnitType);
+    }
+
+    [Fact]
     public async Task Csv_SemicolonSeparated_WithQuotedCommas_IsImported_AndErrorsNameTheFile()
     {
         using var db = _dbFactory.CreateContext();

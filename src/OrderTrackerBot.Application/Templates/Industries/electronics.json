@@ -14,5 +14,6 @@
     "Har cheez ka barcode jodein (\"barcode Earbuds Pro 8964000999\"), phir counter par scan se bechein.",
     "Warranty ya serial ke liye \"note 12 serial 12345 warranty 1 saal\" likhein."
   ],
-  "dataFocus": "cost price, stock aur barcode"
+  "dataFocus": "cost price, stock aur barcode",
+  "units": ["piece", "set", "pair", "box"]
 }

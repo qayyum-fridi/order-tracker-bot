@@ -547,6 +547,18 @@ public partial class ConversationEngine
         "meter" or "metre" or "m" => "meter",
         "yard" or "yd" => "yard",
         "pack" or "packet" => "pack",
+        "set" => "set",
+        "pair" => "pair",
+        "ml" or "millilitre" or "milliliter" => "ml",
+        "box" => "box",
+        "bag" or "bori" => "bag",
+        "carton" => "carton",
+        "tola" => "tola",
+        "ft" or "feet" or "foot" => "ft",
+        "roll" => "roll",
+        "bundle" => "bundle",
+        "tray" => "tray",
+        "plate" => "plate",
         _ => null
     };
 }

@@ -14,5 +14,6 @@
     "Size aur colour ke liye likhein: \"Kurti - 1800, size M, color blue\".",
     "Eid / lawn season se pehle poochein: \"kaunsa product khatam hone wala hai\"."
   ],
-  "dataFocus": "cost price, category (lawn / stitched / bridal) aur stock"
+  "dataFocus": "cost price, category (lawn / stitched / bridal) aur stock",
+  "units": ["piece", "set", "pair", "meter", "yard", "dozen"]
 }

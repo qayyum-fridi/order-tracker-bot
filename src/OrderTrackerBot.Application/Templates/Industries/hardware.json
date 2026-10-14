@@ -14,5 +14,6 @@
     "Udhaar / baaqi paisa ke liye \"order 12 advance 5000\" likhein: baqi balance \"unpaid orders\" mein dikhta hai.",
     "Supplier ke hisab se maal dekhne ke liye \"supplier Wall Paint Ali Traders\" likhein."
   ],
-  "dataFocus": "stock, cost price aur supplier"
+  "dataFocus": "stock, cost price aur supplier",
+  "units": ["kg", "bag", "ft", "meter", "roll", "bundle", "box", "piece"]
 }

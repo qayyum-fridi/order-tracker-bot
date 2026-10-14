@@ -822,7 +822,10 @@ public static class CommandParser
         ["kg"] = "kg", ["kgs"] = "kg", ["kilo"] = "kg", ["g"] = "gram", ["gm"] = "gram", ["gms"] = "gram", ["gram"] = "gram", ["grams"] = "gram",
         ["dozen"] = "dozen", ["darjan"] = "dozen", ["l"] = "liter", ["ltr"] = "liter", ["liter"] = "liter", ["litre"] = "liter", ["liters"] = "liter",
         ["m"] = "meter", ["meter"] = "meter", ["metre"] = "meter", ["meters"] = "meter", ["yard"] = "yard", ["yards"] = "yard", ["gaz"] = "yard",
-        ["pack"] = "pack", ["packs"] = "pack", ["packet"] = "pack", ["pc"] = "piece", ["pcs"] = "piece", ["piece"] = "piece", ["pieces"] = "piece"
+        ["pack"] = "pack", ["packs"] = "pack", ["packet"] = "pack", ["pc"] = "piece", ["pcs"] = "piece", ["piece"] = "piece", ["pieces"] = "piece",
+        ["set"] = "set", ["sets"] = "set", ["pair"] = "pair", ["pairs"] = "pair", ["ml"] = "ml", ["box"] = "box", ["boxes"] = "box",
+        ["bag"] = "bag", ["bags"] = "bag", ["bori"] = "bag", ["carton"] = "carton", ["tola"] = "tola", ["tolas"] = "tola", ["ft"] = "ft", ["feet"] = "ft",
+        ["roll"] = "roll", ["rolls"] = "roll", ["bundle"] = "bundle", ["tray"] = "tray", ["plate"] = "plate"
     };
 
     public static string? NormalizeUnit(string raw) => UnitAliases.TryGetValue(raw.Trim(), out var unit) ? unit : null;

@@ -43,7 +43,7 @@ public static class DataExchangeGuide
         C("Product", typeof(string), GuideLevel.Required, "Product ka naam. Same naam + same unit dobara nahi banega. / Product name; the same name + unit is not created twice.", "Lawn Suit"),
         C("Price", typeof(decimal), GuideLevel.Required, "Bechne ki qeemat (sirf number, Rs. na likhein). / Selling price, number only.", "3500"),
         C("Cost price", typeof(decimal), GuideLevel.Optional, "Aap ko kitne ka para — sirf aap ko dikhta hai, profit report mein kaam aata hai. / What it costs you; private, used for profit reports.", "2400"),
-        C("Unit", typeof(string), GuideLevel.Optional, "piece, kg, gram, dozen, liter, meter, yard ya pack. Khali = piece. / One of piece, kg, gram, dozen, liter, meter, yard, pack. Blank = piece.", "piece"),
+        C("Unit", typeof(string), GuideLevel.Optional, "piece, set, pair, kg, gram, tola, ml, liter, meter, yard, ft, dozen, pack, box, bag, carton, roll, bundle, tray ya plate. Khali = piece. / One of piece, set, pair, kg, gram, tola, ml, liter, meter, yard, ft, dozen, pack, box, bag, carton, roll, bundle, tray, plate. Blank = piece.", "piece"),
         C("Pack size", typeof(decimal), GuideLevel.Optional, "Ek listing mein kitni unit: \"Sugar 5kg\" ke liye Unit = kg, Pack size = 5. Khali = 1. / Units in one listing. Blank = 1.", "1"),
         C("Category", typeof(string), GuideLevel.Optional, "Zumra / category. / Category.", "Stitched"),
         C("Vendor", typeof(string), GuideLevel.Optional, "Supplier ka naam. / Supplier name.", "Ali Traders"),

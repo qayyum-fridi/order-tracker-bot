@@ -46,5 +46,6 @@
   "commands.045": "✅ Order #{0} ({1} - {2}) marked as {3}.",
   "commands.046": "This Week",
   "commands.047": "This Month",
-  "commands.048": "Custom Dates"
+  "commands.048": "Custom Dates",
+  "commands.049": "📏 Agar unit piece nahi, to naam ke baad likhein (jaise \"{0}\"). Aap ke business ke units: {1}"
 }

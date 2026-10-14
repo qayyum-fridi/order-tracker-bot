@@ -14,5 +14,6 @@
     "Bar-code scanner ho to \"barcode Lipstick Matte Red 8964000123\" se code jod dein.",
     "Gift wrap jaisi baat ke liye \"note 12 gift wrap\" likhein: receipt par chhap jati hai."
   ],
-  "dataFocus": "cost price, stock aur category"
+  "dataFocus": "cost price, stock aur category",
+  "units": ["piece", "ml", "gram", "tola", "pack", "box", "set", "pair"]
 }
