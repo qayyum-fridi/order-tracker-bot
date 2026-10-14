@@ -423,7 +423,41 @@ public class InsightReportTests : IDisposable
         Assert.Contains("Category nahi: 1/2", reply);
         Assert.Contains("Stock track nahi: 1/2", reply);
         Assert.Contains("✅ Purane orders", reply);
-        Assert.Contains("Data check: 2/5 theek", reply);
+        Assert.Contains("Data check: 2/5 mukammal, 0 galat entries", reply);
+    }
+
+    [Fact]
+    public async Task DataCheck_FlagsWrongEntries_NotJustMissingOnes()
+    {
+        await SetupAsync();
+        var loss = await ProductAsync("Polo Shirt", 500);
+        loss.CostPrice = 700;
+        await ProductAsync("Lawn Suit Embroidered", 3000);
+        await ProductAsync("Lawn Suit Embroidred", 3000);
+        await ProductAsync("Kurti S", 1800);
+        await ProductAsync("Kurti M", 1800);
+        var oversold = await ProductAsync("Shawl", 3500, stock: 2);
+        oversold.StockQty = -3;
+        await _db.SaveChangesAsync();
+        var a = await CustomerAsync("Sara");
+        var b = await CustomerAsync("Sara Khan");
+        a.Phone = "03001234567"; b.Phone = "+92 300 1234567";
+        var c = await CustomerAsync("Bilal");
+        c.Phone = "12";
+        foreach (var cust in new[] { a, b, c })
+            _db.Orders.Add(new Order { SellerId = _seller.Id, CustomerId = cust.Id, Status = OrderStatus.Delivered, Subtotal = 100, Total = 100, DeliveredAt = DateTime.UtcNow });
+        await _db.SaveChangesAsync();
+
+        var reply = await AskAsync("data check");
+
+        Assert.Contains("Cost price >= sale price (1): Polo Shirt (cost 700 / price 500)", reply);
+        Assert.Contains("Stock minus mein (1): Shawl (-3)", reply);
+        Assert.Contains("Lawn Suit Embroidered / Lawn Suit Embroidred", reply);
+        Assert.DoesNotContain("Kurti S / Kurti M", reply);
+        Assert.Contains("Phone ghalat ya khali (1 customers): Bilal", reply);
+        Assert.Contains("Sara = Sara Khan", reply);
+        Assert.Contains("Na city na address (3 customers)", reply);
+        Assert.Contains("3 shipped/delivered orders mein courier nahi", reply);
     }
 
     [Fact]
