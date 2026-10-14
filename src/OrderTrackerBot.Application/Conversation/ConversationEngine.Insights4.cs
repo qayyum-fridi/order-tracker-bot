@@ -12,7 +12,7 @@ namespace OrderTrackerBot.Application.Conversation;
 // expense share of sales, capital locked in stock, overstock, Ramadan / Eid and the category mix. Plain counting and arithmetic on saved data.
 public partial class ConversationEngine
 {
-    private async Task<bool> TryHandleAdvancedInsight2Async(Seller seller, ParsedCommand cmd, string? period, string text, CancellationToken ct)
+    private async Task<bool> TryHandleAdvancedInsight2Async(Seller seller, SessionContextData ctx, ParsedCommand cmd, string? period, string text, CancellationToken ct)
     {
         switch (cmd.Text)
         {
@@ -21,14 +21,14 @@ public partial class ConversationEngine
             case "citydelivery": await InsightCityDeliveryAsync(seller, period, ct); break;
             case "cancelbymethod": await InsightCancelByMethodAsync(seller, period, ct); break;
             case "drawershort": await InsightDrawerShortageAsync(seller, period, ct); break;
-            case "uncollected": await InsightUncollectedAsync(seller, ct); break;
+            case "uncollected": await InsightUncollectedAsync(seller, text, ct); break;
             case "stuckmoney": await InsightStuckMoneyAsync(seller, ct); break;
             case "expenseratio": await InsightExpenseRatioAsync(seller, period, ct); break;
             case "lockedcapital": await InsightLockedCapitalAsync(seller, (int)(cmd.Amount ?? 90), ct); break;
             case "overstock": await InsightOverstockAsync(seller, ct); break;
             case "seasonal": await InsightSeasonAsync(seller, text, ct); break;
             case "categoryshift": await InsightCategoryShiftAsync(seller, text, ct); break;
-            default: return false;
+            default: return await TryHandleHyperInsightAsync(seller, ctx, cmd, period, text, ct);
         }
         return true;
     }
@@ -171,24 +171,27 @@ public partial class ConversationEngine
         SuggestNext("drawer history", "drawer");
     }
 
-    /// <summary>Delivered orders whose money has not been received (COD not marked collected).</summary>
-    private async Task InsightUncollectedAsync(Seller seller, CancellationToken ct)
+    /// <summary>Delivered orders whose money has not been received (COD not marked collected); a courier named in the sentence limits the list to its parcels.</summary>
+    private async Task InsightUncollectedAsync(Seller seller, string text, CancellationToken ct)
     {
         var orders = (await _db.Orders.AsNoTracking().Include(o => o.Customer)
                 .Where(o => o.SellerId == seller.Id && o.Status == OrderStatus.Delivered && o.PaymentStatus != PaymentStatus.Paid && o.PayoutSettledAt == null)
                 .OrderBy(o => o.DeliveredAt ?? o.CreatedAt).ToListAsync(ct))
             .Where(o => OrderMoney.Balance(o) > 0).ToList();
+        var couriers = orders.Select(o => o.TrackingCourier).Where(c => !string.IsNullOrWhiteSpace(c)).Select(c => c!.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).Where(c => HasWord(text, c)).ToList();
+        if (couriers.Count > 0) orders = orders.Where(o => couriers.Contains((o.TrackingCourier ?? "").Trim(), StringComparer.OrdinalIgnoreCase)).ToList();
+        var who = couriers.Count > 0 ? $"{string.Join(", ", couriers)} ke paas " : "";
         if (orders.Count == 0)
         {
-            await ReplyAsync(seller, "✅ Har delivered order ka paisa mil chuka (ya courier payout mein shamil hai).", ct);
+            await ReplyAsync(seller, couriers.Count > 0 ? $"✅ {string.Join(", ", couriers)} ke koi delivered order ka paisa baqi nahi." : "✅ Har delivered order ka paisa mil chuka (ya courier payout mein shamil hai).", ct);
             return;
         }
 
         var now = DateTime.UtcNow;
-        var lines = orders.Take(10).Select(o => $"• #{o.Id} {o.Customer?.Name} — {Formatters.Money(OrderMoney.Balance(o))} ({(int)(now - (o.DeliveredAt ?? o.CreatedAt)).TotalDays} din se)");
+        var lines = orders.Take(10).Select(o => $"• #{o.Id} {o.Customer?.Name} — {Formatters.Money(OrderMoney.Balance(o))} ({(int)(now - (o.DeliveredAt ?? o.CreatedAt)).TotalDays} din se)" + (couriers.Count == 0 && !string.IsNullOrWhiteSpace(o.TrackingCourier) ? $" · {o.TrackingCourier}" : ""));
         var more = orders.Count > 10 ? $"\n…aur {orders.Count - 10} orders" : "";
         await ReplyAsync(seller,
-            $"⚠️ Delivered magar paisa nahi mila — {orders.Count} orders, {Formatters.Money(orders.Sum(OrderMoney.Balance))}\n\n{string.Join("\n", lines)}{more}\n\n" +
+            $"⚠️ {who}Delivered magar paisa nahi mila — {orders.Count} orders, {Formatters.Money(orders.Sum(OrderMoney.Balance))}\n\n{string.Join("\n", lines)}{more}\n\n" +
             "Paisa milne par: \"order 12 paid\". Courier se aana ho to \"payout pending\" dekhein.", ct);
         SuggestNext("cod pending", "payout pending");
     }

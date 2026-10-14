@@ -27,7 +27,7 @@ public partial class ConversationEngine
             case "priceeffect": await InsightPriceChangeAsync(seller, text, cmd.Amount ?? 0, ct); break;
             case "costlylow": await InsightCostlyLowMarginAsync(seller, ct); break;
             case "suppliers": await InsightSuppliersAsync(seller, period, ct); break;
-            default: return await TryHandleAdvancedInsight2Async(seller, cmd, period, text, ct);
+            default: return await TryHandleAdvancedInsight2Async(seller, ctx, cmd, period, text, ct);
         }
         return true;
     }

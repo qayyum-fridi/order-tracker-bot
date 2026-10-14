@@ -46,9 +46,9 @@ internal static class AdvancedInsightParser
     private static readonly Regex Cod = W(@"cod|cash\s+on\s+delivery|کیش\s+آن\s+ڈلیوری");
     private static readonly Regex Advance = W(@"advance|easy\s*paisa|easypaisa|jazz\s*cash|jazzcash|bank|ایڈوانس|ایزی\s*پیسہ|جاز\s*کیش");
     private static readonly Regex Drawer = W(@"galla|galle|gallay|drawer|دراز|گلے|گلا");
-    private static readonly Regex Short = W(@"short\w*|farq|difference|kami|kam\s+paise|کمی|فرق|شارٹ\w*");
-    private static readonly Regex Delivered = W(@"delivered|deliver\s+ho\s+chuk\w*|ڈیلیورڈ");
-    private static readonly Regex Money = W(@"paisa|paise|money|raqam|rupay|پیسہ|پیسے|رقم");
+    private static readonly Regex Short = W(@"short\w*|farq|difference|kami|kam\s+paise|کمی|فرق|شارٹ\w*|mismatch|bezabta\w*|irregular\w*|بے\s*ضابطگی");
+    private static readonly Regex Delivered = W(@"delivered|deliver\s+ho\s+chuk\w*|ڈیلیورڈ|ڈیلیور\s+(?:تو\s+)?ہو\s+چکے");
+    private static readonly Regex Money = W(@"paisa|paise|money|raqam|rupay|cash|settlement|پیسہ|پیسے|رقم|کیش");
     private static readonly Regex Stuck = W(@"phans\w*|stuck|atka\w*|bazar\s+mein|market\s+mein|بازار|پھنس\w*");
     private static readonly Regex Expense = W(@"kharcha|kharche|kharch|expenses?|اخراجات|خرچ\w*");
     private static readonly Regex Percent = W(@"percent|fisad|ratio|share|فیصد");
@@ -64,9 +64,46 @@ internal static class AdvancedInsightParser
     private static readonly Regex CategoryWord = W(@"category|categories|grocery|garocery|kapron|kapre|kapda|clothes|cloth|گروسری|کپڑ\w*");
     private static readonly Regex Season2 = W(@"mausam|badalta|badalne|badalta|موسم");
 
+    // ---- hyper-complex scenarios (part 3)
+    private static readonly Regex NetProfit = W(@"net\s+profit|khalis\s+munafa|contribution|cumulative|خالص\s+منافع|نیٹ\s+منافع|منافع|profit");
+    private static readonly Regex Earn = W(@"kama\s+kar|kamaya|earned|کما\s+کر|کمایا");
+    private static readonly Regex FirstTime = W(@"pehli\s+baar|first\s+time|pehla\s+order|پہلی\s+بار|پہلا\s+آرڈر");
+    private static readonly Regex SecondOrder = W(@"doosra|dusra|second|دوسرا|دوبارہ|dobara");
+    private static readonly Regex Vip = W(@"vip|wafadar|loyal|وفادار");
+    private static readonly Regex Share = W(@"hissa|share|حصہ");
+    private static readonly Regex Velocity = W(@"velocity|raftar|رفتار");
+    private static readonly Regex Falls = W(@"gir\w*|drop\w*|ghat\w*|گر\w*|گھٹ\w*");
+    private static readonly Regex FastMoving = W(@"fast[- ]?moving|aate\s+hi|jaldi\s+bik\w*|turant\s+bik\w*|آتے\s+ہی");
+    private static readonly Regex Cleared = W(@"saaf\s+ho|clear\s+ho|days\s+on\s+hand|صاف\s+ہو");
+    private static readonly Regex AskingOutOfStock = W(@"puch\w*|ask\w*|demand|maang|پوچھ\w*|مانگ");
+    private static readonly Regex OutOfStock = W(@"out\s+of\s+stock|stock\s+khatam|ختم\s+ہو\s+چکا|اسٹاک\s+ختم");
+    private static readonly Regex Dropped = W(@"gira|gir\s+gaya|compress\w*|گرا|گر\s+گیا|نیچے");
+    private static readonly Regex BreakEven = W(@"break[- ]?even|بریک\s*ایون");
+    private static readonly Regex CostFell = W(@"kam\s+hui|kam\s+ho\s+gayi|ghati|کم\s+ہوئی|گھٹی|decreased?");
+    private static readonly Regex OldRate = W(@"purana|purani|old|پرانا|پرانی");
+    private static readonly Regex Failed = W(@"fail\w*|nakam|ناکام|فیل");
+    private static readonly Regex CityWord = W(@"shehar|sheher|city|area|ilaqa|شہر|علاقہ");
+    private static readonly Regex Damaged = W(@"kharab|gum|lost|damage\w*|خراب|گم");
+    private static readonly Regex StockOrCatalog = W(@"stock|catalog|maal|suit|سوٹ|کیٹلاگ|اسٹاک|مال");
+    private static readonly Regex Sensitive = W(@"drop|kam\s+ho|sensitiv\w*|asar|ڈراپ|اثر");
+    private static readonly Regex CashSales = W(@"cash\s+sales?|cash\s+flow|نقد\s+سیلز|کیش\s+فلو");
+    private static readonly Regex CodeWord = W(@"code|coupon|کوڈ");
+    private static readonly Regex Cannibal = W(@"cannibal\w*|veisay|waisay|ویسے|سستے\s+میں");
+    private static readonly Regex Promotion = W(@"promotion|promo|پروموشن");
+    private static readonly Regex NewCustomersWord = W(@"naye\s+(?:gahak|customers?)|new\s+customers?|نئے\s+(?:گاہک|کسٹمرز?)");
+    private static readonly Regex FullPrice = W(@"pura\s+rate|full\s+price|پورا\s+ریٹ|intezar|انتظار");
+    private static readonly Regex ShortWord = W(@"short|shortage|شارٹ");
+    private static readonly Regex FixedBills = W(@"kiraya|کرایہ|rent|bijli|بجلی|electric\w*|bill|بل|utilit\w*");
+    private static readonly Regex AtLeast = W(@"kam\s+se\s+kam|minimum|at\s+least|کم\s+از\s+کم");
+    private static readonly Regex Lifecycle = W(@"life\s*cycle|لائف\s*سائیکل|aakhri\s+marhal\w*|آخری\s+مرحل\w*|musalsal\s+gir\w*|مستقل\s+گر\w*");
+    private static readonly Regex ShiftWord = W(@"shift|taraf|ruchan|trend|طرف|ٹرینڈ|رجحان");
+    private static readonly Regex Audit = W(@"business\s+audit|audit|آڈٹ|جائزہ\s+لو");
+    private static readonly Regex Earlier = W(@"pehle|used\s+to|پہلے");
+
+    private static readonly Regex Percent2 = new(@"\d{1,3}\s*(?:%|percent|fisad|فیصد)", Opts);
     private static readonly Regex Digits = new(@"\d{1,7}(?:,\d{3})*", Opts);
-    private static readonly Regex FromTo = new(@"(?<a>\d{2,7})\s*(?:se|to|سے)\s+(?:[\p{L}]+\s+){0,3}(?<b>\d{2,7})|(?<a>\d{2,7})\s*(?:se|to|سے)\s*(?<b>\d{2,7})", Opts);
-    private static readonly Regex DaysNumber = new(@"(?<n>\d{1,3})\s*(?:days?|din|dino|دن)", Opts);
+    private static readonly Regex FromTo = new(@"(?<a>\d{2,7})\s*(?:روپے|rupay|rupees?|rs\.?)?\s*(?:se|to|سے)\s+(?:[\p{L}]+\s+){0,3}(?<b>\d{2,7})|(?<a>\d{2,7})\s*(?:روپے|rupay|rupees?|rs\.?)?\s*(?:se|to|سے)\s*(?<b>\d{2,7})", Opts);
+    private static readonly Regex DaysNumber = new(@"(?<n>\d{1,3})\s*(?:days?|din|dino|دن|دنوں)", Opts);
     private static readonly Regex MoneyNumber = new(@"(?:rs\.?|pkr)?\s*(?<n>\d{1,6})\s*(?:rupay|rupees?|rupe|rs\b|روپے|روپیہ)|(?:rs\.?|pkr)\s*(?<n2>\d{1,6})", Opts);
     private static readonly Regex CustomersNumber = new(@"(?<n>\d{1,5})\s*(?:purane\s+|puranay\s+|old\s+)?(?:customers?|gahak|کسٹمرز?|گاہک)", Opts);
 
@@ -76,6 +113,34 @@ internal static class AdvancedInsightParser
             new() { Kind = CommandKind.Insight, Text = topic, Text2 = period, Text3 = subject ?? text, Amount = amount };
 
         if (Supplier.IsMatch(text) && (Sale.IsMatch(text) || BuyVerb.IsMatch(text) || Margin.IsMatch(text))) return Topic("suppliers");
+
+        // --- hyper-complex scenarios: more specific than the ones below, so tried first
+        if (Audit.IsMatch(text) && (Regex.IsMatch(text, @"business|dukaan|دکان|کاروبار", Opts) || text.Length < 30)) return Topic("audit");
+        if ((Customer.IsMatch(text) && Regex.IsMatch(text, @"at\s+risk|khatre", Opts)) || Regex.IsMatch(text, @"churn\s+risk", Opts)) return Topic("churnrisk", 60);
+        if (Customer.IsMatch(text) && NetProfit.IsMatch(text) && (Discount.IsMatch(text) || Return.IsMatch(text)) && Lowest.IsMatch(text)) return Topic("custprofit");
+        if (Customer.IsMatch(text) && NetProfit.IsMatch(text) && Earn.IsMatch(text)) return Topic("custprofit", Days(text, 365));
+        if (Customer.IsMatch(text) && FirstTime.IsMatch(text) && SecondOrder.IsMatch(text)) return Topic("retention");
+        if (Vip.IsMatch(text) && Customer.IsMatch(text) && Sale.IsMatch(text) && Share.IsMatch(text)) return Topic("vipshare");
+        if (Velocity.IsMatch(text) && Falls.IsMatch(text) && (StockWord.IsMatch(text) || Regex.IsMatch(text, @"product|پروڈکٹ", Opts))) return Topic("velocitydrop", Days(text, 15));
+        if (FastMoving.IsMatch(text) && StockWord.IsMatch(text)) return Topic("fastmoving");
+        if (Cleared.IsMatch(text) && StockWord.IsMatch(text)) return Topic("daysonhand");
+        if (StockWord.IsMatch(text) && AskingOutOfStock.IsMatch(text) && (OutOfStock.IsMatch(text) || Finish.IsMatch(text))) return Topic("outofstockhot");
+        if (Margin.IsMatch(text) && Dropped.IsMatch(text) && Cost.IsMatch(text)) return Topic("margindrop");
+        if (Cost.IsMatch(text) && BreakEven.IsMatch(text) && Percent2.IsMatch(text)) return Topic("costshock", PercentOf(text));
+        if (Cost.IsMatch(text) && CostFell.IsMatch(text) && (OldRate.IsMatch(text) || Price.IsMatch(text))) return Topic("costdrop");
+        if (Failed.IsMatch(text) && Regex.IsMatch(text, @"delivery|deliver|ڈلیوری|پارسل|parcel", Opts) && CityWord.IsMatch(text)) return Topic("failcity");
+        if ((Return.IsMatch(text)) && Damaged.IsMatch(text) && StockOrCatalog.IsMatch(text)) return Topic("rtostock");
+        if (DeliveryCharge.IsMatch(text) && FromTo.IsMatch(text) && Sensitive.IsMatch(text) && FromTo.Match(text) is { Success: true } chg
+            && decimal.TryParse(chg.Groups["b"].Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var newCharge)) return Topic("chargeeffect", newCharge);
+        if (Expense.IsMatch(text) && CashSales.IsMatch(text)) return Topic("cashflow");
+        if (Drawer.IsMatch(text) && Regex.IsMatch(text, @"band|close|بند", Opts) && Supplier.IsMatch(text) && Regex.IsMatch(text, @"bank|بینک|jama|جمع", Opts)) return Topic("cashplan", MoneyAmount(text) ?? (FirstNumber(text) is >= 100 and var amt ? amt : null));
+        if (CodeWord.IsMatch(text) && (Discount.IsMatch(text) || Regex.IsMatch(text, @"\b[A-Z]{2,}\d{1,3}\b", RegexOptions.None)) && (Cannibal.IsMatch(text) || Regex.IsMatch(text, @"munafa|منافع|profit|barha|بڑھا", Opts)) && Sale.IsMatch(text)) return Topic("promoroi");
+        if ((Promotion.IsMatch(text) || Discount.IsMatch(text)) && NewCustomersWord.IsMatch(text) && (Regex.IsMatch(text, @"kis|konsi|kaun\w*|کس|کون\w*", Opts))) return Topic("promonew");
+        if (Discount.IsMatch(text) && Customer.IsMatch(text) && FullPrice.IsMatch(text)) return Topic("promoloyalty");
+        if (Season.IsMatch(text) && StockWord.IsMatch(text) && Percent.IsMatch(text) && ShortWord.IsMatch(text)) return Topic("eidstock");
+        if (FixedBills.IsMatch(text) && Sale.IsMatch(text) && AtLeast.IsMatch(text) && Regex.IsMatch(text, @"roz|rozana|daily|روزانہ|har\s+din", Opts)) return Topic("breakevendaily");
+        if (Lifecycle.IsMatch(text)) return Topic("declining");
+        if (Regex.IsMatch(text, @"mehng\w+|مہنگ\w+", Opts) && Regex.IsMatch(text, @"sast\w+|سست\w+", Opts) && ShiftWord.IsMatch(text)) return Topic("pricemix");
 
         // --- baskets and bundles
         if (Alone.IsMatch(text) && Not.IsMatch(text) && BuyVerb.IsMatch(text)) return Topic("nosolo");
@@ -103,7 +168,8 @@ internal static class AdvancedInsightParser
         if (DeliveryTime.IsMatch(text) && Outside.IsMatch(text)) return Topic("citydelivery");
 
         // --- cash
-        if (Drawer.IsMatch(text) && Short.IsMatch(text) && period is not "today" && (period is not null || Regex.IsMatch(text, @"kis\s+din|which\s+day|hafte|week|کس\s+دن|ہفتے", Opts))) return Topic("drawershort");
+        if (Drawer.IsMatch(text) && Short.IsMatch(text) && period is not "today" && (period is not null || DaysNumber.IsMatch(text) || Regex.IsMatch(text, @"kis\s+din|which\s+day|hafte|week|کس\s+دن|ہفتے", Opts)))
+            return new ParsedCommand { Kind = CommandKind.Insight, Text = "drawershort", Text2 = period ?? (DaysNumber.Match(text) is { Success: true } dn ? dn.Groups["n"].Value + "d" : null), Text3 = text };
         if (Delivered.IsMatch(text) && Money.IsMatch(text) && Not.IsMatch(text)) return Topic("uncollected");
         if (Stuck.IsMatch(text) && Money.IsMatch(text) && !StockWord.IsMatch(text)) return Topic("stuckmoney");
         if (Expense.IsMatch(text) && Percent.IsMatch(text) && Sale.IsMatch(text)) return Topic("expenseratio");
@@ -116,6 +182,10 @@ internal static class AdvancedInsightParser
         if (Ratio.IsMatch(text) && (CategoryWord.IsMatch(text) || Season2.IsMatch(text)) && Sale.IsMatch(text)) return Topic("categoryshift", subject: text);
         return null;
     }
+
+    private static decimal? PercentOf(string text) =>
+        Regex.Match(text, @"(?<n>\d{1,3}(?:\.\d+)?)\s*(?:%|percent|fisad|فیصد)", Opts) is { Success: true } m
+        && decimal.TryParse(m.Groups["n"].Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var v) ? v : null;
 
     /// <summary>The first number in the sentence ("lagat 300 rupay zyada" -> 300).</summary>
     private static decimal? FirstNumber(string text) =>
