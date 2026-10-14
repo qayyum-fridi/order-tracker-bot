@@ -1,0 +1,12 @@
+{
+  "flows.001": "✅ {0} COD collected — payment marked PAID{1}",
+  "flows.002": "📅 Konsi dates ke beech? (e.g. \"1 May se 15 May\")",
+  "flows.003": "Theek hai, tareekh ka sawal band kar diya.",
+  "flows.004": "Maaf kijiye, tareekh samajh nahi aayi. Barae meherbani likhein: \"1 May se 15 May\", \"1 January se aaj tak\", \"pichle 3 mahine\" ya \"last quarter\". Rokne ke liye \"cancel\".",
+  "flows.005": "Is period mein koi order nahi mila.",
+  "flows.006": "{0}+ din se sab products mein order aaya hai — koi slow mover nahi.",
+  "flows.007": "Koi COD pending nahi hai.",
+  "flows.008": "💵 {0}+ Din Purane Unpaid ({1}):\n\n{2}\n\nTotal: {3} — follow-up karein.",
+  "flows.009": "💵 Delivered but Cash Not Collected ({0}):\n\n{1}\n\nTotal pending cash: {2}",
+  "flows.010": "📉 Slow Movers ({0}+ din se koi order nahi):\n\n{1}"
+}

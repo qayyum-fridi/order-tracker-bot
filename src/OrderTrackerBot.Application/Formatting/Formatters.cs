@@ -1,6 +1,7 @@
 using System.Globalization;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Formatting;
 
@@ -57,7 +58,7 @@ public static class Formatters
     public static string DaysAgo(DateTime utc)
     {
         var days = (DateTime.UtcNow.Date - utc.Date).Days;
-        return days switch { <= 0 => "today", 1 => "yesterday", _ => $"{days} din pehle" };
+        return days switch { <= 0 => "today", 1 => "yesterday", _ => MessageTemplates.Get("fmt-formatters.001", days) };
     }
 
     public static string ItemsSummary(Order order) =>
@@ -69,9 +70,9 @@ public static class Formatters
         Lang.Normalize(language) == Lang.UrduScript
             ? status switch
             {
-                OrderStatus.Pending => "زیر التواء",
-                OrderStatus.Shipped => "بھیج دیا گیا",
-                OrderStatus.Delivered => "پہنچا دیا گیا",
+                OrderStatus.Pending => MessageTemplates.Get("fmt-formatters.002"),
+                OrderStatus.Shipped => MessageTemplates.Get("fmt-formatters.003"),
+                OrderStatus.Delivered => MessageTemplates.Get("fmt-formatters.004"),
                 OrderStatus.Cancelled => "منسوخ",
                 OrderStatus.Returned => "واپس آ گیا",
                 _ => Status(status)
@@ -99,33 +100,33 @@ public static class Formatters
         if (orders.Count == 0)
             return (lang, period) switch
             {
-                (Lang.UrduScript, "yesterday") => "📦 کل کوئی آرڈر نہیں آیا۔",
-                (Lang.UrduScript, "lastmonth") => "📦 پچھلے مہینے کوئی آرڈر نہیں آیا۔",
-                (Lang.UrduScript, _) => "📦 آج کوئی آرڈر نہیں آیا۔",
-                (Lang.English, "yesterday") => "📦 No orders yesterday.",
-                (Lang.English, "lastmonth") => "📦 No orders last month.",
-                (Lang.English, _) => "📦 No orders yet today.",
-                (_, "yesterday") => "📦 Kal koi order nahi aaya.",
-                (_, "lastmonth") => "📦 Pichle mahine koi order nahi aaya.",
-                _ => "📦 Aaj koi order nahi aaya abhi tak."
+                (Lang.UrduScript, "yesterday") => MessageTemplates.Get("fmt-formatters.005"),
+                (Lang.UrduScript, "lastmonth") => MessageTemplates.Get("fmt-formatters.006"),
+                (Lang.UrduScript, _) => MessageTemplates.Get("fmt-formatters.007"),
+                (Lang.English, "yesterday") => MessageTemplates.Get("fmt-formatters.008"),
+                (Lang.English, "lastmonth") => MessageTemplates.Get("fmt-formatters.009"),
+                (Lang.English, _) => MessageTemplates.Get("fmt-formatters.010"),
+                (_, "yesterday") => MessageTemplates.Get("fmt-formatters.011"),
+                (_, "lastmonth") => MessageTemplates.Get("fmt-formatters.012"),
+                _ => MessageTemplates.Get("fmt-formatters.013")
             };
 
         var header = custom
             ? deliveryDue ? $"📅 Delivery due — {periodLabel} ({orders.Count}):"
-                : lang == Lang.UrduScript ? $"📦 {periodLabel} کے آرڈرز ({orders.Count}):" : $"📦 Orders — {periodLabel} ({orders.Count}):"
+                : lang == Lang.UrduScript ? MessageTemplates.Get("fmt-formatters.020", periodLabel, orders.Count) : $"📦 Orders — {periodLabel} ({orders.Count}):"
             : (lang, period) switch
         {
-            (Lang.UrduScript, "yesterday") => $"📦 کل کے آرڈرز ({orders.Count}):",
-            (Lang.UrduScript, "lastmonth") => $"📦 پچھلے مہینے کے آرڈرز ({orders.Count}):",
-            (Lang.UrduScript, _) => $"📦 آج کے آرڈرز ({orders.Count}):",
+            (Lang.UrduScript, "yesterday") => MessageTemplates.Get("fmt-formatters.014", orders.Count),
+            (Lang.UrduScript, "lastmonth") => MessageTemplates.Get("fmt-formatters.015", orders.Count),
+            (Lang.UrduScript, _) => MessageTemplates.Get("fmt-formatters.016", orders.Count),
             (_, "yesterday") => $"📦 Yesterday's Orders ({orders.Count}):",
-            (_, "lastmonth") => $"📦 Last Month's Orders ({orders.Count}):",
+            (_, "lastmonth") => MessageTemplates.Get("fmt-formatters.017", orders.Count),
             _ => $"📦 Today's Orders ({orders.Count}):"
         };
         var footer = lang switch
         {
-            Lang.UrduScript => "\"mark 1 shipped\" لکھ کر اپڈیٹ کریں۔",
-            _ => "Reply \"mark 1 shipped\" to update."
+            Lang.UrduScript => MessageTemplates.Get("fmt-formatters.018"),
+            _ => MessageTemplates.Get("fmt-formatters.019")
         };
         var lines = orders.Select((o, i) => OrderLine(language, i + 1, o));
         return $"{header}\n\n{string.Join("\n", lines)}\n\n{footer}";

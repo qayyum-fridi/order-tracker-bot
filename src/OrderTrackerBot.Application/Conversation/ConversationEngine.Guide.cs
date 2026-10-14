@@ -1,5 +1,6 @@
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -11,23 +12,23 @@ public partial class ConversationEngine
     private static readonly string[] GuideStepButtons = { "Next ➜", "Guide band karein" };
 
     private static string GuideOrdersBodyFor(Seller? seller) =>
-        $"Customer ka message copy ya forward karein, ya khud likhein:\n\"{IndustryProfiles.Resolve(seller?.BusinessType).OrderExample}\"\nBaqi tafseel bot khud samajh kar order tayyar kar dega.";
+        MessageTemplates.Get("guide.004", IndustryProfiles.Resolve(seller?.BusinessType).OrderExample);
 
     /// <summary>The 4-step guide; step 1's order example is the one of the seller's kind of shop.</summary>
     private static string[] GuideStepsFor(Seller? seller)
     {
         return new[]
         {
-            "📖 Step 1/4 — Order Save Karna\n" + GuideOrdersBodyFor(seller),
-            "📖 Step 2/4 — Orders Dekhna\nLikhein: \"orders today\" ya \"pending orders\".\nOrders ki list foran bhej di jayegi.",
-            "📖 Step 3/4 — Status Tabdeel Karna\nOrder rawana kar diya ho to likhein: \"mark 1 shipped\".\nDelivery mukammal ho jaye to likhein: \"mark 1 delivered\".",
-            "📖 Step 4/4 — Madad\nKisi bhi waqt \"menu\" ya \"guide\" likhein, rehnumai dobara dastiyab hogi.\n🎉 Aap tayyar hain — ab pehla order likh kar dekhein."
+            MessageTemplates.Get("guide.006", GuideOrdersBodyFor(seller)),
+            MessageTemplates.Get("guide.007"),
+            MessageTemplates.Get("guide.008"),
+            MessageTemplates.Get("guide.009")
         };
     }
 
 
-    private const string GuidePaymentsOnly =
-        "📖 Payments\nCustomer ko payment ki tafseel bhejne ke liye likhein: \"payment link\".\nPayment mosool hone par likhein: \"mark 4 paid\".\nApna JazzCash / Easypaisa number darj karne ke liye likhein: \"add payment: jazzcash, 0300-1234567\".";
+    private static readonly string GuidePaymentsOnly =
+        MessageTemplates.Get("guide.005");
 
     private async Task StartGuideAsync(Seller seller, ConversationSession session, SessionContextData ctx, string? topic, CancellationToken ct)
     {
@@ -45,7 +46,7 @@ public partial class ConversationEngine
 
         ctx.GuideTopic = null;
         ctx.GuideStep = 0;
-        await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, "📖 Aap guide kahan se shuru karna chahenge?", GuideTopicButtons, ct);
+        await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("guide.001"), GuideTopicButtons, ct);
     }
 
     private async Task HandleGuideStepAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
@@ -61,7 +62,7 @@ public partial class ConversationEngine
                     return;
                 case "sirf orders" or "orders" or "2":
                     ExitGuide(session, ctx);
-                    await ReplyAsync(seller, "📖 Order Save Karna\n" + GuideOrdersBodyFor(seller), ct);
+                    await ReplyAsync(seller, MessageTemplates.Get("guide.002", GuideOrdersBodyFor(seller)), ct);
                     return;
                 case "sirf payments" or "payments" or "3":
                     ExitGuide(session, ctx);
@@ -88,7 +89,7 @@ public partial class ConversationEngine
         ExitGuide(session, ctx);
         if (choice is "guide band karein" or "band" or "skip" or "stop")
         {
-            await ReplyAsync(seller, "ℹ️ Theek hai. Jab bhi zaroorat ho, \"guide\" likhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("guide.003"), ct);
             return;
         }
 

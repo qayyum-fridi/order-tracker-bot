@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -16,7 +17,7 @@ public partial class ConversationEngine
         var product = products.FirstOrDefault(p => p.Name.Equals(productName.Trim(), StringComparison.OrdinalIgnoreCase)) ?? products.FirstOrDefault();
         if (product is null)
         {
-            await ReplyAsync(seller, $"\"{productName}\" catalog mein nahi mila. \"catalog\" likh kar naam check karein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("reports.001", productName), ct);
             return;
         }
 
@@ -27,7 +28,7 @@ public partial class ConversationEngine
 
         if (items.Count == 0)
         {
-            await ReplyAsync(seller, $"📦 {Formatters.ProductLabel(product)} — abhi tak koi order nahi aaya.\n\nPromote karna ho to \"menu discounts\" dekhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("reports.002", Formatters.ProductLabel(product)), ct);
             return;
         }
 
@@ -42,9 +43,9 @@ public partial class ConversationEngine
             "",
             $"Last 30 din: {last30.Count} orders, {last30.Sum(i => i.Quantity)} units, {Formatters.Money(last30.Sum(i => i.Quantity * i.UnitPrice))}",
             MonthComparisonLine(seller, items.Select(i => (i.CreatedAt, i.Quantity, i.UnitPrice))),
-            $"Ab tak total: {items.Count} orders, {items.Sum(i => i.Quantity)} units, {Formatters.Money(items.Sum(i => i.Quantity * i.UnitPrice))}",
+            MessageTemplates.Get("reports.005", items.Count, items.Sum(i => i.Quantity), Formatters.Money(items.Sum(i => i.Quantity * i.UnitPrice))),
             $"Customers: {items.Select(i => i.CustomerId).Distinct().Count()}",
-            $"Last order: {(daysAgo == 0 ? "aaj" : $"{daysAgo} din pehle")}"
+            MessageTemplates.Get("reports.006", (daysAgo == 0 ? "aaj" : $"{daysAgo} din pehle"))
         };
         if (product.StockQty is { } stock) lines.Add($"Stock: {stock}");
         await ReplyAsync(seller, string.Join("\n", lines), ct);
@@ -103,7 +104,7 @@ public partial class ConversationEngine
         var codes = await _db.Discounts.Where(d => d.SellerId == seller.Id).OrderByDescending(d => d.CreatedAt).ToListAsync(ct);
         if (codes.Count == 0 && usage.Count == 0)
         {
-            await ReplyAsync(seller, "🎟️ Abhi koi discount code nahi bana.\n\"create discount: EID20, 20% off\" se banayein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("reports.003"), ct);
             return;
         }
 
@@ -124,7 +125,6 @@ public partial class ConversationEngine
         var totalRevenue = usage.Sum(u => u.Revenue);
         var totalGiven = usage.Sum(u => u.Given);
         await ReplyAsync(seller,
-            $"🎟️ Discount Performance{inPeriod}:\n\n{string.Join("\n", rows)}\n\n" +
-            $"Total: {usage.Sum(u => u.Orders)} orders, {Formatters.Money(totalRevenue)} sales, {Formatters.Money(totalGiven)} discount.", ct);
+            MessageTemplates.Get("reports.004", inPeriod, string.Join("\n", rows), usage.Sum(u => u.Orders), Formatters.Money(totalRevenue), Formatters.Money(totalGiven)), ct);
     }
 }

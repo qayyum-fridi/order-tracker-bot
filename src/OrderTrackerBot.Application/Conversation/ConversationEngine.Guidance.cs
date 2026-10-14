@@ -1,5 +1,6 @@
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -17,40 +18,38 @@ public partial class ConversationEngine
         }
 
         await ReplyAsync(seller,
-            $"ℹ️ {GuidanceFor(session.State, ctx, seller)}\n\n" +
-            "🎤 Text ya voice note — dono chalte hain.\n" +
-            "• Poori command list: \"help\"\n• Step-by-step guide: \"guide\"\n• Kisi bhi waqt dobara poochne ke liye: \"kya karun\"", ct);
+            MessageTemplates.Get("guidance.001", GuidanceFor(session.State, ctx, seller)), ct);
     }
 
     private static string GuidanceFor(ConversationState state, SessionContextData ctx, Seller? seller = null) => state switch
     {
-        ConversationState.Idle => "Setup shuru karne ke liye \"start\" likhein.",
-        ConversationState.OnboardingLanguage or ConversationState.AwaitingLanguageChoice => "Apni zubaan chunein: Roman Urdu, English ya اردو (neeche buttons hain).",
-        ConversationState.OnboardingStartChoice => "Chunein: \"Setup shuru karein\", \"Guide dekhein\" ya \"Purana data\" (purane system se customers/products laane ke liye).",
-        ConversationState.OnboardingBusinessName => "Barae meherbani apni dukaan ka naam likhein, maslan \"Ayesha Collections\".",
-        ConversationState.OnboardingIndustry => "Apni dukaan ki qism chunein (neeche list mein tap karein), ya likhein: kiryana, kapray, cosmetics, electronics, food, hardware.",
-        ConversationState.OnboardingOptionalDetails => "Shehar, karobar ki qisam aur Instagram handle ek saath bhejein, jaise \"Lahore, Clothing, @ayesha.collections\" — ya \"skip\" likhein.",
-        ConversationState.OnboardingCatalogSize => "Batayein aapke paas kitne products hain: \"10 ke qareeb\", ya button dabayein.",
+        ConversationState.Idle => MessageTemplates.Get("guidance.002"),
+        ConversationState.OnboardingLanguage or ConversationState.AwaitingLanguageChoice => MessageTemplates.Get("guidance.003"),
+        ConversationState.OnboardingStartChoice => MessageTemplates.Get("guidance.004"),
+        ConversationState.OnboardingBusinessName => MessageTemplates.Get("guidance.005"),
+        ConversationState.OnboardingIndustry => MessageTemplates.Get("guidance.006"),
+        ConversationState.OnboardingOptionalDetails => MessageTemplates.Get("guidance.007"),
+        ConversationState.OnboardingCatalogSize => MessageTemplates.Get("guidance.008"),
         ConversationState.OnboardingAddProduct =>
             "Har product ka naam aur price bhejein, jaise \"" + IndustryProfiles.Resolve(seller?.BusinessType).MainLine + "\" (kai products ek saath bhi, har line mein ek). " +
             "Agar sirf naam likha ho to main price daryaft kar loon ga. Mukammal hone par \"done\" likhein.",
         ConversationState.AwaitingOrderConfirmation =>
-            "Order confirm karne ke liye YES likhein. Tabdeeli ke liye likhein: \"delivery 300\", \"advance 500\". Rokne ke liye \"cancel\" likhein.",
+            MessageTemplates.Get("guidance.009"),
         ConversationState.AwaitingOrderMissingFields =>
-            $"Order ki baqi detail bhejein ({ctx.PendingMissingField ?? "customer ka naam ya phone"}). Rokne ke liye \"cancel\".",
-        ConversationState.AwaitingMultiOrderConfirmation => "Sab orders confirm karne ke liye YES, ya sirf ek ka number bhejein.",
+            MessageTemplates.Get("guidance.010", ctx.PendingMissingField ?? "customer ka naam ya phone"),
+        ConversationState.AwaitingMultiOrderConfirmation => MessageTemplates.Get("guidance.011"),
         ConversationState.AwaitingClarificationChoice or ConversationState.AwaitingOrderGroupingChoice or ConversationState.AwaitingRuntimeFilterChoice
             or ConversationState.AwaitingBroadcastAudienceChoice or ConversationState.AwaitingBroadcastChannelChoice or ConversationState.AwaitingReceiptOrderChoice
-            or ConversationState.AwaitingSupportQueryPick => "Upar diye options mein se number bhejein (1 ya 2) — bolte waqt \"pehla\" / \"dusra\" bhi chalta hai.",
+            or ConversationState.AwaitingSupportQueryPick => MessageTemplates.Get("guidance.012"),
         ConversationState.AwaitingCancelConfirmation or ConversationState.AwaitingBulkStatusConfirmation or ConversationState.AwaitingDuplicateOrderConfirmation
             or ConversationState.AwaitingCodCollectedConfirmation or ConversationState.AwaitingResetConfirmation or ConversationState.AwaitingDeleteCustomerConfirmation
             or ConversationState.AwaitingLoyaltyDiscountConfirmation or ConversationState.AwaitingSupportReplyConfirmation
-            or ConversationState.AwaitingImportConfirmation => "YES ya NO likhein (bol kar \"haan\" / \"nahi\" bhi chalta hai).",
-        ConversationState.AwaitingVoiceConfirmation => "Aapki voice se jo actions samjhe, woh upar likhe hain — chalane ke liye YES, rokne ke liye NO.",
+            or ConversationState.AwaitingImportConfirmation => MessageTemplates.Get("guidance.013"),
+        ConversationState.AwaitingVoiceConfirmation => MessageTemplates.Get("guidance.014"),
         ConversationState.AwaitingOrderEdit => OrderEditHelp,
         ConversationState.AwaitingReceiptDesign => ReceiptDesignHelp,
-        ConversationState.AwaitingDiscountDetails => "Discount code likhein, jaise \"create discount: EID10, 10 percent, expires 15 days\".",
-        ConversationState.AwaitingPaymentMethodInput => "Payment method likhein, jaise \"add payment: jazzcash, 0300-1234567\".",
-        _ => "Bot aapke jawab ka muntazir hai. Barae meherbani upar diye gaye sawal ka jawab dein, ya \"cancel\" likh kar rok dein."
+        ConversationState.AwaitingDiscountDetails => MessageTemplates.Get("guidance.015"),
+        ConversationState.AwaitingPaymentMethodInput => MessageTemplates.Get("guidance.016"),
+        _ => MessageTemplates.Get("guidance.017")
     };
 }

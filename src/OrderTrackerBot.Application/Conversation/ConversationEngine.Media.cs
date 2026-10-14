@@ -5,6 +5,7 @@ using OrderTrackerBot.Application.Ai;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -47,7 +48,7 @@ public partial class ConversationEngine
                 await _issues.ReportAsync(Abstractions.IssueCodes.VoiceTranscriptionFailed, fromPhoneNumber,
                     media is null ? "media download failed" : "transcription returned nothing", null, ct);
             await _sender.SendTextMessageAsync(fromPhoneNumber,
-                "🎤 Voice message samajh nahi aaya — dobara saaf bol kar bhejein, ya likh kar bhej dein.", ct);
+                MessageTemplates.Get("media.001"), ct);
             await _db.SaveChangesAsync(ct);
             return;
         }
@@ -96,7 +97,7 @@ public partial class ConversationEngine
             ctx.PendingVoiceParkedAt = DateTime.UtcNow;
             ctx.PendingVoiceLogId = await NewestActionLogIdAsync(seller.Id, ct);
             SetState(session, ConversationState.AwaitingVoiceConfirmation);
-            await _sender.SendTextMessageAsync(fromPhoneNumber, $"{heard}\n\n⚠️ Yeh karoon? Reply YES ya NO.", ct);
+            await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("media.002", heard), ct);
             await PersistAsync(session, ctx, ct);
             return;
         }
@@ -428,7 +429,7 @@ public partial class ConversationEngine
 
         if (!seller.OnboardingComplete)
         {
-            await ReplyAsync(seller, "Pehle setup complete kar lein — phir screenshot bhej sakte hain.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("media.003"), ct);
             await PersistAsync(session, ctx, ct);
             return;
         }
@@ -491,7 +492,7 @@ public partial class ConversationEngine
                      (receipt.Provider is null ? "" : $" ({receipt.Provider}{(receipt.TransactionId is null ? "" : $" TID: {receipt.TransactionId}")})");
         if (candidates.Count == 0)
         {
-            await ReplyAsync(seller, $"{header}\n\nLekin koi unpaid order nahi mila jis se match ho.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("media.004", header), ct);
             return;
         }
 
@@ -500,7 +501,7 @@ public partial class ConversationEngine
         ctx.ReceiptProvider = receipt.Provider;
         ctx.ReceiptTransactionId = receipt.TransactionId;
         SetState(session, ConversationState.AwaitingReceiptOrderChoice);
-        await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, $"{header}\n\nKonsa order match karta hai?",
+        await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("media.005", header),
             candidates.Select(o => $"Order #{o.Id} - {o.Customer?.Name}").ToList(), ct);
     }
 
@@ -519,10 +520,10 @@ public partial class ConversationEngine
                 ClearReceipt(ctx);
                 SetState(session, ConversationState.Idle);
                 if (CommandParser.TryParse(message) is { } cmd) await ExecuteCommandAsync(seller, session, ctx, cmd, ct);
-                else await ReplyAsync(seller, "Theek hai, kuch mark nahi kiya.", ct);
+                else await ReplyAsync(seller, MessageTemplates.Get("media.006"), ct);
                 return;
             }
-            await ReplyAsync(seller, "Order chunein (button dabayein ya order number likhein), ya \"cancel\".", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("media.007"), ct);
             return;
         }
 
@@ -536,7 +537,7 @@ public partial class ConversationEngine
             order.Notes = string.IsNullOrWhiteSpace(order.Notes) ? $"TID: {tid}" : $"{order.Notes} | TID: {tid}";
 
         await ReplyAsync(seller,
-            $"✅ Order #{order.Id} marked PAID ({Formatters.Money(ctx.ReceiptAmount ?? order.Total)}{(ctx.ReceiptProvider is null ? "" : $", {ctx.ReceiptProvider}")}).", ct);
+            MessageTemplates.Get("media.008", order.Id, Formatters.Money(ctx.ReceiptAmount ?? order.Total), (ctx.ReceiptProvider is null ? "" : $", {ctx.ReceiptProvider}")), ct);
         ClearReceipt(ctx);
     }
 

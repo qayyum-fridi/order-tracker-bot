@@ -4,6 +4,7 @@ using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Application.Time;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -16,15 +17,15 @@ public partial class ConversationEngine
     {
         if (_receiptPdf is null)
         {
-            await ReplyAsync(seller, "PDF receipt abhi available nahi hai.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("branding.001"), ct);
             return;
         }
 
         var (order, fromList) = await FindReceiptOrderAsync(seller, ctx, cmd, ct);
         if (order is null)
         {
-            await ReplyAsync(seller, cmd.Number is not null ? $"Order #{cmd.Number} nahi mila. Apne orders dekhne ke liye \"orders today\" likhein."
-                : cmd.Text is not null ? $"{cmd.Text} ka koi order nahi mila." : "Abhi koi order nahi hai.", ct);
+            await ReplyAsync(seller, cmd.Number is not null ? MessageTemplates.Get("commands.028", cmd.Number)
+                : cmd.Text is not null ? MessageTemplates.Get("commands2.023", cmd.Text) : MessageTemplates.Get("order-edit.014"), ct);
             return;
         }
 
@@ -36,19 +37,16 @@ public partial class ConversationEngine
         if (!sent)
         {
             if (numberIsNew) order.ReceiptNumber = null; // never burn a serial number on a receipt the seller didn't get
-            await ReplyAsync(seller, "⚠️ Receipt PDF bhej nahi saka — thori der baad dobara try karein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("receipts.001"), ct);
             return;
         }
 
         var suggestBranding = await ShouldSuggestBrandingAsync(seller, branding, ct);
         var chat = ChatLink(order.Customer?.Phone);
         await ReplyAsync(seller,
-            "✅ Receipt PDF ready — download ke liye file par tap karein.\n" +
-            "Customer ko bhejne ke liye is PDF ko Forward karein" + (chat is null ? "." : $", ya unki chat yahan kholein:\n{chat}") +
-            (IsThermalSize(seller.ReceiptSize) ? $"\n\n🖨️ Receipt {seller.ReceiptSize} ke hisab se bani hai. Print karne ka tareeqa: \"printer\" likhein." : "") +
-            (suggestBranding ? "\n\n💡 Receipt par apna logo ya banner lagana chahte hain? \"logo\" ya \"banner\" likhein — main bata dunga kaise." : ""), ct);
+            MessageTemplates.Get("receipts.002", (chat is null ? "." : $", ya unki chat yahan kholein:\n{chat}"), (IsThermalSize(seller.ReceiptSize) ? $"\n\n🖨️ Receipt {seller.ReceiptSize} ke hisab se bani hai. Print karne ka tareeqa: \"printer\" likhein." : ""), (suggestBranding ? "\n\n💡 Receipt par apna logo ya banner lagana chahte hain? \"logo\" ya \"banner\" likhein — main bata dunga kaise." : "")), ct);
         if (fromList)
-            await ReplyAsync(seller, $"ℹ️ \"{cmd.Number}\" aapki last list ka number tha (Order #{order.Id}).", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("receipts.003", cmd.Number, order.Id), ct);
     }
 
     /// <summary>The order a receipt command points at: a number (or a number from the last list), a customer's latest order, or the newest order.</summary>
@@ -95,7 +93,7 @@ public partial class ConversationEngine
             string.Join(", ", new[] { order.Customer?.Address, order.Customer?.City }.Where(s => !string.IsNullOrWhiteSpace(s))),
             order.Items.Select(i => new ReceiptLine(i.ProductNameSnapshot, i.Quantity, i.UnitPrice, i.LineTotal)).ToList(),
             order.Subtotal, order.DiscountAmount, order.DiscountCode, order.Total,
-            order.PaymentMethod switch { OrderPaymentMethod.Cod => "Cash on delivery", OrderPaymentMethod.Manual => "Bank / wallet transfer", OrderPaymentMethod.Gateway => "Online payment", _ => "Not specified" },
+            order.PaymentMethod switch { OrderPaymentMethod.Cod => MessageTemplates.Get("receipts.004"), OrderPaymentMethod.Manual => MessageTemplates.Get("receipts.005"), OrderPaymentMethod.Gateway => MessageTemplates.Get("receipts.006"), _ => MessageTemplates.Get("receipts.007") },
             order.PaymentStatus == PaymentStatus.Paid, Formatters.Status(order.Status),
             order.TrackingCourier, order.TrackingNumber, payTo, Logo: branding?.Logo, Banner: branding?.Banner, DeliveryCharge: order.DeliveryCharge, AmountPaid: OrderMoney.Received(order),
             ReceiptNumber: order.ReceiptNumber, Ntn: seller.Ntn, Strn: seller.Strn,

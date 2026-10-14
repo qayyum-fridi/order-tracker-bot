@@ -1,0 +1,10 @@
+{
+  "labels.001": "🏷️ Label size abhi: {0}\n• 4x6 inch: courier ka aam label (thermal label printer)\n• A6: chhota sheet\n• 50x30: chhota sticker (sirf business label)\nBadalne ke liye: label size 4x6 / label size a6 / label size 50x30",
+  "labels.002": "Maaf kijiye, size samajh nahi aaya. Likhein: label size 4x6, label size a6 ya label size 50x30.",
+  "labels.003": "✅ Label ab {0} mein banega. Try karein: \"label\" ya \"business label\".{1}",
+  "labels.004": "PDF label abhi available nahi hai.",
+  "labels.005": "Order #{0} {1} hai — iska parcel label nahi banta.",
+  "labels.006": "⚠️ Label bhej nahi saka — thori der baad dobara try karein.",
+  "labels.007": "✅ Label ready — file par tap karke print karein (\"printer\" likhein to tareeqa bataun).{0}{1}",
+  "labels.008": "✅ Business label ready — print karke parcel/bag par lagayein.{0}\nSize badalne ke liye: label size 50x30 / a6 / 4x6"
+}

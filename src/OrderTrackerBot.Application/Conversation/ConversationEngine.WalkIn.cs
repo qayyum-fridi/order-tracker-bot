@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Ai;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -83,8 +84,7 @@ public sealed partial class ConversationEngine
         if (sale.Items.Count == 0)
         {
             await ReplyAsync(seller,
-                $"Counter sale aise likhein:\n• walkin {Industry(seller).MainName} 2, {Industry(seller).SimpleProductName}\n• counter sale 1500 (sirf rakam)\n• offline sale Chai - 200 bank\n• walkin {Industry(seller).MainName} 2 kal (kal ki sale)\n" +
-                "Payment: cash (default) / bank / easypaisa / jazzcash / card.", ct);
+                MessageTemplates.Get("walk-in.001", Industry(seller).MainName, Industry(seller).SimpleProductName, Industry(seller).MainName), ct);
             return;
         }
 
@@ -137,19 +137,19 @@ public sealed partial class ConversationEngine
 
         if (matches.Count == 0)
         {
-            await ReplyAsync(seller, $"\"{name}\" naam ka customer saved nahi hai. Naye customer ka order seedha likhein, jaise: {name}: {Industry(seller).MainName} 2, 0300xxxxxxx", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("walk-in.002", name, name, Industry(seller).MainName), ct);
             return;
         }
         if (matches.Count > 1)
         {
             await AskClarificationAsync(seller, session, ctx, $"\"{name}\" se {matches.Count} customers milte hain — kis ke liye order?",
-                matches.Take(9).Select(c => $"order for {c.Name}").ToList(), ct);
+                matches.Take(9).Select(c => MessageTemplates.Get("walk-in.004", c.Name)).ToList(), ct);
             return;
         }
 
         var customer = matches[0];
         ctx.OrderForCustomer = new OrderForCustomerData { Name = customer.Name, Phone = customer.Phone, Address = customer.Address, At = DateTime.UtcNow };
-        var prompt = $"📝 {customer.Name} ke liye order — items likhein, jaise:\n{Industry(seller).MainName} 2, {Industry(seller).SimpleProductName}\nya: {Industry(seller).MainLine}\n(Phone/address pehle se saved hain.)";
+        var prompt = MessageTemplates.Get("walk-in.005", customer.Name, Industry(seller).MainName, Industry(seller).SimpleProductName, Industry(seller).MainLine);
         var usual = _features.SuggestionButtons ? await UsualItemsAsync(seller, customer, ct) : new List<ProductSuggestion>();
         ctx.ProductSuggestions = usual.Count > 0 ? usual : ctx.ProductSuggestions;
         if (usual.Count == 0)
@@ -158,7 +158,7 @@ public sealed partial class ConversationEngine
             return;
         }
         await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
-            prompt + $"\n\n🔁 {customer.Name} ki pichli chizen — ek tap se 1 add hoga:", usual.Select(u => u.Title).ToList(), ct);
+            MessageTemplates.Get("walk-in.003", prompt, customer.Name), usual.Select(u => u.Title).ToList(), ct);
     }
 
     /// <summary>

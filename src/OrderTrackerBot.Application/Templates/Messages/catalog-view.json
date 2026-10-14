@@ -1,0 +1,13 @@
+{
+  "catalog-view.001": "🔎 \"{0}\": koi product nahi mila ({1} products mein se).{2}\nPoori list: catalog · Dobara talash: catalog search <naam>",
+  "catalog-view.002": "naya pehle",
+  "catalog-view.003": "jaise add kiye",
+  "catalog-view.004": "Bina category",
+  "catalog-view.005": "🔎 Talash: \"{0}\" — {1} nateeje ({2} mein se)",
+  "catalog-view.006": "🛍️ Aapka Catalog ({0} products)",
+  "catalog-view.007": "\nDikh rahe hain {0}–{1} / {2} · Page {3}/{4} · Order: {5}",
+  "catalog-view.008": "\n\n💡 Category likhne se list category-wise nazar aati hai. Likhein: {0}, category {1}\n(sub-category: category {2} > naam)",
+  "catalog-view.009": "\n\n💡 {0} products ki category nahi (\"{1}\"). Likhein: {2}, category {3}",
+  "catalog-view.010": "\n\n📄 Agla: catalog next · Pichla: catalog prev · Seedha page: catalog page {0} · Aakhri: catalog last\n🔤 A-Z: catalog a-z · Naya pehle: catalog latest · Ek page par {1}: catalog size 25 (5–{2})\n🔎 Talash: catalog search <naam / category / code>{3}",
+  "catalog-view.011": "\n\n🔎 Talash: catalog search <naam> · Poori list: catalog reset"
+}

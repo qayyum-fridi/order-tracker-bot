@@ -1,3 +1,4 @@
+using OrderTrackerBot.Application.Templates;
 namespace OrderTrackerBot.Application.Conversation;
 
 /// <summary>What the engine does with one seller turn: run it, ask for a missing or unclear detail, or refuse without changing anything.</summary>
@@ -22,8 +23,8 @@ public sealed record TurnDecision(DecisionKind Kind, IReadOnlyList<string> Steps
 /// </summary>
 public static class TurnGate
 {
-    public const string RetractedReply =
-        "Yeh instruction wapas lete hue lag raha hai (nahi/mat/galat), is liye kuch nahi badla. Chalana ho to saaf alfaz mein dobara likhein.";
+    public static readonly string RetractedReply =
+        MessageTemplates.Get("turn-decision.001");
 
     public static TurnDecision DecideTyped(string message) =>
         ActionRisk.IsRetractedCommand(message) ? TurnDecision.Reject(RetractedReply) : TurnDecision.Execute(new[] { message });

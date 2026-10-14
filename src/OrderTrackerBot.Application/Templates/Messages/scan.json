@@ -1,0 +1,16 @@
+{
+  "scan.001": "📷 {0} — {1} (cart mein {2})\n{3}🛒 Cart: {4} piece, {5}\nAur scan karein, ya: scan done (order banayein) · scan clear (khali karein)",
+  "scan.002": "🛒 Cart khali kar diya.",
+  "scan.003": "🛒 Cart khali hai. Scanner se product scan karein.",
+  "scan.004": "🛒 Cart:\n{0}\n\nTotal: {1}\nOrder banane ke liye: scan done · khali karne ke liye: scan clear",
+  "scan.005": "Yeh code kisi product par nahi mila: {0}\nJorne ke liye likhein: barcode <product ka naam> {1}\n(misaal: barcode Lawn Suit {2})",
+  "scan.006": "🛒 Cart khali hai — pehle scanner se product scan karein.",
+  "scan.007": "Cart ke products ab catalog mein nahi hain — dobara scan karein.",
+  "scan.008": "\"{0}\" naam ka koi product nahi mila. \"catalog\" likh kar naam dekhein.",
+  "scan.009": "Kai products milte hain: {0}\nPoora naam likhein: barcode remove <naam>",
+  "scan.010": "✅ {0} ka barcode hata diya.",
+  "scan.011": "Barcode mein kam az kam 3 digits hone chahiye, jaise: barcode Lawn Suit 8961234567890",
+  "scan.012": "Yeh barcode {0} par pehle se hai. Pehle usay hatayein: barcode remove {1}",
+  "scan.013": "✅ {0} ka barcode: {1}\nAb scanner se scan karein — product cart mein aayega (\"scan\" likhein to tareeqa dekhein).",
+  "scan.014": "📷 Barcode scanner se products\n\n1️⃣ Pehle har product ko uska barcode dein (ek baar): barcode Lawn Suit 8961234567890\n2️⃣ Phir scanner se product scan karein (ya code likhein) — har scan cart mein ek aur piece jodta hai.\n3️⃣ Order banane ke liye: scan done · cart dekhne ke liye: scan cart · khali karne ke liye: scan clear\n\nBarcode hatane ke liye: barcode remove Lawn Suit\nℹ️ Scanner USB/Bluetooth keyboard ki tarah chalta hai: apne phone ki WhatsApp chat khol kar scan karein. Tasveer se barcode padhna abhi nahi hai."
+}

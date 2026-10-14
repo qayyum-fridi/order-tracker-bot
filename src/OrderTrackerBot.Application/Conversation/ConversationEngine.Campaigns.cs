@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -14,7 +15,7 @@ public partial class ConversationEngine
     {
         ctx.BroadcastMessageText = cmd.Text;
         SetState(session, ConversationState.AwaitingBroadcastChannelChoice);
-        await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, "Konse channel se bhejna hai?", new[] { "WhatsApp", "SMS", "Dono" }, ct);
+        await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("campaigns.001"), new[] { "WhatsApp", "SMS", "Dono" }, ct);
     }
 
     private async Task HandleBroadcastChannelChoiceAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
@@ -33,7 +34,7 @@ public partial class ConversationEngine
             ctx.BroadcastMessageText = null;
             SetState(session, ConversationState.Idle);
             if (CommandParser.TryParse(message) is { } command) await ExecuteCommandAsync(seller, session, ctx, command, ct);
-            else await ReplyAsync(seller, "Theek hai, promotion nahi bheja.", ct);
+            else await ReplyAsync(seller, MessageTemplates.Get("campaigns.002"), ct);
             return;
         }
 
@@ -41,10 +42,7 @@ public partial class ConversationEngine
         var audiences = await AudienceCountsAsync(seller, ct);
         SetState(session, ConversationState.AwaitingBroadcastAudienceChoice);
         await ReplyAsync(seller,
-            "Kitne customers ko bhejna hai?\n\n" +
-            $"1️⃣ Sab ({audiences.All} customers)\n" +
-            $"2️⃣ Sirf repeat customers ({audiences.Repeat})\n" +
-            $"3️⃣ 30 din se inactive ({audiences.Inactive})", ct);
+            MessageTemplates.Get("campaigns.003", audiences.All, audiences.Repeat, audiences.Inactive), ct);
     }
 
     private async Task<(int All, int Repeat, int Inactive)> AudienceCountsAsync(Seller seller, CancellationToken ct) =>
@@ -75,14 +73,14 @@ public partial class ConversationEngine
         var filter = message.Trim() switch { "1" => "all", "2" => "repeat_customers", "3" => "inactive_30d", _ => null };
         if (filter is null || text is null)
         {
-            await ReplyAsync(seller, "Theek hai, promotion nahi bheja. Dobara: \"broadcast: [message]\"", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("campaigns.004"), ct);
             return;
         }
 
         var audience = await AudienceAsync(seller, filter, ct);
         if (audience.Count == 0)
         {
-            await ReplyAsync(seller, "Is group mein koi customer (phone ke saath) nahi hai.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("campaigns.005"), ct);
             return;
         }
 
@@ -102,7 +100,7 @@ public partial class ConversationEngine
                 campaign.Sends.Add(new CampaignSend { CustomerId = customer.Id, CustomerPhone = customer.Phone!, Channel = "sms", Status = "not_configured" });
         }
 
-        await ReplyAsync(seller, $"✅ {audience.Count} customers ko bheja gaya:\n{ChannelSummary(channel, waSent, waFailed, audience.Count)}\n\n\"campaign status\" se detail dekhein.", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("campaigns.006", audience.Count, ChannelSummary(channel, waSent, waFailed, audience.Count)), ct);
     }
 
     private static string ChannelSummary(string channel, int waSent, int waFailed, int smsCount)
@@ -123,7 +121,7 @@ public partial class ConversationEngine
             .Where(c => c.SellerId == seller.Id).OrderByDescending(c => c.CreatedAt).FirstOrDefaultAsync(ct);
         if (campaign is null)
         {
-            await ReplyAsync(seller, "Abhi tak koi campaign nahi bheja. Try karein: \"sab customers ko batao: naya stock aaya\"", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("campaigns.007"), ct);
             return;
         }
 
@@ -138,11 +136,7 @@ public partial class ConversationEngine
         var channelName = campaign.Channel switch { "both" => "WhatsApp + SMS", "sms" => "SMS", _ => "WhatsApp" };
 
         await ReplyAsync(seller,
-            $"📊 Last Campaign — \"{title}\" ({Formatters.DaysAgo(campaign.CreatedAt)}):\n" +
-            $"Channel: {channelName}\n" +
-            $"Bheja gaya: {customerIds.Count} customers ko\n" +
-            $"{ChannelSummary(campaign.Channel, wa.Count(s => s.Status == "sent"), wa.Count(s => s.Status != "sent"), sms)}\n" +
-            $"👀 Response: {responses.Select(o => o.CustomerId).Distinct().Count()} customers ne order kiya ({Formatters.Money(responses.Sum(o => o.Total))})", ct);
+            MessageTemplates.Get("campaigns.008", title, Formatters.DaysAgo(campaign.CreatedAt), channelName, customerIds.Count, ChannelSummary(campaign.Channel, wa.Count(s => s.Status == "sent"), wa.Count(s => s.Status != "sent"), sms), responses.Select(o => o.CustomerId).Distinct().Count(), Formatters.Money(responses.Sum(o => o.Total))), ct);
     }
 
     /// <summary>Pakistani local format (0300...) to the international form WhatsApp expects (92300...).</summary>

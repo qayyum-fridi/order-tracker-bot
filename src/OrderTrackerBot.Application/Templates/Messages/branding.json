@@ -1,0 +1,12 @@
+{
+  "branding.001": "PDF receipt abhi available nahi hai.",
+  "branding.002": "⚠️ Yeh tasveer {0} ke taur par nahi lag sakti — PNG ya JPG tasveer (5 MB se chhoti) dobara bhejein.",
+  "branding.003": "✅ {0} save ho gaya hai. Ab har receipt par nazar aayega.\nDekhne ke liye \"receipt\" likhein. Hatane ke liye \"remove {1}\".",
+  "branding.004": "🖼️ Aap apni receipt par apna logo aur banner laga sakte hain.\n\n• Logo (chhota, square; naam ke saath): {0}\n• Banner (lambi patti, taqreeban 3:1; receipt ke sab se upar): {1}\n\n{2}\n\nHatane ke liye: remove logo / remove banner\nDekhne ke liye: receipt",
+  "branding.005": "🖼️ Receipt {0}: {1}\n\n{2}\n{3}\n\nHatane ke liye: remove {4}\nDekhne ke liye: receipt",
+  "branding.006": "Aapka {0} pehle se set nahi hai.",
+  "branding.007": "✅ {0} hata diya gaya.",
+  "branding.008": "📸 Kaise karein:\n1) Apni tasveer WhatsApp mein \"Photo/Gallery\" se chunein (Document ke taur par nahi)\n2) Caption mein \"logo\" ya \"banner\" likh kar bhej dein\nYeh agli receipt par nazar aayega.",
+  "branding.009": "Tip: chhota, square logo jis ka background saaf ho.",
+  "branding.010": "Tip: lambi patti jaisi tasveer (taqreeban 3:1, jaise 1200×400) — receipt ke sab se upar aati hai."
+}

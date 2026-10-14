@@ -1,0 +1,13 @@
+{
+  "customers.001": "Abhi koi customer nahi hai. Pehla order save karte hi customer list ban jati hai.",
+  "customers.002": "👥 Aapke Customers ({0} total){1}:\n\n{2}\n\n\"customer 1\" ya naam likh kar detail dekhein.{3}",
+  "customers.003": "\"{0}\" naam ka koi customer nahi mila. \"customer list\" se dekhein.",
+  "customers.004": "⚠️ {0} ({1} orders, {2}) ko remove karna confirm karein?\nOrder history hide ho jayegi lekin permanently delete nahi hogi — {3} din tak restore kar sakte hain.\n\nReply YES to confirm.",
+  "customers.005": "Theek hai, customer remove nahi kiya.",
+  "customers.006": "✅ {0} remove kar diya gaya. \"restore customer {1}\" se {2} din tak wapas la sakte hain — uske baad permanently delete ho jayega.",
+  "customers.007": "\"{0}\" naam ka koi removed customer nahi mila (ya {1} din guzar gaye).",
+  "customers.008": "✅ {0} wapas active ho gaya — {1} orders aur history restore ho gayi.",
+  "customers.009": "🔍 \"{0}\" se koi customer nahi mila.",
+  "customers.010": "🔍 {0} customer mila{1}:\n\n{2}\n\n\"customer {3}\" likh kar full detail dekhein.",
+  "customers.011": " (partial match \"{0}\")"
+}

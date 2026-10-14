@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -47,23 +48,7 @@ public partial class ConversationEngine
         var branding = await _db.SellerBrandings.AsNoTracking().FirstOrDefaultAsync(b => b.SellerId == seller.Id, ct);
         static string Or(string? value, string fallback) => string.IsNullOrWhiteSpace(value) ? fallback : value;
         await ReplyAsync(seller,
-            "🧾 Receipt settings\n" +
-            $"Size: {NormalizeReceiptSize(seller.ReceiptSize) ?? "A5"}\n" +
-            $"Logo: {(branding?.Logo is not null ? "set ✅" : "abhi nahi")}\n" +
-            $"Banner: {(branding?.Banner is not null ? "set ✅" : "abhi nahi")}\n" +
-            $"Header: {Or(seller.ReceiptHeader, "nahi (sirf dukan ka naam)")}\n" +
-            $"Contact: {Or(seller.ReceiptContact, "nahi")}\n" +
-            $"Footer: {Or(seller.ReceiptFooter, "default (Thank you ...)")}\n" +
-            $"Email: {seller.Email ?? "set nahi"}{(_email is { IsConfigured: true } ? "" : " (email service abhi server par on nahi)")}\n\n" +
-            "Badalne ke liye:\n" +
-            "• logo ya banner: tasveer bhejein, caption mein \"logo\" ya \"banner\"  (hatane ke liye: remove logo)\n" +
-            "• receipt header Gulberg Branch · Est. 2015  (hatane ke liye: receipt header off)\n" +
-            "• receipt contact 0300-1234567 · ali@shop.com  (hatane ke liye: receipt contact off)\n" +
-            "• receipt size 80mm  (ya 58mm / A5 / A4)\n" +
-            "• receipt footer Shukriya, dobara tashreef layein  (apna koi bhi text, 4 lines tak; hatane ke liye: receipt footer off)\n" +
-            "• note 12 gift wrap  (order ka note, receipt par bhi chhapta hai; hatane ke liye: note 12 off)\n" +
-            "• email ali@shop.com, phir: email receipt 12  (email bhejne ke liye; receipt par chhapne ke liye receipt contact)\n" +
-            "• printer  (print karne ka tareeqa)", ct);
+            MessageTemplates.Get("receipt-settings.001", NormalizeReceiptSize(seller.ReceiptSize) ?? "A5", (branding?.Logo is not null ? "set ✅" : "abhi nahi"), (branding?.Banner is not null ? "set ✅" : "abhi nahi"), Or(seller.ReceiptHeader, "nahi (sirf dukan ka naam)"), Or(seller.ReceiptContact, "nahi"), Or(seller.ReceiptFooter, "default (Thank you ...)"), seller.Email ?? "set nahi", (_email is { IsConfigured: true } ? "" : " (email service abhi server par on nahi)")), ct);
     }
 
     private async Task HandleReceiptSizeAsync(Seller seller, string? text, CancellationToken ct)
@@ -71,13 +56,12 @@ public partial class ConversationEngine
         var size = NormalizeReceiptSize(text);
         if (size is null)
         {
-            await ReplyAsync(seller, "Maaf kijiye, size samajh nahi aaya. Likhein: receipt size 80mm, receipt size 58mm, receipt size A5 ya receipt size A4.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.002"), ct);
             return;
         }
         seller.ReceiptSize = size == "A5" ? null : size;
         await ReplyAsync(seller,
-            $"✅ Receipt ab {size} mein banegi. \"receipt\" likh kar dekhein." +
-            (IsThermalSize(size) ? "\n🖨️ Print karne ka tareeqa: \"printer\" likhein." : ""), ct);
+            MessageTemplates.Get("receipt-settings.003", size, (IsThermalSize(size) ? "\n🖨️ Print karne ka tareeqa: \"printer\" likhein." : "")), ct);
     }
 
     private async Task HandleReceiptFooterAsync(Seller seller, string? text, CancellationToken ct)
@@ -85,7 +69,7 @@ public partial class ConversationEngine
         if (ClearWord(text))
         {
             seller.ReceiptFooter = null;
-            await ReplyAsync(seller, "✅ Receipt ki aakhri line ab default (Thank you) hogi.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.004"), ct);
             return;
         }
         // Line breaks are kept (a seller's own layout: "Shukriya!" / "Wapsi 7 din mein" / "Insta: @shop"); blank lines and tabs are dropped.
@@ -94,21 +78,21 @@ public partial class ConversationEngine
         var footer = string.Join("\n", lines);
         if (footer.Length == 0)
         {
-            await ReplyAsync(seller, "Footer likhein, jaise: receipt footer Shukriya! Wapsi 7 din mein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.005"), ct);
             return;
         }
         if (lines.Count > MaxFooterLines)
         {
-            await ReplyAsync(seller, $"Footer mein zyada se zyada {MaxFooterLines} lines rakhein (abhi {lines.Count}).", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.006", MaxFooterLines, lines.Count), ct);
             return;
         }
         if (footer.Length > MaxFooterLength)
         {
-            await ReplyAsync(seller, $"Footer {MaxFooterLength} huroof se chhota rakhein (abhi {footer.Length}).", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.007", MaxFooterLength, footer.Length), ct);
             return;
         }
         seller.ReceiptFooter = footer;
-        await ReplyAsync(seller, $"✅ Har receipt ke neeche likha aayega:\n\"{footer}\"", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.008", footer), ct);
     }
 
     /// <summary>What a seller types for a header or contact line: several typed lines become one, joined with " · ".</summary>
@@ -120,24 +104,24 @@ public partial class ConversationEngine
         if (ClearWord(text))
         {
             seller.ReceiptHeader = null;
-            await ReplyAsync(seller, "✅ Receipt par ab dukan ke naam ke neeche koi header nahi chhapega.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.009"), ct);
             return;
         }
         var line = OneReceiptLine(text);
         if (line.Length == 0)
         {
             await ReplyAsync(seller, string.IsNullOrWhiteSpace(seller.ReceiptHeader)
-                ? "Header likhein, jaise: receipt header Gulberg Branch · Est. 2015"
-                : $"🧾 Abhi header: \"{seller.ReceiptHeader}\"\nBadalne ke liye: receipt header <line>  (hatane ke liye: receipt header off)", ct);
+                ? MessageTemplates.Get("receipt-settings.028")
+                : MessageTemplates.Get("receipt-settings.029", seller.ReceiptHeader), ct);
             return;
         }
         if (line.Length > MaxHeaderLength)
         {
-            await ReplyAsync(seller, $"Header {MaxHeaderLength} huroof se chhota rakhein (abhi {line.Length}).", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.010", MaxHeaderLength, line.Length), ct);
             return;
         }
         seller.ReceiptHeader = line;
-        await ReplyAsync(seller, $"✅ Receipt par dukan ke naam ke neeche likha aayega:\n\"{line}\"", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.011", line), ct);
     }
 
     private async Task HandleReceiptContactAsync(Seller seller, string? text, CancellationToken ct)
@@ -145,24 +129,24 @@ public partial class ConversationEngine
         if (ClearWord(text))
         {
             seller.ReceiptContact = null;
-            await ReplyAsync(seller, "✅ Receipt par ab contact line nahi chhapegi.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.012"), ct);
             return;
         }
         var line = OneReceiptLine(text);
         if (line.Length == 0)
         {
             await ReplyAsync(seller, string.IsNullOrWhiteSpace(seller.ReceiptContact)
-                ? "Contact likhein, jaise: receipt contact 0300-1234567 · ali@shop.com · Gulberg, Lahore"
-                : $"📞 Abhi contact: \"{seller.ReceiptContact}\"\nBadalne ke liye: receipt contact <line>  (hatane ke liye: receipt contact off)", ct);
+                ? MessageTemplates.Get("receipt-settings.030")
+                : MessageTemplates.Get("receipt-settings.031", seller.ReceiptContact), ct);
             return;
         }
         if (line.Length > MaxContactLength)
         {
-            await ReplyAsync(seller, $"Contact {MaxContactLength} huroof se chhota rakhein (abhi {line.Length}).", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.013", MaxContactLength, line.Length), ct);
             return;
         }
         seller.ReceiptContact = line;
-        await ReplyAsync(seller, $"✅ Receipt par contact ye chhapega:\n\"{line}\"", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.014", line), ct);
     }
 
     private async Task HandleOrderNoteAsync(Seller seller, SessionContextData ctx, ParsedCommand cmd, CancellationToken ct)
@@ -171,30 +155,29 @@ public partial class ConversationEngine
         var order = await _db.Orders.FirstOrDefaultAsync(o => o.SellerId == seller.Id && o.Id == orderId, ct);
         if (order is null)
         {
-            await ReplyAsync(seller, $"Order #{cmd.Number} nahi mila. Apne orders dekhne ke liye \"orders today\" likhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands.028", cmd.Number), ct);
             return;
         }
 
         if (ClearWord(cmd.Text))
         {
             order.Notes = null;
-            await ReplyAsync(seller, $"✅ Order #{order.Id} ka note hata diya.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.015", order.Id), ct);
             return;
         }
         var note = (cmd.Text ?? "").Trim();
         if (note.Length == 0)
         {
-            await ReplyAsync(seller, order.Notes is null ? $"Order #{order.Id} par koi note nahi. Likhein: note {order.Id} gift wrap" : $"📝 Order #{order.Id}: {order.Notes}", ct);
+            await ReplyAsync(seller, order.Notes is null ? MessageTemplates.Get("receipt-settings.032", order.Id, order.Id) : MessageTemplates.Get("receipt-settings.033", order.Id, order.Notes), ct);
             return;
         }
         if (note.Length > MaxNoteLength)
         {
-            await ReplyAsync(seller, $"Note {MaxNoteLength} huroof se chhota rakhein (abhi {note.Length}).", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.016", MaxNoteLength, note.Length), ct);
             return;
         }
         order.Notes = note;
-        await ReplyAsync(seller, $"📝 Order #{order.Id} ka note save: {note}\nYeh receipt par bhi chhapega." +
-                                 (fromList ? $"\nℹ️ \"{cmd.Number}\" aapki last list ka number tha." : ""), ct);
+        await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.017", order.Id, note, (fromList ? $"\nℹ️ \"{cmd.Number}\" aapki last list ka number tha." : "")), ct);
     }
 
     private async Task HandleSetEmailAsync(Seller seller, string? text, CancellationToken ct)
@@ -202,58 +185,57 @@ public partial class ConversationEngine
         if (ClearWord(text))
         {
             seller.Email = null;
-            await ReplyAsync(seller, "✅ Aapka email hata diya.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.018"), ct);
             return;
         }
         var address = (text ?? "").Trim();
         if (address.Length > 254 || !EmailAddress.IsMatch(address))
         {
-            await ReplyAsync(seller, "Email theek nahi lagta — jaise: email ali@shop.com", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.019"), ct);
             return;
         }
         seller.Email = address.ToLowerInvariant();
         await ReplyAsync(seller,
-            $"✅ Email save: {seller.Email}\n" +
-            (_email is { IsConfigured: true }
+            MessageTemplates.Get("receipt-settings.020", seller.Email, (_email is { IsConfigured: true }
                 ? "Receipt email karne ke liye likhein: email receipt 12"
-                : "ℹ️ Email bhejne ki service abhi server par on nahi hai; on hote hi \"email receipt 12\" chalega."), ct);
+                : "ℹ️ Email bhejne ki service abhi server par on nahi hai; on hote hi \"email receipt 12\" chalega.")), ct);
     }
 
     private async Task HandleEmailReceiptAsync(Seller seller, SessionContextData ctx, ParsedCommand cmd, CancellationToken ct)
     {
         if (_email is not { IsConfigured: true })
         {
-            await ReplyAsync(seller, "Email bhejne ki service abhi on nahi hai. Receipt WhatsApp par mil jayegi: \"receipt\" likhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.021"), ct);
             return;
         }
         if (_receiptPdf is null)
         {
-            await ReplyAsync(seller, "PDF receipt abhi available nahi hai.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("branding.001"), ct);
             return;
         }
 
         var to = string.IsNullOrWhiteSpace(cmd.Text2) ? seller.Email : cmd.Text2.Trim();
         if (string.IsNullOrWhiteSpace(to))
         {
-            await ReplyAsync(seller, "Pehle apna email set karein: email ali@shop.com\nYa seedha likhein: email receipt 12 to buyer@gmail.com", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.022"), ct);
             return;
         }
         if (to.Length > 254 || !EmailAddress.IsMatch(to))
         {
-            await ReplyAsync(seller, "Email theek nahi lagta — jaise: email receipt 12 to buyer@gmail.com", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.023"), ct);
             return;
         }
 
         var (order, fromList) = await FindReceiptOrderAsync(seller, ctx, new ParsedCommand { Kind = CommandKind.Receipt, Number = cmd.Number }, ct);
         if (order is null)
         {
-            await ReplyAsync(seller, cmd.Number is not null ? $"Order #{cmd.Number} nahi mila. Apne orders dekhne ke liye \"orders today\" likhein." : "Abhi koi order nahi hai.", ct);
+            await ReplyAsync(seller, cmd.Number is not null ? MessageTemplates.Get("commands.028", cmd.Number) : MessageTemplates.Get("order-edit.014"), ct);
             return;
         }
 
         if (!TryTakeEmailSlot(seller.Id))
         {
-            await ReplyAsync(seller, $"Ek ghante mein {EmailsPerHour} emails ki hadd poori ho gayi — thori der baad try karein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.024", EmailsPerHour), ct);
             return;
         }
 
@@ -270,12 +252,11 @@ public partial class ConversationEngine
         if (!sent)
         {
             if (numberIsNew) order.ReceiptNumber = null; // never burn a serial number on a receipt that did not go out
-            await ReplyAsync(seller, "⚠️ Email bhej nahi saka — thori der baad dobara try karein, ya \"receipt\" likh kar WhatsApp par lein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.025"), ct);
             return;
         }
 
-        await ReplyAsync(seller, $"📧 {kind} No. {order.ReceiptNumber} (Order #{order.Id}) {to} par bhej di." +
-                                 (fromList ? $"\nℹ️ \"{cmd.Number}\" aapki last list ka number tha." : ""), ct);
+        await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.026", kind, order.ReceiptNumber, order.Id, to, (fromList ? $"\nℹ️ \"{cmd.Number}\" aapki last list ka number tha." : "")), ct);
     }
 
     /// <summary>At most <see cref="EmailsPerHour"/> sends per seller per rolling hour, so the shared mail account cannot be used to spam. In memory: a restart resets it.</summary>
@@ -295,18 +276,6 @@ public partial class ConversationEngine
     private async Task HandlePrinterHelpAsync(Seller seller, CancellationToken ct)
     {
         await ReplyAsync(seller,
-            "🖨️ Thermal printer se receipt print karna\n\n" +
-            "1️⃣ Printer ke roll ke mutabiq size set karein:\n" +
-            "• 80mm roll (aam, 3 inch): receipt size 80mm\n" +
-            "• 58mm roll (chota, 2 inch): receipt size 58mm\n" +
-            "• Sada A4/A5 printer: receipt size A4 ya A5\n\n" +
-            "2️⃣ \"receipt 12\" likhein — PDF aayegi.\n\n" +
-            "3️⃣ PDF khol kar Share / Print karein:\n" +
-            "• Bluetooth thermal printer: Android par RawBT ya \"Bluetooth Print\" app mein share karein, printer pair karein, Print dabayein.\n" +
-            "• WiFi/USB printer: phone ki Print service (Settings → Printing) ya printer ki apni app.\n" +
-            "• Computer par: email ali@shop.com set karein, phir \"email receipt 12\" — email kholkar print karein.\n\n" +
-            "4️⃣ Pehle ek test receipt chhapein. Kat jaye ya chhoti aaye to 80mm/58mm dobara check karein, aur print app mein \"Actual size\" chunein (\"Fit to page\" nahi).\n\n" +
-            "Apni line: receipt footer ... · Order ka note: note 12 ... · Sab settings: receipt settings\n\n" +
-            "ℹ️ Bot printer se seedha nahi jud sakta — print aapke phone/computer ki app se hota hai.", ct);
+            MessageTemplates.Get("receipt-settings.027"), ct);
     }
 }

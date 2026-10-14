@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -92,8 +93,7 @@ public partial class ConversationEngine
         {
             // Looks like an order but the AI can't read it right now — say so instead of the misleading format hint.
             await ReplyAsync(seller,
-                "⚠️ Yeh order lag raha hai, lekin abhi main isay parh nahi pa raha (AI service available nahi). " +
-                "Thori der baad dobara bhejein. Tab tak 'naam - price' se product add kar sakte hain, ya 'done'/'skip' likhein.", ct);
+                MessageTemplates.Get("onboarding.001"), ct);
             return true;
         }
 
@@ -103,14 +103,13 @@ public partial class ConversationEngine
         StartTrial(seller);
         SetState(session, ConversationState.Idle);
         await ReplyAsync(seller,
-            "📦 Yeh to order lag raha hai — setup ka baqi hissa baad mein \"setup\" / \"catalog\" likh kar mukammal kar lijiye ga. Pehle yeh order darj karte hain." +
-            TrialStartedText(seller), ct);
+            MessageTemplates.Get("onboarding.002", TrialStartedText(seller)), ct);
         await HandleAnalysisAsync(seller, session, ctx, analysis, catalog, fromScreenshot: false, ct);
         return true;
     }
 
-    private const string BusinessInfoPrompt =
-        "📋 Business details bhejein (comma se alag):\nCity, Business type, @instagram\n\ne.g. \"Lahore, Clothing, @ayesha.collections\" — ya \"cancel\".";
+    private static readonly string BusinessInfoPrompt =
+        MessageTemplates.Get("onboarding.022");
 
     /// <summary>"Lahore, Clothing, @ayesha.collections" — the @handle can be anywhere; the rest is city then business type.</summary>
     private static void ApplyBusinessInfo(Seller seller, string message, bool keepType = false)
@@ -133,7 +132,7 @@ public partial class ConversationEngine
         SetState(session, ConversationState.Idle);
         if (CancelWords.Contains(message.Trim()))
         {
-            await ReplyAsync(seller, "Ji theek hai, koi tabdeeli nahi ki gayi.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("onboarding.003"), ct);
             return;
         }
         if (CommandParser.TryParse(message) is { } command)
@@ -143,8 +142,7 @@ public partial class ConversationEngine
         }
 
         ApplyBusinessInfo(seller, message);
-        await ReplyAsync(seller, $"✅ Business info update ho gayi, shukriya — {BusinessInfoSummary(seller)}." +
-            (IndustryProfiles.Resolve(seller.BusinessType) != IndustryProfiles.General ? "\n💡 Is qism ki dukaan ke examples aur tips ke liye \"industry\" likhein." : ""), ct);
+        await ReplyAsync(seller, MessageTemplates.Get("onboarding.004", BusinessInfoSummary(seller), (IndustryProfiles.Resolve(seller.BusinessType) != IndustryProfiles.General ? "\n💡 Is qism ki dukaan ke examples aur tips ke liye \"industry\" likhein." : "")), ct);
     }
     private static readonly Regex DoneOrSkip = new(@"^(done|skip)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     // "ok", "theek hai", "shukriya": a reply to the last message, not a product or an order.
@@ -185,7 +183,7 @@ public partial class ConversationEngine
     /// <summary>After each product: the confirmation and the next-step buttons in one message, so the options sit right under it.</summary>
     private Task SendAddProductChoicesAsync(Seller seller, string text, CancellationToken ct) =>
         _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
-            $"{text}\n\nAb kya karna chahte hain? Neeche button dabayein, ya seedha agla product likh dein.", AddProductChoices, ct);
+            MessageTemplates.Get("onboarding.005", text), AddProductChoices, ct);
 
     /// <summary>A tapped button's label without emoji/punctuation, lower-cased ("✅ Done" -> "done").</summary>
     private static string ButtonWords(string message) =>
@@ -210,9 +208,7 @@ public partial class ConversationEngine
                 SetState(session, ConversationState.OnboardingOptionalDetails);
                 // Skip is a tap, not a word to type. A real order sent at any step also ends setup (TryOrderDuringOnboardingAsync), and the seller is told so.
                 await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
-                    "Shukriya! Ek line mein bata dein (ikhtiyari): shehar, karobar ki qisam, Instagram handle.\n" +
-                    "Jaise: Lahore, Clothing, @ayesha.collections\n\n" +
-                    "Ya \"Skip\" dabayein. Koi order aaya ho to seedha yahan bhej dein — baqi setup baad mein ho jayega.", new[] { "Skip" }, ct);
+                    MessageTemplates.Get("onboarding.006"), new[] { "Skip" }, ct);
                 return;
 
             case ConversationState.OnboardingIndustry:
@@ -232,10 +228,7 @@ public partial class ConversationEngine
                 seller.BusinessType = picked.Title;
                 SetState(session, ConversationState.OnboardingOptionalDetails);
                 await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
-                    $"✅ Dukaan ki qism: {picked.Title}. Ab aap ko isi ke mutabiq examples milenge.\n\n" +
-                    "Ek line mein bata dein (ikhtiyari): shehar aur Instagram handle.\n" +
-                    "Jaise: Lahore, @ayesha.collections\n\n" +
-                    "Ya \"Skip\" dabayein. Koi order aaya ho to seedha yahan bhej dein — baqi setup baad mein ho jayega.", new[] { "Skip" }, ct);
+                    MessageTemplates.Get("onboarding.007", picked.Title), new[] { "Skip" }, ct);
                 return;
             }
 
@@ -248,23 +241,23 @@ public partial class ConversationEngine
                         return;
                     }
 
-                    await ReplyAsync(seller, "Meharbani kar ke pehle setup mukammal karein — shehar, karobar ki qisam ya @instagram handle bhejein, ya \"skip\" likhein.", ct);
+                    await ReplyAsync(seller, MessageTemplates.Get("onboarding.008"), ct);
                     return;
                 }
                 if (await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: true, ct)) return;
                 SetState(session, ConversationState.OnboardingCatalogSize);
-                const string askCatalog = "Ab products add karte hain. Neeche button dabayein, ya seedha number likh dein.";
+                var askCatalog = MessageTemplates.Get("onboarding.023");
                 if (DoneOrSkip.IsMatch(message))
                 {
-                    await ReplyAsync(seller, $"Ji theek hai — yeh tafseelat aap baad mein \"update business info\" likh kar add kar sakte hain.\n\n{askCatalog}", ct);
+                    await ReplyAsync(seller, MessageTemplates.Get("onboarding.009", askCatalog), ct);
                 }
                 else
                 {
                     ApplyBusinessInfo(seller, message, keepType: _features.IndustryQuestion && !string.IsNullOrWhiteSpace(seller.BusinessType));
-                    await ReplyAsync(seller, $"✅ Noted — {BusinessInfoSummary(seller)}. Shukriya!\n\n{askCatalog}", ct);
+                    await ReplyAsync(seller, MessageTemplates.Get("onboarding.010", BusinessInfoSummary(seller), askCatalog), ct);
                 }
-                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, "Aapke paas kitne products hain?",
-                    new[] { "Chhota (20 se kam)", "Bara (20+)" }, ct);
+                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("onboarding.011"),
+                    new[] { MessageTemplates.Get("onboarding.032"), "Bara (20+)" }, ct);
                 return;
 
             case ConversationState.OnboardingCatalogSize:
@@ -273,12 +266,9 @@ public partial class ConversationEngine
                 var many = ManyProductsWords.Any(w => message.Contains(w, StringComparison.OrdinalIgnoreCase))
                            || message.Split(' ', StringSplitOptions.RemoveEmptyEntries).Any(w => int.TryParse(w, out var n) && n > 20);
                 await ReplyAsync(seller, many
-                    ? "Bohot khoob — aap ek saath kai products bhi bhej sakte hain, har line mein aik product likhein:\n" + string.Join("\n", Industry(seller).ProductLines) + "\n\n" +
-                      "(cost aur stock likhna zaroori nahi, lekin likhne se profit aur stock ki reports theek aati hain.)\n\n" +
-                      "Ya, agar catalog bohat bara hai, Google Sheet mein bhi bhar kar uska link yahan bhej sakte hain — pehla column naam, doosra column price ho aur sheet \"Anyone with the link can view\" par set ho.\n\n" +
-                      "Jab tamam products add ho jayein to \"done\" likh dein."
-                    : "Theek hai, barah-e-meharbani ek ek karke product ka naam aur price bataein — misaal ke taur par '" + Industry(seller).SimpleProduct + "'.", ct);
-                await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, "Ya, abhi kuch aur karna hai?",
+                    ? MessageTemplates.Get("onboarding.020", string.Join("\n", Industry(seller).ProductLines))
+                    : MessageTemplates.Get("onboarding.021", Industry(seller).SimpleProduct), ct);
+                await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("onboarding.012"),
                     "Options dekhein", CatalogStepQuickActions, ct);
                 return;
 
@@ -289,19 +279,19 @@ public partial class ConversationEngine
                     StartTrial(seller);
                     SetState(session, ConversationState.Idle);
                     var reply = message.Equals("skip", StringComparison.OrdinalIgnoreCase)
-                        ? $"Ji theek hai — jab bhi chahein \"catalog\" likh kar dobara products add kar sakte hain.\n{TrialStartedText(seller)}"
-                        : $"🎉 Mubarak ho! Aapka setup mukammal ho gaya hai aur catalog save ho chuki hai.{TrialStartedText(seller)}\nAb jab bhi koi order aaye, usay forward kar dein ya 'new order: ...' likh kar darj karein.";
-                    await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, $"{reply.TrimEnd()}\n\nAage kya karna hai? Neeche se chunein 👇",
+                        ? MessageTemplates.Get("onboarding.024", TrialStartedText(seller))
+                        : MessageTemplates.Get("onboarding.025", TrialStartedText(seller));
+                    await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("onboarding.013", reply.TrimEnd()),
                         "Options dekhein", AfterSetupSections, ct);
                     await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
-                        "👉 2 minute ka quick guide dekhna chahenge? Sab kuch samajh aa jayega, ek tap mein.", GuideOfferButtons, ct);
+                        MessageTemplates.Get("onboarding.014"), GuideOfferButtons, ct);
                     return;
                 }
 
                 var choice = ButtonWords(message);
                 if (choice is "add another" or "aur product" or "add more" or "aur")
                 {
-                    await ReplyAsync(seller, "Theek hai, agle product ka naam aur price likh dein (jaise '" + Industry(seller).SimpleProduct + "').", ct);
+                    await ReplyAsync(seller, MessageTemplates.Get("onboarding.015", Industry(seller).SimpleProduct), ct);
                     return;
                 }
 
@@ -309,8 +299,8 @@ public partial class ConversationEngine
                 {
                     var catalog = await _db.Products.Where(p => p.SellerId == seller.Id && p.IsActive).OrderBy(p => p.Id).ToListAsync(ct);
                     var list = catalog.Count == 0
-                        ? "Abhi catalog khali hai."
-                        : $"🛍️ Aapka Catalog ({catalog.Count}):\n" + string.Join("\n", catalog.Select((p, i) => $"{i + 1}. {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}"));
+                        ? MessageTemplates.Get("onboarding.026")
+                        : MessageTemplates.Get("onboarding.027", catalog.Count, string.Join("\n", catalog.Select((p, i) => $"{i + 1}. {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}")));
                     await SendAddProductChoicesAsync(seller, list, ct);
                     return;
                 }
@@ -325,8 +315,8 @@ public partial class ConversationEngine
                     await _db.SaveChangesAsync(ct);
                     var total = await _db.Products.CountAsync(p => p.SellerId == seller.Id && p.IsActive, ct);
                     var summary = added.Count == 1
-                        ? $"✅ Add ho gaya: {Formatters.ProductLabel(added[0])} - {Formatters.Money(added[0].Price)}{ProductDetailsText(added[0])}"
-                        : $"✅ {added.Count} products add ho gaye:\n" + string.Join("\n", added.Select(p => $"• {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}{ProductDetailsText(p)}"));
+                        ? MessageTemplates.Get("onboarding.028", Formatters.ProductLabel(added[0]), Formatters.Money(added[0].Price), ProductDetailsText(added[0]))
+                        : MessageTemplates.Get("onboarding.029", added.Count, string.Join("\n", added.Select(p => $"• {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}{ProductDetailsText(p)}")));
                     await SendAddProductChoicesAsync(seller, $"{summary}\n\nCatalog mein ab {total} product{(total == 1 ? "" : "s")} hain.", ct);
                     return;
                 }
@@ -348,8 +338,7 @@ public partial class ConversationEngine
                     }
 
                     await ReplyAsync(seller,
-                        "Filhaal koi order darj nahi ho sakta — pehle catalog complete karein.\n" +
-                        "Product ka naam aur price bhejein, ya \"skip\" likh kar yeh marhala baad mein mukammal karein.", ct);
+                        MessageTemplates.Get("onboarding.016"), ct);
                     return;
                 }
 
@@ -359,7 +348,7 @@ public partial class ConversationEngine
 
                 if (AcknowledgementWords.Contains(ButtonWords(message)))
                 {
-                    await ReplyAsync(seller, "👍 Theek hai. Product ka naam aur price bhejein (misaal: '" + Industry(seller).SimpleProduct + "'), ya \"done\" likhein.", ct);
+                    await ReplyAsync(seller, MessageTemplates.Get("onboarding.017", Industry(seller).SimpleProduct), ct);
                     return;
                 }
 
@@ -377,14 +366,12 @@ public partial class ConversationEngine
                     var productName = broken.Groups["name"].Value.Trim();
                     var wrote = broken.Groups["v"].Value.Trim();
                     await ReplyAsync(seller,
-                        $"\"{productName}\" ki price samajh nahi aayi{(wrote.Length == 0 ? " (price likhi nahi)" : $" (\"{wrote}\")")}.\n" +
-                        $"Price number mein likhein, jaise: {productName} - 2500\nYa \"skip\" likhein.", ct);
+                        MessageTemplates.Get("onboarding.018", productName, (wrote.Length == 0 ? " (price likhi nahi)" : $" (\"{wrote}\")"), productName), ct);
                     return;
                 }
 
                 await ReplyAsync(seller,
-                    "Maazrat, samajh nahi aaya.\n• Product add karna ho to: 'naam - price' (misaal: '" + Industry(seller).SimpleProduct + "')\n" +
-                    "• Order darj karna ho to customer ka naam, items aur phone number ek saath bhej dein\n• Ya 'done'/'skip' likhein.", ct);
+                    MessageTemplates.Get("onboarding.019", Industry(seller).SimpleProduct), ct);
                 return;
 
             case ConversationState.OnboardingLanguage:
@@ -403,16 +390,10 @@ public partial class ConversationEngine
     }
 
     // Shown before the seller has chosen a language, so it's always in Urdu script regardless of their eventual preference.
-    private const string IntroText =
-        "👋 السلام علیکم! میں آپ کا Order Assistant ہوں۔\n\n" +
-        "میں آپ کی درج ذیل کاموں میں مدد کرتا ہوں:\n" +
-        "📦 آرڈرز ریکارڈ کرنے میں (انسٹاگرام/واٹس ایپ سے فارورڈ کریں)\n" +
-        "📊 روزانہ اور ہفتہ وار سیلز دیکھنے میں\n" +
-        "💰 ادائیگی اور COD ٹریک کرنے میں\n" +
-        "🎟️ ڈسکاؤنٹ اور وفادار گاہکوں کا انتظام کرنے میں\n\n" +
-        "یہ سب کچھ اسی واٹس ایپ چیٹ میں ہو جاتا ہے — کسی الگ ایپ کی ضرورت نہیں۔";
+    private static readonly string IntroText =
+        MessageTemplates.Get("onboarding.030");
 
-    private const string LanguagePromptText = "سب سے پہلے اپنی پسندیدہ زبان منتخب کریں — نیچے بٹن دبائیں یا خود لکھ دیں:";
+    private static readonly string LanguagePromptText = MessageTemplates.Get("onboarding.031");
 
     private async Task StartOnboardingAsync(Seller seller, ConversationSession session, CancellationToken ct)
     {

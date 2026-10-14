@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -21,7 +22,7 @@ public partial class ConversationEngine
 
         var sent = await _sender.SendFlowMessageAsync(seller.WhatsAppPhoneNumber, kind, body, cta, ct);
         if (!sent)
-            await ReplyAsync(seller, $"📋 Detailed form abhi setup nahi hua.\n\nTab tak seedha likhein:\n{fallback}", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("forms.001", fallback), ct);
     }
 
     /// <summary>A submitted WhatsApp Flow form. The flow_token we sent ("product"/"customer"/"order") says which form it was.</summary>
@@ -68,7 +69,7 @@ public partial class ConversationEngine
         var name = field("name");
         if (name is null || !decimal.TryParse(field("price"), NumberStyles.Any, CultureInfo.InvariantCulture, out var price))
         {
-            await ReplyAsync(seller, "Product ka naam aur price zaroori hain — form dobara bharein (\"add product (detailed)\").", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("forms.002"), ct);
             return;
         }
 
@@ -103,7 +104,7 @@ public partial class ConversationEngine
         var phone = field("phone");
         if (name is null || phone is null)
         {
-            await ReplyAsync(seller, "Customer ka naam aur phone zaroori hain — form dobara bharein (\"add customer (detailed)\").", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("forms.003"), ct);
             return;
         }
 
@@ -119,7 +120,7 @@ public partial class ConversationEngine
         customer.Notes = field("notes") ?? customer.Notes;
         if (isNew) _db.Customers.Add(customer);
 
-        await ReplyAsync(seller, $"✅ {name} ({phone}) customer list mein {(isNew ? "add ho gaya" : "update ho gaya")}.", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("forms.004", name, phone, (isNew ? "add ho gaya" : "update ho gaya")), ct);
     }
 
     private async Task SaveOrderFormAsync(Seller seller, Func<string, string?> field, CancellationToken ct)
@@ -128,7 +129,7 @@ public partial class ConversationEngine
         var productText = field("product");
         if (customerName is null || productText is null)
         {
-            await ReplyAsync(seller, "Customer aur product zaroori hain — form dobara bharein (\"new order (detailed)\").", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("forms.005"), ct);
             return;
         }
 
@@ -138,7 +139,7 @@ public partial class ConversationEngine
                       ?? products.FirstOrDefault(p => Formatters.ProductLabel(p).ToLower().Contains(wanted) || wanted.Contains(p.Name.ToLower()));
         if (product is null)
         {
-            await ReplyAsync(seller, $"\"{productText}\" catalog mein nahi mila — pehle \"add product (detailed)\" ya \"Naam - price\" se add karein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("forms.006", productText), ct);
             return;
         }
 
@@ -169,9 +170,7 @@ public partial class ConversationEngine
         session.ContextJson = ctx.ToJson();
 
         await ReplyAsync(seller,
-            $"✅ Order saved (#{order.Id}) — {customerName}, {Formatters.ProductLabel(product)} x{quantity}, {Formatters.Money(order.Total)}" +
-            (order.DeliveryCharge > 0 ? $" (delivery {Formatters.Money(order.DeliveryCharge)} shamil)" : "") + $", {payment}" +
-            (order.DeliveryDate is { } d ? $", delivery {d:dd MMM}." : "."), ct);
+            MessageTemplates.Get("forms.007", order.Id, customerName, Formatters.ProductLabel(product), quantity, Formatters.Money(order.Total), (order.DeliveryCharge > 0 ? $" (delivery {Formatters.Money(order.DeliveryCharge)} shamil)" : ""), payment, (order.DeliveryDate is { } d ? $", delivery {d:dd MMM}." : ".")), ct);
         await FlushStockWarningsAsync(seller.WhatsAppPhoneNumber, ct);
     }
 

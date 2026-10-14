@@ -1,0 +1,7 @@
+{
+  "setup-check.001": "ℹ️ Catalog abhi khali hai. Pehle products likhein, ek line mein:\n\"{0}\"\n(ya \"import\" se Excel file bhej dein). Apni dukaan ki qism ke examples ke liye \"industry\" likhein.",
+  "setup-check.002": "ℹ️ {0} products ki cost price nahi likhi, is liye profit sahi nahi aayega. Likhein, jaise: \"{1}\". Poori list ke liye \"data check\" likhein.",
+  "setup-check.003": "\n\n🔎 Galat / shak wali entries:\n{0}",
+  "setup-check.004": "✅ Aapka data mukammal aur theek hai — reports poori tarah kaam karengi.",
+  "setup-check.005": "📋 Data check: {0}/{1} mukammal, {2} galat entries"
+}

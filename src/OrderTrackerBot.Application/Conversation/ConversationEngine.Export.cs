@@ -5,6 +5,7 @@ using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Application.Time;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -33,15 +34,14 @@ public partial class ConversationEngine
     {
         if (_exportWriter is null)
         {
-            await ReplyAsync(seller, "Export abhi available nahi hai.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("export.001"), ct);
             return;
         }
 
         if (request.Datasets.Count == 0)
         {
             await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber,
-                "📊 Export — aap kya Excel file mein chahte hain? Neeche se chunein 👇\n" +
-                "Ya likhein: \"export orders customers\" (jo jo chahiye, ek saath).", "Options dekhein", ExportSections, ct);
+                MessageTemplates.Get("export.002"), "Options dekhein", ExportSections, ct);
             return;
         }
 
@@ -67,7 +67,7 @@ public partial class ConversationEngine
 
         if (!anyRows)
         {
-            await ReplyAsync(seller, $"Abhi export karne ke liye koi data nahi hai ({string.Join(", ", summary)}).", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("export.003", string.Join(", ", summary)), ct);
             return;
         }
 
@@ -79,10 +79,8 @@ public partial class ConversationEngine
         var sent = await _sender.SendDocumentAsync(seller.WhatsAppPhoneNumber, bytes, fileName, XlsxMime,
             $"📊 Export — {string.Join(", ", summary)}", ct);
         await ReplyAsync(seller, sent
-            ? "✅ Excel file ready — file par tap kar ke download karein; Excel ya Google Sheets mein khulti hai.\n" +
-              "Aakhri tab \"Guide\" har column ka matlab batata hai.\n" +
-              "Is mein customers ke phone/address bhi hain, isay sirf apne paas rakhein."
-            : "⚠️ Export file bhej nahi saka — thori der baad dobara try karein.", ct);
+            ? MessageTemplates.Get("export.004")
+            : MessageTemplates.Get("export.005"), ct);
     }
 
     private static string SafeFileStem(string? businessName)
@@ -106,7 +104,7 @@ public partial class ConversationEngine
         };
         var label = period switch
         {
-            "today" => "Orders (aaj)", "yesterday" => "Orders (kal)", "lastmonth" => "Orders (pichla maah)",
+            "today" => "Orders (aaj)", "yesterday" => "Orders (kal)", "lastmonth" => MessageTemplates.Get("export.006"),
             "7d" => "Orders (7 din)", "30d" => "Orders (30 din)",
             not null when ReportPeriods.Resolve(period, seller.TimeZoneId, now) is not null => $"Orders ({PeriodLabel(seller, period).ToLowerInvariant()})",
             _ => "Orders"

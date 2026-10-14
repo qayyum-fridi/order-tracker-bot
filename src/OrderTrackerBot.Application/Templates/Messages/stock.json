@@ -1,0 +1,8 @@
+{
+  "stock.001": "📦 Abhi kisi product ka stock track nahi ho raha.\n\nShuru karne ke liye: \"stock {0} 20\"\nPhir har order par stock khud kam hoga, cancel/return par wapas aayega, aur kam hone par alert milega.",
+  "stock.002": "📦 Stock ({0}):\n{1}\n\nSet: \"stock {2} 20\" · Add: \"stock {3} +10\" · Band: \"stock {4} off\"",
+  "stock.003": "✅ {0} ka stock ab track nahi hoga.",
+  "stock.004": "✅ {0} — stock: {1}. Har order par khud kam hoga.",
+  "stock.005": "\"{0}\" se kai products milte hain: {1} — poora naam likhein.",
+  "stock.006": "📉 Stock alert:\n{0}\n\nNaya stock add karne ke liye: \"stock <product ka naam> +10\""
+}

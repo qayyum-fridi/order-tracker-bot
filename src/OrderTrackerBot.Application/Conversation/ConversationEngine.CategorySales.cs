@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -10,7 +11,7 @@ namespace OrderTrackerBot.Application.Conversation;
 // Default window: the last 30 days. Plain SQL, no AI.
 public partial class ConversationEngine
 {
-    private const string NoCategory = "Bina category";
+    private static readonly string NoCategory = MessageTemplates.Get("catalog-view.004");
 
     private async Task HandleCategorySalesAsync(Seller seller, string? period, CancellationToken ct)
     {
@@ -25,7 +26,7 @@ public partial class ConversationEngine
             .ToListAsync(ct);
         if (rows.Count == 0)
         {
-            await ReplyAsync(seller, $"📊 Category wise sales ({label}): is dauran koi order nahi.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("category-sales.001", label), ct);
             return;
         }
 
@@ -42,11 +43,10 @@ public partial class ConversationEngine
 
         var lines = groups.Select((g, i) => $"{i + 1}. {g.Name} — {Formatters.Money(g.Amount)} ({g.Units} items)");
         var hint = groups.Any(g => g.Name == NoCategory)
-            ? $"\n\nℹ️ \"Bina category\" wale products ki category likhein, jaise: {Industry(seller).MainLine}, category: {Industry(seller).Category}"
+            ? MessageTemplates.Get("category-sales.003", Industry(seller).MainLine, Industry(seller).Category)
             : "";
         await ReplyAsync(seller,
-            $"📊 Category wise sales — {label}\n\n{string.Join("\n", lines)}\n\nTotal: {Formatters.Money(groups.Sum(g => g.Amount))}\n" +
-            "Yeh products ki qeemat hai (discount aur delivery se pehle), is liye \"summary\" ke total se thora farq ho sakta hai." + hint, ct);
+            MessageTemplates.Get("category-sales.002", label, string.Join("\n", lines), Formatters.Money(groups.Sum(g => g.Amount)), hint), ct);
         SuggestNext("today's summary", "margin");
     }
 }

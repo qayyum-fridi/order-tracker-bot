@@ -1,0 +1,9 @@
+{
+  "forms.001": "📋 Detailed form abhi setup nahi hua.\n\nTab tak seedha likhein:\n{0}",
+  "forms.002": "Product ka naam aur price zaroori hain — form dobara bharein (\"add product (detailed)\").",
+  "forms.003": "Customer ka naam aur phone zaroori hain — form dobara bharein (\"add customer (detailed)\").",
+  "forms.004": "✅ {0} ({1}) customer list mein {2}.",
+  "forms.005": "Customer aur product zaroori hain — form dobara bharein (\"new order (detailed)\").",
+  "forms.006": "\"{0}\" catalog mein nahi mila — pehle \"add product (detailed)\" ya \"Naam - price\" se add karein.",
+  "forms.007": "✅ Order saved (#{0}) — {1}, {2} x{3}, {4}{5}, {6}{7}"
+}

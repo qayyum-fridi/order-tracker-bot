@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -27,7 +28,7 @@ public partial class ConversationEngine
 
         if (total == 0)
         {
-            await ReplyAsync(seller, "Abhi koi customer nahi hai. Pehla order save karte hi customer list ban jati hai.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("customers.001"), ct);
             return;
         }
 
@@ -46,8 +47,7 @@ public partial class ConversationEngine
         var lines = shown.Select((c, i) => $"{i + 1} {c.Name} - {c.Phone ?? "—"} - {c.Active} orders");
         var hasMore = total > (page + 1) * CustomerPageSize;
         await ReplyAsync(seller,
-            $"👥 Aapke Customers ({total} total){(page > 0 ? $" — page {page + 1}" : "")}:\n\n{string.Join("\n", lines)}\n\n" +
-            "\"customer 1\" ya naam likh kar detail dekhein." + (hasMore ? $" \"more\" agle {CustomerPageSize} ke liye." : ""), ct);
+            MessageTemplates.Get("customers.002", total, (page > 0 ? $" — page {page + 1}" : ""), string.Join("\n", lines), (hasMore ? $" \"more\" agle {CustomerPageSize} ke liye." : "")), ct);
     }
 
     private async Task HandleCustomerDetailAsync(Seller seller, SessionContextData ctx, ParsedCommand cmd, CancellationToken ct)
@@ -71,7 +71,7 @@ public partial class ConversationEngine
 
         if (customer is null)
         {
-            await ReplyAsync(seller, $"\"{cmd.Text}\" naam ka koi customer nahi mila. \"customer list\" se dekhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("customers.003", cmd.Text), ct);
             return;
         }
 
@@ -131,15 +131,14 @@ public partial class ConversationEngine
         var customer = await FindCustomerAsync(seller, ctx, cmd.Text!, cmd.Number, ct);
         if (customer is null)
         {
-            await ReplyAsync(seller, $"\"{cmd.Text}\" naam ka koi customer nahi mila. \"customer list\" se dekhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("customers.003", cmd.Text), ct);
             return;
         }
 
         ctx.DeleteCustomerId = customer.Id;
         SetState(session, ConversationState.AwaitingDeleteCustomerConfirmation);
         await ReplyAsync(seller,
-            $"⚠️ {customer.Name} ({ActiveOrderCount(customer)} orders, {Formatters.Money(TotalSpent(customer))}) ko remove karna confirm karein?\n" +
-            $"Order history hide ho jayegi lekin permanently delete nahi hogi — {RestoreWindowDays} din tak restore kar sakte hain.\n\nReply YES to confirm.", ct);
+            MessageTemplates.Get("customers.004", customer.Name, ActiveOrderCount(customer), Formatters.Money(TotalSpent(customer)), RestoreWindowDays), ct);
     }
 
     private async Task HandleDeleteCustomerConfirmationAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
@@ -150,7 +149,7 @@ public partial class ConversationEngine
 
         if (!CommandParser.IsAffirmative(message))
         {
-            await ReplyAsync(seller, "Theek hai, customer remove nahi kiya.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("customers.005"), ct);
             return;
         }
 
@@ -160,8 +159,7 @@ public partial class ConversationEngine
 
         customer.DeletedAt = DateTime.UtcNow;
         await ReplyAsync(seller,
-            $"✅ {customer.Name} remove kar diya gaya. \"restore customer {customer.Name.ToLower()}\" se {RestoreWindowDays} din tak wapas la sakte hain — " +
-            $"uske baad permanently delete ho jayega.", ct);
+            MessageTemplates.Get("customers.006", customer.Name, customer.Name.ToLower(), RestoreWindowDays), ct);
     }
 
     private async Task HandleRestoreCustomerAsync(Seller seller, string name, CancellationToken ct)
@@ -175,12 +173,12 @@ public partial class ConversationEngine
 
         if (customer is null)
         {
-            await ReplyAsync(seller, $"\"{name}\" naam ka koi removed customer nahi mila (ya {RestoreWindowDays} din guzar gaye).", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("customers.007", name, RestoreWindowDays), ct);
             return;
         }
 
         customer.DeletedAt = null;
-        await ReplyAsync(seller, $"✅ {customer.Name} wapas active ho gaya — {ActiveOrderCount(customer)} orders aur history restore ho gayi.", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("customers.008", customer.Name, ActiveOrderCount(customer)), ct);
     }
 
     private async Task PurgeExpiredCustomersAsync(Seller seller, CancellationToken ct)
@@ -207,13 +205,13 @@ public partial class ConversationEngine
 
         if (matches.Count == 0)
         {
-            await ReplyAsync(seller, $"🔍 \"{query}\" se koi customer nahi mila.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("customers.009", query), ct);
             return;
         }
 
         var lines = matches.Select(c => $"👤 {c.Name} - {c.Phone ?? "—"} - {ActiveOrderCount(c)} orders - {Formatters.Money(TotalSpent(c))}");
-        var partial = matches.All(c => !c.Name.Equals(query, StringComparison.OrdinalIgnoreCase) && c.Phone != query) ? $" (partial match \"{query}\")" : "";
+        var partial = matches.All(c => !c.Name.Equals(query, StringComparison.OrdinalIgnoreCase) && c.Phone != query) ? MessageTemplates.Get("customers.011", query) : "";
         await ReplyAsync(seller,
-            $"🔍 {matches.Count} customer mila{partial}:\n\n{string.Join("\n", lines)}\n\n\"customer {matches[0].Name.ToLower()}\" likh kar full detail dekhein.", ct);
+            MessageTemplates.Get("customers.010", matches.Count, partial, string.Join("\n", lines), matches[0].Name.ToLower()), ct);
     }
 }

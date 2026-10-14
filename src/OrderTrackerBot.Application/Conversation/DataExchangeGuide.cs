@@ -1,4 +1,5 @@
 using OrderTrackerBot.Application.Abstractions;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -147,10 +148,10 @@ public static class DataExchangeGuide
     private static string LevelText(GuideLevel level) => level switch
     {
         GuideLevel.Required => "REQUIRED / Zaroori",
-        GuideLevel.Recommended => "Recommended / Behtar hai",
+        GuideLevel.Recommended => MessageTemplates.Get("data-exchange-guide.001"),
         GuideLevel.Optional => "Optional / Marzi",
-        GuideLevel.Auto => "Auto - leave it / Khud banta hai",
-        _ => "Info only / Sirf dekhne ke liye"
+        GuideLevel.Auto => MessageTemplates.Get("data-exchange-guide.002"),
+        _ => MessageTemplates.Get("data-exchange-guide.003")
     };
 
     private const string UrduHeader = "Kya likhna hai";

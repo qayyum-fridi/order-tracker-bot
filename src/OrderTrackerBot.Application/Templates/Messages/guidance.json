@@ -1,0 +1,19 @@
+{
+  "guidance.001": "ℹ️ {0}\n\n🎤 Text ya voice note — dono chalte hain.\n• Poori command list: \"help\"\n• Step-by-step guide: \"guide\"\n• Kisi bhi waqt dobara poochne ke liye: \"kya karun\"",
+  "guidance.002": "Setup shuru karne ke liye \"start\" likhein.",
+  "guidance.003": "Apni zubaan chunein: Roman Urdu, English ya اردو (neeche buttons hain).",
+  "guidance.004": "Chunein: \"Setup shuru karein\", \"Guide dekhein\" ya \"Purana data\" (purane system se customers/products laane ke liye).",
+  "guidance.005": "Barae meherbani apni dukaan ka naam likhein, maslan \"Ayesha Collections\".",
+  "guidance.006": "Apni dukaan ki qism chunein (neeche list mein tap karein), ya likhein: kiryana, kapray, cosmetics, electronics, food, hardware.",
+  "guidance.007": "Shehar, karobar ki qisam aur Instagram handle ek saath bhejein, jaise \"Lahore, Clothing, @ayesha.collections\" — ya \"skip\" likhein.",
+  "guidance.008": "Batayein aapke paas kitne products hain: \"10 ke qareeb\", ya button dabayein.",
+  "guidance.009": "Order confirm karne ke liye YES likhein. Tabdeeli ke liye likhein: \"delivery 300\", \"advance 500\". Rokne ke liye \"cancel\" likhein.",
+  "guidance.010": "Order ki baqi detail bhejein ({0}). Rokne ke liye \"cancel\".",
+  "guidance.011": "Sab orders confirm karne ke liye YES, ya sirf ek ka number bhejein.",
+  "guidance.012": "Upar diye options mein se number bhejein (1 ya 2) — bolte waqt \"pehla\" / \"dusra\" bhi chalta hai.",
+  "guidance.013": "YES ya NO likhein (bol kar \"haan\" / \"nahi\" bhi chalta hai).",
+  "guidance.014": "Aapki voice se jo actions samjhe, woh upar likhe hain — chalane ke liye YES, rokne ke liye NO.",
+  "guidance.015": "Discount code likhein, jaise \"create discount: EID10, 10 percent, expires 15 days\".",
+  "guidance.016": "Payment method likhein, jaise \"add payment: jazzcash, 0300-1234567\".",
+  "guidance.017": "Bot aapke jawab ka muntazir hai. Barae meherbani upar diye gaye sawal ka jawab dein, ya \"cancel\" likh kar rok dein."
+}

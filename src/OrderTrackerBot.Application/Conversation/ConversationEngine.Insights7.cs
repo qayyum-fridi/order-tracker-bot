@@ -5,6 +5,7 @@ using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Application.Time;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -66,7 +67,7 @@ public partial class ConversationEngine
         var orders = await ActiveOrdersIn(seller, start, end).Select(o => new { o.CreatedAt, o.Total, o.PaymentMethod, o.OrderSource }).ToListAsync(ct);
         if (orders.Count == 0)
         {
-            await ReplyAsync(seller, $"📅 Mahine ke aakhri din ({label}): is dauran koi order nahi.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights7.001", label), ct);
             return;
         }
 
@@ -74,10 +75,7 @@ public partial class ConversationEngine
         string Part(string name, List<(bool Late, bool Walk, decimal Total, bool Cod)> g) =>
             g.Count == 0 ? $"• {name}: koi order nahi" : $"• {name}: {g.Count} orders · har order ki average {Formatters.Money(Math.Round(g.Average(x => x.Total)))} · cash {Pct((decimal)g.Count(x => x.Cod) / g.Count * 100m)}";
         await ReplyAsync(seller,
-            $"📅 Mahine ke aakhri din (25 se 31) bamuqabla baqi din — {label}\n\n" +
-            $"25 se 31 tareekh:\n{Part("Dukaan par (walk-in)", rows.Where(r => r.Late && r.Walk).ToList())}\n{Part("Online / WhatsApp", rows.Where(r => r.Late && !r.Walk).ToList())}\n\n" +
-            $"Baqi din:\n{Part("Dukaan par (walk-in)", rows.Where(r => !r.Late && r.Walk).ToList())}\n{Part("Online / WhatsApp", rows.Where(r => !r.Late && !r.Walk).ToList())}\n\n" +
-            "Walk-in = counter sale (\"walkin ...\"); cash = COD ya dukaan par cash. Tareekh us din ki hai jab order bot mein likha gaya.", ct);
+            MessageTemplates.Get("insights7.002", label, Part("Dukaan par (walk-in)", rows.Where(r => r.Late && r.Walk).ToList()), Part("Online / WhatsApp", rows.Where(r => r.Late && !r.Walk).ToList()), Part("Dukaan par (walk-in)", rows.Where(r => !r.Late && r.Walk).ToList()), Part("Online / WhatsApp", rows.Where(r => !r.Late && !r.Walk).ToList())), ct);
         SuggestNext("payment split", "average sale");
     }
 
@@ -90,7 +88,7 @@ public partial class ConversationEngine
         var cohort = all.GroupBy(o => o.CustomerId).Select(g => g.OrderBy(o => o.At).ToList()).Where(l => l[0].At >= start && l[0].At < end).ToList();
         if (cohort.Count == 0)
         {
-            await ReplyAsync(seller, $"👥 Discount se aaye customers ({label}): is dauran kisi ka pehla order nahi.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights7.003", label), ct);
             return;
         }
 
@@ -100,17 +98,13 @@ public partial class ConversationEngine
         var full = Summ(cohort.Where(l => l[0].DiscountCode == null).ToList());
         if (promo.Customers == 0 || full.Customers == 0)
         {
-            await ReplyAsync(seller, $"👥 Discount se aaye customers ({label}): muqabla ke liye dono qisam ke customers chahiye — discount se aaye: {promo.Customers}, pura rate dene wale: {full.Customers}.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights7.004", label, promo.Customers, full.Customers), ct);
             return;
         }
 
         var diff = full.AvgSpend == 0 ? 0 : (promo.AvgSpend - full.AvgSpend) / full.AvgSpend * 100m;
         await ReplyAsync(seller,
-            $"👥 Pehla order discount par bamuqabla pure rate par — {label}\n\n" +
-            $"Discount se aaye ({promo.Customers}): ab tak har customer ne {Formatters.Money(Math.Round(promo.AvgSpend))}, {Num(promo.AvgOrders)} orders\n" +
-            $"Pure rate par aaye ({full.Customers}): ab tak har customer ne {Formatters.Money(Math.Round(full.AvgSpend))}, {Num(full.AvgOrders)} orders\n" +
-            $"→ discount wale {(diff >= 0 ? "zyada" : "kam")} ({Pct(Math.Abs(diff))})\n\n" +
-            "Kul kharidari pehle order se aaj tak ki hai; naye customers ko kam waqt mila hota hai (discount wale ka average tenure " + Num(promo.AvgMonths) + " mahine, pure rate walon ka " + Num(full.AvgMonths) + " mahine).", ct);
+            MessageTemplates.Get("insights7.005", label, promo.Customers, Formatters.Money(Math.Round(promo.AvgSpend)), Num(promo.AvgOrders), full.Customers, Formatters.Money(Math.Round(full.AvgSpend)), Num(full.AvgOrders), (diff >= 0 ? "zyada" : "kam"), Pct(Math.Abs(diff)), Num(promo.AvgMonths), Num(full.AvgMonths)), ct);
         SuggestNext("discount report", "repeat customers");
     }
 
@@ -121,7 +115,7 @@ public partial class ConversationEngine
         var orders = (await ActiveOrdersIn(seller, start, end).Select(o => o.CreatedAt).ToListAsync(ct)).Select(d => SellerLocal(seller, d)).ToList();
         if (orders.Count < 5)
         {
-            await ReplyAsync(seller, $"🕒 Sab se zyada orders ka waqt ({label}): abhi sirf {orders.Count} orders hain — rujhan nikalne ke liye kam az kam 5 chahiye.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights7.006", label, orders.Count), ct);
             return;
         }
 
@@ -129,11 +123,7 @@ public partial class ConversationEngine
         var byBand = orders.GroupBy(d => HourBand(d.Hour)).Select(g => (Band: g.Key, Count: g.Count())).OrderByDescending(x => x.Count).ToList();
         var combo = orders.GroupBy(d => (DayNames[(int)d.DayOfWeek], HourBand(d.Hour))).Select(g => (Day: g.Key.Item1, Band: g.Key.Item2, Count: g.Count())).OrderByDescending(x => x.Count).Take(3).ToList();
         await ReplyAsync(seller,
-            $"🕒 Orders kab zyada aate hain — {label} ({orders.Count} orders)\n\n" +
-            $"Sab se tez din: {byDay[0].Day} ({byDay[0].Count})" + (byDay.Count > 1 ? $", phir {byDay[1].Day} ({byDay[1].Count})" : "") + "\n" +
-            $"Sab se tez waqt: {byBand[0].Band} ({byBand[0].Count})" + (byBand.Count > 1 ? $", phir {byBand[1].Band} ({byBand[1].Count})" : "") + "\n" +
-            $"Din + waqt: {string.Join("; ", combo.Select(c => $"{c.Day} {c.Band} ({c.Count})"))}\n\n" +
-            "Waqt wo hai jab order bot mein likha gaya — buyer ne kab bola, yeh nahi.", ct);
+            MessageTemplates.Get("insights7.007", label, orders.Count, byDay[0].Day, byDay[0].Count, (byDay.Count > 1 ? $", phir {byDay[1].Day} ({byDay[1].Count})" : ""), byBand[0].Band, byBand[0].Count, (byBand.Count > 1 ? $", phir {byBand[1].Band} ({byBand[1].Count})" : ""), string.Join("; ", combo.Select(c => $"{c.Day} {c.Band} ({c.Count})"))), ct);
         SuggestNext("average sale", "orders today");
     }
 
@@ -146,7 +136,7 @@ public partial class ConversationEngine
             .ToListAsync(ct);
         if (rows.Count < 6)
         {
-            await ReplyAsync(seller, "💳 Payment ki aadat: abhi orders kam hain — kam az kam 3 orders wale customers chahiye.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights7.008"), ct);
             return;
         }
 
@@ -165,11 +155,11 @@ public partial class ConversationEngine
             .OrderByDescending(c => c.Orders).Take(8).ToList();
         if (flagged.Count == 0)
         {
-            await ReplyAsync(seller, $"✅ Koi aisa customer nahi mila jo {Formatters.Money(median)} ya zyada ke orders advance/wallet se de aur us se chhote orders COD par (kam az kam 3 orders, har qisam ke 2).", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights7.009", Formatters.Money(median)), ct);
             return;
         }
         var lines = flagged.Select((c, i) => $"{i + 1}. {c.Name} — bade {c.Dear} orders mein {Pct(c.DearAdvance * 100m)} advance/wallet; chhote {c.Cheap} mein {Pct(c.CheapCod * 100m)} COD");
-        await ReplyAsync(seller, $"💳 Mehnge par advance, sasta COD par ({Formatters.Money(median)} ya zyada = bada order)\n\n{string.Join("\n", lines)}\n\nIn se chhote orders par bhi advance mangna aasan ho sakta hai.", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("insights7.010", Formatters.Money(median), string.Join("\n", lines)), ct);
         SuggestNext("payment split", "customers");
     }
 
@@ -182,7 +172,7 @@ public partial class ConversationEngine
         var (monthly, specific) = await FixedMonthlyCostsAsync(seller, ct);
         if (monthly <= 0)
         {
-            await ReplyAsync(seller, "Pichle 3 mahine mein koi kharcha darj nahi, is liye holding cost nahi nikal sakta. Likhein, jaise: \"expense 40000 kiraya\", \"expense 12000 bijli\".", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights7.011"), ct);
             return;
         }
 
@@ -190,7 +180,7 @@ public partial class ConversationEngine
         var tracked = await _db.Products.AsNoTracking().Where(p => p.SellerId == seller.Id && p.IsActive && p.StockQty > 0).ToListAsync(ct);
         if (tracked.Count == 0)
         {
-            await ReplyAsync(seller, "Abhi kisi product ka stock track nahi ho raha. Shuru karne ke liye: \"stock Kurti 20\".", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights4.020"), ct);
             return;
         }
         var ids = tracked.Select(p => p.Id).ToList();
@@ -202,7 +192,7 @@ public partial class ConversationEngine
         var idle = tracked.Where(p => p.CreatedAt < now.AddDays(-days) && !sold.Contains(p.Id)).OrderByDescending(ValueOf).Take(5).ToList();
         if (idle.Count == 0)
         {
-            await ReplyAsync(seller, $"✅ Koi track hone wala product {days} din se bina bike nahi pada.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights7.012", days), ct);
             return;
         }
 
@@ -215,9 +205,7 @@ public partial class ConversationEngine
             return $"{i + 1}. {Formatters.ProductLabel(p)} — {p.StockQty} piece, holding cost {Formatters.Money(Math.Round(holding))} ({Formatters.Money(Math.Round(perUnit))} fi piece = qeemat ka {Pct(drop)}){marginText}";
         });
         await ReplyAsync(seller,
-            $"📦 {days} din se na bikne wale stock ki holding cost\n\n{string.Join("\n", lines)}\n\n" +
-            $"Hisaab: mahine ke {(specific ? "kiraya/bijli/bill" : "kul kharche")} {Formatters.Money(Math.Round(monthly))} ko stock ki value (cost) ke hissay mein baanta; {days} din ka hissa har product par.\n" +
-            "Yeh andaza hai (maal dukaan mein kitni jagah ghera, yeh bot nahi jaanta).", ct);
+            MessageTemplates.Get("insights7.013", days, string.Join("\n", lines), (specific ? "kiraya/bijli/bill" : "kul kharche"), Formatters.Money(Math.Round(monthly)), days), ct);
         SuggestNext("overstocked products", "locked capital");
     }
 
@@ -234,7 +222,7 @@ public partial class ConversationEngine
             .Where(x => x.Sales > 0).Select(x => (x.Id, x.Units, x.Sales, x.Profit, Margin: x.Profit / x.Sales * 100m)).ToList();
         if (perProduct.Count < 3)
         {
-            await ReplyAsync(seller, "Muqabla ke liye pichle 30 din mein kam az kam 3 products ka cost wala bikri record chahiye. Cost likhein, jaise: \"Kurti - 1800, cost 1200\".", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights7.014"), ct);
             return;
         }
 
@@ -243,14 +231,14 @@ public partial class ConversationEngine
         var stars = perProduct.Where(x => x.Margin < median).OrderByDescending(x => x.Profit).Take(3).ToList();
         if (stars.Count == 0)
         {
-            await ReplyAsync(seller, "Kam margin wala koi product nahi mila (sab ka margin barabar hai).", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights7.015"), ct);
             return;
         }
         var ids = stars.Select(s => s.Id).ToList();
         var names = (await _db.Products.AsNoTracking().Where(p => p.SellerId == seller.Id && ids.Contains(p.Id)).ToListAsync(ct)).ToDictionary(p => p.Id, p => Formatters.ProductLabel(p));
         var rank = perProduct.OrderByDescending(x => x.Profit).Select((x, i) => (x.Id, Rank: i + 1)).ToDictionary(x => x.Id, x => x.Rank);
         var lines = stars.Select((s, i) => $"{i + 1}. {names[s.Id]} — margin {Pct(s.Margin)} (beech wala {Pct(median)}), roz ~{Num(s.Units / 30m)} bikta hai, 30 din ka munafa {Formatters.Money(s.Profit)} (munafe mein number {rank[s.Id]} / {perProduct.Count})");
-        await ReplyAsync(seller, $"🔄 Kam margin, tez gardish — phir bhi zyada munafa (pichle 30 din)\n\n{string.Join("\n", lines)}\n\nMunafa = (price − saved cost) × bike hue piece; discount aur delivery shamil nahi.", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("insights7.016", string.Join("\n", lines)), ct);
         SuggestNext("margin", "trending products");
     }
 
@@ -268,7 +256,7 @@ public partial class ConversationEngine
         var dead = tracked.Where(p => !sold.Contains(p.Id)).ToList();
         if (dead.Count == 0)
         {
-            await ReplyAsync(seller, $"✅ {days} din se na bikne wala koi track hone wala stock nahi — nikalne ko kuch nahi.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights7.017", days), ct);
             return;
         }
 
@@ -276,17 +264,14 @@ public partial class ConversationEngine
         var uncosted = dead.Count - costed.Count;
         if (costed.Count == 0)
         {
-            await ReplyAsync(seller, $"{dead.Count} products {days} din se nahi bike magar kisi ki cost save nahi, is liye cash nahi nikal sakta. Cost likhein, jaise: \"Kurti - 1800, cost 1200\".", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights7.018", dead.Count, days), ct);
             return;
         }
         var atCost = costed.Sum(p => p.StockQty!.Value * p.CostPrice!.Value);
         var release = atCost * (1m - below / 100m);
         var lines = costed.Take(5).Select((p, i) => $"{i + 1}. {Formatters.ProductLabel(p)} — {p.StockQty} piece × {Formatters.Money(Math.Round(p.CostPrice!.Value * (1m - below / 100m)))} = {Formatters.Money(Math.Round(p.StockQty!.Value * p.CostPrice.Value * (1m - below / 100m)))}");
         await ReplyAsync(seller,
-            $"💧 Dead stock ({days} din se nahi bika) cost se {Pct(below)} sasta bech dein to\n\n" +
-            $"Products: {costed.Count} · cost par maal {Formatters.Money(Math.Round(atCost))}\nFauri cash milega: {Formatters.Money(Math.Round(release))}\nNuqsan (cost ke muqable): {Formatters.Money(Math.Round(atCost - release))}\n\n{string.Join("\n", lines)}" +
-            (uncosted > 0 ? $"\n\nℹ️ {uncosted} aur product(s) bhi nahi bike magar cost save nahi, wo is raqam mein nahi." : "") +
-            "\n\nYeh tab hai jab sab maal is qeemat par bik jaye; kitna bikega, yeh bot nahi jaanta.", ct);
+            MessageTemplates.Get("insights7.019", days, Pct(below), costed.Count, Formatters.Money(Math.Round(atCost)), Formatters.Money(Math.Round(release)), Formatters.Money(Math.Round(atCost - release)), string.Join("\n", lines), (uncosted > 0 ? $"\n\nℹ️ {uncosted} aur product(s) bhi nahi bike magar cost save nahi, wo is raqam mein nahi." : "")), ct);
         SuggestNext("overstocked products", "margin");
     }
 
@@ -298,7 +283,7 @@ public partial class ConversationEngine
         var map = await SupplierByProductAsync(seller, ct);
         if (map.Count == 0)
         {
-            await ReplyAsync(seller, "Abhi kisi product par supplier ka naam save nahi. Likhein, jaise: \"supplier Lawn Suit Shah Alam\" — phir yeh sawal dobara poochein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights7.020"), ct);
             return;
         }
 
@@ -321,14 +306,13 @@ public partial class ConversationEngine
             .OrderByDescending(g => g.Margin ?? -1m).ToList();
         if (groups.Count == 0)
         {
-            await ReplyAsync(seller, "Pichle 6 mahine mein in suppliers ke maal ki koi bikri nahi.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights7.021"), ct);
             return;
         }
         var lines = groups.Select((g, i) => $"{i + 1}. {g.Name} — {g.Units} piece bike · " + (g.Margin is { } m ? $"margin {Pct(m)} (munafa {Formatters.Money(g.Profit)} / sale {Formatters.Money(g.Sales)})" : "margin maloom nahi (cost save nahi)"));
         await ReplyAsync(seller,
-            $"🏭 Supplier ka margin (pichle 6 mahine)\n\n{string.Join("\n", lines)}\n\n" +
-            (leadDays is { } d ? $"Maal aane ka waqt: aap ne sab suppliers ke liye {d} din bataya hai — har supplier ka alag waqt bot save nahi karta."
-                : "Maal aane ka waqt (lead time) har supplier ka alag save nahi hota; sab ke liye ek waqt batane ke liye: \"maal aane mein 5 din lagte hain\"."), ct);
+            MessageTemplates.Get("insights7.022", string.Join("\n", lines), (leadDays is { } d ? $"Maal aane ka waqt: aap ne sab suppliers ke liye {d} din bataya hai — har supplier ka alag waqt bot save nahi karta."
+                : "Maal aane ka waqt (lead time) har supplier ka alag save nahi hota; sab ke liye ek waqt batane ke liye: \"maal aane mein 5 din lagte hain\".")), ct);
         SuggestNext("suppliers", "margin");
     }
 
@@ -339,7 +323,7 @@ public partial class ConversationEngine
         var map = await SupplierByProductAsync(seller, ct);
         if (map.Count == 0)
         {
-            await ReplyAsync(seller, "Abhi kisi product par supplier ka naam save nahi. Likhein, jaise: \"supplier Lawn Suit Shah Alam\" — phir yeh sawal dobara poochein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights7.020"), ct);
             return;
         }
 
@@ -359,13 +343,12 @@ public partial class ConversationEngine
         }).Where(r => r.Sold + r.Returned > 0).OrderByDescending(r => r.Rate).ToList();
         if (rows.Count == 0)
         {
-            await ReplyAsync(seller, $"Pichle {days} din mein in suppliers ke maal ki koi bikri nahi.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights7.023", days), ct);
             return;
         }
         var lines = rows.Select((r, i) => $"{i + 1}. {r.Name} — {Pct(r.Rate)} ({r.Returned} wapas + {r.Lost} kharab/gum, {r.Sold + r.Returned} piece mein se)");
         await ReplyAsync(seller,
-            $"⚠️ Kis supplier ka maal zyada wapas/kharab — pichle {days} din\n\n{string.Join("\n", lines)}\n\n" +
-            "Wapas = status \"returned\" (gaahak ki wajah bhi ho sakti hai); kharab/gum = \"loss\" mein likha maal. Bot wajah nahi jaanta.", ct);
+            MessageTemplates.Get("insights7.024", days, string.Join("\n", lines)), ct);
         SuggestNext("suppliers", "return rate");
     }
 
@@ -379,7 +362,7 @@ public partial class ConversationEngine
             .Where(p => named.Count == 0 || (map.TryGetValue(p.Id, out var s) && named.Contains(s, StringComparer.OrdinalIgnoreCase))).ToList();
         if (products.Count == 0)
         {
-            await ReplyAsync(seller, "Cost wale products nahi mile. Cost (aur supplier) likhein, jaise: \"Lawn Suit - 3500, cost 2500, supplier: Shah Alam\".", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights7.025"), ct);
             return;
         }
 
@@ -393,9 +376,7 @@ public partial class ConversationEngine
         });
         var avgSameProfit = products.Average(p => p.CostPrice!.Value * rise / 100m / p.Price * 100m);
         await ReplyAsync(seller,
-            $"📈 Hol sale rate {Pct(rise)} barha to — {scope}\n\n{string.Join("\n", lines)}\n\n" +
-            $"Margin% wohi rakhna ho to har qeemat {Pct(rise)} barhani paregi; fi piece munafa (rupay) wohi rakhna ho to ausatan {Pct(avgSameProfit)} ({products.Count} products ka hisaab).\n" +
-            "Gaahak barhi hui qeemat par kitna kam khareedenge — yeh bot nahi jaanta.", ct);
+            MessageTemplates.Get("insights7.026", Pct(rise), scope, string.Join("\n", lines), Pct(rise), Pct(avgSameProfit), products.Count), ct);
         SuggestNext("price review", "margin");
     }
 }

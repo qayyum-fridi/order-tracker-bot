@@ -1,0 +1,5 @@
+{
+  "status-picker.001": "Abhi koi order nahi hai. Pehle \"naya order\" likhein.",
+  "status-picker.002": "Order #{0} {1} hai — iska status ab change nahi ho sakta.",
+  "status-picker.003": "📦 Order #{0} ({1}) abhi {2} hai.\nNaya status chunein 👇\n\nKisi aur order ke liye: \"status 12\""
+}

@@ -1,0 +1,6 @@
+{
+  "profit.001": "💰 Profit ({0}): is dauran koi order nahi hai.",
+  "profit.002": "💰 Profit ({0}): abhi hisaab nahi ho sakta — kisi product ki cost save nahi hai.\nProduct ke saath cost likhein, jaise: \"{1}\".",
+  "profit.003": "💰 Profit — {0}\n\nOrders: {1}\nSales (delivery ke baghair): {2}\nCost: {3}\nProfit: {4} ({5}%){6}",
+  "profit.004": "\n⚠️ {0} order(s) shamil nahi — cost maloom nahi. Cost likhein, jaise: \"{1}\"."
+}

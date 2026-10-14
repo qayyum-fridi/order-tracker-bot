@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -12,15 +13,8 @@ namespace OrderTrackerBot.Application.Conversation;
 // The design lives on Seller.ReceiptDesignJson (see ReceiptDesign); paper size and footer keep their own settings.
 public partial class ConversationEngine
 {
-    private const string ReceiptDesignHelp =
-        "🎨 Receipt design — har badlav foran save hota hai aur nayi preview aati hai:\n" +
-        "• color blue (green, navy, red, maroon, purple, pink, orange, teal, gold, brown, black, ya #1D4ED8)\n" +
-        "• title Invoice  (default: title default)\n" +
-        "• layout center  (ya layout classic)\n" +
-        "• logo off · phone off · buyer off · status off  (wapas: on)\n" +
-        "• text small / normal / large\n" +
-        "• size 80mm · footer Shukriya!\n" +
-        "• preview · reset · done";
+    private static readonly string ReceiptDesignHelp =
+        MessageTemplates.Get("receipt-design.006");
 
     private static readonly Regex DesignDone = new(@"^(?:done|save|finish|exit|ok|okay|theek\s*hai|thik\s*hai|bas|ho\s*gaya|khatam)\.?$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
@@ -28,11 +22,11 @@ public partial class ConversationEngine
     {
         if (_receiptPdf is null)
         {
-            await ReplyAsync(seller, "PDF receipt abhi available nahi hai.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("branding.001"), ct);
             return;
         }
         SetState(session, ConversationState.AwaitingReceiptDesign);
-        await ReplyAsync(seller, "Apni receipt khud design karein.\n\n" + ReceiptDesignHelp + "\n\nAbhi ka design:\n" + ReceiptDesign.FromJson(seller.ReceiptDesignJson).Describe(), ct);
+        await ReplyAsync(seller, MessageTemplates.Get("receipt-design.001", ReceiptDesignHelp, ReceiptDesign.FromJson(seller.ReceiptDesignJson).Describe()), ct);
         await SendDesignPreviewAsync(seller, ct);
     }
 
@@ -43,8 +37,7 @@ public partial class ConversationEngine
         {
             SetState(session, ConversationState.Idle);
             await ReplyAsync(seller,
-                "✅ Design save ho gaya — ab har receipt (aur \"email receipt\") isi look mein banegi.\n\n" +
-                ReceiptDesign.FromJson(seller.ReceiptDesignJson).Describe() + "\nDobara badalne ke liye: receipt design", ct);
+                MessageTemplates.Get("receipt-design.002", ReceiptDesign.FromJson(seller.ReceiptDesignJson).Describe()), ct);
             return;
         }
         if (Regex.IsMatch(text, @"^(?:preview|dikhao|dekho)$", RegexOptions.IgnoreCase))
@@ -55,7 +48,7 @@ public partial class ConversationEngine
         if (Regex.IsMatch(text, @"^(?:reset|default|standard)$", RegexOptions.IgnoreCase))
         {
             seller.ReceiptDesignJson = null;
-            await ReplyAsync(seller, "✅ Design default par wapas aa gaya.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("receipt-design.003"), ct);
             await SendDesignPreviewAsync(seller, ct);
             return;
         }
@@ -92,7 +85,7 @@ public partial class ConversationEngine
             await ExecuteCommandAsync(seller, session, ctx, command, ct);
             return;
         }
-        await ReplyAsync(seller, "Maaf kijiye, yeh samajh nahi aaya.\n\n" + ReceiptDesignHelp, ct);
+        await ReplyAsync(seller, MessageTemplates.Get("receipt-design.004", ReceiptDesignHelp), ct);
     }
 
     /// <summary>Sends the receipt as it would look now: the seller's latest order, or a sample. Never takes a receipt serial number.</summary>
@@ -107,7 +100,7 @@ public partial class ConversationEngine
         var (pdf, _) = await RenderReceiptAsync(seller, order, branding, ct, preview: true);
         var sent = await _sender.SendDocumentAsync(seller.WhatsAppPhoneNumber, pdf, "Receipt-preview.pdf", "application/pdf",
             sample ? "👀 Preview (sample order) — aur badlav likhein, ya done." : $"👀 Preview (Order #{order.Id}) — aur badlav likhein, ya done.", ct);
-        if (!sent) await ReplyAsync(seller, "⚠️ Preview PDF bhej nahi saka — design save hai; \"preview\" likh kar dobara try karein.", ct);
+        if (!sent) await ReplyAsync(seller, MessageTemplates.Get("receipt-design.005"), ct);
     }
 
     // Never added to the context, so it can't be saved.

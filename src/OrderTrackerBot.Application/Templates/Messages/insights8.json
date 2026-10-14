@@ -1,0 +1,23 @@
+{
+  "insights8.001": "📦 Return ke raaste ka waqt ({0}): courier wale returned ya 10 din se zyada purane shipped parcel nahi mile. (\"mark N shipped\" aur \"mark N returned\" likhne se waqt banta hai.)",
+  "insights8.002": "📦 Return ka maal raaste mein kitne din — {0}\n\n{1}\n\nWaqt \"shipped\" likhne se \"returned\" likhne tak ka hai (aap jab likhte hain). Jab tak parcel \"returned\" mark nahi hota, uska stock wapas nahi chadhta.",
+  "insights8.003": "🚚 Shehron ka muqabla ({0}): shehar wale bheje hue orders nahi mile. Shehar likhne ke liye: \"Sara ki city Karachi\".",
+  "insights8.004": "🚚 Shehron ka muqabla — {0}\n\n{1}\n\nWapas = status \"returned\". Gaahak ne parcel lene se inkar kiya ya address ghalat tha — bot yeh farq nahi karta, is liye \"refusal rate\" nahi balkay wapsi ki shurat dikhai gayi hai.{2}",
+  "insights8.005": "✅ Pichle {0} din mein koi parcel wapas nahi aaya (ya bhej kar cancel nahi hua).",
+  "insights8.006": "📉 Wapas aaye parcels aur courier — pichle {0} din\n\nWapas / bhej kar cancel hue parcels: {1}\nCourier par gaya: {2}{3}\n{4}\nWapsi ka kiraya alag save nahi hota — sirf wo jo \"courier fee 12 250\" mein likha ho (ya delivery charge).",
+  "insights8.007": "✅ Pichle {0} din mein koi paid (ya advance wala) order cancel / return nahi hua.",
+  "insights8.008": "🔎 Paid ke baad cancel/return — pichle {0} din ({1} orders)\n\n{2}\n\n{3}Cash out ko \"order se jorna\" bot nahi karta: raqam (mila hua ya order ka total) aur 7 din ke andar likhi cash out se milaya gaya hai.",
+  "insights8.009": "🎟️ Discount aur order ka size ({0}): is dauran koi order nahi.",
+  "insights8.010": "🎟️ Discount aur order ka size ({0}): kisi category mein discount wale aur bina discount wale kam az kam 3-3 orders nahi — muqabla nahi ban saka.",
+  "insights8.011": "🎟️ Discount ke saath bade order — {0}\n\n{1}\n\nOrder ki category = us ki sab se bari line ki category. Yeh sirf muqabla hai: discount ki wajah se order bara hua, yeh sabit nahi.",
+  "insights8.012": "↩️ Discount aur return ({0}): muqabla ke liye dono qisam ke bheje gaye orders chahiye — discount wale {1}, baqi {2}.",
+  "insights8.013": "↩️ Discount aur return — {0}\n\nDiscount wale orders: {1} bheje, {2} wapas → {3}\nBina discount: {4} bheje, {5} wapas → {6}\n{7}{8}",
+  "insights8.014": "Pichle 3 mahine mein kiraya, bijli ya supplier ki payment ke kharche darj nahi. Likhein, jaise: \"expense 40000 kiraya\", \"expense 12000 bijli\", \"expense 150000 supplier\".",
+  "insights8.015": "💵 Agle mahine ki 5 tareekh ({0}) tak — {1} din baqi\n\n{2}{3}Kul zaroorat: {4} → roz kam az kam {5} wasooli\nAbhi roz ki wasooli (pichle 30 din, paid orders): {6} → {7}\n\nYeh wasooli (paisa haath mein) ka hisaab hai, munafa nahi; hisaab aap ke likhe hue kharchon par hai.{8}",
+  "insights8.016": "⏱️ Paisa kitne din mein mila ({0}): koi paid order nahi.",
+  "insights8.017": "⏱️ Paisa kitne din mein haath aaya — {0}\n\n{1}\n{2}\n{3}\n\nWaqt wo hai jab aap ne \"paid\" ya payout likha; bank mein asal paisa kab aaya, yeh bot nahi dekhta.",
+  "insights8.018": "💳 Advance aur order ka size ({0}): dono qisam ke orders chahiye — advance/wallet {1}, COD {2}.",
+  "insights8.019": "💳 Advance bamuqabla COD — {0}\n\nAdvance / wallet / bank: {1} orders · har order ki average {2}\nCOD / cash: {3} orders · har order ki average {4}\n→ advance wale orders {5} hain ({6})",
+  "insights8.020": "✅ Pichle {0} din mein koi cancel, return ya kharab maal nahi.",
+  "insights8.021": "🕳️ Nuqsan ka hisaab — pichle {0} din\n\nBhejne se pehle cancel: {1} orders ({2} ki sale nahi hui, paisa ka nuqsan nahi)\nWapas aaye / bhej kar cancel: {3} orders ({4} ki sale) — courier par gaya {5}{6}\nKharab / gum maal: {7} piece, cost {8}\n\nPakka naqd nuqsan: {9} (courier + kharab maal)\nWapas aaya maal agar theek ho to stock mein wapas chadh jata hai, is liye uski cost nuqsan nahi ginti."
+}

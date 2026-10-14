@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Ai;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -14,13 +15,8 @@ public partial class ConversationEngine
 {
     private static readonly Regex ScannedCode = new(@"^[A-Za-z0-9\-]{4,40}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
-    private const string ScanHelpText =
-        "📷 Barcode scanner se products\n\n" +
-        "1️⃣ Pehle har product ko uska barcode dein (ek baar): barcode Lawn Suit 8961234567890\n" +
-        "2️⃣ Phir scanner se product scan karein (ya code likhein) — har scan cart mein ek aur piece jodta hai.\n" +
-        "3️⃣ Order banane ke liye: scan done · cart dekhne ke liye: scan cart · khali karne ke liye: scan clear\n\n" +
-        "Barcode hatane ke liye: barcode remove Lawn Suit\n" +
-        "ℹ️ Scanner USB/Bluetooth keyboard ki tarah chalta hai: apne phone ki WhatsApp chat khol kar scan karein. Tasveer se barcode padhna abhi nahi hai.";
+    private static readonly string ScanHelpText =
+        MessageTemplates.Get("scan.014");
 
     /// <summary>True for a message that looks like a scanned code: one token of letters/digits/dashes with at least three digits ("8961234567890", "KRT-001").</summary>
     public static bool LooksLikeScannedCode(string? text) =>
@@ -52,10 +48,7 @@ public partial class ConversationEngine
 
         var (_, total) = await ScanCartTotalAsync(seller, ctx, ct);
         await ReplyAsync(seller,
-            $"📷 {Formatters.ProductLabel(product)} — {Formatters.Money(product.Price)} (cart mein {quantity})\n" +
-            (product.StockQty is { } stock && quantity > stock ? $"⚠️ Stock sirf {stock} hai.\n" : "") +
-            $"🛒 Cart: {ctx.ScanCart.Values.Sum()} piece, {Formatters.Money(total)}\n" +
-            "Aur scan karein, ya: scan done (order banayein) · scan clear (khali karein)", ct);
+            MessageTemplates.Get("scan.001", Formatters.ProductLabel(product), Formatters.Money(product.Price), quantity, (product.StockQty is { } stock && quantity > stock ? $"⚠️ Stock sirf {stock} hai.\n" : ""), ctx.ScanCart.Values.Sum(), Formatters.Money(total)), ct);
     }
 
     private async Task<(List<string> Lines, decimal Total)> ScanCartTotalAsync(Seller seller, SessionContextData ctx, CancellationToken ct)
@@ -78,18 +71,18 @@ public partial class ConversationEngine
 
             case "clear" or "cancel" or "khali":
                 ctx.ScanCart = null;
-                await ReplyAsync(seller, "🛒 Cart khali kar diya.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("scan.002"), ct);
                 return;
 
             case "cart" or "list" or "show":
             {
                 if (ctx.ScanCart is not { Count: > 0 })
                 {
-                    await ReplyAsync(seller, "🛒 Cart khali hai. Scanner se product scan karein.", ct);
+                    await ReplyAsync(seller, MessageTemplates.Get("scan.003"), ct);
                     return;
                 }
                 var (lines, total) = await ScanCartTotalAsync(seller, ctx, ct);
-                await ReplyAsync(seller, $"🛒 Cart:\n{string.Join("\n", lines)}\n\nTotal: {Formatters.Money(total)}\nOrder banane ke liye: scan done · khali karne ke liye: scan clear", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("scan.004", string.Join("\n", lines), Formatters.Money(total)), ct);
                 return;
             }
 
@@ -102,8 +95,7 @@ public partial class ConversationEngine
         if (product is null)
         {
             await ReplyAsync(seller,
-                $"Yeh code kisi product par nahi mila: {word}\n" +
-                "Jorne ke liye likhein: barcode <product ka naam> " + word + "\n(misaal: barcode Lawn Suit " + word + ")", ct);
+                MessageTemplates.Get("scan.005", word, word, word), ct);
             return;
         }
         await AddScannedProductAsync(seller, ctx, product, ct);
@@ -114,7 +106,7 @@ public partial class ConversationEngine
     {
         if (ctx.ScanCart is not { Count: > 0 })
         {
-            await ReplyAsync(seller, "🛒 Cart khali hai — pehle scanner se product scan karein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("scan.006"), ct);
             return;
         }
 
@@ -129,7 +121,7 @@ public partial class ConversationEngine
         ctx.ScanCart = null;
         if (draft.Items.Count == 0)
         {
-            await ReplyAsync(seller, "Cart ke products ab catalog mein nahi hain — dobara scan karein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("scan.007"), ct);
             return;
         }
 
@@ -145,14 +137,14 @@ public partial class ConversationEngine
 
         if (matches.Count == 0)
         {
-            await ReplyAsync(seller, $"\"{name}\" naam ka koi product nahi mila. \"catalog\" likh kar naam dekhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("scan.008", name), ct);
             return;
         }
         if (matches.Count > 1)
         {
             // Several products fit the words: let the seller tap the right one (each option is the exact command to run).
             if (code is null)
-                await ReplyAsync(seller, "Kai products milte hain: " + string.Join(", ", matches.Take(6).Select(p => p.Name)) + "\nPoora naam likhein: barcode remove <naam>", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("scan.009", string.Join(", ", matches.Take(6).Select(p => p.Name))), ct);
             else
                 await AskClarificationAsync(seller, session, ctx, $"\"{name}\" se kai products milte hain — kis ka barcode {code} hai?",
                     matches.Take(9).Select(p => $"barcode {p.Name} {code}").ToList(), ct);
@@ -163,23 +155,23 @@ public partial class ConversationEngine
         if (code is null)
         {
             product.Sku = null;
-            await ReplyAsync(seller, $"✅ {product.Name} ka barcode hata diya.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("scan.010", product.Name), ct);
             return;
         }
         if (code.Count(char.IsDigit) < 3)
         {
-            await ReplyAsync(seller, "Barcode mein kam az kam 3 digits hone chahiye, jaise: barcode Lawn Suit 8961234567890", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("scan.011"), ct);
             return;
         }
         var lower = code.ToLower();
         var other = await _db.Products.FirstOrDefaultAsync(p => p.SellerId == seller.Id && p.Id != product.Id && p.Sku != null && p.Sku.ToLower() == lower, ct);
         if (other is not null)
         {
-            await ReplyAsync(seller, $"Yeh barcode {other.Name} par pehle se hai. Pehle usay hatayein: barcode remove {other.Name}", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("scan.012", other.Name, other.Name), ct);
             return;
         }
 
         product.Sku = code;
-        await ReplyAsync(seller, $"✅ {product.Name} ka barcode: {code}\nAb scanner se scan karein — product cart mein aayega (\"scan\" likhein to tareeqa dekhein).", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("scan.013", product.Name, code), ct);
     }
 }

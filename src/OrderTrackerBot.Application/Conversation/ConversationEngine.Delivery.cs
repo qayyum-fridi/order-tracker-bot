@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -13,15 +14,14 @@ public partial class ConversationEngine
         if (amount is null)
         {
             await ReplyAsync(seller,
-                $"🚚 Aapka delivery charge: {(seller.DefaultDeliveryCharge > 0 ? Formatters.Money(seller.DefaultDeliveryCharge) : "free (0)")} — har naye order mein lagta hai.\n\n" +
-                "Badalne ke liye: \"delivery 200\" ya \"free delivery\"\nSirf aik order ka: \"order 12 delivery 300\"", ct);
+                MessageTemplates.Get("delivery.001", (seller.DefaultDeliveryCharge > 0 ? Formatters.Money(seller.DefaultDeliveryCharge) : "free (0)")), ct);
             return;
         }
 
         seller.DefaultDeliveryCharge = amount.Value;
         await ReplyAsync(seller, amount.Value > 0
-            ? $"✅ Delivery charge {Formatters.Money(amount.Value)} set — ab har naye order ke total mein shamil hoga.\nKisi aik order ka badalna ho: \"order 12 delivery 300\""
-            : "✅ Free delivery — naye orders par delivery charge nahi lagega.", ct);
+            ? MessageTemplates.Get("delivery.004", Formatters.Money(amount.Value))
+            : MessageTemplates.Get("delivery.005"), ct);
     }
 
     private async Task HandleOrderDeliveryChargeAsync(Seller seller, SessionContextData ctx, int number, decimal amount, CancellationToken ct)
@@ -30,19 +30,18 @@ public partial class ConversationEngine
         var order = await _db.Orders.Include(o => o.Customer).FirstOrDefaultAsync(o => o.SellerId == seller.Id && o.Id == orderId, ct);
         if (order is null)
         {
-            await ReplyAsync(seller, $"Order #{number} nahi mila. Apne orders dekhne ke liye \"orders today\" likhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands.028", number), ct);
             return;
         }
         if (IsDispatched(order))
         {
-            await ReplyAsync(seller, $"Order #{order.Id} {Formatters.Status(order.Status)} hai — delivery nahi badal sakti. Payment ke liye \"order {order.Id} advance 500\" likhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("delivery.002", order.Id, Formatters.Status(order.Status), order.Id), ct);
             return;
         }
 
         order.Total = OrderTotal(order.Subtotal, order.DiscountAmount, amount);
         order.DeliveryCharge = amount;
         await ReplyAsync(seller,
-            $"✅ Order #{order.Id} ({order.Customer?.Name}) — delivery {(amount > 0 ? Formatters.Money(amount) : "free")}, naya total {Formatters.Money(order.Total)}." +
-            (fromList ? $"\nℹ️ \"{number}\" aapki last list ka number tha." : ""), ct);
+            MessageTemplates.Get("delivery.003", order.Id, order.Customer?.Name, (amount > 0 ? Formatters.Money(amount) : "free"), Formatters.Money(order.Total), (fromList ? $"\nℹ️ \"{number}\" aapki last list ka number tha." : "")), ct);
     }
 }

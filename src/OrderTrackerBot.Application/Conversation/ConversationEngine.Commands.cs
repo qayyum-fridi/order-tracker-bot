@@ -5,44 +5,19 @@ using OrderTrackerBot.Application.Ai;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
 public partial class ConversationEngine
 {
     // Screen 10: the full command list (the 9 core commands are what a seller memorizes; the rest lives under "menu").
-    private const string HelpText =
-        "🆘 Zaroori Madad\n" +
-        "\n" +
-        "📦 Naya order: customer ka message forward karein, ya 🎤 voice note / 📷 screenshot bhejein.\n" +
-        "\n" +
-        "• \"orders today\" — aaj ke orders\n" +
-        "• \"order 12\" — order ki mukammal tafseel\n" +
-        "• \"mark 12 shipped\" — order ka status tabdeel karein\n" +
-        "• \"receipt 12\" — PDF receipt\n" +
-        "• \"undo\" — aakhri kaam wapas karein\n" +
-        "• \"guide\" — step-by-step rehnumai\n" +
-        "\n" +
-        "Tamam features ke liye \"menu\" likhein.\n" +
-        "Rehnumai ke liye \"kya karun\" likhein.";
+    private static readonly string HelpText =
+        MessageTemplates.Get("commands.041");
 
     // Screen 10b: categorized menu.
-    private const string MenuText =
-        "📋 Main Menu\n" +
-        "\n" +
-        "📖 \"guide\" — pehli dafa istemal karne walon ke liye rehnumai\n" +
-        "🌐 \"change language\" — Roman Urdu / English / اردو\n" +
-        "\n" +
-        "📦 Orders — naya order, edit, receipt, label\n" +
-        "📊 Reports — summary, trending, profit, expenses\n" +
-        "🛍️ Catalog — products, stock, barcode\n" +
-        "💰 Payments — payment link, advance, courier payout\n" +
-        "🎟️ Discounts — discount codes, loyalty\n" +
-        "👥 Customers — list, update, support, Instagram\n" +
-        "🏪 Counter Sales — walk-in sale, cash drawer, labels\n" +
-        "⚙️ Settings — business info, receipt, email, export\n" +
-        "\n" +
-        "Barae meherbani neeche se category chunein, ya command likhein.";
+    private static readonly string MenuText =
+        MessageTemplates.Get("commands.042");
 
     private static readonly MenuRow BackToMenu = new("menu", "⬅️ Main menu");
 
@@ -343,10 +318,10 @@ public partial class ConversationEngine
                     (currentSummary.Length > 0 ? $"📋 Abhi ka record: {currentSummary}\n\n" : "") + BusinessInfoPrompt, ct);
                 return;
             case CommandKind.Subscribe when !BillingApplies(seller):
-                await ReplyAsync(seller, "🎁 Aapka account free hai — kisi plan ya payment ki zaroorat nahi.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("commands.001"), ct);
                 return;
             case CommandKind.Subscribe:
-                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, $"💳 Plans:\n\n{PlansText}\n\nPlan chunein:", PlanButtons, ct);
+                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("billing.003", PlansText), PlanButtons, ct);
                 return;
             case CommandKind.ChangeLanguage:
                 await StartChangeLanguageAsync(seller, session, ct);
@@ -368,11 +343,11 @@ public partial class ConversationEngine
                 break;
             case CommandKind.Guide:
                 if (!string.IsNullOrWhiteSpace(_features.GuideUrl))
-                    await ReplyAsync(seller, $"📖 Tasveeron wali guide (English / اردو):\n{_features.GuideUrl}", ct);
+                    await ReplyAsync(seller, MessageTemplates.Get("commands.002", _features.GuideUrl), ct);
                 await StartGuideAsync(seller, session, ctx, cmd.Text, ct);
                 return;
             case CommandKind.GuideLater:
-                await ReplyAsync(seller, "ℹ️ Theek hai. Jab bhi zaroorat ho, \"guide\" likh dein.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("commands.003"), ct);
                 return;
             case CommandKind.Greeting:
                 await HandleGreetingAsync(seller, ct);
@@ -473,7 +448,7 @@ public partial class ConversationEngine
             case CommandKind.CodPending:
                 ctx.RuntimeFilterCommand = "cod";
                 SetState(session, ConversationState.AwaitingRuntimeFilterChoice);
-                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, "💵 Kitne purane pending dekhne hain?", new[] { "All", "3+ days", "7+ days" }, ct);
+                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("commands.004"), new[] { "All", "3+ days", "7+ days" }, ct);
                 return;
             case CommandKind.AddTracking:
                 await HandleAddTrackingAsync(seller, cmd, ct);
@@ -507,8 +482,8 @@ public partial class ConversationEngine
                 }
                 ctx.RuntimeFilterCommand = "trending";
                 SetState(session, ConversationState.AwaitingRuntimeFilterChoice);
-                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, "📈 Konsi time period dekhna chahte hain? (\"last 30 days\" bhi likh sakte hain)",
-                    new[] { "This Week", "This Month", "Custom Dates" }, ct);
+                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("commands.005"),
+                    new[] { MessageTemplates.Get("commands.046"), MessageTemplates.Get("commands.047"), MessageTemplates.Get("commands.048") }, ct);
                 return;
             case CommandKind.SlowMovers:
                 if (cmd.Text is not null && ReportPeriods.Resolve(cmd.Text, seller.TimeZoneId, DateTime.UtcNow) is { } slowWindow)
@@ -518,7 +493,7 @@ public partial class ConversationEngine
                 }
                 ctx.RuntimeFilterCommand = "slow";
                 SetState(session, ConversationState.AwaitingRuntimeFilterChoice);
-                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, "📉 Kitne din se koi order nahi aaya?", new[] { "7 days", "14 days", "30 days" }, ct);
+                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("commands.006"), new[] { "7 days", "14 days", "30 days" }, ct);
                 return;
             case CommandKind.ResetAccount:
                 await StartResetAsync(seller, session, ctx, ct);
@@ -533,7 +508,7 @@ public partial class ConversationEngine
                 await HandleBroadcastRequestAsync(seller, session, ctx, cmd, ct);
                 return;
             default:
-                await ReplyAsync(seller, "Maaf kijiye, yeh command samajh nahi aaya. Tamam commands dekhne ke liye \"help\" likhein.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("commands.007"), ct);
                 return;
         }
     }
@@ -598,19 +573,19 @@ public partial class ConversationEngine
 
         if (orders.Count == 0)
         {
-            await ReplyAsync(seller, "Koi pending order nahi hai.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands.008"), ct);
             return;
         }
 
         ctx.LastListOrderIds = orders.Select(o => o.Id).ToList();
         var lines = orders.Select((o, i) => Formatters.OrderLine(i + 1, o));
-        await ReplyAsync(seller, $"📦 Pending Orders ({orders.Count}):\n\n{string.Join("\n", lines)}\n\nReply \"mark 1 shipped\" to update.", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("commands.009", orders.Count, string.Join("\n", lines)), ct);
     }
 
     private async Task HandleTodaysSummaryAsync(Seller seller, string? period, CancellationToken ct)
     {
         var (start, end) = ReportRange(seller, period);
-        var label = period switch { null => "Today's", "yesterday" => "Yesterday's", "lastmonth" => "Last Month's", _ => PeriodLabel(seller, period) };
+        var label = period switch { null => "Today's", "yesterday" => "Yesterday's", "lastmonth" => MessageTemplates.Get("commands.038"), _ => PeriodLabel(seller, period) };
         var orders = await _db.Orders
             .Where(o => o.SellerId == seller.Id && o.CreatedAt >= start && o.CreatedAt < end && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
             .ToListAsync(ct);
@@ -631,17 +606,7 @@ public partial class ConversationEngine
         var (dayExtra, drawerOpen) = today ? await DayAccountLinesAsync(seller, orders, start, end, ct) : ("", false);
 
         await ReplyAsync(seller,
-            $"🧾 {label} Reconciliation — {seller.BusinessName}\n\n" +
-            $"Orders: {orders.Count}\n" +
-            $"Delivered: {delivered} | Shipped: {shipped} | Pending: {pending}\n" +
-            (returned > 0 ? $"Returned: {returned}\n" : "") +
-            $"Cash collected (COD): {Formatters.Money(cod)}\n" +
-            $"Prepaid received: {Formatters.Money(prepaid)}\n" +
-            $"Total sales {(period is null ? "today" : label.Replace("'s", "").ToLowerInvariant())}: {Formatters.Money(totalSales)}\n" +
-            (salesTax > 0 ? $"Sales tax included: {Formatters.Money(salesTax)}\n" : "") +
-            (withheld > 0 ? $"Tax withheld by courier/gateway: {Formatters.Money(withheld)} → net after withholding {Formatters.Money(totalSales - withheld)}\n" : "") +
-            dayExtra +
-            "\nSab theek lag raha hai ✅", ct);
+            MessageTemplates.Get("commands.010", label, seller.BusinessName, orders.Count, delivered, shipped, pending, (returned > 0 ? $"Returned: {returned}\n" : ""), Formatters.Money(cod), Formatters.Money(prepaid), (period is null ? "today" : label.Replace("'s", "").ToLowerInvariant()), Formatters.Money(totalSales), (salesTax > 0 ? $"Sales tax included: {Formatters.Money(salesTax)}\n" : ""), (withheld > 0 ? $"Tax withheld by courier/gateway: {Formatters.Money(withheld)} → net after withholding {Formatters.Money(totalSales - withheld)}\n" : ""), dayExtra), ct);
         if (today) SuggestNext("orders today", drawerOpen ? "drawer" : "expenses today");
     }
 
@@ -684,12 +649,7 @@ public partial class ConversationEngine
         {
             var ind = Industry(seller);
             await ReplyAsync(seller,
-                "🛍️ Aapka catalog abhi khali hai.\n\n" +
-                "Product add karne ke liye naam aur price bhejein:\n" +
-                ind.MainLine + "\n\n" +
-                "Ek saath kai products bhi bhej sakte hain (har line mein ek):\n" +
-                string.Join("\n", ind.ProductLines) + "\n\n" +
-                "Apni dukaan ki qism ke examples ke liye \"industry\" likhein.", ct);
+                MessageTemplates.Get("commands.011", ind.MainLine, string.Join("\n", ind.ProductLines)), ct);
             return;
         }
 
@@ -718,14 +678,14 @@ public partial class ConversationEngine
 
         if (withDetail.Count == 0)
         {
-            await ReplyAsync(seller, $"{label} abhi kisi product par likha hua nahi.\n\nProduct ke saath likhein, e.g. Polo Shirt - 500, {field}: Ali Traders", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands.012", label, field), ct);
             return;
         }
 
         var values = withDetail.GroupBy(x => x.Detail!, StringComparer.OrdinalIgnoreCase).Select(g => $"• {g.Key} ({g.Count()})").ToList();
         if (value is null)
         {
-            await ReplyAsync(seller, $"🏷️ {label} ({values.Count}):\n\n{string.Join("\n", values)}\n\nEk ki products dekhne ke liye likhein: products {field} <naam>", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands.013", label, values.Count, string.Join("\n", values), field), ct);
             return;
         }
 
@@ -733,12 +693,12 @@ public partial class ConversationEngine
         if (matches.Count == 0) matches = withDetail.Where(x => x.Detail!.Contains(value, StringComparison.OrdinalIgnoreCase)).ToList();
         if (matches.Count == 0)
         {
-            await ReplyAsync(seller, $"\"{value}\" {field} wala koi product nahi mila.\n\n{label}:\n{string.Join("\n", values)}", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands.014", value, field, label, string.Join("\n", values)), ct);
             return;
         }
 
         var lines = matches.Select((x, i) => $"{i + 1} {Formatters.ProductLabel(x.Product)} - {Formatters.Money(x.Product.Price)}" + (x.Product.StockQty is { } q ? $" (stock {q})" : ""));
-        await ReplyAsync(seller, $"🛍️ {label}: {matches[0].Detail} ({matches.Count} products):\n\n{string.Join("\n", lines)}", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("commands.015", label, matches[0].Detail, matches.Count, string.Join("\n", lines)), ct);
     }
 
     private async Task HandleShareCatalogAsync(Seller seller, CancellationToken ct)
@@ -746,25 +706,20 @@ public partial class ConversationEngine
         var products = await _db.Products.Where(p => p.SellerId == seller.Id && p.IsActive).OrderBy(p => p.Id).ToListAsync(ct);
         if (products.Count == 0)
         {
-            await ReplyAsync(seller, "Catalog abhi khali hai — pehle products add karein (e.g. " + Industry(seller).MainLine + ").", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands.016", Industry(seller).MainLine), ct);
             return;
         }
 
         var lines = products.Select((p, i) => $"{i + 1}. {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}");
         await ReplyAsync(seller,
-            $"📋 {seller.BusinessName} — Catalog\n\n{string.Join("\n", lines)}\n\n" +
-            "Yeh copy kar ke customer ko bhej dein, ya screenshot le kar forward karein.", ct);
+            MessageTemplates.Get("commands.017", seller.BusinessName, string.Join("\n", lines)), ct);
     }
 
     // "new order" typed on its own: show how, instead of sending an empty order to the AI.
     private static string NewOrderHelpTextFor(Seller seller) => NewOrderHelpTemplate.Replace("{ORDEREX}", Industry(seller).OrderExample);
 
-    private const string NewOrderHelpTemplate =
-        "📦 Naya order darj karne ke 3 aasaan tareeqay:\n\n" +
-        "1️⃣ Customer ka message yahan forward/paste kar dein\n" +
-        "2️⃣ Ya ek line mein likhein:\n{ORDEREX}\n" +
-        "3️⃣ Ya order ki screenshot bhej dein 📷\n\n" +
-        "Main tafseel nikaal kar confirm karwa loon ga. Form se darj karna ho to neeche se chunein 👇";
+    private static readonly string NewOrderHelpTemplate =
+        MessageTemplates.Get("commands.043");
 
     private static readonly IReadOnlyList<MenuSection> NewOrderHelpSections = new[]
     {
@@ -792,9 +747,9 @@ public partial class ConversationEngine
             "💳 Payment method save karne ke liye likhein:\n\n" +
             "add payment: jazzcash, 0300-1234567\nadd payment: easypaisa, 0300-1234567",
         "loyalty" =>
-            "⭐ Loyalty rule banane ke liye likhein:\n\ncreate loyalty: 5 orders = 10 percent off",
+            MessageTemplates.Get("commands.039"),
         _ =>
-            "🚚 Tracking number save karne ke liye likhein:\n\nadd tracking: Leopards, LC998877"
+            MessageTemplates.Get("commands.040")
     };
 
     // Price and active flag of the product before the last upsert changed it, so the reply can say what really happened.
@@ -819,9 +774,9 @@ public partial class ConversationEngine
         }
         await ReplyAsync(seller,
             existingReply is not null ? existingReply
-            : updated ? $"✅ {label} price updated: {Formatters.Money(product.Price)}{ProductDetailsText(product)}"
-            : line.UnitType != "piece" || line.UnitQty != 1 ? $"✅ Added: {label} - {Formatters.Money(product.Price)}{ProductDetailsText(product)}"
-            : $"✅ {label} - {Formatters.Money(product.Price)}{ProductDetailsText(product)} catalog mein add ho gaya.\n\nAur add karein (Naam - price), ya \"catalog\" likhein.", ct);
+            : updated ? MessageTemplates.Get("commands.033", label, Formatters.Money(product.Price), ProductDetailsText(product))
+            : line.UnitType != "piece" || line.UnitQty != 1 ? MessageTemplates.Get("commands.034", label, Formatters.Money(product.Price), ProductDetailsText(product))
+            : MessageTemplates.Get("commands.035", label, Formatters.Money(product.Price), ProductDetailsText(product)), ct);
     }
 
     /// <summary>
@@ -893,7 +848,7 @@ public partial class ConversationEngine
         if (ctx.PendingProductExtras.Count == 0) ctx.PendingProductExtras = null;
         needPrice = stillWaiting;
 
-        var reply = saved.Count == 0 ? "" : $"✅ {saved.Count} product{(saved.Count == 1 ? "" : "s")} catalog mein add ho gaye:\n{string.Join("\n", saved)}\n\n";
+        var reply = saved.Count == 0 ? "" : MessageTemplates.Get("commands.044", saved.Count, (saved.Count == 1 ? "" : "s"), string.Join("\n", saved));
 
         if (priceKept.Count > 0) reply += string.Join("\n\n", priceKept) + "\n\n";
 
@@ -972,7 +927,7 @@ public partial class ConversationEngine
             var (product, updated) = await UpsertProductAsync(seller, parsed!, ct);
             results.Add($"{results.Count + 1} {Formatters.ProductLabel(product)} - {Formatters.Money(product.Price)}{ProductDetailsText(product)}{(updated ? " (updated)" : "")}");
         }
-        await ReplyAsync(seller, $"✅ {results.Count} products save ho gaye:\n\n{string.Join("\n", results)}\n\n\"catalog\" likh kar poori list dekhein.", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("commands.018", results.Count, string.Join("\n", results)), ct);
     }
 
     private async Task HandleImportCatalogSheetAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
@@ -981,7 +936,7 @@ public partial class ConversationEngine
         if (lines is null)
         {
             await ReplyAsync(seller,
-                "⚠️ Sheet se products load nahi ho sake. Check karein ke sheet \"Anyone with the link can view\" par set ho, ya products ek ek karke bhi bhej sakte hain (e.g. 'Kurti - 1800').", ct);
+                MessageTemplates.Get("commands.019"), ct);
             return;
         }
 
@@ -996,11 +951,11 @@ public partial class ConversationEngine
         if (results.Count == 0)
         {
             await ReplyAsync(seller,
-                "Sheet parh li lekin koi valid product row nahi mila — har row mein pehla column naam, doosra column price hona chahiye.", ct);
+                MessageTemplates.Get("commands.020"), ct);
             return;
         }
 
-        await ReplyAsync(seller, $"✅ Sheet se {results.Count} products import ho gaye:\n\n{string.Join("\n", results)}\n\n\"catalog\" likh kar poori list dekhein.", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("commands.021", results.Count, string.Join("\n", results)), ct);
     }
 
     // The same name with a different pack size ("Sugar 5kg" vs "Sugar 10kg") is a separate listing.
@@ -1075,12 +1030,12 @@ public partial class ConversationEngine
         var product = await FindProductAsync(seller, name, ct);
         if (product is null)
         {
-            await ReplyAsync(seller, $"\"{name}\" catalog mein nahi mila. \"catalog\" likh kar list dekhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands.022", name), ct);
             return;
         }
 
         product.IsActive = false; // soft delete: old orders keep pointing at it
-        await ReplyAsync(seller, $"✅ {Formatters.ProductLabel(product)} catalog se hata diya.", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("commands.023", Formatters.ProductLabel(product)), ct);
     }
 
     private async Task<Product?> FindProductAsync(Seller seller, string name, CancellationToken ct)
@@ -1102,7 +1057,7 @@ public partial class ConversationEngine
             .OrderBy(t => t.Min).ToList();
         if (tiers.Count == 0)
         {
-            await ReplyAsync(seller, "Format: \"Kaju - price tiers: 1kg=320, 10kg=300, 25kg=280\"", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands.024"), ct);
             return;
         }
 
@@ -1128,7 +1083,7 @@ public partial class ConversationEngine
         var lines = tiers.Select((t, i) => i + 1 < tiers.Count
             ? $"{Formatters.Quantity(t.Min)}-{Formatters.Quantity(tiers[i + 1].Min - 1)} {u}: {Formatters.Money(t.Price)}/{u}"
             : $"{Formatters.Quantity(t.Min)}+ {u}: {Formatters.Money(t.Price)}/{u}");
-        await ReplyAsync(seller, $"✅ {product.Name} — bulk pricing saved:\n{string.Join("\n", lines)}", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("commands.025", product.Name, string.Join("\n", lines)), ct);
     }
 
     private async Task HandleEditProductAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
@@ -1136,7 +1091,7 @@ public partial class ConversationEngine
         var product = await FindProductAsync(seller, cmd.Text!, ct);
         if (product is null)
         {
-            await ReplyAsync(seller, $"\"{cmd.Text}\" catalog mein nahi mila. Catalog dekhne ke liye \"catalog\" likhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands.026", cmd.Text), ct);
             return;
         }
 
@@ -1149,7 +1104,7 @@ public partial class ConversationEngine
             PayloadJson = System.Text.Json.JsonSerializer.Serialize(new { ProductId = product.Id, OldPrice = oldPrice })
         });
 
-        await ReplyAsync(seller, $"✅ {product.Name} price updated: {Formatters.Money(oldPrice)} → {Formatters.Money(product.Price)}", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("commands.027", product.Name, Formatters.Money(oldPrice), Formatters.Money(product.Price)), ct);
     }
 
     private async Task HandleMarkStatusAsync(Seller seller, ConversationSession session, SessionContextData ctx, ParsedCommand cmd, CancellationToken ct)
@@ -1159,7 +1114,7 @@ public partial class ConversationEngine
             .FirstOrDefaultAsync(o => o.SellerId == seller.Id && o.Id == orderId, ct);
         if (order is null)
         {
-            await ReplyAsync(seller, $"Order #{cmd.Number} nahi mila. Apne orders dekhne ke liye \"orders today\" likhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands.028", cmd.Number), ct);
             return;
         }
 
@@ -1173,7 +1128,7 @@ public partial class ConversationEngine
         }
 
         if (fromList)
-            await ReplyAsync(seller, $"ℹ️ \"{cmd.Number}\" aapki last list ka number tha (Order #{order.Id}). Naya number ke liye pehle list dobara dekhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands.029", cmd.Number, order.Id), ct);
     }
 
     private async Task ApplyStatusChangeAsync(Seller seller, ConversationSession session, SessionContextData ctx, Order order, string statusKeyword, CancellationToken ct)
@@ -1192,8 +1147,8 @@ public partial class ConversationEngine
         if (newStatus == OrderStatus.Returned && previousStatus is not (OrderStatus.Shipped or OrderStatus.Delivered))
         {
             await ReplyAsync(seller, previousStatus == OrderStatus.Returned
-                ? $"Order #{order.Id} pehle se RETURNED hai."
-                : $"Order #{order.Id} abhi {Formatters.Status(previousStatus)} hai — bheja hi nahi gaya to wapas nahi aa sakta. Hatana ho to: \"cancel order {order.Id}\"", ct);
+                ? MessageTemplates.Get("commands.036", order.Id)
+                : MessageTemplates.Get("commands.037", order.Id, Formatters.Status(previousStatus), order.Id), ct);
             return;
         }
 
@@ -1212,7 +1167,7 @@ public partial class ConversationEngine
             PayloadJson = System.Text.Json.JsonSerializer.Serialize(new { PreviousStatus = previousStatus.ToString() })
         });
 
-        var reply = $"✅ Order #{order.Id} ({order.Customer?.Name} - {Formatters.ItemsSummary(order)}) marked as {Formatters.Status(newStatus)}.";
+        var reply = MessageTemplates.Get("commands.045", order.Id, order.Customer?.Name, Formatters.ItemsSummary(order), Formatters.Status(newStatus));
         if (newStatus == OrderStatus.Returned)
             reply += order.PaymentStatus == PaymentStatus.Paid
                 ? "\nIs ki payment PAID thi — paise wapas kiye hon to yaad rakhein. Sales reports se yeh order nikal diya gaya hai."
@@ -1236,7 +1191,7 @@ public partial class ConversationEngine
     private async Task MarkOrderPaidAsync(Seller seller, Order order, CancellationToken ct)
     {
         MarkFullyPaid(seller, order);
-        await ReplyAsync(seller, $"✅ Order #{order.Id} marked as PAID.", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("commands.030", order.Id), ct);
     }
 
     /// <summary>Marks the order fully paid (undoable) and returns what was still owed, i.e. what was just collected.</summary>
@@ -1269,15 +1224,13 @@ public partial class ConversationEngine
 
         if (orders.Count == 0)
         {
-            await ReplyAsync(seller, "Koi unpaid order nahi hai.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands.031"), ct);
             return;
         }
 
         ctx.LastListOrderIds = orders.Select(o => o.Id).ToList();
         var lines = orders.Select((o, i) => Formatters.OrderLine(i + 1, o) + (o.AmountPaid > 0 ? $", baqi {Formatters.Money(OrderMoney.Balance(o))}" : ", unpaid"));
         await ReplyAsync(seller,
-            $"💸 Unpaid Orders ({orders.Count}):\n\n{string.Join("\n", lines)}\n\n" +
-            $"Total pending: {Formatters.Money(orders.Sum(OrderMoney.Balance))}\n\n" +
-            "\"payment link 1\" likh kar link bhej sakte hain.", ct);
+            MessageTemplates.Get("commands.032", orders.Count, string.Join("\n", lines), Formatters.Money(orders.Sum(OrderMoney.Balance))), ct);
     }
 }

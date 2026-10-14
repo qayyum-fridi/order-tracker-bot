@@ -1,0 +1,17 @@
+{
+  "tax.001": "✅ {0} hata diya — ab receipt par nahi aayega.",
+  "tax.002": "{0} number theek nahi lagta — {1} likhein.",
+  "tax.003": "✅ {0} {1} save ho gaya — ab har receipt ke upar likha aayega.",
+  "tax.004": "Sales tax 30% se zyada nahi ho sakta — jaise \"sales tax 18\" likhein.",
+  "tax.005": "🧾 Tax setup\nNTN: {0}\nSTRN: {1}\nSales tax: {2}\n\nBadalne ke liye: ntn 1234567-8 · strn 17-00-8888-001-37 · sales tax 18 · sales tax off\nCourier/gateway ne tax kaata ho to: order 12 withheld 120",
+  "tax.006": "Order #{0} nahi mila. Apne orders dekhne ke liye \"orders today\" likhein.",
+  "tax.007": "Order #{0} {1} hai — tax withheld note nahi ho sakta.",
+  "tax.008": "Withheld raqam order total ({0}) se zyada nahi ho sakti.",
+  "tax.009": "{0} abhi set nahi. Set karne ke liye likhein: {1}",
+  "tax.010": "{0}: {1}\nBadalne ke liye naya number likhein, hatane ke liye \"{2} off\".",
+  "tax.011": "🧾 Sales tax: {0}% (aapki prices mein shamil). Badalne ke liye \"sales tax 18\", band karne ke liye \"sales tax off\".",
+  "tax.012": "🧾 Sales tax abhi band hai. Registered hain to likhein: sales tax 18",
+  "tax.013": "✅ Sales tax {0}% set — maana jayega ke aapki prices mein pehle se shamil hai, is liye order ka total nahi badlega. Naye orders ki receipt \"TAX INVOICE\" hogi jis par tax alag likha aayega; purane orders par asar nahi.\n{1}{2}",
+  "tax.014": "✅ Sales tax band — naye orders ki receipt phir se simple \"RECEIPT\" hogi.",
+  "tax.015": "ℹ️ Sales tax sirf sales-tax registered sellers lagate hain, aur bari sale par buyer ka CNIC/NTN bhi invoice par chahiye ho sakta hai — apne accountant se confirm karein."
+}

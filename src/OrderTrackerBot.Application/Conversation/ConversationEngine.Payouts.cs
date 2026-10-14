@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -17,7 +18,7 @@ namespace OrderTrackerBot.Application.Conversation;
 public partial class ConversationEngine
 {
     private const decimal MaxPayoutAmount = 100_000_000m;
-    private const string NoCourier = "Courier set nahi";
+    private static readonly string NoCourier = MessageTemplates.Get("payouts.012");
 
     internal sealed record PayoutArgs(string Source, decimal Fee, List<int> Orders, string? Reference);
 
@@ -88,9 +89,7 @@ public partial class ConversationEngine
         if (orders.Count == 0)
         {
             await ReplyAsync(seller,
-                "🏦 Koi payout baqi nahi.\n" +
-                "COD order delivered hone par agar \"Cash collect ho gaya?\" ka jawab \"no\" ho (courier ne paise rakhe), to wo yahan aata hai.\n" +
-                "Payout aane par: payout 11700 TCS orders 1 2 3 fee 300  ·  Pichle payouts: payouts", ct);
+                MessageTemplates.Get("payouts.001"), ct);
             return;
         }
 
@@ -110,9 +109,7 @@ public partial class ConversationEngine
         }
         var first = groups[0];
         await ReplyAsync(seller,
-            $"🏦 Payout baqi — total {Formatters.Money(orders.Sum(PayoutReceivable))} ({orders.Count} orders)\n\n{string.Join("\n", lines)}\n\n" +
-            $"Payout aane par: payout <rakam> {(first.Key == NoCourier ? "TCS" : first.Key)} orders {string.Join(" ", first.Take(3).Select(o => o.Id))} fee <charges>\n" +
-            "Cash seedha mil gaya ho to: payout skip <order numbers>", ct);
+            MessageTemplates.Get("payouts.002", Formatters.Money(orders.Sum(PayoutReceivable)), orders.Count, string.Join("\n", lines), (first.Key == NoCourier ? "TCS" : first.Key), string.Join(" ", first.Take(3).Select(o => o.Id))), ct);
     }
 
     private async Task ListPayoutsAsync(Seller seller, CancellationToken ct)
@@ -120,7 +117,7 @@ public partial class ConversationEngine
         var payouts = await _db.Payouts.AsNoTracking().Where(p => p.SellerId == seller.Id).OrderByDescending(p => p.Id).Take(10).ToListAsync(ct);
         if (payouts.Count == 0)
         {
-            await ReplyAsync(seller, "Abhi koi payout record nahi. Likhein: payout 11700 TCS orders 1 2 3 fee 300", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("payouts.003"), ct);
             return;
         }
         var ids = payouts.Select(p => p.Id).ToList();
@@ -130,14 +127,14 @@ public partial class ConversationEngine
             $"• #{p.Id} {LocalTime(seller, p.ReceivedAt)} — {p.Source}: {Formatters.Money(p.Amount)}" +
             (p.Fee > 0 ? $" (fee {Formatters.Money(p.Fee)})" : "") +
             (counts.TryGetValue(p.Id, out var n) ? $" · {n} orders" : " · orders jore nahi"));
-        await ReplyAsync(seller, $"🏦 Pichle payouts:\n{string.Join("\n", lines)}\n\nGalti ho to: payout undo", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("payouts.004", string.Join("\n", lines)), ct);
     }
 
     private async Task RecordPayoutAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
     {
         if (cmd.Amount is not { } amount || amount <= 0 || amount > MaxPayoutAmount)
         {
-            await ReplyAsync(seller, "Rakam theek nahi lagti — jaise: payout 11700 TCS orders 1 2 3 fee 300", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("payouts.005"), ct);
             return;
         }
         var args = ParsePayoutArgs(cmd.Text2);
@@ -150,7 +147,7 @@ public partial class ConversationEngine
             var missing = args.Orders.Where(id => linked.All(o => o.Id != id)).ToList();
             if (missing.Count > 0)
             {
-                await ReplyAsync(seller, $"Order {string.Join(", ", missing.Select(id => $"#{id}"))} nahi mila — kuch save nahi kiya.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("payouts.006", string.Join(", ", missing.Select(id => $"#{id}"))), ct);
                 return;
             }
             var problems = new List<string>();
@@ -162,7 +159,7 @@ public partial class ConversationEngine
             }
             if (problems.Count > 0)
             {
-                await ReplyAsync(seller, $"⚠️ {string.Join("; ", problems)} — kuch save nahi kiya.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("payouts.007", string.Join("; ", problems)), ct);
                 return;
             }
         }
@@ -204,7 +201,7 @@ public partial class ConversationEngine
                 ? $"\n💡 Yeh {payout.Source} ke {sameCourier.Count} baqi orders ke total se milta hai. Jorne ke liye: payout undo, phir: payout {amount:0.##} {payout.Source} orders {string.Join(" ", sameCourier.Select(o => o.Id))}" + (args.Fee > 0 ? $" fee {args.Fee:0.##}" : "")
                 : "\nKoi order jora nahi. Baqi orders dekhein: payout pending (phir order numbers ke saath dobara likhein).";
         }
-        await ReplyAsync(seller, text + "\nGalti ho to: payout undo", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("payouts.008", text), ct);
     }
 
     private async Task SkipPayoutAsync(Seller seller, string? text, CancellationToken ct)
@@ -212,7 +209,7 @@ public partial class ConversationEngine
         var ids = Regex.Matches(text ?? "", @"\d+").Select(n => int.Parse(n.Value)).Where(n => n > 0).Distinct().ToList();
         if (ids.Count == 0)
         {
-            await ReplyAsync(seller, "Kaunse orders? Jaise: payout skip 12 13 (jin ka cash aap ko seedha mil gaya, courier se payout nahi aana).", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("payouts.009"), ct);
             return;
         }
         var orders = await _db.Orders.Where(o => o.SellerId == seller.Id && ids.Contains(o.Id)).ToListAsync(ct);
@@ -231,7 +228,7 @@ public partial class ConversationEngine
         var payout = await _db.Payouts.Where(p => p.SellerId == seller.Id).OrderByDescending(p => p.Id).FirstOrDefaultAsync(ct);
         if (payout is null)
         {
-            await ReplyAsync(seller, "Hatane ko koi payout nahi.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("payouts.010"), ct);
             return;
         }
 
@@ -251,7 +248,6 @@ public partial class ConversationEngine
             }
         }
         _db.Payouts.Remove(payout);
-        await ReplyAsync(seller, $"↩️ Payout #{payout.Id} ({payout.Source}, {Formatters.Money(payout.Amount)}) hata diya" +
-                                 (orders.Count > 0 ? $"; {orders.Count} orders wapas \"payout baqi\" mein." : "."), ct);
+        await ReplyAsync(seller, MessageTemplates.Get("payouts.011", payout.Id, payout.Source, Formatters.Money(payout.Amount), (orders.Count > 0 ? $"; {orders.Count} orders wapas \"payout baqi\" mein." : ".")), ct);
     }
 }

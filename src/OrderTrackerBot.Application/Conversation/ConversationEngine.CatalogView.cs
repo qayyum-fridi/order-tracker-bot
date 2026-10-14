@@ -1,12 +1,13 @@
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
 public sealed partial class ConversationEngine
 {
     private const int CatalogPageSize = 10;
-    private const string NoCategoryHeading = "Bina category";
+    private static readonly string NoCategoryHeading = MessageTemplates.Get("catalog-view.004");
 
     /// <summary>A product's category split into a main category and an optional sub-category: "Rashan > Cheeni" / "Rashan / Cheeni" (more levels are kept in the sub part).</summary>
     internal static (string Main, string? Sub) SplitCategory(string? category)
@@ -74,9 +75,7 @@ public sealed partial class ConversationEngine
                 var near = TextDistance.Nearest(query, allProducts.Select(p => p.Name).Distinct(StringComparer.OrdinalIgnoreCase), 2, 1);
                 ctx.CatalogQuery = null;
                 await ReplyAsync(seller,
-                    $"🔎 \"{query}\": koi product nahi mila ({allProducts.Count} products mein se)." +
-                    (near.Count > 0 ? $"\n💡 Kya aap \"{near[0]}\" keh rahe hain? Likhein: catalog search {near[0]}" : "") +
-                    "\nPoori list: catalog · Dobara talash: catalog search <naam>", ct);
+                    MessageTemplates.Get("catalog-view.001", query, allProducts.Count, (near.Count > 0 ? $"\n💡 Kya aap \"{near[0]}\" keh rahe hain? Likhein: catalog search {near[0]}" : "")), ct);
                 return;
             }
         }
@@ -121,24 +120,22 @@ public sealed partial class ConversationEngine
             lines.Add($"{first + i + 1} {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}" + (p.StockQty is { } q ? $" (stock {q})" : ""));
         }
 
-        var sortName = ctx.CatalogSort switch { "az" => "A-Z", "latest" => "naya pehle", _ => "jaise add kiye" };
+        var sortName = ctx.CatalogSort switch { "az" => "A-Z", "latest" => MessageTemplates.Get("catalog-view.002"), _ => MessageTemplates.Get("catalog-view.003") };
         var searching = !string.IsNullOrWhiteSpace(ctx.CatalogQuery);
         var title = searching
-            ? $"🔎 Talash: \"{ctx.CatalogQuery}\" — {products.Count} nateeje ({allProducts.Count} mein se)"
-            : $"🛍️ Aapka Catalog ({products.Count} products)";
-        var range = pages > 1 ? $"\nDikh rahe hain {first + 1}–{first + slice.Count} / {products.Count} · Page {page}/{pages} · Order: {sortName}" : "";
+            ? MessageTemplates.Get("catalog-view.005", ctx.CatalogQuery, products.Count, allProducts.Count)
+            : MessageTemplates.Get("catalog-view.006", products.Count);
+        var range = pages > 1 ? MessageTemplates.Get("catalog-view.007", first + 1, first + slice.Count, products.Count, page, pages, sortName) : "";
         var uncategorised = products.Count(p => string.IsNullOrWhiteSpace(p.Category));
         var ind = Industry(seller);
         var guide = searching ? "" : !anyCategory
-            ? $"\n\n💡 Category likhne se list category-wise nazar aati hai. Likhein: {ind.MainLine}, category {ind.Category}\n(sub-category: category {ind.Category} > naam)"
+            ? MessageTemplates.Get("catalog-view.008", ind.MainLine, ind.Category, ind.Category)
             : uncategorised > 0
-                ? $"\n\n💡 {uncategorised} products ki category nahi (\"{NoCategoryHeading}\"). Likhein: {ind.MainLine}, category {ind.Category}"
+                ? MessageTemplates.Get("catalog-view.009", uncategorised, NoCategoryHeading, ind.MainLine, ind.Category)
                 : "";
         var nav = pages > 1
-            ? $"\n\n📄 Agla: catalog next · Pichla: catalog prev · Seedha page: catalog page {Math.Min(pages, page + 1)} · Aakhri: catalog last\n" +
-              $"🔤 A-Z: catalog a-z · Naya pehle: catalog latest · Ek page par {pageSize}: catalog size 25 (5–{MaxCatalogPageSize})\n" +
-              "🔎 Talash: catalog search <naam / category / code>" + (searching ? " · Talash band: catalog reset" : "")
-            : (allProducts.Count > DefaultCatalogPageSize || searching ? "\n\n🔎 Talash: catalog search <naam> · Poori list: catalog reset" : "");
+            ? MessageTemplates.Get("catalog-view.010", Math.Min(pages, page + 1), pageSize, MaxCatalogPageSize, (searching ? " · Talash band: catalog reset" : ""))
+            : (allProducts.Count > DefaultCatalogPageSize || searching ? MessageTemplates.Get("catalog-view.011") : "");
         var text = (notice is null ? "" : notice + "\n\n") + $"{title}:{range}\n\n{string.Join("\n", lines)}{guide}{nav}" + (searching ? "" :
                    $"\n\nNaya product add karne ke liye likhein: {ind.MainLine}\n" +
                    $"Price badalne ke liye: edit product: {ind.MainLine}");

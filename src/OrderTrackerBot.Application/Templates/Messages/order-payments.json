@@ -1,0 +1,8 @@
+{
+  "order-payments.001": "Order #{0} {1} hai — payment add nahi ho sakti.",
+  "order-payments.002": "Order #{0} pehle se poora PAID hai ({1}).",
+  "order-payments.003": "Raqam 0 se zyada likhein, jaise \"order 12 advance 500\".",
+  "order-payments.004": "✅ Order #{0} ({1}): {2} mila — ab poora PAID.{3}{4}",
+  "order-payments.005": "✅ Order #{0} ({1}): {2} mila.\nAb tak {3} / {4} — baqi {5}.{6}",
+  "order-payments.006": "\nℹ️ \"{0}\" aapki last list ka number tha."
+}

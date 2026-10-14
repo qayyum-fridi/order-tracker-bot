@@ -1,11 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Formatting;
+using OrderTrackerBot.Application.Templates;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
 
 namespace OrderTrackerBot.Application.Conversation;
 
 // Screens 0 / 0b / 10e: post-language start choice, "change language" anytime, and the Business Setup summary.
+// Wording lives in Templates/Messages/language.json; button labels stay here because the engine matches on them.
 public partial class ConversationEngine
 {
     // "Language badlein" was the third button; the seller has just picked a language, so that slot now offers moving data over (typing "change language" still works).
@@ -16,23 +18,23 @@ public partial class ConversationEngine
 
     private static string LanguageChosenText(string language, bool onboarding) => (language, onboarding) switch
     {
-        (Lang.UrduScript, true) => "✅ ٹھیک ہے، ہم اردو میں بات کریں گے۔\n(ٹائپ کر کے جواب دینا بھی چلتا ہے — زبان کبھی بھی \"change language\" سے بدل سکتے ہیں)\n\nاب کیا کرنا چاہیں گے؟",
-        (Lang.English, true) => "✅ Alright, we'll continue in English.\n(You can also just type your reply — change the language anytime with \"change language\")\n\nWhat would you like to do?",
-        (_, true) => "✅ Theek hai, Roman Urdu mein baat karenge.\n(Typed reply bhi chal jata hai, button zaroori nahi — language kabhi bhi \"change language\" se badal sakte hain)\n\nAb kya karna chahenge?",
-        (Lang.UrduScript, false) => "✅ ٹھیک ہے — اب اردو میں بات ہوگی۔\n\nکیا کرنا چاہیں گے؟",
-        (Lang.English, false) => "✅ Great — switching to English. All replies (menu, guide, orders) will now show in English.\n\nWhat would you like to do?",
-        _ => "✅ Theek hai — ab Roman Urdu mein baat hogi.\n\nKya karna chahenge?"
+        (Lang.UrduScript, true) => MessageTemplates.Get("language.chosen.onboarding.urdu"),
+        (Lang.English, true) => MessageTemplates.Get("language.chosen.onboarding.english"),
+        (_, true) => MessageTemplates.Get("language.chosen.onboarding.roman"),
+        (Lang.UrduScript, false) => MessageTemplates.Get("language.chosen.urdu"),
+        (Lang.English, false) => MessageTemplates.Get("language.chosen.english"),
+        _ => MessageTemplates.Get("language.chosen.roman")
     };
 
     private Task AskBusinessNameAsync(Seller seller, ConversationSession session, CancellationToken ct)
     {
         SetState(session, ConversationState.OnboardingBusinessName);
         return _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
-            "Business ka naam bataiye? (ya neeche se option chunein)", BusinessNameButtons, ct);
+            MessageTemplates.Get("business.name.ask"), BusinessNameButtons, ct);
     }
 
     private Task AskLanguageAsync(Seller seller, CancellationToken ct) =>
-        _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, "🌐 Konsi language mein baat karein?", Lang.ButtonLabels, ct);
+        _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("language.ask"), Lang.ButtonLabels, ct);
 
     /// <summary>Called when the seller picks a language during onboarding (screen 0).</summary>
     private async Task OnboardingLanguageChosenAsync(Seller seller, ConversationSession session, string message, CancellationToken ct)
@@ -91,7 +93,7 @@ public partial class ConversationEngine
 
         if (choice is "baad mein karunga" or "baad mein")
         {
-            await ReplyAsync(seller, "ℹ️ Theek hai. Jab aap tayyar hon, apne business ka naam bhej dein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("business.name.later"), ct);
             return true;
         }
 
@@ -130,25 +132,21 @@ public partial class ConversationEngine
             : string.Join(", ", methods.Select(m => $"{PaymentMethodName(m.Type)} {m.AccountNumberOrId}"));
         var languageName = Lang.Normalize(seller.PreferredLanguage) switch
         {
-            Lang.English => "English",
-            Lang.UrduScript => "اردو",
-            _ => "Roman Urdu"
+            Lang.English => MessageTemplates.Get("language.name.english"),
+            Lang.UrduScript => MessageTemplates.Get("language.name.urdu"),
+            _ => MessageTemplates.Get("language.name.roman")
         };
 
         await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
-            $"⚙️ Business Setup — {seller.BusinessName}\n" +
-            $"📍 City: {seller.City ?? "—"}\n" +
-            $"🏷️ Type: {seller.BusinessType ?? "—"}\n" +
-            $"📸 Instagram: {seller.InstagramHandle ?? "—"}\n" +
-            $"💳 Payment: {payment}\n" +
-            $"🌐 Language: {languageName}\n\n" +
-            "Kya update karna hai?", BusinessSetupButtons, ct);
+            MessageTemplates.Get("business.setup.summary",
+                seller.BusinessName, seller.City ?? "—", seller.BusinessType ?? "—", seller.InstagramHandle ?? "—", payment, languageName),
+            BusinessSetupButtons, ct);
     }
 
     private async Task StartPaymentMethodInputAsync(Seller seller, ConversationSession session, CancellationToken ct)
     {
         SetState(session, ConversationState.AwaitingPaymentMethodInput);
-        await ReplyAsync(seller, "💳 Naya payment method bhejein (e.g. \"easypaisa, 0300-1234567\")", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("payment.method.prompt"), ct);
     }
 
     private async Task HandlePaymentMethodInputAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
@@ -168,6 +166,6 @@ public partial class ConversationEngine
         }
 
         SetState(session, ConversationState.AwaitingPaymentMethodInput);
-        await ReplyAsync(seller, "Format yeh hai: \"easypaisa, 0300-1234567\" (jazzcash / easypaisa / bank).", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("payment.method.format"), ct);
     }
 }

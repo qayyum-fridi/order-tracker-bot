@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -70,7 +71,7 @@ public partial class ConversationEngine
                 ? "(payment number jald bheja jayega)"
                 : $"JazzCash/Easypaisa: {_billing.PaymentNumber}\n({_billing.PaymentName})";
             await ReplyAsync(seller,
-                $"✅ {ctx.SelectedPlan} plan select ho gaya — Rs.{price:0}/month.\n\nPayment karein:\n{payTo}\n\nPayment ke baad \"paid\" likh dein.", ct);
+                MessageTemplates.Get("billing.001", ctx.SelectedPlan, $"{price:0}", payTo), ct);
             return true;
         }
 
@@ -81,7 +82,7 @@ public partial class ConversationEngine
             seller.SubscriptionActiveUntil = from.AddMonths(1);
             ctx.SelectedPlan = null;
             SetState(session, ConversationState.Idle);
-            await ReplyAsync(seller, $"✅ Subscription active — agla mahina: {seller.SubscriptionActiveUntil:d MMMM}.\nShukriya! Kaam jaari rakhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("billing.002", $"{seller.SubscriptionActiveUntil:d MMMM}"), ct);
             await _founderAlerts.NotifyAsync(seller.Id,
                 $"[{seller.BusinessName}] says PAID for {seller.Plan} ({seller.WhatsAppPhoneNumber}) — verify the transfer.", ct);
             return true;
@@ -90,7 +91,7 @@ public partial class ConversationEngine
         if (askedToSubscribe)
         {
             await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
-                $"💳 Plans:\n\n{PlansText}\n\nPlan chunein:", PlanButtons, ct);
+                MessageTemplates.Get("billing.003", PlansText), PlanButtons, ct);
             return true;
         }
 
@@ -98,8 +99,7 @@ public partial class ConversationEngine
         {
             var what = seller.SubscriptionActiveUntil is null ? "free trial" : "subscription";
             await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
-                $"⏸️ Aapka {what} khatam ho gaya hai.\n\nAapka data mehfooz hai. Dobara shuru karne ke liye subscribe karein:\n\n" +
-                $"1️⃣ Basic - Rs.{_billing.BasicPrice:0}/month\n2️⃣ Pro - Rs.{_billing.ProPrice:0}/month", PlanButtons, ct);
+                MessageTemplates.Get("billing.004", what, $"{_billing.BasicPrice:0}", $"{_billing.ProPrice:0}"), PlanButtons, ct);
             return true;
         }
 
@@ -115,7 +115,7 @@ public partial class ConversationEngine
 
     private Task SendProOnlyAsync(Seller seller, CancellationToken ct) =>
         _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
-            $"⭐ Yeh feature Pro plan mein hai (Rs.{_billing.ProPrice:0}/month) — loyalty, discounts aur reports.", new[] { PlanButtons[1] }, ct);
+            MessageTemplates.Get("billing.005", $"{_billing.ProPrice:0}"), new[] { PlanButtons[1] }, ct);
 
     /// <summary>Screen 1d, sent by the scheduler 2 days before the trial ends.</summary>
     private async Task SendTrialEndingReminderAsync(Seller seller, CancellationToken ct)
@@ -126,9 +126,7 @@ public partial class ConversationEngine
         var daysLeft = Math.Max(1, (int)Math.Ceiling((seller.TrialEndsAt!.Value - DateTime.UtcNow).TotalDays));
 
         await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
-            $"⏳ Aapka free trial {daysLeft} din mein khatam ho raha hai.\n\nIs mahine aapne track kiya:\n" +
-            $"📦 {orders.Count} orders\n💰 {Formatters.Money(orders.Sum(o => o.Total))} sales\n✅ {customers} customers ka record\n\n" +
-            $"Continue karne ke liye:\n{PlansText}", PlanButtons, ct);
+            MessageTemplates.Get("billing.006", daysLeft, orders.Count, Formatters.Money(orders.Sum(o => o.Total)), customers, PlansText), PlanButtons, ct);
         seller.TrialReminderSentAt = DateTime.UtcNow;
     }
 }

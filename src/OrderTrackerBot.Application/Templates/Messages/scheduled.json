@@ -1,0 +1,4 @@
+{
+  "scheduled.001": "📊 Weekly Summary — {0}\n\nIs hafte koi order record nahi hua. Naya order aate hi forward kar dein! 💪",
+  "scheduled.002": "📊 Weekly Summary — {0}\n\nTotal orders: {1}\nDelivered: {2} | Pending: {3} | Cancelled: {4} | Returned: {5}\n{6}Total sales: {7}\n{8}\nKeep it up! 🎉"
+}

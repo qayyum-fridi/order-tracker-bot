@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -11,16 +12,8 @@ namespace OrderTrackerBot.Application.Conversation;
 // phone/address/name, delivery and payment method — until "done". The first change logs a snapshot so "undo" restores it all.
 public partial class ConversationEngine
 {
-    private const string OrderEditHelp =
-        "Kya badalna hai? (aik waqt mein aik baat)\n" +
-        "• \"1 = 3\" — item 1 ki tadaad 3\n" +
-        "• \"price 1 = 1500\" — item 1 ka rate\n" +
-        "• \"remove 2\" — item 2 hatao\n" +
-        "• \"add Kurti 2\" — naya item\n" +
-        "• \"phone 0300…\" / \"address …\" / \"name …\"\n" +
-        "• \"delivery 250\" / \"free delivery\"\n" +
-        "• \"payment cod\" / \"payment jazzcash\"\n" +
-        "Mukammal ho to \"done\". Ghalti ho jaye to baad mein \"undo\".";
+    private static readonly string OrderEditHelp =
+        MessageTemplates.Get("order-edit.017");
 
     private const int MaxEditQuantity = 1000;
 
@@ -46,12 +39,12 @@ public partial class ConversationEngine
 
         if (order is null)
         {
-            await ReplyAsync(seller, number is null ? "Abhi koi order nahi hai." : $"Order #{number} nahi mila. Apne orders dekhne ke liye \"orders today\" likhein.", ct);
+            await ReplyAsync(seller, number is null ? MessageTemplates.Get("order-edit.014") : MessageTemplates.Get("commands.028", number), ct);
             return;
         }
         if (order.Status is OrderStatus.Cancelled or OrderStatus.Returned)
         {
-            await ReplyAsync(seller, $"Order #{order.Id} {Formatters.Status(order.Status)} hai — isay badla nahi ja sakta.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("order-edit.001", order.Id, Formatters.Status(order.Status)), ct);
             return;
         }
 
@@ -90,7 +83,7 @@ public partial class ConversationEngine
         if (order.Status is OrderStatus.Cancelled or OrderStatus.Returned)
         {
             EndOrderEdit(session, ctx);
-            await ReplyAsync(seller, $"Order #{order.Id} ab {Formatters.Status(order.Status)} hai — edit band kar diya, kuch nahi badla.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("order-edit.002", order.Id, Formatters.Status(order.Status)), ct);
             return;
         }
         // A pending "jaari or chhoro?" question is answered by the next message, whatever it is.
@@ -109,14 +102,14 @@ public partial class ConversationEngine
                 await ExecuteCommandAsync(seller, session, ctx, command, ct);
                 return;
             }
-            await ReplyAsync(seller, $"Maaf kijiye, samajh nahi aaya.\n\n{OrderEditHelp}", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("order-edit.003", OrderEditHelp), ct);
             return;
         }
 
         if (change.Kind == "done")
         {
             EndOrderEdit(session, ctx);
-            await ReplyAsync(seller, $"✅ Order #{order.Id} save ho gaya.\n{OrderEditSummary(order)}", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("order-edit.004", order.Id, OrderEditSummary(order)), ct);
             return;
         }
 
@@ -149,9 +142,9 @@ public partial class ConversationEngine
         await RecalculateOrderTotalsAsync(seller, order, ct);
         await ApplyStockChangeAsync(seller, stockBefore, StockFootprint(order), ct);
         var paidWarning = order.PaymentStatus == PaymentStatus.Paid && order.Total != previousTotal
-            ? $"\n⚠️ Payment PAID thi ({Formatters.Money(previousTotal)}) — farq ka hisaab khud rakhein."
+            ? MessageTemplates.Get("order-edit.018", Formatters.Money(previousTotal))
             : "";
-        await ReplyAsync(seller, $"✅ {result}{paidWarning}\n\n{OrderEditSummary(order)}\n\nAur kuch? Warna \"done\".", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("order-edit.005", result, paidWarning, OrderEditSummary(order)), ct);
     }
 
     private static void EndOrderEdit(ConversationSession session, SessionContextData ctx)
@@ -200,32 +193,32 @@ public partial class ConversationEngine
         }
         if (EditCancelRefused.IsMatch(text))
         {
-            await ReplyAsync(seller, $"Theek hai — cancel nahi kiya. {KeepEditingText}", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("order-edit.006", KeepEditingText), ct);
             return true;
         }
         if (EditRefusal.IsMatch(text))
         {
             // "Nahi" can mean keep or drop the changes: ask, and do nothing until the seller says which.
             ctx.EditDiscardPending = true;
-            await ReplyAsync(seller, "Kya karna hai?\n• \"jaari\" — edit jaari rakhein\n• \"chhoro\" — ye badlaav discard karein (order pehli halat mein)\nJo chunein, woh likh dein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("order-edit.007"), ct);
             return true;
         }
         if (CommandParser.IsAcknowledgement(text) || EditAcknowledgement.IsMatch(text))
         {
-            await ReplyAsync(seller, $"👍 Theek hai. {KeepEditingText}", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("order-edit.008", KeepEditingText), ct);
             return true;
         }
         // "haan" answers an order-placement question, and none is pending while editing: it saves nothing.
         if (CommandParser.IsAffirmative(text))
         {
-            await ReplyAsync(seller, $"Abhi order edit ho raha hai, is liye \"haan\" se save nahi hoga. {KeepEditingText}", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("order-edit.009", KeepEditingText), ct);
             return true;
         }
         return await TryApplyEditCorrectionAsync(seller, session, ctx, order, text, ct);
     }
 
-    private const string KeepEditingText =
-        "Edit jaari hai — aur badlaav likhein (jaise \"1 = 3\"), ya \"done\" likh kar save karein.";
+    private static readonly string KeepEditingText =
+        MessageTemplates.Get("order-edit.019");
 
     /// <summary>
     /// "3500 nahi, 5300" while editing: the new amount replaces the one taken back, but only when exactly one field holds the old amount.
@@ -265,13 +258,13 @@ public partial class ConversationEngine
         }
         if (matches == 0)
         {
-            await ReplyAsync(seller, $"Rs.{old:0.##} is order mein kahin nahi milta. Likhein: \"price 1 = {value}\" (item ka rate) ya \"delivery {value}\".", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("order-edit.010", $"{old:0.##}", value, value), ct);
             return true;
         }
 
-        var options = priceMatches.Select(x => $"• \"price {x.Number} = {value}\" — {x.Item.ProductNameSnapshot} ka rate")
-            .Concat(deliveryMatches ? new[] { $"• \"delivery {value}\" — delivery charge" } : Array.Empty<string>());
-        await ReplyAsync(seller, $"Kaunsi cheez badlni hai? Rs.{old:0.##} in mein se kahin hai:\n{string.Join("\n", options)}", ct);
+        var options = priceMatches.Select(x => MessageTemplates.Get("order-edit.015", x.Number, value, x.Item.ProductNameSnapshot))
+            .Concat(deliveryMatches ? new[] { MessageTemplates.Get("order-edit.020", value) } : Array.Empty<string>());
+        await ReplyAsync(seller, MessageTemplates.Get("order-edit.011", $"{old:0.##}", string.Join("\n", options)), ct);
         return true;
     }
 
@@ -292,15 +285,14 @@ public partial class ConversationEngine
         }
         EndOrderEdit(session, ctx);
         await ReplyAsync(seller,
-            (edited ? $"✖️ Edit cancel kar diya — Order #{order.Id} ke badlaav wapas ho gaye." : $"✖️ Edit band kar diya — Order #{order.Id} mein koi badlaav nahi hua.") +
-            $"\nOrder cancel nahi hua. Order cancel karne ke liye \"cancel order {order.Id}\" likhein.", ct);
+            MessageTemplates.Get("order-edit.012", (edited ? $"✖️ Edit cancel kar diya — Order #{order.Id} ke badlaav wapas ho gaye." : $"✖️ Edit band kar diya — Order #{order.Id} mein koi badlaav nahi hua."), order.Id), ct);
     }
 
     private async Task<(bool Ok, string Message)> ApplyOrderEditAsync(Seller seller, Order order, OrderEditInstruction change, CancellationToken ct)
     {
         var items = order.Items.OrderBy(i => i.Id).ToList();
         OrderItem? Item(int? number) => number is >= 1 && number <= items.Count ? items[number.Value - 1] : null;
-        string NoItem(int? number) => $"Item {number} nahi hai — 1 se {items.Count} tak number likhein.";
+        string NoItem(int? number) => MessageTemplates.Get("order-edit.016", number, items.Count);
 
         switch (change.Kind)
         {
@@ -402,7 +394,7 @@ public partial class ConversationEngine
             customer.Phone = snapshot.CustomerPhone;
             customer.Address = snapshot.CustomerAddress;
         }
-        await ReplyAsync(seller, $"↩️ Reverted — Order #{order.Id} ki tabdeeliyan wapas.\n{OrderEditSummary(order)}", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("order-edit.013", order.Id, OrderEditSummary(order)), ct);
     }
 
     private static string OrderEditSummary(Order order)

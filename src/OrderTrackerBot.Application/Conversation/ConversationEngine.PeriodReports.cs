@@ -3,6 +3,7 @@ using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Application.Time;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -30,7 +31,7 @@ public partial class ConversationEngine
             .OrderByDescending(x => x.Spent).ThenBy(x => x.Customer.Name).ToList();
         if (ranked.Count == 0)
         {
-            await ReplyAsync(seller, $"👥 Customers ({label}): is period mein kisi customer ka order nahi aaya.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("period-reports.001", label), ct);
             return;
         }
 
@@ -40,6 +41,6 @@ public partial class ConversationEngine
         var lines = top.Select((x, i) => $"{i + 1} {x.Customer.Name} - {x.Customer.Phone ?? "—"} - {x.Orders} orders - {Formatters.Money(x.Spent)}");
         var more = ranked.Count > shown ? $"\n…aur {ranked.Count - shown} customers" : "";
         await ReplyAsync(seller,
-            $"👥 Customers ({label}) — {ranked.Count}, total {Formatters.Money(ranked.Sum(x => x.Spent))}\n\n{string.Join("\n", lines)}{more}\n\n\"customer 1\" ya naam likh kar detail dekhein.", ct);
+            MessageTemplates.Get("period-reports.002", label, ranked.Count, Formatters.Money(ranked.Sum(x => x.Spent)), string.Join("\n", lines), more), ct);
     }
 }

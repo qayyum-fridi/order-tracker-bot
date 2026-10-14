@@ -1,0 +1,5 @@
+{
+  "margin.001": "📊 Margin: aapke catalog mein abhi koi product nahi. Pehle product likhein, jaise: {0}",
+  "margin.002": "📊 Margin: kisi product ki cost save nahi, is liye hisaab nahi ho sakta.\nCost ke saath likhein, jaise: \"{0}\" (cost sirf aap ko nazar aati hai, receipt par nahi).",
+  "margin.003": "\n\nℹ️ {0} product(s) ki cost save nahi, wo is list mein nahi. Cost likhein: \"{1}\"."
+}

@@ -1,0 +1,10 @@
+{
+  "billing.001": "✅ {0} plan select ho gaya — Rs.{1}/month.\n\nPayment karein:\n{2}\n\nPayment ke baad \"paid\" likh dein.",
+  "billing.002": "✅ Subscription active — agla mahina: {0}.\nShukriya! Kaam jaari rakhein.",
+  "billing.003": "💳 Plans:\n\n{0}\n\nPlan chunein:",
+  "billing.004": "⏸️ Aapka {0} khatam ho gaya hai.\n\nAapka data mehfooz hai. Dobara shuru karne ke liye subscribe karein:\n\n1️⃣ Basic - Rs.{1}/month\n2️⃣ Pro - Rs.{2}/month",
+  "billing.005": "⭐ Yeh feature Pro plan mein hai (Rs.{0}/month) — loyalty, discounts aur reports.",
+  "billing.006": "⏳ Aapka free trial {0} din mein khatam ho raha hai.\n\nIs mahine aapne track kiya:\n📦 {1} orders\n💰 {2} sales\n✅ {3} customers ka record\n\nContinue karne ke liye:\n{4}",
+  "billing.007": "(payment number jald bheja jayega)",
+  "billing.008": "free trial"
+}

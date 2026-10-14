@@ -1,0 +1,16 @@
+{
+  "supplier.001": "Aapke catalog mein abhi koi product nahi. Pehle product likhein, jaise: Lawn Suit - 3500, cost 2500",
+  "supplier.002": "\"{0}\" catalog mein nahi mila. Products dekhne ke liye \"catalog\" likhein.",
+  "supplier.003": "\"{0}\" catalog mein nahi mila — kuch save nahi kiya. Products dekhne ke liye \"catalog\" likhein.",
+  "supplier.004": "Maaf kijiye, product aur supplier ka naam alag nahi kar saka. {0}",
+  "supplier.005": "Supplier ka naam 60 harf se chhota aur ek baar mein {0} se kam products likhein.",
+  "supplier.006": "✅ Supplier \"{0}\" save ho gaya:\n{1}\n\nAb \"kis supplier ka maal zyada bika\" ya \"suppliers\" likh kar hisaab dekhein. Badalne ke liye wohi command dobara likhein; hatane ke liye \"supplier remove Lawn Suit\".",
+  "supplier.007": "Maaf kijiye, courier fee ki raqam theek nahi lagti. Jaise likhein: courier fee 12 250",
+  "supplier.008": "✅ Order #{0} ({1}) — courier fee {2} note kar li{3}.\n{4}Yeh sirf aap ke record ke liye hai (customer ki receipt par nahi aata). Poora hisaab: \"courier fee report\".{5}",
+  "supplier.009": "🚚 Courier fee ({0}): kisi parcel ki courier fee likhi nahi. Likhne ke liye: \"courier fee 12 250\" (order 12 ka courier bill Rs.250).",
+  "supplier.010": "🚚 Courier ko diya — {0}\n\n{1}\n\nKul courier fee: {2} · customers se li gayi delivery: {3} → {4}{5}",
+  "supplier.011": "{0} par pehle se koi supplier nahi tha.",
+  "supplier.012": "✅ {0} se supplier \"{1}\" hata diya.",
+  "supplier.013": "• {0}: {1} parcels · fee {2} · customers se {3} → {4}",
+  "supplier.014": "Jaise likhein: \"supplier Lawn Suit Shah Alam\" ya \"supplier Shah Alam: Lawn Suit, Kurti\" ya \"Lawn Suit ka supplier Shah Alam\"."
+}

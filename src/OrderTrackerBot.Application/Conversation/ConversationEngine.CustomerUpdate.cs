@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -18,15 +19,13 @@ public partial class ConversationEngine
 
         if (matches.Count == 0)
         {
-            await ReplyAsync(seller, $"\"{wanted}\" naam ka koi customer nahi mila. \"customer list\" se dekhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("customers.003", wanted), ct);
             return;
         }
         if (matches.Count > 1)
         {
             await ReplyAsync(seller,
-                $"\"{wanted}\" naam ke {matches.Count} customers hain:\n" +
-                string.Join("\n", matches.Select(c => $"• {c.Name}{(string.IsNullOrWhiteSpace(c.Phone) ? "" : $" ({c.Phone})")}")) +
-                "\n\nPoora naam likhein, jaise \"" + matches[0].Name + " ka " + cmd.Text2 + " ...\"", ct);
+                MessageTemplates.Get("customer-update.001", wanted, matches.Count, string.Join("\n", matches.Select(c => $"• {c.Name}{(string.IsNullOrWhiteSpace(c.Phone) ? "" : $" ({c.Phone})")}")), matches[0].Name, cmd.Text2), ct);
             return;
         }
 
@@ -47,9 +46,7 @@ public partial class ConversationEngine
 
         var label = cmd.Text2 switch { "phone" => "phone", "address" => "address", "city" => "shehar", _ => "naam" };
         await ReplyAsync(seller,
-            $"✅ {(cmd.Text2 == "name" ? previous : customer.Name)} ka {label} update: {cmd.Text3}" +
-            (string.IsNullOrWhiteSpace(previous) ? "" : $" (pehle: {previous})") +
-            "\nGhalti ho to \"undo\".", ct);
+            MessageTemplates.Get("customer-update.002", (cmd.Text2 == "name" ? previous : customer.Name), label, cmd.Text3, (string.IsNullOrWhiteSpace(previous) ? "" : $" (pehle: {previous})")), ct);
         SuggestNext($"order for {customer.Name}", $"{customer.Name} ka order");
     }
 
@@ -68,6 +65,6 @@ public partial class ConversationEngine
             case "city": customer.City = previous; break;
             default: customer.Name = previous ?? customer.Name; break;
         }
-        await ReplyAsync(seller, $"↩️ Reverted — {customer.Name} ka {field} wapas: {previous ?? "(khali)"}", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("customer-update.003", customer.Name, field, previous ?? "(khali)"), ct);
     }
 }

@@ -3,6 +3,7 @@ using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Application.Time;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -51,12 +52,12 @@ public partial class ConversationEngine
         }).Where(g => g.Returned > 0 || g.Stuck > 0).OrderByDescending(g => g.Avg ?? 0).ToList();
         if (groups.Count == 0)
         {
-            await ReplyAsync(seller, $"📦 Return ke raaste ka waqt ({label}): courier wale returned ya 10 din se zyada purane shipped parcel nahi mile. (\"mark N shipped\" aur \"mark N returned\" likhne se waqt banta hai.)", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights8.001", label), ct);
             return;
         }
         var lines = groups.Select((g, i) => $"{i + 1}. {g.Name} — " + (g.Avg is { } a ? $"return aane mein average {Num((decimal)a)} din (sab se zyada {Num((decimal)g.Max)}; {g.Returned} parcels)" : "koi returned parcel nahi") + (g.Stuck > 0 ? $" · {g.Stuck} parcel 10 din se \"shipped\" hi hain" : ""));
         await ReplyAsync(seller,
-            $"📦 Return ka maal raaste mein kitne din — {label}\n\n{string.Join("\n", lines)}\n\nWaqt \"shipped\" likhne se \"returned\" likhne tak ka hai (aap jab likhte hain). Jab tak parcel \"returned\" mark nahi hota, uska stock wapas nahi chadhta.", ct);
+            MessageTemplates.Get("insights8.002", label, string.Join("\n", lines)), ct);
         SuggestNext("courier returns", "return rate");
     }
 
@@ -71,7 +72,7 @@ public partial class ConversationEngine
         var dispatched = rows.Where(r => !string.IsNullOrWhiteSpace(r.City) && WasDispatched(r.Status, r.ShippedAt)).ToList();
         if (dispatched.Count == 0)
         {
-            await ReplyAsync(seller, $"🚚 Shehron ka muqabla ({label}): shehar wale bheje hue orders nahi mile. Shehar likhne ke liye: \"Sara ki city Karachi\".", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights8.003", label), ct);
             return;
         }
 
@@ -86,9 +87,7 @@ public partial class ConversationEngine
             return $"• {c}: {g.Count} parcels · " + (days.Count > 0 ? $"delivery average {Num((decimal)days.Average())} din" : "delivery ka waqt maloom nahi") + $" · wapas {back} ({Pct((decimal)back / g.Count * 100m)})";
         });
         await ReplyAsync(seller,
-            $"🚚 Shehron ka muqabla — {label}\n\n{string.Join("\n", lines)}\n\n" +
-            "Wapas = status \"returned\". Gaahak ne parcel lene se inkar kiya ya address ghalat tha — bot yeh farq nahi karta, is liye \"refusal rate\" nahi balkay wapsi ki shurat dikhai gayi hai." +
-            (named.Count == 0 ? "\n(Shehar ka naam jaisa customer par likha hai waisa likhein, jaise: \"Karachi aur Islamabad ka delivery time\".)" : ""), ct);
+            MessageTemplates.Get("insights8.004", label, string.Join("\n", lines), (named.Count == 0 ? "\n(Shehar ka naam jaisa customer par likha hai waisa likhein, jaise: \"Karachi aur Islamabad ka delivery time\".)" : "")), ct);
         SuggestNext("city wise orders", "delivery time");
     }
 
@@ -104,7 +103,7 @@ public partial class ConversationEngine
         var (_, counted, revenue, cost) = await ComputeProfitAsync(seller, start, DateTime.MaxValue, ct);
         if (parcels.Count == 0)
         {
-            await ReplyAsync(seller, $"✅ Pichle {days} din mein koi parcel wapas nahi aaya (ya bhej kar cancel nahi hua).", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights8.005", days), ct);
             return;
         }
 
@@ -113,11 +112,7 @@ public partial class ConversationEngine
         var profit = revenue - cost;
         var share = counted > 0 && profit > 0 ? Pct(spent / profit * 100m) : null;
         await ReplyAsync(seller,
-            $"📉 Wapas aaye parcels aur courier — pichle {days} din\n\n" +
-            $"Wapas / bhej kar cancel hue parcels: {parcels.Count}\n" +
-            $"Courier par gaya: {Formatters.Money(spent)}" + (written == parcels.Count ? " (likhi hui fee)" : written > 0 ? $" ({written} ki likhi fee, baqi {parcels.Count - written} ki delivery charge)" : " (fee likhi nahi, order par likhi delivery charge)") + "\n" +
-            (share is not null ? $"Is muddat ka munafa: {Formatters.Money(profit)} → courier ka hissa {share}\n" : "Munafa nikalne ke liye products ki cost chahiye (\"Kurti - 1800, cost 1200\").\n") +
-            "\nWapsi ka kiraya alag save nahi hota — sirf wo jo \"courier fee 12 250\" mein likha ho (ya delivery charge).", ct);
+            MessageTemplates.Get("insights8.006", days, parcels.Count, Formatters.Money(spent), (written == parcels.Count ? " (likhi hui fee)" : written > 0 ? $" ({written} ki likhi fee, baqi {parcels.Count - written} ki delivery charge)" : " (fee likhi nahi, order par likhi delivery charge)"), (share is not null ? $"Is muddat ka munafa: {Formatters.Money(profit)} → courier ka hissa {share}\n" : "Munafa nikalne ke liye products ki cost chahiye (\"Kurti - 1800, cost 1200\").\n")), ct);
         SuggestNext("courier fee report", "return rate");
     }
 
@@ -133,7 +128,7 @@ public partial class ConversationEngine
             .OrderByDescending(o => o.UpdatedAt).ToListAsync(ct);
         if (orders.Count == 0)
         {
-            await ReplyAsync(seller, $"✅ Pichle {days} din mein koi paid (ya advance wala) order cancel / return nahi hua.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights8.007", days), ct);
             return;
         }
 
@@ -146,9 +141,7 @@ public partial class ConversationEngine
         }).ToList();
         var open = lines.Count(l => l.Contains("⚠️"));
         await ReplyAsync(seller,
-            $"🔎 Paid ke baad cancel/return — pichle {days} din ({orders.Count} orders)\n\n{string.Join("\n", lines)}\n\n" +
-            (open > 0 ? $"{open} order(s) mein wapsi ka cash out nazar nahi aaya — dekh lein ke paisa customer ko lauta diya ya drawer mein hai. " : "Sab ke saath cash out likha hua hai. ") +
-            "Cash out ko \"order se jorna\" bot nahi karta: raqam (mila hua ya order ka total) aur 7 din ke andar likhi cash out se milaya gaya hai.", ct);
+            MessageTemplates.Get("insights8.008", days, orders.Count, string.Join("\n", lines), (open > 0 ? $"{open} order(s) mein wapsi ka cash out nazar nahi aaya — dekh lein ke paisa customer ko lauta diya ya drawer mein hai. " : "Sab ke saath cash out likha hua hai. ")), ct);
         SuggestNext("drawer history", "cash out");
     }
 
@@ -161,7 +154,7 @@ public partial class ConversationEngine
         var orders = await ActiveOrdersIn(seller, start, end).Select(o => new { o.Id, o.Total, o.DiscountAmount }).ToListAsync(ct);
         if (orders.Count == 0)
         {
-            await ReplyAsync(seller, $"🎟️ Discount aur order ka size ({label}): is dauran koi order nahi.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights8.009", label), ct);
             return;
         }
         var ids = orders.Select(o => o.Id).ToList();
@@ -184,11 +177,11 @@ public partial class ConversationEngine
             .OrderByDescending(x => x.WithAvg / x.WithoutAvg).ToList();
         if (result.Count == 0)
         {
-            await ReplyAsync(seller, $"🎟️ Discount aur order ka size ({label}): kisi category mein discount wale aur bina discount wale kam az kam 3-3 orders nahi — muqabla nahi ban saka.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights8.010", label), ct);
             return;
         }
         var text = result.Take(5).Select((x, i) => $"{i + 1}. {x.Name} — discount wale order ki average {Formatters.Money(Math.Round(x.WithAvg))} ({x.WithCount}) bamuqabla {Formatters.Money(Math.Round(x.WithoutAvg))} ({x.WithoutCount}) → {(x.WithAvg >= x.WithoutAvg ? "+" : "-")}{Pct(Math.Abs(x.WithAvg - x.WithoutAvg) / x.WithoutAvg * 100m)}");
-        await ReplyAsync(seller, $"🎟️ Discount ke saath bade order — {label}\n\n{string.Join("\n", text)}\n\nOrder ki category = us ki sab se bari line ki category. Yeh sirf muqabla hai: discount ki wajah se order bara hua, yeh sabit nahi.", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("insights8.011", label, string.Join("\n", text)), ct);
         SuggestNext("discount report", "sales by category");
     }
 
@@ -204,7 +197,7 @@ public partial class ConversationEngine
         var without = sent.Where(r => r.DiscountAmount <= 0).ToList();
         if (withD.Count == 0 || without.Count == 0)
         {
-            await ReplyAsync(seller, $"↩️ Discount aur return ({label}): muqabla ke liye dono qisam ke bheje gaye orders chahiye — discount wale {withD.Count}, baqi {without.Count}.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights8.012", label, withD.Count, without.Count), ct);
             return;
         }
         var a = withD.Count(r => r.Status == OrderStatus.Returned);
@@ -212,9 +205,7 @@ public partial class ConversationEngine
         var ra = (decimal)a / withD.Count * 100m;
         var rb = (decimal)b / without.Count * 100m;
         await ReplyAsync(seller,
-            $"↩️ Discount aur return — {label}\n\nDiscount wale orders: {withD.Count} bheje, {a} wapas → {Pct(ra)}\nBina discount: {without.Count} bheje, {b} wapas → {Pct(rb)}\n" +
-            (ra > rb ? "→ discount wale orders zyada wapas aaye." : ra < rb ? "→ discount wale orders kam wapas aaye." : "→ barabar.") +
-            (withD.Count < 10 || without.Count < 10 ? "\n(Orders kam hain — is farq par bharosa na karein.)" : ""), ct);
+            MessageTemplates.Get("insights8.013", label, withD.Count, a, Pct(ra), without.Count, b, Pct(rb), (ra > rb ? "→ discount wale orders zyada wapas aaye." : ra < rb ? "→ discount wale orders kam wapas aaye." : "→ barabar."), (withD.Count < 10 || without.Count < 10 ? "\n(Orders kam hain — is farq par bharosa na karein.)" : "")), ct);
         SuggestNext("return rate", "discount report");
     }
 
@@ -231,7 +222,7 @@ public partial class ConversationEngine
         var rent = specific ? fixedMonthly : 0m;
         if (rent + suppliers <= 0)
         {
-            await ReplyAsync(seller, "Pichle 3 mahine mein kiraya, bijli ya supplier ki payment ke kharche darj nahi. Likhein, jaise: \"expense 40000 kiraya\", \"expense 12000 bijli\", \"expense 150000 supplier\".", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights8.014"), ct);
             return;
         }
 
@@ -243,12 +234,7 @@ public partial class ConversationEngine
         var received = (await _db.Orders.AsNoTracking().Where(o => o.SellerId == seller.Id && o.PaidAt != null && o.PaidAt >= now.AddDays(-30) && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
             .Select(o => new { o.Total, o.AmountPaid, o.PaymentStatus }).ToListAsync(ct)).Sum(o => o.PaymentStatus == PaymentStatus.Paid ? o.Total : Math.Min(o.AmountPaid, o.Total)) / 30m;
         await ReplyAsync(seller,
-            $"💵 Agle mahine ki 5 tareekh ({target:d MMM}) tak — {daysLeft} din baqi\n\n" +
-            (rent > 0 ? $"Kiraya / bijli / bill (mahine ki average): {Formatters.Money(Math.Round(rent))}\n" : "") +
-            (suppliers > 0 ? $"Supplier ki payment (mahine ki average): {Formatters.Money(Math.Round(suppliers))}\n" : "") +
-            $"Kul zaroorat: {Formatters.Money(Math.Round(need))} → roz kam az kam {Formatters.Money(Math.Round(perDay))} wasooli\n" +
-            $"Abhi roz ki wasooli (pichle 30 din, paid orders): {Formatters.Money(Math.Round(received))} → " + (received >= perDay ? "✅ kaafi hai" : $"⚠️ roz ~{Formatters.Money(Math.Round(perDay - received))} kam") + "\n\n" +
-            "Yeh wasooli (paisa haath mein) ka hisaab hai, munafa nahi; hisaab aap ke likhe hue kharchon par hai." + (rent == 0 ? "\nKiraya/bijli ke kharche alag se likhe nahi, is liye sirf supplier ki payment ginti hai." : ""), ct);
+            MessageTemplates.Get("insights8.015", $"{target:d MMM}", daysLeft, (rent > 0 ? $"Kiraya / bijli / bill (mahine ki average): {Formatters.Money(Math.Round(rent))}\n" : ""), (suppliers > 0 ? $"Supplier ki payment (mahine ki average): {Formatters.Money(Math.Round(suppliers))}\n" : ""), Formatters.Money(Math.Round(need)), Formatters.Money(Math.Round(perDay)), Formatters.Money(Math.Round(received)), (received >= perDay ? "✅ kaafi hai" : $"⚠️ roz ~{Formatters.Money(Math.Round(perDay - received))} kam"), (rent == 0 ? "\nKiraya/bijli ke kharche alag se likhe nahi, is liye sirf supplier ki payment ginti hai." : "")), ct);
         SuggestNext("expenses", "cash flow");
     }
 
@@ -262,7 +248,7 @@ public partial class ConversationEngine
             .ToListAsync(ct);
         if (rows.Count == 0)
         {
-            await ReplyAsync(seller, $"⏱️ Paisa kitne din mein mila ({label}): koi paid order nahi.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights8.016", label), ct);
             return;
         }
 
@@ -275,8 +261,7 @@ public partial class ConversationEngine
         var cod = rows.Where(r => r.PaymentMethod == OrderPaymentMethod.Cod && r.PayoutId == null).Select(r => (r.PaidAt - (r.DeliveredAt ?? r.CreatedAt)).TotalDays);
         var payout = rows.Where(r => r.PaymentMethod == OrderPaymentMethod.Cod && r.PayoutId != null).Select(r => (r.PaidAt - (r.DeliveredAt ?? r.CreatedAt)).TotalDays);
         await ReplyAsync(seller,
-            $"⏱️ Paisa kitne din mein haath aaya — {label}\n\n{Part("Advance / wallet / bank (order se paid mark tak)", advance)}\n{Part("COD cash (delivery se paid mark tak)", cod)}\n{Part("COD courier payout ke zariye (delivery se payout tak)", payout)}\n\n" +
-            "Waqt wo hai jab aap ne \"paid\" ya payout likha; bank mein asal paisa kab aaya, yeh bot nahi dekhta.", ct);
+            MessageTemplates.Get("insights8.017", label, Part("Advance / wallet / bank (order se paid mark tak)", advance), Part("COD cash (delivery se paid mark tak)", cod), Part("COD courier payout ke zariye (delivery se payout tak)", payout)), ct);
         SuggestNext("payout pending", "cod pending");
     }
 
@@ -288,14 +273,13 @@ public partial class ConversationEngine
         var cod = rows.Where(r => r.PaymentMethod == OrderPaymentMethod.Cod).ToList();
         if (advance.Count == 0 || cod.Count == 0)
         {
-            await ReplyAsync(seller, $"💳 Advance aur order ka size ({label}): dono qisam ke orders chahiye — advance/wallet {advance.Count}, COD {cod.Count}.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights8.018", label, advance.Count, cod.Count), ct);
             return;
         }
         var a = advance.Average(r => r.Total);
         var c = cod.Average(r => r.Total);
         await ReplyAsync(seller,
-            $"💳 Advance bamuqabla COD — {label}\n\nAdvance / wallet / bank: {advance.Count} orders · har order ki average {Formatters.Money(Math.Round(a))}\nCOD / cash: {cod.Count} orders · har order ki average {Formatters.Money(Math.Round(c))}\n" +
-            $"→ advance wale orders {(a >= c ? "bade" : "chhote")} hain ({Pct(Math.Abs(a - c) / c * 100m)})", ct);
+            MessageTemplates.Get("insights8.019", label, advance.Count, Formatters.Money(Math.Round(a)), cod.Count, Formatters.Money(Math.Round(c)), (a >= c ? "bade" : "chhote"), Pct(Math.Abs(a - c) / c * 100m)), ct);
         SuggestNext("payment split", "average sale");
     }
 
@@ -309,7 +293,7 @@ public partial class ConversationEngine
         var losses = await _db.Losses.AsNoTracking().Where(l => l.SellerId == seller.Id && l.CreatedAt >= start).ToListAsync(ct);
         if (orders.Count == 0 && losses.Count == 0)
         {
-            await ReplyAsync(seller, $"✅ Pichle {days} din mein koi cancel, return ya kharab maal nahi.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights8.020", days), ct);
             return;
         }
 
@@ -318,12 +302,7 @@ public partial class ConversationEngine
         var courier = parcels.Sum(o => o.CourierFee ?? o.DeliveryCharge);
         var wasted = losses.Sum(l => l.Quantity * l.UnitCost);
         await ReplyAsync(seller,
-            $"🕳️ Nuqsan ka hisaab — pichle {days} din\n\n" +
-            $"Bhejne se pehle cancel: {early.Count} orders ({Formatters.Money(early.Sum(o => o.Total))} ki sale nahi hui, paisa ka nuqsan nahi)\n" +
-            $"Wapas aaye / bhej kar cancel: {parcels.Count} orders ({Formatters.Money(parcels.Sum(o => o.Total))} ki sale) — courier par gaya {Formatters.Money(courier)}" + (parcels.Any(o => o.CourierFee == null) ? " (jahan fee likhi nahi wahan delivery charge)" : "") + "\n" +
-            $"Kharab / gum maal: {losses.Sum(l => l.Quantity)} piece, cost {Formatters.Money(wasted)}\n\n" +
-            $"Pakka naqd nuqsan: {Formatters.Money(courier + wasted)} (courier + kharab maal)\n" +
-            "Wapas aaya maal agar theek ho to stock mein wapas chadh jata hai, is liye uski cost nuqsan nahi ginti.", ct);
+            MessageTemplates.Get("insights8.021", days, early.Count, Formatters.Money(early.Sum(o => o.Total)), parcels.Count, Formatters.Money(parcels.Sum(o => o.Total)), Formatters.Money(courier), (parcels.Any(o => o.CourierFee == null) ? " (jahan fee likhi nahi wahan delivery charge)" : ""), losses.Sum(l => l.Quantity), Formatters.Money(wasted), Formatters.Money(courier + wasted)), ct);
         SuggestNext("return rate", "courier fee report");
     }
 }

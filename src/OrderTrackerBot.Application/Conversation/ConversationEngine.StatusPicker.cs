@@ -3,6 +3,7 @@ using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -34,7 +35,7 @@ public partial class ConversationEngine
             order = await _db.Orders.Include(o => o.Customer).FirstOrDefaultAsync(o => o.SellerId == seller.Id && o.Id == orderId, ct);
             if (order is null)
             {
-                await ReplyAsync(seller, $"Order #{n} nahi mila. Apne orders dekhne ke liye \"orders today\" likhein.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("commands.028", n), ct);
                 return;
             }
         }
@@ -43,7 +44,7 @@ public partial class ConversationEngine
             order = await _db.Orders.Include(o => o.Customer).Where(o => o.SellerId == seller.Id).OrderByDescending(o => o.Id).FirstOrDefaultAsync(ct);
             if (order is null)
             {
-                await ReplyAsync(seller, "Abhi koi order nahi hai. Pehle \"naya order\" likhein.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("status-picker.001"), ct);
                 return;
             }
         }
@@ -51,12 +52,11 @@ public partial class ConversationEngine
         var rows = StatusChoices(order);
         if (rows.Count == 0)
         {
-            await ReplyAsync(seller, $"Order #{order.Id} {Formatters.Status(order.Status)} hai — iska status ab change nahi ho sakta.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("status-picker.002", order.Id, Formatters.Status(order.Status)), ct);
             return;
         }
 
-        var body = $"📦 Order #{order.Id} ({order.Customer?.Name}) abhi {Formatters.Status(order.Status)} hai.\nNaya status chunein 👇\n\n" +
-                   "Kisi aur order ke liye: \"status 12\"";
+        var body = MessageTemplates.Get("status-picker.003", order.Id, order.Customer?.Name, Formatters.Status(order.Status));
         await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, body, "Status chunein",
             new[] { new MenuSection("Order status", rows) }, ct);
     }

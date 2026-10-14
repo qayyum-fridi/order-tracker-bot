@@ -1,0 +1,8 @@
+{
+  "losses.001": "Nuqsan ki quantity 0 se zyada honi chahiye. Jaise: \"loss 2 Kurti damaged\"",
+  "losses.002": "📉 Nuqsan note: {0} × {1}{2}\nCost: {3}{4}\nGhalti ho to \"undo\"",
+  "losses.003": "↩️ Reverted — nuqsan {0} × {1} wapas.",
+  "losses.004": "Tankhwah ki raqam 0 se zyada honi chahiye. Jaise: \"Ali ki 5000 dihari\" ya \"wage Ali 5000\"",
+  "losses.005": "✅ {0} ki tankhwah save: {1}{2}\nIs maah ki tankhwah total: {3}\nGhalti ho to \"undo\" · Hisaab: \"monthly net\"",
+  "losses.006": "↩️ Reverted — {0} ki tankhwah {1} hata di."
+}

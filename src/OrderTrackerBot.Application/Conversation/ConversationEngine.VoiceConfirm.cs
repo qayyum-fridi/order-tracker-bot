@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -49,7 +50,7 @@ public partial class ConversationEngine
             if (seller.Session!.State == ConversationState.AwaitingOrderEdit) continue;
 
             await _sender.SendTextMessageAsync(fromPhoneNumber,
-                "⚠️ Order edit shuru nahi ho saka (order nahi mila?) — baqi steps nahi chalaye. Order number ke saath dobara try karein.", ct);
+                MessageTemplates.Get("voice-confirm.001"), ct);
             await _db.SaveChangesAsync(ct);
             return;
         }
@@ -83,7 +84,7 @@ public partial class ConversationEngine
             if (stale)
             {
                 await _sender.SendTextMessageAsync(fromPhoneNumber,
-                    "⚠️ Yeh purani baat thi, is dauran order badal chuka hai. Kuch nahi chalaya — dobara bolein ya likh kar bhejein.", ct);
+                    MessageTemplates.Get("voice-confirm.002"), ct);
                 await _db.SaveChangesAsync(ct);
                 return true;
             }
@@ -94,7 +95,7 @@ public partial class ConversationEngine
 
         if (CommandParser.IsNegative(message) || message.Equals("cancel", StringComparison.OrdinalIgnoreCase))
         {
-            await _sender.SendTextMessageAsync(fromPhoneNumber, "👍 Theek hai, kuch nahi badla.", ct);
+            await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("voice-confirm.003"), ct);
             await _db.SaveChangesAsync(ct);
             return true;
         }

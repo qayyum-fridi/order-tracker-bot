@@ -3,6 +3,7 @@ using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Application.Time;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -15,7 +16,7 @@ public partial class ConversationEngine
         var order = await LoadOrderForEditAsync(seller, orderId, ct);
         if (order is null)
         {
-            await ReplyAsync(seller, $"Order #{number} nahi mila. Apne orders dekhne ke liye \"orders today\" likhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands.028", number), ct);
             return;
         }
 
@@ -50,41 +51,39 @@ public partial class ConversationEngine
         var order = await _db.Orders.Include(o => o.Customer).FirstOrDefaultAsync(o => o.SellerId == seller.Id && o.Id == orderId, ct);
         if (order is null)
         {
-            await ReplyAsync(seller, $"Order #{number} nahi mila. Apne orders dekhne ke liye \"orders today\" likhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands.028", number), ct);
             return;
         }
         if (order.Status is OrderStatus.Cancelled or OrderStatus.Returned)
         {
-            await ReplyAsync(seller, $"Order #{order.Id} {Formatters.Status(order.Status)} hai — payment add nahi ho sakti.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("order-payments.001", order.Id, Formatters.Status(order.Status)), ct);
             return;
         }
         if (order.PaymentStatus == PaymentStatus.Paid)
         {
-            await ReplyAsync(seller, $"Order #{order.Id} pehle se poora PAID hai ({Formatters.Money(order.Total)}).", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("order-payments.002", order.Id, Formatters.Money(order.Total)), ct);
             return;
         }
         if (amount <= 0)
         {
-            await ReplyAsync(seller, "Raqam 0 se zyada likhein, jaise \"order 12 advance 500\".", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("order-payments.003"), ct);
             return;
         }
 
         LogPaymentChange(seller, order);
         order.AmountPaid += amount;
-        var note = fromList ? $"\nℹ️ \"{number}\" aapki last list ka number tha." : "";
+        var note = fromList ? MessageTemplates.Get("order-payments.006", number) : "";
         if (order.AmountPaid >= order.Total)
         {
             var extra = order.AmountPaid - order.Total;
             order.AmountPaid = order.Total;
             order.PaymentStatus = PaymentStatus.Paid;
             order.PaidAt = DateTime.UtcNow;
-            await ReplyAsync(seller, $"✅ Order #{order.Id} ({order.Customer?.Name}): {Formatters.Money(amount)} mila — ab poora PAID." +
-                (extra > 0 ? $"\n⚠️ {Formatters.Money(extra)} total se zyada aaye — wapas karne hon to yaad rakhein." : "") + note, ct);
+            await ReplyAsync(seller, MessageTemplates.Get("order-payments.004", order.Id, order.Customer?.Name, Formatters.Money(amount), (extra > 0 ? $"\n⚠️ {Formatters.Money(extra)} total se zyada aaye — wapas karne hon to yaad rakhein." : ""), note), ct);
             return;
         }
 
         await ReplyAsync(seller,
-            $"✅ Order #{order.Id} ({order.Customer?.Name}): {Formatters.Money(amount)} mila.\n" +
-            $"Ab tak {Formatters.Money(order.AmountPaid)} / {Formatters.Money(order.Total)} — baqi {Formatters.Money(OrderMoney.Balance(order))}." + note, ct);
+            MessageTemplates.Get("order-payments.005", order.Id, order.Customer?.Name, Formatters.Money(amount), Formatters.Money(order.AmountPaid), Formatters.Money(order.Total), Formatters.Money(OrderMoney.Balance(order)), note), ct);
     }
 }

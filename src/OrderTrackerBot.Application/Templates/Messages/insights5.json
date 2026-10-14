@@ -1,0 +1,18 @@
+{
+  "insights5.001": "👥 Customer ka munafa ({0}): is dauran koi order nahi.",
+  "insights5.002": "{0} ka {1} koi order nahi.",
+  "insights5.003": "Kisi product ki cost save nahi, is liye customer ka munafa nahi nikal sakta. Cost ke saath likhein, jaise: \"Kurti - 1800, cost 1200\".",
+  "insights5.004": "👥 Bade customers ({0}): kam az kam 2 orders wale bade customers nahi mile.",
+  "insights5.005": "👥 Bade customers jin se sab se kam fayda hai — {0}\n\n{1}\n\nFayda = product ka munafa (discount ke baad) minus wapas aaye parcels par likhi delivery charges. Sirf cost wale orders ginay; \"customer 1\" se detail dekhein.",
+  "insights5.006": "🔁 Naye customers ki wapsi ({0}): is dauran kisi ka pehla order nahi.",
+  "insights5.007": "🔁 Naye customers ki wapsi — {0}\n\nPehli baar kharidne wale: {1}\nDusra order dene wale: {2} ({3})\n{4}\nHal hi mein aane walon ko dobara aane ka waqt kam mila hai, is liye 30+ din wali line zyada munasib hai.",
+  "insights5.008": "🏆 VIP customers ({0}): is dauran kisi customer ka order nahi.",
+  "insights5.009": "🏆 VIP customers — {0}\n\nKul customers: {1} · kul sale {2}\nTop 10% ({3} customers): {4} = sale ka {5}\nSale ka 80% sirf {6} customers ({7}) se aata hai.\n\n{8}",
+  "insights5.010": "Is dauran kisi discount code se koi order nahi mila. Codes dekhne ke liye \"discount list\" likhein.",
+  "insights5.011": "🎟️ {0} ({1}): is dauran is code se koi order nahi.",
+  "insights5.012": "🎟️ {0} — {1}\n\nOrders: {2} · sale {3} · diya gaya discount {4}\n{5}Har order ki average: is code wale {6}, baqi {7}\nBilkul naye customers: {8} · pichle 60 din mein khareed chuke customers: {9} (inhein shayad woh maal waisay bhi pure rate par lete — un ko diya discount {10})\n\nYeh andaza hai, sabit nahi: bot nahi jaan sakta ke code ke baghair kaun khareedta.",
+  "insights5.013": "🎟️ Naye customers aur discount ({0}): kisi naye customer ne pehle order par discount code istemal nahi kiya.",
+  "insights5.014": "🎟️ Discount se aaye naye customers — {0}\n\n{1}\n\nCode ke hisab se:\n{2}\n\nNaya customer = jis ka pehla order isi code se hua.",
+  "insights5.015": "Abhi koi customer nahi mila jis ka pehla order discount code se hua ho, is liye muqabla nahi ho sakta.",
+  "insights5.016": "🎟️ Discount se aaye customers ({0}) ka rawaiya\n\n• Dobara pura rate de kar kharida: {1} ({2})\n• Sirf discount par wapas aaye: {3} ({4})\n• Dobara aaye hi nahi: {5} ({6})\n\nPura rate = baad ka koi order bina discount code ke."
+}

@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -16,14 +17,14 @@ public partial class ConversationEngine
             .FirstOrDefaultAsync(o => o.SellerId == seller.Id && o.Id == cmd.Number, ct);
         if (order is null)
         {
-            await ReplyAsync(seller, $"Order #{cmd.Number} nahi mila. Apne orders dekhne ke liye \"orders today\" likhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands.028", cmd.Number), ct);
             return;
         }
 
         ctx.CancelOrderId = order.Id;
         SetState(session, ConversationState.AwaitingCancelConfirmation);
         await ReplyAsync(seller,
-            $"⚠️ Order #{order.Id} ({order.Customer?.Name}, {Formatters.ItemsSummary(order)}) cancel karna confirm karein?\nReply YES to cancel.", ct);
+            MessageTemplates.Get("commands2.001", order.Id, order.Customer?.Name, Formatters.ItemsSummary(order)), ct);
     }
 
     private async Task HandleCancelConfirmationAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
@@ -32,7 +33,7 @@ public partial class ConversationEngine
         if (!CommandParser.IsAffirmative(message))
         {
             ctx.CancelOrderId = null;
-            await ReplyAsync(seller, "Theek hai, cancel nahi kiya.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands2.002"), ct);
             return;
         }
 
@@ -51,7 +52,7 @@ public partial class ConversationEngine
         order.Status = OrderStatus.Cancelled;
         order.CancelledAt = DateTime.UtcNow;
         await ApplyStockChangeAsync(seller, stockBefore, StockFootprint(order), ct);
-        await ReplyAsync(seller, $"✅ Order #{order.Id} CANCELLED.", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("commands2.003", order.Id), ct);
     }
 
     private async Task HandleMarkAllPendingShippedAsync(Seller seller, ConversationSession session, SessionContextData ctx, CancellationToken ct)
@@ -61,14 +62,14 @@ public partial class ConversationEngine
 
         if (ids.Count == 0)
         {
-            await ReplyAsync(seller, "Koi pending order nahi hai.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands.008"), ct);
             return;
         }
 
         ctx.BulkStatusOrderIds = ids;
         SetState(session, ConversationState.AwaitingBulkStatusConfirmation);
         await ReplyAsync(seller,
-            $"⚠️ {ids.Count} pending orders shipped mark karna confirm karein? (#{string.Join(", #", ids)})\nReply YES.", ct);
+            MessageTemplates.Get("commands2.004", ids.Count, string.Join(", #", ids)), ct);
     }
 
     private async Task HandleBulkStatusConfirmationAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
@@ -79,7 +80,7 @@ public partial class ConversationEngine
 
         if (!CommandParser.IsAffirmative(message))
         {
-            await ReplyAsync(seller, "Theek hai, kuch update nahi hua.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands2.005"), ct);
             return;
         }
 
@@ -90,7 +91,7 @@ public partial class ConversationEngine
             order.ShippedAt = DateTime.UtcNow;
         }
 
-        await ReplyAsync(seller, $"✅ {orders.Count} orders SHIPPED mark ho gaye.", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("commands2.006", orders.Count), ct);
     }
 
     private async Task HandleUndoAsync(Seller seller, CancellationToken ct)
@@ -102,7 +103,7 @@ public partial class ConversationEngine
 
         if (last is null)
         {
-            await ReplyAsync(seller, "Undo karne ke liye kuch nahi hai.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands2.007"), ct);
             return;
         }
 
@@ -118,7 +119,7 @@ public partial class ConversationEngine
                 order.Status = OrderStatus.Cancelled;
                 order.CancelledAt = DateTime.UtcNow;
                 await ApplyStockChangeAsync(seller, stockBefore, StockFootprint(order), ct);
-                await ReplyAsync(seller, $"↩️ Reverted — Order #{order.Id} hata diya (CANCELLED).", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("commands2.008", order.Id), ct);
                 return;
             }
             case ActionType.OrderStatusChanged or ActionType.OrderCancelled when last.OrderId is not null:
@@ -133,14 +134,14 @@ public partial class ConversationEngine
                     var stockBefore = StockFootprint(order);
                     order.Status = Enum.Parse<OrderStatus>(prevStatusEl.GetString()!);
                     await ApplyStockChangeAsync(seller, stockBefore, StockFootprint(order), ct);
-                    await ReplyAsync(seller, $"↩️ Reverted — Order #{order.Id} ({order.Customer?.Name} - {Formatters.ItemsSummary(order)}) back to {Formatters.Status(order.Status)}.", ct);
+                    await ReplyAsync(seller, MessageTemplates.Get("commands2.009", order.Id, order.Customer?.Name, Formatters.ItemsSummary(order), Formatters.Status(order.Status)), ct);
                 }
                 else if (doc.RootElement.TryGetProperty("PreviousPaymentStatus", out var prevPayEl))
                 {
                     order.PaymentStatus = Enum.Parse<PaymentStatus>(prevPayEl.GetString()!);
                     if (order.PaymentStatus == PaymentStatus.Unpaid) order.PaidAt = null;
                     if (doc.RootElement.TryGetProperty("PreviousAmountPaid", out var prevAmountEl)) order.AmountPaid = prevAmountEl.GetDecimal();
-                    await ReplyAsync(seller, $"↩️ Reverted — Order #{order.Id} payment status back to {order.PaymentStatus}.", ct);
+                    await ReplyAsync(seller, MessageTemplates.Get("commands2.010", order.Id, order.PaymentStatus), ct);
                 }
                 return;
             }
@@ -170,11 +171,11 @@ public partial class ConversationEngine
                 var product = await _db.Products.FirstOrDefaultAsync(p => p.Id == productId, ct);
                 if (product is null) return;
                 product.Price = oldPrice;
-                await ReplyAsync(seller, $"↩️ Reverted — {product.Name} price back to {Formatters.Money(oldPrice)}.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("commands2.011", product.Name, Formatters.Money(oldPrice)), ct);
                 return;
             }
             default:
-                await ReplyAsync(seller, "↩️ Reverted.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("commands2.012"), ct);
                 return;
         }
     }
@@ -188,32 +189,27 @@ public partial class ConversationEngine
 
         if (order is null)
         {
-            await ReplyAsync(seller, "Koi unpaid order nahi mila.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands2.013"), ct);
             return;
         }
 
         var methods = await _db.PaymentMethods.Where(p => p.SellerId == seller.Id).ToListAsync(ct);
         if (methods.Count == 0)
         {
-            await ReplyAsync(seller, "Pehle payment method setup karein: \"add payment: jazzcash, number\"", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands2.014"), ct);
             return;
         }
 
         if (methods.Any(m => m.Type == SellerPaymentMethodType.Safepay))
         {
             await ReplyAsync(seller,
-                "💳 Payment link banaya gaya (Safepay integration is a roadmap item — wiring the real hosted-checkout call is a follow-up task).\n" +
-                $"Amount: {Formatters.Money(order.Total)}\nOrder: #{order.Id}", ct);
+                MessageTemplates.Get("commands2.015", Formatters.Money(order.Total), order.Id), ct);
             return;
         }
 
         var lines = methods.Select(m => $"{PaymentMethodName(m.Type)}: {m.AccountNumberOrId}");
         await ReplyAsync(seller,
-            $"💰 Payment details for Order #{order.Id}:\n\n" +
-            $"Amount: {Formatters.Money(OrderMoney.Balance(order) is > 0 and var due ? due : order.Total)}" +
-            (order.AmountPaid > 0 && order.PaymentStatus != PaymentStatus.Paid ? $" (baqi; {Formatters.Money(order.AmountPaid)} advance mila)" : "") +
-            $"\n{string.Join("\n", lines)}\n({seller.BusinessName})\n\n" +
-            $"Customer ko bhej dein. Payment hone par \"mark {order.Id} paid\" likhein.", ct);
+            MessageTemplates.Get("commands2.016", order.Id, Formatters.Money(OrderMoney.Balance(order) is > 0 and var due ? due : order.Total), (order.AmountPaid > 0 && order.PaymentStatus != PaymentStatus.Paid ? $" (baqi; {Formatters.Money(order.AmountPaid)} advance mila)" : ""), string.Join("\n", lines), seller.BusinessName, order.Id), ct);
     }
 
     private static string PaymentMethodName(SellerPaymentMethodType type) => type switch
@@ -231,17 +227,13 @@ public partial class ConversationEngine
         if (type == SellerPaymentMethodType.Safepay && cmd.Text2 is null)
         {
             await ReplyAsync(seller,
-                "💳 Safepay se automatic payment links banane ke liye:\n\n" +
-                "1. safepay.pk par apna merchant account banayein (5 min)\n" +
-                "2. Apna Merchant ID copy karein\n" +
-                "3. Yahan bhejein: \"safepay id: [your-id]\"\n\n" +
-                "Account nahi bana? Link: safepay.pk/signup", ct);
+                MessageTemplates.Get("commands2.017"), ct);
             return;
         }
 
         if (cmd.Text2 is null)
         {
-            await ReplyAsync(seller, $"\"{cmd.Text}\" ka account number/ID bhi bhejein: \"add payment: {cmd.Text}, number\"", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands2.018", cmd.Text, cmd.Text), ct);
             return;
         }
 
@@ -253,10 +245,10 @@ public partial class ConversationEngine
         var others = new[] { "JazzCash", "Easypaisa", "Bank" }.Where(n => !n.Equals(type.ToString(), StringComparison.OrdinalIgnoreCase));
         await ReplyAsync(seller,
             type == SellerPaymentMethodType.Safepay
-                ? "✅ Safepay ID save ho gayi. (Automatic payment links ka integration jald aa raha hai — tab tak \"payment link\" aapke manual numbers dikhayega.)"
+                ? MessageTemplates.Get("commands2.044")
                 : count == 1
-                    ? $"✅ {PaymentMethodName(type)} number saved.\n\"payment link\" command ab customer ko yeh number dikhayega.\n\nAur payment method add karna hai? ({string.Join(", ", others)})"
-                    : $"✅ {PaymentMethodName(type)} bhi saved. Total {count} payment methods active.", ct);
+                    ? MessageTemplates.Get("commands2.045", PaymentMethodName(type), string.Join(", ", others))
+                    : MessageTemplates.Get("commands2.046", PaymentMethodName(type), count), ct);
     }
 
     private async Task HandleAddTrackingAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
@@ -266,13 +258,13 @@ public partial class ConversationEngine
 
         if (order is null)
         {
-            await ReplyAsync(seller, "Koi shipped order nahi mila jispe tracking add karni ho.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands2.019"), ct);
             return;
         }
 
         order.TrackingCourier = cmd.Text;
         order.TrackingNumber = cmd.Text2;
-        await ReplyAsync(seller, $"✅ Tracking saved: {order.TrackingCourier} {order.TrackingNumber}", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("commands2.020", order.TrackingCourier, order.TrackingNumber), ct);
     }
 
     private async Task HandleTrackingLookupAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
@@ -280,12 +272,12 @@ public partial class ConversationEngine
         var order = await FindLatestOrderByCustomerNameAsync(seller, cmd.Text!, ct);
         if (order is null || order.TrackingNumber is null)
         {
-            await ReplyAsync(seller, $"{cmd.Text} ka tracking abhi available nahi hai.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands2.021", cmd.Text), ct);
             return;
         }
 
         await ReplyAsync(seller,
-            $"📦 {order.Customer?.Name}'s Order #{order.Id}:\nCourier: {order.TrackingCourier}\nTracking: {order.TrackingNumber}\nStatus: {Formatters.Status(order.Status)}", ct);
+            MessageTemplates.Get("commands2.022", order.Customer?.Name, order.Id, order.TrackingCourier, order.TrackingNumber, Formatters.Status(order.Status)), ct);
     }
 
     private async Task HandleCustomerOrderLookupAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
@@ -293,17 +285,12 @@ public partial class ConversationEngine
         var order = await FindLatestOrderByCustomerNameAsync(seller, cmd.Text!, ct);
         if (order is null)
         {
-            await ReplyAsync(seller, $"{cmd.Text} ka koi order nahi mila.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands2.023", cmd.Text), ct);
             return;
         }
 
         await ReplyAsync(seller,
-            $"🔍 {order.Customer?.Name}'s latest order:\n\n" +
-            $"{Formatters.ItemsSummary(order)} - {Formatters.Money(order.Total)}\n" +
-            $"Status: {Formatters.Status(order.Status)}\n" +
-            $"Ordered: {order.CreatedAt:ddd, hh:mm tt}\n" +
-            $"Phone: {order.Customer?.Phone}\n" +
-            $"Address: {order.Customer?.Address}", ct);
+            MessageTemplates.Get("commands2.024", order.Customer?.Name, Formatters.ItemsSummary(order), Formatters.Money(order.Total), Formatters.Status(order.Status), $"{order.CreatedAt:ddd, hh:mm tt}", order.Customer?.Phone, order.Customer?.Address), ct);
     }
 
     private async Task HandleFuzzyStatusUpdateAsync(Seller seller, ConversationSession session, SessionContextData ctx, ParsedCommand cmd, CancellationToken ct)
@@ -311,7 +298,7 @@ public partial class ConversationEngine
         var order = await FindLatestOrderByCustomerNameAsync(seller, cmd.Text!, ct);
         if (order is null)
         {
-            await ReplyAsync(seller, $"{cmd.Text} ka koi order nahi mila.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands2.023", cmd.Text), ct);
             return;
         }
 
@@ -344,7 +331,7 @@ public partial class ConversationEngine
             SetState(session, ConversationState.Idle);
             if (isCancel)
             {
-                await ReplyAsync(seller, "Theek hai, discount nahi banaya.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("commands2.025"), ct);
                 return;
             }
             await ExecuteCommandAsync(seller, session, ctx, command!, ct);
@@ -364,14 +351,14 @@ public partial class ConversationEngine
         {
             ctx.PendingDiscountCode = trimmed.ToUpperInvariant();
             await ReplyAsync(seller,
-                $"👍 Code: {ctx.PendingDiscountCode}\n\nAb kitna discount? Likhein:\n10 percent\nya\nRs.50 flat\n\n(Expiry chahiye to: 10 percent, expires 15 days / 2 weeks / 31 Dec)", ct);
+                MessageTemplates.Get("commands2.026", ctx.PendingDiscountCode), ct);
             return;
         }
 
         await ReplyAsync(seller,
             ctx.PendingDiscountCode is null
-                ? "Pehle discount code ka naam bhejein (e.g. EID10), ya \"cancel\" likhein."
-                : $"Code {ctx.PendingDiscountCode} ke liye value likhein: \"10 percent\" ya \"Rs.50 flat\", ya \"cancel\" likhein.", ct);
+                ? MessageTemplates.Get("commands2.047")
+                : MessageTemplates.Get("commands2.048", ctx.PendingDiscountCode), ct);
     }
 
     private async Task HandleCreateDiscountAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
@@ -379,7 +366,7 @@ public partial class ConversationEngine
         var match = DiscountSpec.Match(CommandParser.NormalizeDiscountSpec(cmd.Text!));
         if (!match.Success)
         {
-            await ReplyAsync(seller, "Format: \"create discount: CODE, 10 percent[, expires 15 days]\" ya \"CODE, Rs.50 flat\"", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands2.027"), ct);
             return;
         }
 
@@ -390,7 +377,7 @@ public partial class ConversationEngine
         {
             if (!ReportPeriods.TryParseExpiry(match.Groups["exp"].Value, DateTime.UtcNow, seller.TimeZoneId, out var expiry))
             {
-                await ReplyAsync(seller, "Expiry samajh nahi aayi. Jaise likhein: \"expires 15 days\", \"expires 2 weeks\", \"expires 3 mahine\", \"expires 31 Dec\" ya \"expires month end\".", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("commands2.028"), ct);
                 return;
             }
             expiresAt = expiry;
@@ -398,19 +385,19 @@ public partial class ConversationEngine
 
         if (isPercent && value is <= 0 or > 100)
         {
-            await ReplyAsync(seller, "Percent 1 se 100 ke beech hona chahiye (e.g. 10 percent).", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands2.029"), ct);
             return;
         }
         if (!isPercent && value <= 0)
         {
-            await ReplyAsync(seller, "Flat discount 0 se zyada hona chahiye (e.g. Rs.50 flat).", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands2.030"), ct);
             return;
         }
 
         var code = match.Groups["code"].Value.ToUpperInvariant();
         if (await _db.Discounts.AnyAsync(d => d.SellerId == seller.Id && d.Code == code, ct))
         {
-            await ReplyAsync(seller, $"Code {code} pehle se hai. Doosra naam chunein, ya \"discount list\" dekhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands2.031", code), ct);
             return;
         }
         _db.Discounts.Add(new Discount
@@ -424,8 +411,8 @@ public partial class ConversationEngine
 
         var valueText = isPercent ? $"{value}% off" : $"{Formatters.Money(value)} flat off";
         var reply = expiresAt is null
-            ? $"✅ Discount code {code} created — {valueText}."
-            : $"✅ Discount code {code} created:\n{valueText}, expires in {(expiresAt.Value - DateTime.UtcNow).Days} days ({expiresAt:dd MMM})";
+            ? MessageTemplates.Get("commands2.049", code, valueText)
+            : MessageTemplates.Get("commands2.050", code, valueText, (expiresAt.Value - DateTime.UtcNow).Days, $"{expiresAt:dd MMM}");
         await ReplyAsync(seller, reply, ct);
     }
 
@@ -435,7 +422,7 @@ public partial class ConversationEngine
         ctx.ResetAskedAt = _clock.GetUtcNow().UtcDateTime;
         ctx.ResetGenerationId = Guid.NewGuid().ToString("N");
         await ReplyAsync(seller,
-            "⚠️ Yeh aapka poora data (orders, products, customers, discounts) delete kar dega aur setup dobara shuru hoga.\nReply YES to confirm, ya koi bhi aur message cancel karne ke liye.", ct);
+            MessageTemplates.Get("commands2.032"), ct);
     }
 
     private async Task HandleResetConfirmationAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
@@ -448,12 +435,12 @@ public partial class ConversationEngine
 
         if (!CommandParser.IsAffirmative(message))
         {
-            await ReplyAsync(seller, "Theek hai, kuch delete nahi kiya.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands2.033"), ct);
             return;
         }
         if (!ResetConfirmation.IsValid(asked, generation, _clock.GetUtcNow().UtcDateTime))
         {
-            await ReplyAsync(seller, "⚠️ Yeh reset ki purani confirmation thi, account delete nahi hua. Dobara \"reset account\" likhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands2.034"), ct);
             return;
         }
 
@@ -465,14 +452,14 @@ public partial class ConversationEngine
             ctx.ResetAskedAt = asked;
             ctx.ResetGenerationId = generation;
             SetState(session, ConversationState.AwaitingResetConfirmation);
-            await ReplyAsync(seller, "Yeh confirmation pehle hi use ho chuki hai — account dobara delete nahi hoga.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands2.035"), ct);
             return;
         }
 
         // The wipe is one SaveChanges, so it either fully applies or leaves the data as it was.
         await SellerAccountReset.ResetAsync(_db, seller, ct);
         await _db.SaveChangesAsync(ct); // persist before telling the seller it worked
-        await ReplyAsync(seller, "✅ Account reset ho gaya.", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("commands2.036"), ct);
         await StartOnboardingAsync(seller, session, ct);
     }
 
@@ -486,7 +473,7 @@ public partial class ConversationEngine
 
         if (items.Count == 0)
         {
-            await ReplyAsync(seller, "Abhi tak koi customer feedback save nahi hua.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands2.037"), ct);
             return;
         }
 
@@ -496,9 +483,9 @@ public partial class ConversationEngine
         var positive = items.Count(f => f.Sentiment == "positive");
         var negative = items.Count(f => f.Sentiment == "negative");
         var overall = positive + negative == 0 ? "" : positive >= negative
-            ? "\n\nOverall sentiment: Mostly positive"
-            : "\n\nOverall sentiment: Kuch customers naraz hain — follow-up karein";
-        await ReplyAsync(seller, $"💬 Recent Customer Feedback:\n\n{string.Join("\n", lines)}{overall}", ct);
+            ? MessageTemplates.Get("commands2.051")
+            : MessageTemplates.Get("commands2.052");
+        await ReplyAsync(seller, MessageTemplates.Get("commands2.038", string.Join("\n", lines), overall), ct);
     }
 
     private async Task HandleDiscountListAsync(Seller seller, ConversationSession session, CancellationToken ct)
@@ -510,7 +497,7 @@ public partial class ConversationEngine
         if (discounts.Count == 0)
         {
             SetState(session, ConversationState.AwaitingDiscountDetails);
-            await ReplyAsync(seller, "Abhi koi active discount nahi hai.\n\n" + HowToText("discount"), ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands2.039", HowToText("discount")), ct);
             return;
         }
 
@@ -520,15 +507,14 @@ public partial class ConversationEngine
             var expiry = d.ExpiresAt is null ? "no expiry" : $"expires {d.ExpiresAt:dd MMM}";
             return $"{i + 1}. {d.Code} - {value} - {expiry}";
         });
-        await ReplyAsync(seller, $"🎟️ Active Discounts:\n{string.Join("\n", lines)}", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("commands2.040", string.Join("\n", lines)), ct);
     }
 
     private async Task HandleCreateLoyaltyAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
     {
         _db.LoyaltyRules.Add(new LoyaltyRule { SellerId = seller.Id, OrderThreshold = cmd.Number!.Value, DiscountPercent = cmd.Amount!.Value });
         await ReplyAsync(seller,
-            $"✅ Loyalty rule set:\nHar customer jo {cmd.Number} orders complete karega, unhe {cmd.Amount}% discount mil sakta hai.\n\n" +
-            "Jab bhi koi customer threshold cross karega, main aapko batao ga.", ct);
+            MessageTemplates.Get("commands2.041", cmd.Number, cmd.Amount), ct);
     }
 
     private async Task HandleLoyalCustomersAsync(Seller seller, CancellationToken ct)
@@ -547,12 +533,12 @@ public partial class ConversationEngine
 
         if (top.Count == 0)
         {
-            await ReplyAsync(seller, "Abhi koi customer data nahi hai.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands2.042"), ct);
             return;
         }
 
         var lines = top.Select((c, i) => $"{i + 1}. {c.Name} - {c.Orders} orders - {Formatters.Money(c.Total)}");
-        var reply = $"⭐ Top Customers:\n\n{string.Join("\n", lines)}";
+        var reply = MessageTemplates.Get("commands2.054", string.Join("\n", lines));
         if (top.Count > 0)
             reply += $"\n\n🌟 Tip: {top[0].Name} ko discount code bhej kar retain karein — \"create discount\" try karein.";
         await ReplyAsync(seller, reply, ct);
@@ -561,7 +547,7 @@ public partial class ConversationEngine
     private async Task HandleFeedbackAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
     {
         _db.MerchantFeedbacks.Add(new MerchantFeedback { SellerId = seller.Id, Text = cmd.Text! });
-        await ReplyAsync(seller, "🙏 Shukriya! Aapka feedback humein mil gaya — hum jald improve karenge.", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("commands2.043"), ct);
         await _founderAlerts.NotifyAsync(seller.Id, $"[{seller.BusinessName}] {cmd.Text}", ct);
     }
 }

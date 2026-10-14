@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -58,7 +59,7 @@ public partial class ConversationEngine
         var products = await _db.Products.Where(p => p.SellerId == seller.Id && p.IsActive).OrderBy(p => p.Id).ToListAsync(ct);
         if (products.Count == 0)
         {
-            await ReplyAsync(seller, "Aapke catalog mein abhi koi product nahi. Pehle product likhein, jaise: Lawn Suit - 3500, cost 2500", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("supplier.001"), ct);
             return;
         }
 
@@ -69,7 +70,7 @@ public partial class ConversationEngine
                    ?? (TextDistance.Closest(wanted, products.Select(p => p.Name)) is { } near ? products.First(p => p.Name.Equals(near, StringComparison.OrdinalIgnoreCase)) : null);
         }
 
-        const string usage = "Jaise likhein: \"supplier Lawn Suit Shah Alam\" ya \"supplier Shah Alam: Lawn Suit, Kurti\" ya \"Lawn Suit ka supplier Shah Alam\".";
+        var usage = MessageTemplates.Get("supplier.014");
         var targets = new List<Product>();
         string? supplier = null;
 
@@ -78,12 +79,12 @@ public partial class ConversationEngine
             var removing = Find(cmd.Text ?? "");
             if (removing is null)
             {
-                await ReplyAsync(seller, $"\"{cmd.Text}\" catalog mein nahi mila. Products dekhne ke liye \"catalog\" likhein.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("supplier.002", cmd.Text), ct);
                 return;
             }
             var before = SupplierOf(removing);
             removing.AttributesJson = WithSupplier(removing.AttributesJson, null);
-            await ReplyAsync(seller, before is null ? $"{Formatters.ProductLabel(removing)} par pehle se koi supplier nahi tha." : $"✅ {Formatters.ProductLabel(removing)} se supplier \"{before}\" hata diya.", ct);
+            await ReplyAsync(seller, before is null ? MessageTemplates.Get("supplier.011", Formatters.ProductLabel(removing)) : MessageTemplates.Get("supplier.012", Formatters.ProductLabel(removing), before), ct);
             return;
         }
 
@@ -93,7 +94,7 @@ public partial class ConversationEngine
             supplier = CleanSupplierName(cmd.Text3 ?? "");
             if (one is null)
             {
-                await ReplyAsync(seller, $"\"{cmd.Text}\" catalog mein nahi mila. Products dekhne ke liye \"catalog\" likhein.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("supplier.002", cmd.Text), ct);
                 return;
             }
             targets.Add(one);
@@ -119,7 +120,7 @@ public partial class ConversationEngine
                         var found = Find(name);
                         if (found is null)
                         {
-                            await ReplyAsync(seller, $"\"{name}\" catalog mein nahi mila — kuch save nahi kiya. Products dekhne ke liye \"catalog\" likhein.", ct);
+                            await ReplyAsync(seller, MessageTemplates.Get("supplier.003", name), ct);
                             return;
                         }
                         if (!targets.Contains(found)) targets.Add(found);
@@ -145,12 +146,12 @@ public partial class ConversationEngine
 
         if (targets.Count == 0 || string.IsNullOrWhiteSpace(supplier))
         {
-            await ReplyAsync(seller, "Maaf kijiye, product aur supplier ka naam alag nahi kar saka. " + usage, ct);
+            await ReplyAsync(seller, MessageTemplates.Get("supplier.004", usage), ct);
             return;
         }
         if (supplier.Length > 60 || targets.Count > MaxSupplierProducts)
         {
-            await ReplyAsync(seller, $"Supplier ka naam 60 harf se chhota aur ek baar mein {MaxSupplierProducts} se kam products likhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("supplier.005", MaxSupplierProducts), ct);
             return;
         }
 
@@ -162,7 +163,7 @@ public partial class ConversationEngine
             lines.Add(old is null ? $"• {Formatters.ProductLabel(product)}" : old.Equals(supplier, StringComparison.OrdinalIgnoreCase) ? $"• {Formatters.ProductLabel(product)} (pehle se yehi tha)" : $"• {Formatters.ProductLabel(product)} (pehle: {old})");
         }
         await ReplyAsync(seller,
-            $"✅ Supplier \"{supplier}\" save ho gaya:\n{string.Join("\n", lines)}\n\nAb \"kis supplier ka maal zyada bika\" ya \"suppliers\" likh kar hisaab dekhein. Badalne ke liye wohi command dobara likhein; hatane ke liye \"supplier remove Lawn Suit\".", ct);
+            MessageTemplates.Get("supplier.006", supplier, string.Join("\n", lines)), ct);
         SuggestNext("suppliers", "catalog");
     }
 
@@ -174,12 +175,12 @@ public partial class ConversationEngine
         var order = await _db.Orders.Include(o => o.Customer).FirstOrDefaultAsync(o => o.SellerId == seller.Id && o.Id == orderId, ct);
         if (order is null)
         {
-            await ReplyAsync(seller, $"Order #{number} nahi mila. Apne orders dekhne ke liye \"orders today\" likhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands.028", number), ct);
             return;
         }
         if (amount > 100000)
         {
-            await ReplyAsync(seller, "Maaf kijiye, courier fee ki raqam theek nahi lagti. Jaise likhein: courier fee 12 250", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("supplier.007"), ct);
             return;
         }
 
@@ -187,12 +188,9 @@ public partial class ConversationEngine
         order.CourierFee = amount;
         var gap = order.DeliveryCharge - amount;
         await ReplyAsync(seller,
-            $"✅ Order #{order.Id} ({order.Customer?.Name}) — courier fee {Formatters.Money(amount)} note kar li" + (before is { } old && old != amount ? $" (pehle {Formatters.Money(old)})" : "") + ".\n" +
-            (order.DeliveryCharge > 0 || amount > 0
+            MessageTemplates.Get("supplier.008", order.Id, order.Customer?.Name, Formatters.Money(amount), (before is { } old && old != amount ? $" (pehle {Formatters.Money(old)})" : ""), (order.DeliveryCharge > 0 || amount > 0
                 ? $"Customer se delivery {Formatters.Money(order.DeliveryCharge)} li → " + (gap > 0 ? $"{Formatters.Money(gap)} bach gaye." : gap < 0 ? $"{Formatters.Money(-gap)} aap ki jeb se gaye." : "barabar.") + "\n"
-                : "") +
-            "Yeh sirf aap ke record ke liye hai (customer ki receipt par nahi aata). Poora hisaab: \"courier fee report\"." +
-            (fromList ? $"\nℹ️ \"{number}\" aapki last list ka number tha." : ""), ct);
+                : ""), (fromList ? $"\nℹ️ \"{number}\" aapki last list ka number tha." : "")), ct);
         SuggestNext("courier fee report", "return rate");
     }
 
@@ -208,7 +206,7 @@ public partial class ConversationEngine
         var known = shipped.Where(r => r.CourierFee != null).ToList();
         if (known.Count == 0)
         {
-            await ReplyAsync(seller, $"🚚 Courier fee ({label}): kisi parcel ki courier fee likhi nahi. Likhne ke liye: \"courier fee 12 250\" (order 12 ka courier bill Rs.250).", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("supplier.009", label), ct);
             return;
         }
 
@@ -217,13 +215,10 @@ public partial class ConversationEngine
         var groups = known.GroupBy(r => string.IsNullOrWhiteSpace(r.TrackingCourier) ? "Courier likha nahi" : r.TrackingCourier!.Trim(), StringComparer.OrdinalIgnoreCase)
             .Select(g => (Name: g.Key, Parcels: g.Count(), Fee: g.Sum(r => r.CourierFee!.Value), Charged: g.Sum(r => r.DeliveryCharge)))
             .OrderByDescending(g => g.Fee).ToList();
-        var lines = groups.Select(g => $"• {g.Name}: {g.Parcels} parcels · fee {Formatters.Money(g.Fee)} · customers se {Formatters.Money(g.Charged)} → {(g.Charged - g.Fee >= 0 ? $"{Formatters.Money(g.Charged - g.Fee)} bacha" : $"{Formatters.Money(g.Fee - g.Charged)} aap ki jeb se")}");
+        var lines = groups.Select(g => MessageTemplates.Get("supplier.013", g.Name, g.Parcels, Formatters.Money(g.Fee), Formatters.Money(g.Charged), (g.Charged - g.Fee >= 0 ? $"{Formatters.Money(g.Charged - g.Fee)} bacha" : $"{Formatters.Money(g.Fee - g.Charged)} aap ki jeb se")));
         var missing = shipped.Count - known.Count;
         await ReplyAsync(seller,
-            $"🚚 Courier ko diya — {label}\n\n{string.Join("\n", lines)}\n\n" +
-            $"Kul courier fee: {Formatters.Money(paid)} · customers se li gayi delivery: {Formatters.Money(charged)} → " +
-            (charged - paid >= 0 ? $"{Formatters.Money(charged - paid)} bacha" : $"{Formatters.Money(paid - charged)} aap ki jeb se gaye") +
-            (missing > 0 ? $"\nℹ️ {missing} bheje gaye parcels ki fee likhi nahi, wo is hisaab mein nahi." : ""), ct);
+            MessageTemplates.Get("supplier.010", label, string.Join("\n", lines), Formatters.Money(paid), Formatters.Money(charged), (charged - paid >= 0 ? $"{Formatters.Money(charged - paid)} bacha" : $"{Formatters.Money(paid - charged)} aap ki jeb se gaye"), (missing > 0 ? $"\nℹ️ {missing} bheje gaye parcels ki fee likhi nahi, wo is hisaab mein nahi." : "")), ct);
         SuggestNext("return rate", "expenses");
     }
 }

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -39,7 +40,7 @@ public partial class ConversationEngine
     private async Task FlushStockWarningsAsync(string phone, CancellationToken ct)
     {
         if (_stockWarnings.Count == 0) return;
-        var text = "📉 Stock alert:\n" + string.Join("\n", _stockWarnings.Distinct()) + "\n\nNaya stock add karne ke liye: \"stock <product ka naam> +10\"";
+        var text = MessageTemplates.Get("stock.006", string.Join("\n", _stockWarnings.Distinct()));
         _stockWarnings.Clear();
         await _sender.SendTextMessageAsync(phone, text, ct);
         await _db.SaveChangesAsync(ct);
@@ -54,14 +55,12 @@ public partial class ConversationEngine
             if (tracked.Count == 0)
             {
                 await ReplyAsync(seller,
-                    "📦 Abhi kisi product ka stock track nahi ho raha.\n\nShuru karne ke liye: \"stock " + Industry(seller).MainName + " 20\"\n" +
-                    "Phir har order par stock khud kam hoga, cancel/return par wapas aayega, aur kam hone par alert milega.", ct);
+                    MessageTemplates.Get("stock.001", Industry(seller).MainName), ct);
                 return;
             }
             var lines = tracked.Select(p => $"{(p.StockQty <= 0 ? "⛔" : p.StockQty <= LowStockThreshold ? "⚠️" : "✅")} {Formatters.ProductLabel(p)}: {p.StockQty}");
             await ReplyAsync(seller,
-                $"📦 Stock ({tracked.Count}):\n{string.Join("\n", lines)}\n\n" +
-                $"Set: \"stock {Industry(seller).MainName} 20\" · Add: \"stock {Industry(seller).MainName} +10\" · Band: \"stock {Industry(seller).MainName} off\"", ct);
+                MessageTemplates.Get("stock.002", tracked.Count, string.Join("\n", lines), Industry(seller).MainName, Industry(seller).MainName, Industry(seller).MainName), ct);
             return;
         }
 
@@ -72,8 +71,8 @@ public partial class ConversationEngine
         if (matches.Count != 1)
         {
             await ReplyAsync(seller, matches.Count == 0
-                ? $"\"{cmd.Text}\" catalog mein nahi mila. Catalog dekhne ke liye \"catalog\" likhein."
-                : $"\"{cmd.Text}\" se kai products milte hain: {string.Join(", ", matches.Select(Formatters.ProductLabel))} — poora naam likhein.", ct);
+                ? MessageTemplates.Get("commands.026", cmd.Text)
+                : MessageTemplates.Get("stock.005", cmd.Text, string.Join(", ", matches.Select(Formatters.ProductLabel))), ct);
             return;
         }
 
@@ -82,7 +81,7 @@ public partial class ConversationEngine
         {
             case "off":
                 product.StockQty = null;
-                await ReplyAsync(seller, $"✅ {Formatters.ProductLabel(product)} ka stock ab track nahi hoga.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("stock.003", Formatters.ProductLabel(product)), ct);
                 return;
             case "add":
                 product.StockQty = (product.StockQty ?? 0) + (int)cmd.Amount!.Value;
@@ -91,6 +90,6 @@ public partial class ConversationEngine
                 product.StockQty = (int)cmd.Amount!.Value;
                 break;
         }
-        await ReplyAsync(seller, $"✅ {Formatters.ProductLabel(product)} — stock: {product.StockQty}. Har order par khud kam hoga.", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("stock.004", Formatters.ProductLabel(product), product.StockQty), ct);
     }
 }

@@ -5,6 +5,7 @@ using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Application.Time;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -61,7 +62,7 @@ public partial class ConversationEngine
         var all = await EconomicsAsync(seller, start, end, ct);
         if (all.Count == 0)
         {
-            await ReplyAsync(seller, $"👥 Customer ka munafa ({label}): is dauran koi order nahi.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights5.001", label), ct);
             return;
         }
 
@@ -81,7 +82,7 @@ public partial class ConversationEngine
             var mine = rows.Where(r => wanted.Contains(r.Id)).Take(3).ToList();
             if (mine.Count == 0)
             {
-                await ReplyAsync(seller, $"{named[0].Name} ka {label} koi order nahi.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("insights5.002", named[0].Name, label), ct);
                 return;
             }
             var blocks = mine.Select(r =>
@@ -99,7 +100,7 @@ public partial class ConversationEngine
         var costedRows = rows.Where(r => r.Orders > r.Uncosted).ToList();
         if (costedRows.Count == 0)
         {
-            await ReplyAsync(seller, "Kisi product ki cost save nahi, is liye customer ka munafa nahi nikal sakta. Cost ke saath likhein, jaise: \"Kurti - 1800, cost 1200\".", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights5.003"), ct);
             return;
         }
         var spend = rows.Select(r => r.Sales).OrderBy(v => v).ToList();
@@ -107,14 +108,13 @@ public partial class ConversationEngine
         var big = costedRows.Where(r => r.Sales >= median && r.Orders >= 2).OrderBy(r => r.Profit - r.ReturnDelivery).ThenByDescending(r => r.Sales).Take(5).ToList();
         if (big.Count == 0)
         {
-            await ReplyAsync(seller, $"👥 Bade customers ({label}): kam az kam 2 orders wale bade customers nahi mile.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights5.004", label), ct);
             return;
         }
         ctx.LastListCustomerIds = big.Select(r => r.Id).ToList();
         var lines = big.Select((r, i) => $"{i + 1}. {r.Name} — sale {Formatters.Money(r.Sales)} · discount {Formatters.Money(r.Discount)} · return {r.Returns} · khalis fayda {Formatters.Money(r.Profit - r.ReturnDelivery)} ({(r.Sales > 0 ? Pct((r.Profit - r.ReturnDelivery) / r.Sales * 100m) : "—")} of sale)");
         await ReplyAsync(seller,
-            $"👥 Bade customers jin se sab se kam fayda hai — {label}\n\n{string.Join("\n", lines)}\n\n" +
-            "Fayda = product ka munafa (discount ke baad) minus wapas aaye parcels par likhi delivery charges. Sirf cost wale orders ginay; \"customer 1\" se detail dekhein.", ct);
+            MessageTemplates.Get("insights5.005", label, string.Join("\n", lines)), ct);
         SuggestNext("customer 1", "customers");
     }
 
@@ -130,17 +130,14 @@ public partial class ConversationEngine
         var cohort = customers.Where(c => c.First >= start && c.First < end).ToList();
         if (cohort.Count == 0)
         {
-            await ReplyAsync(seller, $"🔁 Naye customers ki wapsi ({label}): is dauran kisi ka pehla order nahi.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights5.006", label), ct);
             return;
         }
 
         var again = cohort.Count(c => c.Count >= 2);
         var mature = cohort.Where(c => c.First <= DateTime.UtcNow.AddDays(-30)).ToList();
         await ReplyAsync(seller,
-            $"🔁 Naye customers ki wapsi — {label}\n\n" +
-            $"Pehli baar kharidne wale: {cohort.Count}\nDusra order dene wale: {again} ({Pct((decimal)again / cohort.Count * 100m)})\n" +
-            (mature.Count > 0 && mature.Count < cohort.Count ? $"Sirf jin ko 30+ din ho gaye ({mature.Count}): {mature.Count(c => c.Count >= 2)} ({Pct((decimal)mature.Count(c => c.Count >= 2) / mature.Count * 100m)})\n" : "") +
-            "\nHal hi mein aane walon ko dobara aane ka waqt kam mila hai, is liye 30+ din wali line zyada munasib hai.", ct);
+            MessageTemplates.Get("insights5.007", label, cohort.Count, again, Pct((decimal)again / cohort.Count * 100m), (mature.Count > 0 && mature.Count < cohort.Count ? $"Sirf jin ko 30+ din ho gaye ({mature.Count}): {mature.Count(c => c.Count >= 2)} ({Pct((decimal)mature.Count(c => c.Count >= 2) / mature.Count * 100m)})\n" : "")), ct);
         SuggestNext("repeat customers", "inactive customers");
     }
 
@@ -151,7 +148,7 @@ public partial class ConversationEngine
         var ranked = await CustomerSpendAsync(seller, start, end, ct);
         if (ranked.Count == 0)
         {
-            await ReplyAsync(seller, $"🏆 VIP customers ({label}): is dauran kisi customer ka order nahi.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights5.008", label), ct);
             return;
         }
         var total = ranked.Sum(r => r.Spent);
@@ -166,10 +163,7 @@ public partial class ConversationEngine
             if (running >= total * 0.8m) break;
         }
         await ReplyAsync(seller,
-            $"🏆 VIP customers — {label}\n\nKul customers: {ranked.Count} · kul sale {Formatters.Money(total)}\n" +
-            $"Top 10% ({topCount} customers): {Formatters.Money(top.Sum(r => r.Spent))} = sale ka {Pct(total > 0 ? top.Sum(r => r.Spent) / total * 100m : 0)}\n" +
-            $"Sale ka 80% sirf {toEighty} customers ({Pct((decimal)toEighty / ranked.Count * 100m)}) se aata hai.\n\n" +
-            string.Join("\n", top.Take(5).Select((r, i) => $"{i + 1}. {r.Customer.Name} — {Formatters.Money(r.Spent)}")), ct);
+            MessageTemplates.Get("insights5.009", label, ranked.Count, Formatters.Money(total), topCount, Formatters.Money(top.Sum(r => r.Spent)), Pct(total > 0 ? top.Sum(r => r.Spent) / total * 100m : 0), toEighty, Pct((decimal)toEighty / ranked.Count * 100m), string.Join("\n", top.Take(5).Select((r, i) => $"{i + 1}. {r.Customer.Name} — {Formatters.Money(r.Spent)}"))), ct);
         SuggestNext("top customers", "loyal customers");
     }
 
@@ -190,7 +184,7 @@ public partial class ConversationEngine
         var usedCode = code?.Code ?? all.Where(o => o.DiscountCode != null && IsActive(o) && o.At >= start && o.At < end).GroupBy(o => o.DiscountCode!.ToUpperInvariant()).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key;
         if (usedCode is null)
         {
-            await ReplyAsync(seller, "Is dauran kisi discount code se koi order nahi mila. Codes dekhne ke liye \"discount list\" likhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights5.010"), ct);
             return;
         }
 
@@ -198,7 +192,7 @@ public partial class ConversationEngine
         var withCode = all.Where(o => WithCode(o) && IsActive(o) && o.At >= start && o.At < end).ToList();
         if (withCode.Count == 0)
         {
-            await ReplyAsync(seller, $"🎟️ {usedCode} ({label}): is dauran is code se koi order nahi.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights5.011", usedCode, label), ct);
             return;
         }
 
@@ -209,12 +203,7 @@ public partial class ConversationEngine
         string Avg(IEnumerable<OrderEconomics> list) => list.Any() ? Formatters.Money(Math.Round(list.Average(o => o.Total))) : "—";
 
         await ReplyAsync(seller,
-            $"🎟️ {usedCode} — {label}\n\n" +
-            $"Orders: {withCode.Count} · sale {Formatters.Money(withCode.Sum(o => o.Total))} · diya gaya discount {Formatters.Money(withCode.Sum(o => o.Discount))}\n" +
-            (costed.Count > 0 ? $"Munafa in orders par: {Formatters.Money(costed.Sum(o => o.Revenue - o.Cost!.Value))}" + (costed.Count < withCode.Count ? $" ({withCode.Count - costed.Count} order(s) cost ke baghair shamil nahi)" : "") + "\n" : "Munafa: maloom nahi (cost save nahi)\n") +
-            $"Har order ki average: is code wale {Avg(withCode)}, baqi {Avg(others)}\n" +
-            $"Bilkul naye customers: {firstEver.Count} · pichle 60 din mein khareed chuke customers: {existing.Count} (inhein shayad woh maal waisay bhi pure rate par lete — un ko diya discount {Formatters.Money(existing.Sum(o => o.Discount))})\n\n" +
-            "Yeh andaza hai, sabit nahi: bot nahi jaan sakta ke code ke baghair kaun khareedta.", ct);
+            MessageTemplates.Get("insights5.012", usedCode, label, withCode.Count, Formatters.Money(withCode.Sum(o => o.Total)), Formatters.Money(withCode.Sum(o => o.Discount)), (costed.Count > 0 ? $"Munafa in orders par: {Formatters.Money(costed.Sum(o => o.Revenue - o.Cost!.Value))}" + (costed.Count < withCode.Count ? $" ({withCode.Count - costed.Count} order(s) cost ke baghair shamil nahi)" : "") + "\n" : "Munafa: maloom nahi (cost save nahi)\n"), Avg(withCode), Avg(others), firstEver.Count, existing.Count, Formatters.Money(existing.Sum(o => o.Discount))), ct);
         SuggestNext("discount report", "margin");
     }
 
@@ -228,7 +217,7 @@ public partial class ConversationEngine
             .Where(o => o.At >= start && o.At < end && o.DiscountCode != null).ToList();
         if (firsts.Count == 0)
         {
-            await ReplyAsync(seller, $"🎟️ Naye customers aur discount ({label}): kisi naye customer ne pehle order par discount code istemal nahi kiya.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights5.013", label), ct);
             return;
         }
 
@@ -236,9 +225,7 @@ public partial class ConversationEngine
         var byKind = firsts.GroupBy(o => Kind(o.DiscountCode!)).Select(g => (Name: g.Key, Count: g.Count())).OrderByDescending(g => g.Count).ToList();
         var byCode = firsts.GroupBy(o => o.DiscountCode!.ToUpperInvariant()).Select(g => (Name: g.Key, Count: g.Count())).OrderByDescending(g => g.Count).Take(5).ToList();
         await ReplyAsync(seller,
-            $"🎟️ Discount se aaye naye customers — {label}\n\n{string.Join("\n", byKind.Select(k => $"• {k.Name}: {k.Count} naye customers"))}\n\n" +
-            $"Code ke hisab se:\n{string.Join("\n", byCode.Select((c, i) => $"{i + 1}. {c.Name} ({Kind(c.Name)}) — {c.Count}"))}\n\n" +
-            "Naya customer = jis ka pehla order isi code se hua.", ct);
+            MessageTemplates.Get("insights5.014", label, string.Join("\n", byKind.Select(k => $"• {k.Name}: {k.Count} naye customers")), string.Join("\n", byCode.Select((c, i) => $"{i + 1}. {c.Name} ({Kind(c.Name)}) — {c.Count}"))), ct);
         SuggestNext("discount report", "discount list");
     }
 
@@ -249,7 +236,7 @@ public partial class ConversationEngine
         var starters = all.GroupBy(o => o.CustomerId).Select(g => g.OrderBy(o => o.At).ToList()).Where(l => l[0].DiscountCode != null).ToList();
         if (starters.Count == 0)
         {
-            await ReplyAsync(seller, "Abhi koi customer nahi mila jis ka pehla order discount code se hua ho, is liye muqabla nahi ho sakta.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("insights5.015"), ct);
             return;
         }
 
@@ -258,11 +245,7 @@ public partial class ConversationEngine
         var onlyOffers = later.Count - fullPrice;
         var never = starters.Count - later.Count;
         await ReplyAsync(seller,
-            $"🎟️ Discount se aaye customers ({starters.Count}) ka rawaiya\n\n" +
-            $"• Dobara pura rate de kar kharida: {fullPrice} ({Pct((decimal)fullPrice / starters.Count * 100m)})\n" +
-            $"• Sirf discount par wapas aaye: {onlyOffers} ({Pct((decimal)onlyOffers / starters.Count * 100m)})\n" +
-            $"• Dobara aaye hi nahi: {never} ({Pct((decimal)never / starters.Count * 100m)})\n\n" +
-            "Pura rate = baad ka koi order bina discount code ke.", ct);
+            MessageTemplates.Get("insights5.016", starters.Count, fullPrice, Pct((decimal)fullPrice / starters.Count * 100m), onlyOffers, Pct((decimal)onlyOffers / starters.Count * 100m), never, Pct((decimal)never / starters.Count * 100m)), ct);
         SuggestNext("discount report", "repeat customers");
     }
 }

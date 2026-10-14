@@ -3,6 +3,7 @@ using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -28,27 +29,24 @@ public partial class ConversationEngine
         if (string.IsNullOrWhiteSpace(text))
         {
             await ReplyAsync(seller,
-                $"🏷️ Label size abhi: {NormalizeLabelSize(seller.LabelSize) ?? "4x6"}\n" +
-                "• 4x6 inch: courier ka aam label (thermal label printer)\n• A6: chhota sheet\n• 50x30: chhota sticker (sirf business label)\n" +
-                "Badalne ke liye: label size 4x6 / label size a6 / label size 50x30", ct);
+                MessageTemplates.Get("labels.001", NormalizeLabelSize(seller.LabelSize) ?? "4x6"), ct);
             return;
         }
         var size = NormalizeLabelSize(text);
         if (size is null)
         {
-            await ReplyAsync(seller, "Maaf kijiye, size samajh nahi aaya. Likhein: label size 4x6, label size a6 ya label size 50x30.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("labels.002"), ct);
             return;
         }
         seller.LabelSize = size == "4x6" ? null : size;
-        await ReplyAsync(seller, $"✅ Label ab {size} mein banega. Try karein: \"label\" ya \"business label\"." +
-                                 (size == "50x30" ? "\nℹ️ 50x30 par parcel ka address nahi aata: shipping label 4x6 mein hi banega." : ""), ct);
+        await ReplyAsync(seller, MessageTemplates.Get("labels.003", size, (size == "50x30" ? "\nℹ️ 50x30 par parcel ka address nahi aata: shipping label 4x6 mein hi banega." : "")), ct);
     }
 
     private async Task HandleShippingLabelAsync(Seller seller, ConversationSession session, SessionContextData ctx, ParsedCommand cmd, CancellationToken ct)
     {
         if (_receiptPdf is null)
         {
-            await ReplyAsync(seller, "PDF label abhi available nahi hai.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("labels.004"), ct);
             return;
         }
         if (cmd.Text is not null && System.Text.RegularExpressions.Regex.IsMatch(cmd.Text, @"^(?:printer|help|guide)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
@@ -77,13 +75,13 @@ public partial class ConversationEngine
         var (order, fromList) = await FindReceiptOrderAsync(seller, ctx, new ParsedCommand { Kind = CommandKind.Receipt, Number = cmd.Number, Text = cmd.Text }, ct);
         if (order is null)
         {
-            await ReplyAsync(seller, cmd.Number is not null ? $"Order #{cmd.Number} nahi mila. Apne orders dekhne ke liye \"orders today\" likhein."
-                : $"{cmd.Text} ka koi order nahi mila.", ct);
+            await ReplyAsync(seller, cmd.Number is not null ? MessageTemplates.Get("commands.028", cmd.Number)
+                : MessageTemplates.Get("commands2.023", cmd.Text), ct);
             return;
         }
         if (order.Status is OrderStatus.Cancelled or OrderStatus.Returned)
         {
-            await ReplyAsync(seller, $"Order #{order.Id} {Formatters.Status(order.Status)} hai — iska parcel label nahi banta.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("labels.005", order.Id, Formatters.Status(order.Status)), ct);
             return;
         }
 
@@ -100,7 +98,7 @@ public partial class ConversationEngine
             $"🏷️ Parcel label — Order #{order.Id}, {order.Customer?.Name}" + (isCod ? $" · COD {Formatters.Money(OrderMoney.Balance(order))}" : ""), ct);
         if (!sent)
         {
-            await ReplyAsync(seller, "⚠️ Label bhej nahi saka — thori der baad dobara try karein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("labels.006"), ct);
             return;
         }
 
@@ -111,16 +109,14 @@ public partial class ConversationEngine
         if (order.Status == OrderStatus.Pending) next.Add($"Parcel bhejne ke baad: \"mark {order.Id} shipped\"");
         if (string.IsNullOrWhiteSpace(order.TrackingNumber)) next.Add($"Tracking mile to: \"add tracking: {order.Id}, <number>\"");
         await ReplyAsync(seller,
-            "✅ Label ready — file par tap karke print karein (\"printer\" likhein to tareeqa bataun)." +
-            (next.Count == 0 ? "" : "\n\n" + string.Join("\n", next)) +
-            (fromList ? $"\nℹ️ \"{cmd.Number}\" aapki last list ka number tha (Order #{order.Id})." : ""), ct);
+            MessageTemplates.Get("labels.007", (next.Count == 0 ? "" : "\n\n" + string.Join("\n", next)), (fromList ? $"\nℹ️ \"{cmd.Number}\" aapki last list ka number tha (Order #{order.Id})." : "")), ct);
     }
 
     private async Task HandleBusinessLabelAsync(Seller seller, CancellationToken ct)
     {
         if (_receiptPdf is null)
         {
-            await ReplyAsync(seller, "PDF label abhi available nahi hai.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("labels.004"), ct);
             return;
         }
         var branding = await _db.SellerBrandings.AsNoTracking().FirstOrDefaultAsync(b => b.SellerId == seller.Id, ct);
@@ -132,12 +128,10 @@ public partial class ConversationEngine
             $"🏷️ {seller.BusinessName} ka sticker", ct);
         if (!sent)
         {
-            await ReplyAsync(seller, "⚠️ Label bhej nahi saka — thori der baad dobara try karein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("labels.006"), ct);
             return;
         }
         await ReplyAsync(seller,
-            "✅ Business label ready — print karke parcel/bag par lagayein." +
-            (branding?.Logo is null ? "\n💡 Apna logo lagane ke liye \"logo\" likhein." : "") +
-            "\nSize badalne ke liye: label size 50x30 / a6 / 4x6", ct);
+            MessageTemplates.Get("labels.008", (branding?.Logo is null ? "\n💡 Apna logo lagane ke liye \"logo\" likhein." : "")), ct);
     }
 }

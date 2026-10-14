@@ -1,0 +1,10 @@
+{
+  "campaigns.001": "Konse channel se bhejna hai?",
+  "campaigns.002": "Theek hai, promotion nahi bheja.",
+  "campaigns.003": "Kitne customers ko bhejna hai?\n\n1️⃣ Sab ({0} customers)\n2️⃣ Sirf repeat customers ({1})\n3️⃣ 30 din se inactive ({2})",
+  "campaigns.004": "Theek hai, promotion nahi bheja. Dobara: \"broadcast: [message]\"",
+  "campaigns.005": "Is group mein koi customer (phone ke saath) nahi hai.",
+  "campaigns.006": "✅ {0} customers ko bheja gaya:\n{1}\n\n\"campaign status\" se detail dekhein.",
+  "campaigns.007": "Abhi tak koi campaign nahi bheja. Try karein: \"sab customers ko batao: naya stock aaya\"",
+  "campaigns.008": "📊 Last Campaign — \"{0}\" ({1}):\nChannel: {2}\nBheja gaya: {3} customers ko\n{4}\n👀 Response: {5} customers ne order kiya ({6})"
+}

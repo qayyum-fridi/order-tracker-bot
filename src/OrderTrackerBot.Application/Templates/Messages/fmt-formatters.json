@@ -1,0 +1,22 @@
+{
+  "fmt-formatters.001": "{0} din pehle",
+  "fmt-formatters.002": "زیر التواء",
+  "fmt-formatters.003": "بھیج دیا گیا",
+  "fmt-formatters.004": "پہنچا دیا گیا",
+  "fmt-formatters.005": "📦 کل کوئی آرڈر نہیں آیا۔",
+  "fmt-formatters.006": "📦 پچھلے مہینے کوئی آرڈر نہیں آیا۔",
+  "fmt-formatters.007": "📦 آج کوئی آرڈر نہیں آیا۔",
+  "fmt-formatters.008": "📦 No orders yesterday.",
+  "fmt-formatters.009": "📦 No orders last month.",
+  "fmt-formatters.010": "📦 No orders yet today.",
+  "fmt-formatters.011": "📦 Kal koi order nahi aaya.",
+  "fmt-formatters.012": "📦 Pichle mahine koi order nahi aaya.",
+  "fmt-formatters.013": "📦 Aaj koi order nahi aaya abhi tak.",
+  "fmt-formatters.014": "📦 کل کے آرڈرز ({0}):",
+  "fmt-formatters.015": "📦 پچھلے مہینے کے آرڈرز ({0}):",
+  "fmt-formatters.016": "📦 آج کے آرڈرز ({0}):",
+  "fmt-formatters.017": "📦 Last Month's Orders ({0}):",
+  "fmt-formatters.018": "\"mark 1 shipped\" لکھ کر اپڈیٹ کریں۔",
+  "fmt-formatters.019": "Reply \"mark 1 shipped\" to update.",
+  "fmt-formatters.020": "📦 {0} کے آرڈرز ({1}):"
+}

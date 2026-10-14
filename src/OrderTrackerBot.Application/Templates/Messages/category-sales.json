@@ -1,0 +1,5 @@
+{
+  "category-sales.001": "📊 Category wise sales ({0}): is dauran koi order nahi.",
+  "category-sales.002": "📊 Category wise sales — {0}\n\n{1}\n\nTotal: {2}\nYeh products ki qeemat hai (discount aur delivery se pehle), is liye \"summary\" ke total se thora farq ho sakta hai.{3}",
+  "category-sales.003": "\n\nℹ️ \"Bina category\" wale products ki category likhein, jaise: {0}, category: {1}"
+}

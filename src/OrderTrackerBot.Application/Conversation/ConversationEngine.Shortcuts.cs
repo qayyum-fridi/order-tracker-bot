@@ -1,6 +1,7 @@
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -12,9 +13,9 @@ public partial class ConversationEngine
     // Guide is always the first button (the way back to the illustrated and step-by-step guides); Menu is the last, so every command is one tap away.
     private static string[] ShortcutLabels(string language) => Lang.Normalize(language) switch
     {
-        Lang.UrduScript => new[] { "📖 گائیڈ", "➕ نیا آرڈر", MenuLabel(language) },
-        Lang.English => new[] { "📖 Guide", "➕ New order", MenuLabel(language) },
-        _ => new[] { "📖 Guide", "➕ Naya order", MenuLabel(language) }
+        Lang.UrduScript => new[] { "📖 گائیڈ", MessageTemplates.Get("shortcuts.009"), MenuLabel(language) },
+        Lang.English => new[] { "📖 Guide", MessageTemplates.Get("shortcuts.010"), MenuLabel(language) },
+        _ => new[] { "📖 Guide", MessageTemplates.Get("shortcuts.011"), MenuLabel(language) }
     };
 
     private static string MenuLabel(string language) => Lang.Normalize(language) == Lang.UrduScript ? "📋 مینو" : "📋 Menu";
@@ -30,15 +31,15 @@ public partial class ConversationEngine
         {
             // What the seller most likely wants after this very action (each label is a runnable command); the generic bar comes back on the next plain reply.
             // At most two follow-ups, then Menu, so the full command list is never more than a tap away.
-            await _sender.SendButtonsMessageAsync(phone, urdu ? "👉 اگلا قدم؟" : "👉 Aap agla kya karna chahenge?", next.Take(2).Append(MenuLabel(seller.PreferredLanguage)).ToList(), ct);
+            await _sender.SendButtonsMessageAsync(phone, urdu ? MessageTemplates.Get("shortcuts.001") : MessageTemplates.Get("shortcuts.002"), next.Take(2).Append(MenuLabel(seller.PreferredLanguage)).ToList(), ct);
             await PersistAsync(session, ctx, ct);
             return;
         }
         var body = ctx.ShortcutIntroShown
-            ? (urdu ? "⚡ فوری بٹن" : "⚡ Quick actions")
+            ? (urdu ? MessageTemplates.Get("shortcuts.005") : MessageTemplates.Get("shortcuts.006"))
             : urdu
-                ? "⚡ یہ بٹن ہر جواب کے بعد نیچے ملتے رہیں گے — بس دبائیں۔ بند کرنے کے لیے لکھیں: shortcut off"
-                : "⚡ Yeh buttons har jawab ke neeche dastiyab rahenge.\nBand karne ke liye likhein: \"shortcut off\"";
+                ? MessageTemplates.Get("shortcuts.007")
+                : MessageTemplates.Get("shortcuts.008");
         await _sender.SendButtonsMessageAsync(phone, body, ShortcutLabels(seller.PreferredLanguage), ct);
 
         ctx.ShortcutIntroShown = true;
@@ -49,8 +50,8 @@ public partial class ConversationEngine
     {
         ctx.ShortcutsOff = value == "off";
         await ReplyAsync(seller, ctx.ShortcutsOff
-            ? "✅ Shortcut buttons band kar diye. Dobara chalane ke liye likhein: \"shortcut on\""
-            : "✅ Shortcut buttons chalu — ab har jawab ke neeche Guide / Naya order / Menu milenge.", ct);
+            ? MessageTemplates.Get("shortcuts.003")
+            : MessageTemplates.Get("shortcuts.004"), ct);
     }
 
     /// <summary>

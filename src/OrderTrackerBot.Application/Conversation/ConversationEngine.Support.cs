@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -49,18 +50,17 @@ public partial class ConversationEngine
 
         var isInstagram = query.Source == "instagram_comment";
         var header = isInstagram
-            ? $"💬 Comment query #{query.Number} ({query.CustomerName ?? "Instagram"}):\n\"{query.QueryText}\""
-            : $"💬 Customer query samjha — {QueryContextLine(query, order)}\n❓ \"{query.QueryText}\"";
+            ? MessageTemplates.Get("support.039", query.Number, query.CustomerName ?? "Instagram", query.QueryText)
+            : MessageTemplates.Get("support.040", QueryContextLine(query, order), query.QueryText);
         await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
-            $"{header}\n\nSuggested reply:\n\"{query.SuggestedReply}\"\n\n" +
-            (isInstagram ? "Instagram par reply bhej dun?" : "Bhej dein? (YES / EDIT)"),
+            MessageTemplates.Get("support.001", header, query.SuggestedReply, (isInstagram ? "Instagram par reply bhej dun?" : "Bhej dein? (YES / EDIT)")),
             isInstagram ? InstagramReplyButtons : WhatsAppReplyButtons, ct);
     }
 
     private static string QueryContextLine(SupportQuery query, Order? order)
     {
         var name = query.CustomerName ?? "Customer";
-        if (order is null) return $"{name} (koi order record nahi mila)";
+        if (order is null) return MessageTemplates.Get("support.031", name);
 
         var parts = new List<string> { $"Order #{order.Id}" };
         var items = string.Join(", ", order.Items.Select(i => i.ProductNameSnapshot));
@@ -97,7 +97,7 @@ public partial class ConversationEngine
 
     private static string OrderFacts(Order? order)
     {
-        if (order is null) return "No order found for this customer.";
+        if (order is null) return MessageTemplates.Get("support.032");
         var facts = new List<string>
         {
             $"order #{order.Id}",
@@ -105,7 +105,7 @@ public partial class ConversationEngine
             $"status: {order.Status}",
             $"total: Rs.{order.Total:0}",
             $"payment: {order.PaymentMethod}, {order.PaymentStatus}",
-            $"ordered on {order.CreatedAt:yyyy-MM-dd}"
+            MessageTemplates.Get("support.041", $"{order.CreatedAt:yyyy-MM-dd}")
         };
         if (order.ShippedAt is { } shipped) facts.Add($"shipped on {shipped:yyyy-MM-dd}");
         if (order.DeliveredAt is { } delivered) facts.Add($"delivered on {delivered:yyyy-MM-dd}");
@@ -116,13 +116,13 @@ public partial class ConversationEngine
     /// <summary>Non-AI draft built only from recorded facts (used when OpenAI isn't configured or fails).</summary>
     private static string TemplateSupportReply(Order? order) => order?.Status switch
     {
-        null => "Shukriya aapke message ka! Hum aapka order check kar ke jald batate hain.",
-        OrderStatus.Pending => $"Aapka order (#{order.Id}) confirm hai aur jald dispatch ho jayega. Shukriya!",
+        null => MessageTemplates.Get("support.033"),
+        OrderStatus.Pending => MessageTemplates.Get("support.034", order.Id),
         OrderStatus.Shipped => string.IsNullOrWhiteSpace(order.TrackingNumber)
             ? "Aapka order raste mein hai, jald pohonch jayega. Shukriya!"
             : $"Aapka order raste mein hai. Tracking: {TrackingText(order)}. Shukriya!",
-        OrderStatus.Delivered => $"Aapka order {order.DeliveredAt ?? order.UpdatedAt:dd MMM} ko deliver ho chuka hai. Koi masla ho to zaroor batayein!",
-        _ => $"Aapka order (#{order.Id}) cancel ho chuka hai. Dobara order karna ho to batayein."
+        OrderStatus.Delivered => MessageTemplates.Get("support.035", $"{order.DeliveredAt ?? order.UpdatedAt:dd MMM}"),
+        _ => MessageTemplates.Get("support.036", order.Id)
     };
 
     private async Task<int> NextSupportQueryNumberAsync(Seller seller, CancellationToken ct) =>
@@ -143,14 +143,14 @@ public partial class ConversationEngine
         if (query is not null && text is "edit" or "edit karein" or "change")
         {
             SetState(session, ConversationState.AwaitingSupportReplyEdit);
-            await ReplyAsync(seller, "✏️ Apna reply likh dein — main wohi save kar dunga.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("support.002"), ct);
             return;
         }
 
         if (query is not null && (CommandParser.IsNegative(message) || text is "cancel" or "skip" or "baad mein"))
         {
             ClearSupportPrompt(session, ctx);
-            await ReplyAsync(seller, $"Theek hai — query #{query.Number} open rahegi. \"support queries\" se baad mein dekh sakte hain.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("support.003", query.Number), ct);
             return;
         }
 
@@ -167,7 +167,7 @@ public partial class ConversationEngine
 
         if (message.Trim().Equals("cancel", StringComparison.OrdinalIgnoreCase))
         {
-            await ReplyAsync(seller, $"Theek hai — query #{query.Number} open rahegi.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("support.004", query.Number), ct);
             return;
         }
 
@@ -191,19 +191,18 @@ public partial class ConversationEngine
             {
                 query.Status = "replied";
                 await MarkLeadFollowedUpAsync(seller, query.IgCommentId, ct);
-                await ReplyAsync(seller, "✅ Comment ka reply bhej diya gaya (IG par).", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("support.005"), ct);
                 return;
             }
 
             await ReplyAsync(seller,
-                "⚠️ Instagram par reply nahi ja saka (connection expire ho gaya ho sakta hai — \"connect instagram\" dobara karein).\n" +
-                "Tab tak yeh reply copy kar ke khud comment par bhej dein 👇", ct);
+                MessageTemplates.Get("support.006"), ct);
             await ReplyAsync(seller, reply, ct);
             return;
         }
 
         query.Status = "replied";
-        await ReplyAsync(seller, $"✅ Reply save ho gaya — {query.CustomerName ?? "customer"} ko forward kar dein 👇", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("support.007", query.CustomerName ?? "customer"), ct);
         await ReplyAsync(seller, reply, ct);
     }
 
@@ -219,8 +218,7 @@ public partial class ConversationEngine
         if (queries.Count == 0)
         {
             await ReplyAsync(seller,
-                "💬 Koi open query nahi. 🎉\n\nJab customer kuch poochay, us ka sawal forward kar dein, e.g.:\n" +
-                "\"mera order kab aayega? — Bilal ne poocha\"", ct);
+                MessageTemplates.Get("support.008"), ct);
             return;
         }
 
@@ -228,8 +226,7 @@ public partial class ConversationEngine
             .Select(q => $"{q.Number}. {q.CustomerName ?? "Customer"}{(q.Source == "instagram_comment" ? " 📷" : "")} - \"{Shorten(q.QueryText, 30)}\" - {q.Status.ToUpperInvariant()}");
         SetState(session, ConversationState.AwaitingSupportQueryPick);
         await ReplyAsync(seller,
-            $"💬 Open Queries ({queries.Count}):\n\n{string.Join("\n", lines)}\n\n" +
-            "\"mark 2 resolved\" ya reply draft karne ke liye number bhejein.", ct);
+            MessageTemplates.Get("support.009", queries.Count, string.Join("\n", lines)), ct);
     }
 
     private async Task HandleSupportQueryPickAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
@@ -244,7 +241,7 @@ public partial class ConversationEngine
         var query = await _db.SupportQueries.FirstOrDefaultAsync(q => q.SellerId == seller.Id && q.Number == number, ct);
         if (query is null)
         {
-            await ReplyAsync(seller, $"Query #{number} nahi mili — \"support queries\" dobara dekhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("support.010", number), ct);
             return;
         }
 
@@ -259,12 +256,12 @@ public partial class ConversationEngine
         var query = await _db.SupportQueries.FirstOrDefaultAsync(q => q.SellerId == seller.Id && q.Number == number, ct);
         if (query is null)
         {
-            await ReplyAsync(seller, $"Query #{number} nahi mili — \"support queries\" se list dekhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("support.011", number), ct);
             return;
         }
 
         query.Status = "resolved";
-        await ReplyAsync(seller, $"✅ Query #{number} ({query.CustomerName ?? "customer"}) RESOLVED.", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("support.012", number, query.CustomerName ?? "customer"), ct);
     }
 
     /// <summary>"reply 3" sends the drafted reply; "reply 3: apna text" sends custom text.</summary>
@@ -273,7 +270,7 @@ public partial class ConversationEngine
         var query = await _db.SupportQueries.FirstOrDefaultAsync(q => q.SellerId == seller.Id && q.Number == cmd.Number, ct);
         if (query is null)
         {
-            await ReplyAsync(seller, $"Query #{cmd.Number} nahi mili — \"support queries\" se list dekhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("support.011", cmd.Number), ct);
             return;
         }
 
@@ -295,25 +292,19 @@ public partial class ConversationEngine
         if (existing is not null)
         {
             await ReplyAsync(seller,
-                $"✅ Instagram pehle se connect hai — @{existing.Username}\nNaye comments par notify karta rahunga.\n\n" +
-                "\"comment leads\" se leads dekhein, ya \"disconnect instagram\" se hata dein.", ct);
+                MessageTemplates.Get("support.013", existing.Username), ct);
             return;
         }
 
         if (!_instagram.IsConfigured)
         {
             await ReplyAsync(seller,
-                "📷 Instagram auto-connect abhi is bot par active nahi hua — jald aa raha hai.\n\n" +
-                "Tab tak comment ya DM ki screenshot forward kar dein, main order bana dunga.", ct);
+                MessageTemplates.Get("support.014"), ct);
             return;
         }
 
         await ReplyAsync(seller,
-            "📷 Instagram connect karne ke liye:\n" +
-            "1. Aapka IG account Business/Creator hona chahiye\n" +
-            $"2. Yeh link kholein aur login karein: {_instagram.BuildConnectLink(seller.Id)}\n" +
-            "3. Permission dein — sirf comments padhne/reply ke liye, DMs nahi\n\n" +
-            "Connect hone ke baad, comments automatically check honge. (Link 30 minute tak valid hai.)", ct);
+            MessageTemplates.Get("support.015", _instagram.BuildConnectLink(seller.Id)), ct);
     }
 
     private async Task HandleDisconnectInstagramAsync(Seller seller, CancellationToken ct)
@@ -321,12 +312,12 @@ public partial class ConversationEngine
         var existing = await _db.InstagramConnections.FirstOrDefaultAsync(c => c.SellerId == seller.Id, ct);
         if (existing is null)
         {
-            await ReplyAsync(seller, "Instagram connect nahi hai. Connect karne ke liye \"connect instagram\" likhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("support.016"), ct);
             return;
         }
 
         _db.InstagramConnections.Remove(existing);
-        await ReplyAsync(seller, $"✅ Instagram (@{existing.Username}) disconnect ho gaya. Ab comments check nahi honge.", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("support.017", existing.Username), ct);
     }
 
     /// <summary>Called by the OAuth callback once a seller's IG account is stored.</summary>
@@ -337,7 +328,7 @@ public partial class ConversationEngine
 
         if (!string.IsNullOrWhiteSpace(username) && string.IsNullOrWhiteSpace(seller.InstagramHandle))
             seller.InstagramHandle = "@" + username.TrimStart('@');
-        await ReplyAsync(seller, $"✅ Instagram connect ho gaya — @{username}\nAb naye comments par automatically notify karunga.", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("support.018", username), ct);
         await _db.SaveChangesAsync(ct);
     }
 
@@ -399,28 +390,25 @@ public partial class ConversationEngine
                 if (session.State == ConversationState.Idle)
                 {
                     var ctx = SessionContextData.FromJson(session.ContextJson);
-                    await ReplyAsync(seller, $"📷 Naya comment mila ({who}):\n\"{text}\"\n\n🤖 Yeh support query lagta hai (order nahi).", ct);
+                    await ReplyAsync(seller, MessageTemplates.Get("support.019", who, text), ct);
                     await PromptSupportReplyAsync(seller, session, ctx, query, null, ct);
                     await PersistAsync(session, ctx, ct);
                 }
                 else
                 {
                     await ReplyAsync(seller,
-                        $"📷 Naya comment mila ({who}):\n\"{text}\"\n\n🤖 Yeh support query lagta hai. Suggested reply:\n\"{query.SuggestedReply}\"\n\n" +
-                        $"\"reply {query.Number}\" likh kar IG par bhej dein, ya \"reply {query.Number}: apna jawab\".", ct);
+                        MessageTemplates.Get("support.020", who, text, query.SuggestedReply, query.Number, query.Number), ct);
                 }
                 break;
             }
 
             case "order_interest":
                 await ReplyAsync(seller,
-                    $"📷 Naya comment mila ({who}):\n\"{text}\"\n\n" +
-                    "🤖 Yeh order interest lagta hai. DM mein follow-up karein, phir yahan order log kar dein.\n" +
-                    $"(\"lead {lead.Number} converted\" likh kar order se link karein.)", ct);
+                    MessageTemplates.Get("support.021", who, text, lead.Number), ct);
                 break;
 
             default:
-                await ReplyAsync(seller, $"📷 Naya comment mila ({who}):\n\"{text}\"\n\n\"comment leads\" se sab leads dekhein.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("support.022", who, text), ct);
                 break;
         }
 
@@ -467,16 +455,15 @@ public partial class ConversationEngine
         {
             var connected = await _db.InstagramConnections.AnyAsync(c => c.SellerId == seller.Id, ct);
             await ReplyAsync(seller, connected
-                ? "📷 Abhi koi naya comment lead nahi. Naye comments aate hi bata dunga."
-                : "📷 Koi comment lead nahi — Instagram abhi connect nahi hai.\n\"connect instagram\" likh kar connect karein.", ct);
+                ? MessageTemplates.Get("support.029")
+                : MessageTemplates.Get("support.030"), ct);
             return;
         }
 
         var lines = leads.OrderBy(l => l.Number).Select(l =>
             $"{l.Number}. {LeadName(l)} - \"{Shorten(l.CommentText, 30)}\" - {LeadStatusLabel(l.Status)}");
         await ReplyAsync(seller,
-            $"📷 Naye Comment Leads ({leads.Count}):\n\n{string.Join("\n", lines)}\n\n" +
-            "\"lead 1 converted\" likh kar order se link karein.\n\"lead 1 followed up\" / \"lead 1 dismiss\" bhi likh sakte hain.", ct);
+            MessageTemplates.Get("support.023", leads.Count, string.Join("\n", lines)), ct);
     }
 
     private static string LeadName(CommentLead lead) =>
@@ -484,8 +471,8 @@ public partial class ConversationEngine
 
     private static string LeadStatusLabel(string status) => status switch
     {
-        "followed_up" => "FOLLOWED UP",
-        "converting" => "ORDER PENDING",
+        "followed_up" => MessageTemplates.Get("support.037"),
+        "converting" => MessageTemplates.Get("support.038"),
         "converted_to_order" => "CONVERTED",
         _ => status.ToUpperInvariant()
     };
@@ -496,7 +483,7 @@ public partial class ConversationEngine
         var lead = await _db.CommentLeads.FirstOrDefaultAsync(l => l.SellerId == seller.Id && l.Number == cmd.Number, ct);
         if (lead is null)
         {
-            await ReplyAsync(seller, $"Lead #{cmd.Number} nahi mila — \"comment leads\" se list dekhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("support.024", cmd.Number), ct);
             return;
         }
 
@@ -504,12 +491,12 @@ public partial class ConversationEngine
         {
             case "followed_up":
                 lead.Status = "followed_up";
-                await ReplyAsync(seller, $"✅ Lead #{lead.Number} — FOLLOWED UP.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("support.025", lead.Number), ct);
                 return;
 
             case "dismissed":
                 lead.Status = "dismissed";
-                await ReplyAsync(seller, $"🗑️ Lead #{lead.Number} dismiss kar diya.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("support.026", lead.Number), ct);
                 return;
         }
 
@@ -518,22 +505,20 @@ public partial class ConversationEngine
             var order = await _db.Orders.FirstOrDefaultAsync(o => o.Id == (int)orderNumber && o.SellerId == seller.Id, ct);
             if (order is null)
             {
-                await ReplyAsync(seller, $"Order #{orderNumber} nahi mila. Apne orders dekhne ke liye \"orders today\" likhein.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("commands.028", orderNumber), ct);
                 return;
             }
 
             lead.Status = "converted_to_order";
             lead.OrderId = order.Id;
             order.OrderSource ??= "instagram";
-            await ReplyAsync(seller, $"✅ Lead #{lead.Number} CONVERTED — order #{order.Id} se link ho gaya.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("support.027", lead.Number, order.Id), ct);
             return;
         }
 
         lead.Status = "converting";
         ctx.ConvertingLeadId = lead.Id;
         await ReplyAsync(seller,
-            $"👍 Lead #{lead.Number} ({LeadName(lead)}) — ab is customer ka order bhej dein (naam, product, phone).\n" +
-            "Save hote hi lead CONVERTED mark ho jayega.\n\n" +
-            $"(Order pehle hi save kar diya hai? \"lead {lead.Number} converted order [number]\" likhein.)", ct);
+            MessageTemplates.Get("support.028", lead.Number, LeadName(lead), lead.Number), ct);
     }
 }

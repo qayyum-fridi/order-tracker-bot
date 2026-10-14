@@ -1,0 +1,8 @@
+{
+  "receipt-design.001": "Apni receipt khud design karein.\n\n{0}\n\nAbhi ka design:\n{1}",
+  "receipt-design.002": "✅ Design save ho gaya — ab har receipt (aur \"email receipt\") isi look mein banegi.\n\n{0}\nDobara badalne ke liye: receipt design",
+  "receipt-design.003": "✅ Design default par wapas aa gaya.",
+  "receipt-design.004": "Maaf kijiye, yeh samajh nahi aaya.\n\n{0}",
+  "receipt-design.005": "⚠️ Preview PDF bhej nahi saka — design save hai; \"preview\" likh kar dobara try karein.",
+  "receipt-design.006": "🎨 Receipt design — har badlav foran save hota hai aur nayi preview aati hai:\n• color blue (green, navy, red, maroon, purple, pink, orange, teal, gold, brown, black, ya #1D4ED8)\n• title Invoice  (default: title default)\n• layout center  (ya layout classic)\n• logo off · phone off · buyer off · status off  (wapas: on)\n• text small / normal / large\n• size 80mm · footer Shukriya!\n• preview · reset · done"
+}

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -81,7 +82,7 @@ public partial class ConversationEngine
 
         if (orders.Count == 0)
         {
-            await ReplyAsync(seller, $"📊 Weekly Summary — {seller.BusinessName}\n\nIs hafte koi order record nahi hua. Naya order aate hi forward kar dein! 💪", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("scheduled.001", seller.BusinessName), ct);
             return;
         }
 
@@ -91,13 +92,6 @@ public partial class ConversationEngine
             .OrderByDescending(g => g.Orders).FirstOrDefault();
 
         await ReplyAsync(seller,
-            $"📊 Weekly Summary — {seller.BusinessName}\n\n" +
-            $"Total orders: {orders.Count}\n" +
-            $"Delivered: {orders.Count(o => o.Status == OrderStatus.Delivered)} | Pending: {orders.Count(o => o.Status == OrderStatus.Pending)} | " +
-            $"Cancelled: {orders.Count(o => o.Status == OrderStatus.Cancelled)} | Returned: {orders.Count(o => o.Status == OrderStatus.Returned)}\n" +
-            (top is null ? "" : $"Top product: {top.Name} ({top.Orders} orders)\n") +
-            $"Total sales: {Formatters.Money(active.Sum(o => o.Total))}\n" +
-            (active.Sum(o => o.TaxWithheld) is > 0 and var withheld ? $"Tax withheld by courier/gateway: {Formatters.Money(withheld)}\n" : "") +
-            "\nKeep it up! 🎉", ct);
+            MessageTemplates.Get("scheduled.002", seller.BusinessName, orders.Count, orders.Count(o => o.Status == OrderStatus.Delivered), orders.Count(o => o.Status == OrderStatus.Pending), orders.Count(o => o.Status == OrderStatus.Cancelled), orders.Count(o => o.Status == OrderStatus.Returned), (top is null ? "" : $"Top product: {top.Name} ({top.Orders} orders)\n"), Formatters.Money(active.Sum(o => o.Total)), (active.Sum(o => o.TaxWithheld) is > 0 and var withheld ? $"Tax withheld by courier/gateway: {Formatters.Money(withheld)}\n" : "")), ct);
     }
 }

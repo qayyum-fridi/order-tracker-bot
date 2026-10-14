@@ -3,6 +3,7 @@ using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Application.Time;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -30,30 +31,25 @@ public partial class ConversationEngine
 
         if (orderCount == 0)
         {
-            await ReplyAsync(seller, $"💰 Profit ({label}): is dauran koi order nahi hai.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("profit.001", label), ct);
             return;
         }
 
         if (counted == 0)
         {
             await ReplyAsync(seller,
-                $"💰 Profit ({label}): abhi hisaab nahi ho sakta — kisi product ki cost save nahi hai.\n" +
-                "Product ke saath cost likhein, jaise: \"" + Industry(seller).CostLine + "\".", ct);
+                MessageTemplates.Get("profit.002", label, Industry(seller).CostLine), ct);
             return;
         }
 
         var skipped = orderCount - counted;
         var skippedNote = skipped == 0 ? "" :
-            $"\n⚠️ {skipped} order(s) shamil nahi — cost maloom nahi. Cost likhein, jaise: \"{Industry(seller).CostLine}\".";
+            MessageTemplates.Get("profit.004", skipped, Industry(seller).CostLine);
 
         var profit = revenue - cost;
         var margin = revenue > 0 ? Math.Round(profit / revenue * 100m, 1) : 0m;
         await ReplyAsync(seller,
-            $"💰 Profit — {label}\n\n" +
-            $"Orders: {counted}\n" +
-            $"Sales (delivery ke baghair): {Formatters.Money(revenue)}\n" +
-            $"Cost: {Formatters.Money(cost)}\n" +
-            $"Profit: {Formatters.Money(profit)} ({margin}%)" + skippedNote, ct);
+            MessageTemplates.Get("profit.003", label, counted, Formatters.Money(revenue), Formatters.Money(cost), Formatters.Money(profit), margin, skippedNote), ct);
     }
 
     /// <summary>

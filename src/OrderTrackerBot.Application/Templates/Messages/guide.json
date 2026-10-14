@@ -1,0 +1,11 @@
+{
+  "guide.001": "📖 Aap guide kahan se shuru karna chahenge?",
+  "guide.002": "📖 Order Save Karna\n{0}",
+  "guide.003": "ℹ️ Theek hai. Jab bhi zaroorat ho, \"guide\" likhein.",
+  "guide.004": "Customer ka message copy ya forward karein, ya khud likhein:\n\"{0}\"\nBaqi tafseel bot khud samajh kar order tayyar kar dega.",
+  "guide.005": "📖 Payments\nCustomer ko payment ki tafseel bhejne ke liye likhein: \"payment link\".\nPayment mosool hone par likhein: \"mark 4 paid\".\nApna JazzCash / Easypaisa number darj karne ke liye likhein: \"add payment: jazzcash, 0300-1234567\".",
+  "guide.006": "📖 Step 1/4 — Order Save Karna\n{0}",
+  "guide.007": "📖 Step 2/4 — Orders Dekhna\nLikhein: \"orders today\" ya \"pending orders\".\nOrders ki list foran bhej di jayegi.",
+  "guide.008": "📖 Step 3/4 — Status Tabdeel Karna\nOrder rawana kar diya ho to likhein: \"mark 1 shipped\".\nDelivery mukammal ho jaye to likhein: \"mark 1 delivered\".",
+  "guide.009": "📖 Step 4/4 — Madad\nKisi bhi waqt \"menu\" ya \"guide\" likhein, rehnumai dobara dastiyab hogi.\n🎉 Aap tayyar hain — ab pehla order likh kar dekhein."
+}

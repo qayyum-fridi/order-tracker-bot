@@ -1,0 +1,8 @@
+{
+  "reports.001": "\"{0}\" catalog mein nahi mila. \"catalog\" likh kar naam check karein.",
+  "reports.002": "📦 {0} — abhi tak koi order nahi aaya.\n\nPromote karna ho to \"menu discounts\" dekhein.",
+  "reports.003": "🎟️ Abhi koi discount code nahi bana.\n\"create discount: EID20, 20% off\" se banayein.",
+  "reports.004": "🎟️ Discount Performance{0}:\n\n{1}\n\nTotal: {2} orders, {3} sales, {4} discount.",
+  "reports.005": "Ab tak total: {0} orders, {1} units, {2}",
+  "reports.006": "Last order: {0}"
+}

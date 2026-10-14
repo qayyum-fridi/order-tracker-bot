@@ -3,6 +3,7 @@ using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Ai;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -115,8 +116,8 @@ public partial class ConversationEngine
         if (seller.Status != SellerStatus.Active)
         {
             await ReplyAsync(seller, seller.Status == SellerStatus.Cancelled
-                ? "Aapka account band ho chuka hai. Dobara chalane ke liye humse rabta karein."
-                : "Aapka account abhi band hai. Madad ke liye humse rabta karein.", ct);
+                ? MessageTemplates.Get("engine.004")
+                : MessageTemplates.Get("engine.005"), ct);
             return;
         }
         message = _translator.RestoreButtonLabel(message);
@@ -138,7 +139,7 @@ public partial class ConversationEngine
                 message = offered.First(o => o.Title == tappedTitle).Label;
             else
             {
-                await ReplyAsync(seller, "ℹ️ Yeh button kisi purane sawal ka tha. Naya order likhein, ya \"menu\" likhein.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("engine.001"), ct);
                 await PersistAsync(session, ctx, ct);
                 return;
             }
@@ -150,7 +151,7 @@ public partial class ConversationEngine
             if (session.State == ConversationState.AwaitingOrderConfirmation) message = ConfirmButtonCommands[tapped];
             else
             {
-                await ReplyAsync(seller, "ℹ️ Yeh button kisi purane order ka tha. Naya order likhein, ya \"menu\" likhein.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("engine.002"), ct);
                 await PersistAsync(session, ctx, ct);
                 return;
             }
@@ -325,7 +326,7 @@ public partial class ConversationEngine
             "image" =>
                 "📷 Yeh screenshot abhi parh nahi saka — order ki tafseel TEXT mein likh kar bhejein, e.g.:\n" +
                 "\"Ayesha, 2 suit, 03001234567\"",
-            _ => "Yeh file abhi main nahi samajh sakta — sirf TEXT ya screenshot bhejein, ya \"menu\" likhein."
+            _ => MessageTemplates.Get("engine.006")
         }, ct);
         await _db.SaveChangesAsync(ct);
     }
@@ -333,10 +334,7 @@ public partial class ConversationEngine
     /// <summary>Screen 3c: something threw while handling a message — tell the seller instead of going silent.</summary>
     public Task SendSystemErrorAsync(string fromPhoneNumber, string? issueCode = null, CancellationToken ct = default) =>
         _sender.SendTextMessageAsync(fromPhoneNumber,
-            "⚠️ Maaf kijiye, ek technical masla pesh aaya — aapka kaam save nahi ho saka.\n" +
-            "Barae meherbani thori der baad dobara koshish karein.\n\n" +
-            "Aapka message mehfooz hai, kuch delete nahi hua." +
-            (issueCode is null ? "" : $"\n\nSupport ko batana ho to yeh code bataein: {issueCode}"), ct);
+            MessageTemplates.Get("engine.003", (issueCode is null ? "" : $"\n\nSupport ko batana ho to yeh code bataein: {issueCode}")), ct);
 
     private async Task HandleIdleAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {

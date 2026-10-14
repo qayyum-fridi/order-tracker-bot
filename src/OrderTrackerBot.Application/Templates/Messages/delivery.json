@@ -1,0 +1,7 @@
+{
+  "delivery.001": "🚚 Aapka delivery charge: {0} — har naye order mein lagta hai.\n\nBadalne ke liye: \"delivery 200\" ya \"free delivery\"\nSirf aik order ka: \"order 12 delivery 300\"",
+  "delivery.002": "Order #{0} {1} hai — delivery nahi badal sakti. Payment ke liye \"order {2} advance 500\" likhein.",
+  "delivery.003": "✅ Order #{0} ({1}) — delivery {2}, naya total {3}.{4}",
+  "delivery.004": "✅ Delivery charge {0} set — ab har naye order ke total mein shamil hoga.\nKisi aik order ka badalna ho: \"order 12 delivery 300\"",
+  "delivery.005": "✅ Free delivery — naye orders par delivery charge nahi lagega."
+}

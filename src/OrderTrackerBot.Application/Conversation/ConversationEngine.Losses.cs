@@ -4,6 +4,7 @@ using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Application.Time;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -26,7 +27,7 @@ public partial class ConversationEngine
         var name = cmd.Text?.Trim() ?? "";
         if (quantity <= 0 || quantity > MaxLossQuantity || name.Length == 0)
         {
-            await ReplyAsync(seller, "Nuqsan ki quantity 0 se zyada honi chahiye. Jaise: \"loss 2 Kurti damaged\"", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("losses.001"), ct);
             return;
         }
 
@@ -50,9 +51,7 @@ public partial class ConversationEngine
         else if (product.CostPrice is null) notes.Add("Is product ki cost price nahi hai — nuqsan 0 cost se likha.");
         if (product?.StockQty is { } left) notes.Add($"Stock ab: {left}");
         await ReplyAsync(seller,
-            $"📉 Nuqsan note: {quantity} × {loss.ProductName}" + (cmd.Text2 is null ? "" : $" ({cmd.Text2})") + "\n" +
-            $"Cost: {Formatters.Money(loss.UnitCost * quantity)}" + (notes.Count == 0 ? "" : "\n" + string.Join("\n", notes)) +
-            "\nGhalti ho to \"undo\"", ct);
+            MessageTemplates.Get("losses.002", quantity, loss.ProductName, (cmd.Text2 is null ? "" : $" ({cmd.Text2})"), Formatters.Money(loss.UnitCost * quantity), (notes.Count == 0 ? "" : "\n" + string.Join("\n", notes))), ct);
     }
 
     private async Task UndoLossAsync(Seller seller, ActionLog log, CancellationToken ct)
@@ -64,7 +63,7 @@ public partial class ConversationEngine
         _db.Losses.Remove(loss);
         if (loss.ProductId is { } productId)
             await ApplyStockChangeAsync(seller, new Dictionary<int, int> { [productId] = loss.Quantity }, new Dictionary<int, int>(), ct);
-        await ReplyAsync(seller, $"↩️ Reverted — nuqsan {loss.Quantity} × {loss.ProductName} wapas.", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("losses.003", loss.Quantity, loss.ProductName), ct);
     }
 
     private async Task HandleWageAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
@@ -73,7 +72,7 @@ public partial class ConversationEngine
         var worker = cmd.Text?.Trim() ?? "";
         if (worker.Length == 0 || amount <= 0 || amount > MaxWageAmount)
         {
-            await ReplyAsync(seller, "Tankhwah ki raqam 0 se zyada honi chahiye. Jaise: \"Ali ki 5000 dihari\" ya \"wage Ali 5000\"", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("losses.004"), ct);
             return;
         }
 
@@ -90,9 +89,7 @@ public partial class ConversationEngine
         var monthTotal = (await LoadWagesAsync(seller, start, end, ct)).Sum(x => x.Amount);
         var daysText = wage.Days is { } d ? $" ({d} din)" : "";
         await ReplyAsync(seller,
-            $"✅ {worker} ki tankhwah save: {Formatters.Money(amount)}{daysText}\n" +
-            $"Is maah ki tankhwah total: {Formatters.Money(monthTotal)}\n" +
-            "Ghalti ho to \"undo\" · Hisaab: \"monthly net\"", ct);
+            MessageTemplates.Get("losses.005", worker, Formatters.Money(amount), daysText, Formatters.Money(monthTotal)), ct);
     }
 
     private async Task UndoWageAsync(Seller seller, ActionLog log, CancellationToken ct)
@@ -102,6 +99,6 @@ public partial class ConversationEngine
         var wage = await _db.WageEntries.FirstOrDefaultAsync(x => x.Id == id && x.SellerId == seller.Id, ct);
         if (wage is null) return;
         _db.WageEntries.Remove(wage);
-        await ReplyAsync(seller, $"↩️ Reverted — {wage.WorkerName} ki tankhwah {Formatters.Money(wage.Amount)} hata di.", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("losses.006", wage.WorkerName, Formatters.Money(wage.Amount)), ct);
     }
 }

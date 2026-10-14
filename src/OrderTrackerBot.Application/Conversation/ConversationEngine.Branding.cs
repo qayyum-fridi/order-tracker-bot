@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Domain.Entities;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -12,13 +13,13 @@ public partial class ConversationEngine
     {
         if (_receiptPdf is null)
         {
-            await ReplyAsync(seller, "PDF receipt abhi available nahi hai.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("branding.001"), ct);
             return;
         }
 
         if (!_receiptPdf.CanEmbedImage(image))
         {
-            await ReplyAsync(seller, $"⚠️ Yeh tasveer {BrandingLabel(kind)} ke taur par nahi lag sakti — PNG ya JPG tasveer (5 MB se chhoti) dobara bhejein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("branding.002", BrandingLabel(kind)), ct);
             return;
         }
 
@@ -32,13 +33,11 @@ public partial class ConversationEngine
         branding.UpdatedAt = DateTime.UtcNow;
 
         await ReplyAsync(seller,
-            $"✅ {BrandingLabel(kind)} save ho gaya hai. Ab har receipt par nazar aayega.\nDekhne ke liye \"receipt\" likhein. Hatane ke liye \"remove {kind}\".", ct);
+            MessageTemplates.Get("branding.003", BrandingLabel(kind), kind), ct);
     }
 
-    private const string BrandingHow =
-        "📸 Kaise karein:\n1) Apni tasveer WhatsApp mein \"Photo/Gallery\" se chunein (Document ke taur par nahi)\n" +
-        "2) Caption mein \"logo\" ya \"banner\" likh kar bhej dein\n" +
-        "Yeh agli receipt par nazar aayega.";
+    private static readonly string BrandingHow =
+        MessageTemplates.Get("branding.008");
 
     // kind null = the seller asked in general terms ("receipt par image lagani hai"): explain both.
     private async Task HandleBrandingHelpAsync(Seller seller, string? kind, CancellationToken ct)
@@ -49,20 +48,15 @@ public partial class ConversationEngine
         if (kind is null)
         {
             await ReplyAsync(seller,
-                "🖼️ Aap apni receipt par apna logo aur banner laga sakte hain.\n\n" +
-                $"• Logo (chhota, square; naam ke saath): {State(branding?.Logo is not null)}\n" +
-                $"• Banner (lambi patti, taqreeban 3:1; receipt ke sab se upar): {State(branding?.Banner is not null)}\n\n" +
-                $"{BrandingHow}\n\nHatane ke liye: remove logo / remove banner\nDekhne ke liye: receipt", ct);
+                MessageTemplates.Get("branding.004", State(branding?.Logo is not null), State(branding?.Banner is not null), BrandingHow), ct);
             return;
         }
 
         var tip = kind == "logo"
-            ? "Tip: chhota, square logo jis ka background saaf ho."
-            : "Tip: lambi patti jaisi tasveer (taqreeban 3:1, jaise 1200×400) — receipt ke sab se upar aati hai.";
+            ? MessageTemplates.Get("branding.009")
+            : MessageTemplates.Get("branding.010");
         await ReplyAsync(seller,
-            $"🖼️ Receipt {BrandingLabel(kind)}: {State(kind == "logo" ? branding?.Logo is not null : branding?.Banner is not null)}\n\n" +
-            $"{BrandingHow.Replace("\"logo\" ya \"banner\"", $"\"{kind}\"")}\n{tip}\n\n" +
-            $"Hatane ke liye: remove {kind}\nDekhne ke liye: receipt", ct);
+            MessageTemplates.Get("branding.005", BrandingLabel(kind), State(kind == "logo" ? branding?.Logo is not null : branding?.Banner is not null), BrandingHow.Replace("\"logo\" ya \"banner\"", $"\"{kind}\""), tip, kind), ct);
     }
 
     /// <summary>One-time-ish nudge after a seller's first receipts: they may not know logo/banner exist.</summary>
@@ -80,12 +74,12 @@ public partial class ConversationEngine
         var had = kind == "logo" ? branding?.Logo is not null : branding?.Banner is not null;
         if (branding is null || !had)
         {
-            await ReplyAsync(seller, $"Aapka {BrandingLabel(kind)} pehle se set nahi hai.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("branding.006", BrandingLabel(kind)), ct);
             return;
         }
 
         if (kind == "logo") branding.Logo = null; else branding.Banner = null;
         branding.UpdatedAt = DateTime.UtcNow;
-        await ReplyAsync(seller, $"✅ {BrandingLabel(kind)} hata diya gaya.", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("branding.007", BrandingLabel(kind)), ct);
     }
 }

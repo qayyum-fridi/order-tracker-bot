@@ -6,6 +6,7 @@ using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -31,12 +32,8 @@ public partial class ConversationEngine
         })
     };
 
-    private const string ImportIntroText =
-        "📥 Purana data laayein (customers / products)\n\n" +
-        "1️⃣ Neeche se file chunein aur download karein — us mein \"Guide\" naam ki sheet hai jo batati hai kya kahan likhna hai\n" +
-        "2️⃣ Apne purane system ya copy se data us mein paste karein (headings na badlein)\n" +
-        "3️⃣ File isi chat mein wapas bhej dein — main check kar ke summary dikhaunga, aap YES kahenge tab hi save hoga\n\n" +
-        "Pehle se export ki hui file (\"export all\") bhi bhej sakte hain. Sirf .xlsx chalega. Ghalti ho to \"undo\".";
+    private static readonly string ImportIntroText =
+        MessageTemplates.Get("import.018");
 
     private Task HandleImportHelpAsync(Seller seller, CancellationToken ct) =>
         _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, ImportIntroText, "File chunein", ImportTemplateSections, ct);
@@ -51,7 +48,7 @@ public partial class ConversationEngine
 
         if (_exportWriter is null)
         {
-            await ReplyAsync(seller, "Import file abhi available nahi hai.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("import.001"), ct);
             return;
         }
 
@@ -69,9 +66,8 @@ public partial class ConversationEngine
         var sent = await _sender.SendDocumentAsync(seller.WhatsAppPhoneNumber, _exportWriter.WriteXlsx(workbook), fileName, XlsxMime,
             $"📥 {label} import file — pehle \"Guide\" sheet parhein", ct);
         await ReplyAsync(seller, sent
-            ? "✅ File ready — download kar ke data paste karein aur isi chat mein wapas bhej dein.\n" +
-              "\"Guide\" sheet har column ka matlab aur example batati hai. Doosri file ke liye \"import\" likhein."
-            : "⚠️ File bhej nahi saka — thori der baad dobara try karein.", ct);
+            ? MessageTemplates.Get("import.014")
+            : MessageTemplates.Get("import.015"), ct);
     }
 
     /// <summary>An .xlsx the seller sent: check it and ask before saving anything.</summary>
@@ -93,7 +89,7 @@ public partial class ConversationEngine
             // Only at the start of setup and in the catalog step: anywhere else a file would cut across a question the bot just asked.
             if (session.State is not (ConversationState.OnboardingStartChoice or ConversationState.OnboardingCatalogSize or ConversationState.OnboardingAddProduct))
             {
-                await ReplyAsync(seller, "Pehle setup ka sawal mukammal karein — file setup ke shuru mein (\"Purana data\" option) ya catalog ke marhale mein bhej sakte hain.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("import.002"), ct);
                 await PersistAsync(session, ctx, ct);
                 return;
             }
@@ -105,7 +101,7 @@ public partial class ConversationEngine
         }
         else if (session.State != ConversationState.Idle)
         {
-            await ReplyAsync(seller, "Pehle jo chal raha hai woh mukammal karein (ya \"cancel\" likhein), phir file bhejein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("import.003"), ct);
             await PersistAsync(session, ctx, ct);
             return;
         }
@@ -113,7 +109,7 @@ public partial class ConversationEngine
         var isXlsx = mimeType == XlsxMime || (fileName?.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) ?? false);
         if (!isXlsx)
         {
-            await ReplyAsync(seller, "Sirf Excel file (.xlsx) chalti hai — apni file ko \"Save as → Excel Workbook (.xlsx)\" karke dobara bhejein. Template ke liye \"import\" likhein.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("import.004"), ct);
             await PersistAsync(session, ctx, ct);
             return;
         }
@@ -122,19 +118,19 @@ public partial class ConversationEngine
         switch (plan.Problem)
         {
             case ImportProblem.Download:
-                await ReplyAsync(seller, "File download nahi ho saki — dobara bhej dein.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("import.005"), ct);
                 break;
             case ImportProblem.TooBig:
-                await ReplyAsync(seller, "File 5 MB se badi hai — usay do hisson mein baant kar bhejein.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("import.006"), ct);
                 break;
             case ImportProblem.Unreadable:
-                await ReplyAsync(seller, "File khul nahi saki — Excel (.xlsx) honi chahiye. Template ke liye \"import\" likhein.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("import.007"), ct);
                 break;
             case ImportProblem.NoSheet:
-                await ReplyAsync(seller, "Is file mein \"Customers\" ya \"Catalog\" naam ki sheet nahi mili. Template ya export wali file istemal karein — \"import\" likhein.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("import.008"), ct);
                 break;
             case ImportProblem.TooManyRows:
-                await ReplyAsync(seller, $"File mein {DataExchangeGuide.MaxImportRows} se zyada rows hain — usay chhoti files mein baant kar bhejein.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("import.009", DataExchangeGuide.MaxImportRows), ct);
                 break;
             default:
                 await ReplyWithImportSummaryAsync(seller, session, ctx, plan, mediaId, ct);
@@ -146,7 +142,7 @@ public partial class ConversationEngine
 
     private async Task ReplyWithImportSummaryAsync(Seller seller, ConversationSession session, SessionContextData ctx, ImportPlan plan, string mediaId, CancellationToken ct)
     {
-        var lines = new List<string> { "📥 File check ho gayi:" };
+        var lines = new List<string> { MessageTemplates.Get("import.019") };
         if (plan.CustomerRows > 0)
             lines.Add($"👥 Customers: {plan.NewCustomers.Count} naye" + Skipped(plan.ExistingCustomers, plan.FileDuplicateCustomers) + Wrong(plan.CustomerErrors));
         if (plan.ProductRows > 0)
@@ -189,7 +185,7 @@ public partial class ConversationEngine
 
         if (!CommandParser.IsAffirmative(message) || mediaId is null)
         {
-            await ReplyAsync(seller, "Theek hai, kuch save nahi kiya." + (returnState == ConversationState.Idle ? "" : " Jab chahein file dobara bhej dein."), ct);
+            await ReplyAsync(seller, MessageTemplates.Get("import.010", (returnState == ConversationState.Idle ? "" : " Jab chahein file dobara bhej dein.")), ct);
             return;
         }
 
@@ -198,8 +194,8 @@ public partial class ConversationEngine
         if (plan.Problem != ImportProblem.None || !plan.HasNew)
         {
             await ReplyAsync(seller, plan.Problem == ImportProblem.None
-                ? "Ab koi nayi row save karne ke liye nahi bachi."
-                : "File dobara parhi nahi ja saki — dobara bhej dein.", ct);
+                ? MessageTemplates.Get("import.016")
+                : MessageTemplates.Get("import.017"), ct);
             return;
         }
 
@@ -220,7 +216,7 @@ public partial class ConversationEngine
         if (plan.NewCustomers.Count > 0) done.Add($"👥 {plan.NewCustomers.Count} customers");
         if (plan.NewProducts.Count > 0) done.Add($"🛍️ {plan.NewProducts.Count} products");
         await ReplyAsync(seller,
-            $"✅ Import ho gaya: {string.Join(" · ", done)}.\nDekhne ke liye \"customers\" / \"catalog\" · Ghalti ho to \"undo\".", ct);
+            MessageTemplates.Get("import.011", string.Join(" · ", done)), ct);
 
         if (!seller.OnboardingComplete)
         {
@@ -231,7 +227,7 @@ public partial class ConversationEngine
             else
             {
                 SetState(session, ConversationState.OnboardingAddProduct);
-                await ReplyAsync(seller, "Aur products bhejna chahein to bhej dein, warna \"done\" likhein.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("import.012"), ct);
             }
         }
     }
@@ -260,7 +256,7 @@ public partial class ConversationEngine
             else _db.Products.Remove(product);
         }
 
-        await ReplyAsync(seller, $"↩️ Reverted — import hata diya: {customers.Count} customers, {products.Count} products.", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("import.013", customers.Count, products.Count), ct);
     }
 
     // ---- reading and checking the file ----

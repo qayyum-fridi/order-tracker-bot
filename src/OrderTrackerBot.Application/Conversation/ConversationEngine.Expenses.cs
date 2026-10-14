@@ -4,6 +4,7 @@ using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Application.Time;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -35,7 +36,7 @@ public partial class ConversationEngine
         var amount = cmd.Amount ?? 0;
         if (amount <= 0 || amount > MaxExpenseAmount)
         {
-            await ReplyAsync(seller, "Kharcha 0 se zyada hona chahiye. Jaise: \"expense 500 packaging\"", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("expenses.001"), ct);
             return;
         }
 
@@ -55,9 +56,7 @@ public partial class ConversationEngine
         var (start, end, _) = ExpensePeriod(seller, "month");
         var monthTotal = (await LoadExpensesAsync(seller, start, end, ct)).Sum(x => x.Amount);
         await ReplyAsync(seller,
-            $"✅ Kharcha note: {Formatters.Money(amount)} — {note ?? category}\n" +
-            $"Is maah ka total kharcha: {Formatters.Money(monthTotal)}\n" +
-            "Ghalti ho to \"undo\" · Hisaab: \"monthly net\"", ct);
+            MessageTemplates.Get("expenses.002", Formatters.Money(amount), note ?? category, Formatters.Money(monthTotal)), ct);
     }
 
     private async Task UndoExpenseAsync(Seller seller, ActionLog log, CancellationToken ct)
@@ -67,7 +66,7 @@ public partial class ConversationEngine
         var expense = await _db.Expenses.FirstOrDefaultAsync(x => x.Id == id && x.SellerId == seller.Id, ct);
         if (expense is null) return;
         _db.Expenses.Remove(expense);
-        await ReplyAsync(seller, $"↩️ Reverted — kharcha {Formatters.Money(expense.Amount)} ({expense.Note ?? expense.Category}) hata diya.", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("expenses.003", Formatters.Money(expense.Amount), expense.Note ?? expense.Category), ct);
     }
 
     private async Task HandleExpenseListAsync(Seller seller, string? period, CancellationToken ct)
@@ -76,7 +75,7 @@ public partial class ConversationEngine
         var expenses = (await LoadExpensesAsync(seller, start, end, ct)).OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).ToList();
         if (expenses.Count == 0)
         {
-            await ReplyAsync(seller, $"🧾 Kharcha ({label}): koi kharcha record nahi.\n\nShuru karne ke liye: \"expense 500 packaging\"", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("expenses.004", label), ct);
             return;
         }
 
@@ -86,8 +85,7 @@ public partial class ConversationEngine
             $"• {TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(x.CreatedAt, DateTimeKind.Utc), tz):dd MMM} — {Formatters.Money(x.Amount)} {x.Note ?? x.Category}");
         var more = expenses.Count > shown ? $"\n…aur {expenses.Count - shown} purane" : "";
         await ReplyAsync(seller,
-            $"🧾 Kharcha ({label}) — {expenses.Count}\n\n{string.Join("\n", lines)}{more}\n\n" +
-            $"Total: {Formatters.Money(expenses.Sum(x => x.Amount))}\nGhalti ho to \"undo\".", ct);
+            MessageTemplates.Get("expenses.005", label, expenses.Count, string.Join("\n", lines), more, Formatters.Money(expenses.Sum(x => x.Amount))), ct);
     }
 
     private async Task HandleMonthlyNetAsync(Seller seller, string? period, CancellationToken ct)
@@ -107,18 +105,14 @@ public partial class ConversationEngine
         var wageTotal = wages.Sum(x => x.Amount);
         var net = sales - spent - wageTotal;
         var wageLine = wages.Count == 0 ? "" : $"Tankhwah: {Formatters.Money(wageTotal)} ({wages.Count})\n";
-        var lossLine = losses.Count == 0 ? "" : $"Nuqsan (cost, net mein shamil nahi): {Formatters.Money(losses.Sum(x => x.Quantity * x.UnitCost))} ({losses.Count})\n";
+        var lossLine = losses.Count == 0 ? "" : MessageTemplates.Get("expenses.007", Formatters.Money(losses.Sum(x => x.Quantity * x.UnitCost)), losses.Count);
 
         var top = expenses.GroupBy(x => x.Category).Select(g => (Category: g.Key, Total: g.Sum(x => x.Amount)))
             .OrderByDescending(g => g.Total).Take(3).ToList();
-        var topLines = top.Count == 0 ? "" : "\n\nSab se zyada kharcha:\n" + string.Join("\n", top.Select(t => $"• {t.Category}: {Formatters.Money(t.Total)}"));
-        var hint = expenses.Count == 0 ? "\n\nKharcha likhein, jaise: \"expense 500 packaging\"" : "\n\nProduct cost ke baad margin: \"profit month\"";
+        var topLines = top.Count == 0 ? "" : MessageTemplates.Get("expenses.008", string.Join("\n", top.Select(t => $"• {t.Category}: {Formatters.Money(t.Total)}")));
+        var hint = expenses.Count == 0 ? MessageTemplates.Get("expenses.009") : MessageTemplates.Get("expenses.010");
 
         await ReplyAsync(seller,
-            $"📊 {(period is null or "month" or "lastmonth" ? "Monthly Net" : "Net")} — {label}\n\n" +
-            $"Sales: {Formatters.Money(sales)} ({orders.Count} orders)\n" +
-            $"Kharcha: {Formatters.Money(spent)} ({expenses.Count})\n" +
-            wageLine + lossLine +
-            $"{(net < 0 ? "🔻" : "✅")} Net: {Formatters.Money(net)}" + topLines + hint, ct);
+            MessageTemplates.Get("expenses.006", (period is null or "month" or "lastmonth" ? "Monthly Net" : "Net"), label, Formatters.Money(sales), orders.Count, Formatters.Money(spent), expenses.Count, wageLine, lossLine, (net < 0 ? "🔻" : "✅"), Formatters.Money(net), topLines, hint), ct);
     }
 }

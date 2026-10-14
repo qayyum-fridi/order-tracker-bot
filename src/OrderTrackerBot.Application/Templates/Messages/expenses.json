@@ -1,0 +1,12 @@
+{
+  "expenses.001": "Kharcha 0 se zyada hona chahiye. Jaise: \"expense 500 packaging\"",
+  "expenses.002": "✅ Kharcha note: {0} — {1}\nIs maah ka total kharcha: {2}\nGhalti ho to \"undo\" · Hisaab: \"monthly net\"",
+  "expenses.003": "↩️ Reverted — kharcha {0} ({1}) hata diya.",
+  "expenses.004": "🧾 Kharcha ({0}): koi kharcha record nahi.\n\nShuru karne ke liye: \"expense 500 packaging\"",
+  "expenses.005": "🧾 Kharcha ({0}) — {1}\n\n{2}{3}\n\nTotal: {4}\nGhalti ho to \"undo\".",
+  "expenses.006": "📊 {0} — {1}\n\nSales: {2} ({3} orders)\nKharcha: {4} ({5})\n{6}{7}{8} Net: {9}{10}{11}",
+  "expenses.007": "Nuqsan (cost, net mein shamil nahi): {0} ({1})\n",
+  "expenses.008": "\n\nSab se zyada kharcha:\n{0}",
+  "expenses.009": "\n\nKharcha likhein, jaise: \"expense 500 packaging\"",
+  "expenses.010": "\n\nProduct cost ke baad margin: \"profit month\""
+}

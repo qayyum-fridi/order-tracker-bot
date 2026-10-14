@@ -3,6 +3,7 @@ using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Application.Time;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -54,7 +55,7 @@ public partial class ConversationEngine
         if (open is null) return "";
         await _db.SaveChangesAsync(ct); // the order just marked paid must be in the database before the drawer is added up
         var summary = await SummariseCashAsync(seller, open, _clock.GetUtcNow().UtcDateTime, ct);
-        return $"\n💵 Drawer mein ab hona chahiye: {Formatters.Money(summary.Expected)}";
+        return MessageTemplates.Get("cash-drawer.019", Formatters.Money(summary.Expected));
     }
 
     private async Task HandleCashDrawerAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
@@ -67,41 +68,40 @@ public partial class ConversationEngine
             case "open":
                 if (open is not null)
                 {
-                    await ReplyAsync(seller, $"💵 Drawer pehle se khula hai ({LocalTime(seller, open.OpenedAt)} se, shuru {Formatters.Money(open.OpeningAmount)}).\nBand karne ke liye: drawer close <gine hue paise>", ct);
+                    await ReplyAsync(seller, MessageTemplates.Get("cash-drawer.001", LocalTime(seller, open.OpenedAt), Formatters.Money(open.OpeningAmount)), ct);
                     return;
                 }
                 if (cmd.Amount is not { } opening)
                 {
-                    await ReplyAsync(seller, "Drawer kholne ke liye shuru ke paise likhein: drawer open 5000\n(khali ho to: drawer open 0)", ct);
+                    await ReplyAsync(seller, MessageTemplates.Get("cash-drawer.002"), ct);
                     return;
                 }
                 if (opening < 0 || opening > MaxCashAmount)
                 {
-                    await ReplyAsync(seller, "Rakam theek nahi lagti — jaise: drawer open 5000", ct);
+                    await ReplyAsync(seller, MessageTemplates.Get("cash-drawer.003"), ct);
                     return;
                 }
                 _db.CashDrawerSessions.Add(new CashDrawerSession { SellerId = seller.Id, OpenedAt = now, OpeningAmount = opening, Note = cmd.Text2 });
                 await ReplyAsync(seller,
-                    $"✅ Drawer khul gaya — shuru {Formatters.Money(opening)}.\n" +
-                    "Din bhar: cash in 500 <wajah> · cash out 300 <wajah> · cash sale 1200 <cheez>\nShaam ko: drawer close <gine hue paise>", ct);
+                    MessageTemplates.Get("cash-drawer.004", Formatters.Money(opening)), ct);
                 return;
 
             case "close":
             {
                 if (open is null)
                 {
-                    await ReplyAsync(seller, "Abhi koi drawer khula nahi. Kholne ke liye: drawer open 5000", ct);
+                    await ReplyAsync(seller, MessageTemplates.Get("cash-drawer.005"), ct);
                     return;
                 }
                 var summary = await SummariseCashAsync(seller, open, now, ct);
                 if (cmd.Amount is not { } counted)
                 {
-                    await ReplyAsync(seller, $"💵 Drawer ({LocalTime(seller, open.OpenedAt)} se)\n{CashLines(summary)}\n\nGine hue paise bhejein: drawer close {summary.Expected:0.##}  (jo asal mein gine wo likhein)", ct);
+                    await ReplyAsync(seller, MessageTemplates.Get("cash-drawer.006", LocalTime(seller, open.OpenedAt), CashLines(summary), $"{summary.Expected:0.##}"), ct);
                     return;
                 }
                 if (counted < 0 || counted > MaxCashAmount)
                 {
-                    await ReplyAsync(seller, "Rakam theek nahi lagti — jaise: drawer close 18000", ct);
+                    await ReplyAsync(seller, MessageTemplates.Get("cash-drawer.007"), ct);
                     return;
                 }
                 open.ClosedAt = now;
@@ -110,10 +110,7 @@ public partial class ConversationEngine
                 if (!string.IsNullOrWhiteSpace(cmd.Text2)) open.Note = cmd.Text2;
                 var diff = counted - summary.Expected;
                 await ReplyAsync(seller,
-                    $"✅ Drawer band.\n{CashLines(summary)}\nGine hue: {Formatters.Money(counted)}\n" +
-                    (diff == 0 ? "✔️ Barabar — koi farq nahi." : diff < 0 ? $"⚠️ {Formatters.Money(-diff)} KAM hain." : $"⚠️ {Formatters.Money(diff)} ZYADA hain.") +
-                    (diff == 0 ? "" : "\nKoi cash in/out likhna reh gaya ho to \"drawer history\" se dekhein; agle din se har len-den likhein.") +
-                    "\nAgla shift: drawer open <paise>", ct);
+                    MessageTemplates.Get("cash-drawer.008", CashLines(summary), Formatters.Money(counted), (diff == 0 ? "✔️ Barabar — koi farq nahi." : diff < 0 ? $"⚠️ {Formatters.Money(-diff)} KAM hain." : $"⚠️ {Formatters.Money(diff)} ZYADA hain."), (diff == 0 ? "" : "\nKoi cash in/out likhna reh gaya ho to \"drawer history\" se dekhein; agle din se har len-den likhein.")), ct);
                 return;
             }
 
@@ -123,7 +120,7 @@ public partial class ConversationEngine
                     .Where(s => s.SellerId == seller.Id && s.ClosedAt != null).OrderByDescending(s => s.ClosedAt).Take(7).ToListAsync(ct);
                 if (closed.Count == 0)
                 {
-                    await ReplyAsync(seller, "Abhi koi band shift nahi." + (open is null ? " Shuru karne ke liye: drawer open 5000" : ""), ct);
+                    await ReplyAsync(seller, MessageTemplates.Get("cash-drawer.009", (open is null ? " Shuru karne ke liye: drawer open 5000" : "")), ct);
                     return;
                 }
                 var lines = closed.Select(s =>
@@ -132,7 +129,7 @@ public partial class ConversationEngine
                     return $"• {LocalTime(seller, s.OpenedAt)}: shuru {Formatters.Money(s.OpeningAmount)} → gine {Formatters.Money(s.CountedAmount ?? 0)} " +
                            (diff == 0 ? "✔️" : diff < 0 ? $"({Formatters.Money(-diff)} kam)" : $"({Formatters.Money(diff)} zyada)");
                 });
-                await ReplyAsync(seller, "💵 Pichle shift:\n" + string.Join("\n", lines), ct);
+                await ReplyAsync(seller, MessageTemplates.Get("cash-drawer.010", string.Join("\n", lines)), ct);
                 return;
             }
 
@@ -143,14 +140,12 @@ public partial class ConversationEngine
                     var last = await _db.CashDrawerSessions.AsNoTracking()
                         .Where(s => s.SellerId == seller.Id && s.ClosedAt != null).OrderByDescending(s => s.ClosedAt).FirstOrDefaultAsync(ct);
                     await ReplyAsync(seller,
-                        "💵 Drawer band hai. Kholne ke liye: drawer open 5000" +
-                        (last is null ? "" : $"\nPichla shift: gine {Formatters.Money(last.CountedAmount ?? 0)} ({LocalTime(seller, last.ClosedAt ?? last.OpenedAt)} par band)."), ct);
+                        MessageTemplates.Get("cash-drawer.011", (last is null ? "" : $"\nPichla shift: gine {Formatters.Money(last.CountedAmount ?? 0)} ({LocalTime(seller, last.ClosedAt ?? last.OpenedAt)} par band).")), ct);
                     return;
                 }
                 var summary = await SummariseCashAsync(seller, open, now, ct);
                 await ReplyAsync(seller,
-                    $"💵 Drawer khula hai ({LocalTime(seller, open.OpenedAt)} se)\n{CashLines(summary)}\n\n" +
-                    "cash in 500 <wajah> · cash out 300 <wajah> · cash sale 1200 · drawer close <gine hue paise>", ct);
+                    MessageTemplates.Get("cash-drawer.012", LocalTime(seller, open.OpenedAt), CashLines(summary)), ct);
                 return;
             }
         }
@@ -161,7 +156,7 @@ public partial class ConversationEngine
         var open = await OpenDrawerAsync(seller, ct);
         if (open is null)
         {
-            await ReplyAsync(seller, "Pehle drawer kholein: drawer open 5000 (phir cash in / cash out likh sakte hain).", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("cash-drawer.013"), ct);
             return;
         }
         var now = _clock.GetUtcNow().UtcDateTime;
@@ -171,13 +166,13 @@ public partial class ConversationEngine
             var last = await _db.CashMovements.Where(m => m.SessionId == open.Id).OrderByDescending(m => m.Id).FirstOrDefaultAsync(ct);
             if (last is null)
             {
-                await ReplyAsync(seller, "Is drawer mein hatane ko koi entry nahi.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("cash-drawer.014"), ct);
                 return;
             }
             _db.CashMovements.Remove(last);
             await _db.SaveChangesAsync(ct);
             var after = await SummariseCashAsync(seller, open, now, ct);
-            await ReplyAsync(seller, $"↩️ Aakhri entry hata di ({last.Kind.ToString().ToLowerInvariant()} {Formatters.Money(last.Amount)}).\nAb hona chahiye: {Formatters.Money(after.Expected)}", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("cash-drawer.015", last.Kind.ToString().ToLowerInvariant(), Formatters.Money(last.Amount), Formatters.Money(after.Expected)), ct);
             return;
         }
 
@@ -185,12 +180,12 @@ public partial class ConversationEngine
         if (cmd.Amount is not { } amount)
         {
             var current = await SummariseCashAsync(seller, open, now, ct);
-            await ReplyAsync(seller, $"Kitne paise? Jaise: cash {cmd.Text} 500 <wajah>\n(Abhi drawer mein hona chahiye: {Formatters.Money(current.Expected)})", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("cash-drawer.016", cmd.Text, Formatters.Money(current.Expected)), ct);
             return;
         }
         if (amount <= 0 || amount > MaxCashAmount)
         {
-            await ReplyAsync(seller, "Rakam theek nahi lagti — jaise: cash out 300 chai", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("cash-drawer.017"), ct);
             return;
         }
 
@@ -198,11 +193,8 @@ public partial class ConversationEngine
         _db.CashMovements.Add(new CashMovement { SellerId = seller.Id, SessionId = open.Id, Kind = kind, Amount = amount, Note = cmd.Text2, CreatedAt = now });
         await _db.SaveChangesAsync(ct);
         var summary = await SummariseCashAsync(seller, open, now, ct);
-        var label = kind switch { CashMovementKind.Out => "Cash out", CashMovementKind.Sale => "Cash sale", _ => "Cash in" };
+        var label = kind switch { CashMovementKind.Out => MessageTemplates.Get("cash-drawer.020"), CashMovementKind.Sale => MessageTemplates.Get("cash-drawer.021"), _ => MessageTemplates.Get("cash-drawer.022") };
         await ReplyAsync(seller,
-            $"💵 {label} {Formatters.Money(amount)}{(string.IsNullOrWhiteSpace(cmd.Text2) ? "" : $" ({cmd.Text2})")}.\n" +
-            $"Ab drawer mein hona chahiye: {Formatters.Money(summary.Expected)}" +
-            (kind == CashMovementKind.Out && amount > before.Expected ? $"\n⚠️ Itna cash drawer mein tha hi nahi (tha {Formatters.Money(before.Expected)}) — koi cash in/sale likhna reh gaya?" : "") +
-            "\nGalti ho to: cash undo", ct);
+            MessageTemplates.Get("cash-drawer.018", label, Formatters.Money(amount), (string.IsNullOrWhiteSpace(cmd.Text2) ? "" : $" ({cmd.Text2})"), Formatters.Money(summary.Expected), (kind == CashMovementKind.Out && amount > before.Expected ? $"\n⚠️ Itna cash drawer mein tha hi nahi (tha {Formatters.Money(before.Expected)}) — koi cash in/sale likhna reh gaya?" : "")), ct);
     }
 }

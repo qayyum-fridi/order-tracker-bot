@@ -1,0 +1,8 @@
+{
+  "export.001": "Export abhi available nahi hai.",
+  "export.002": "📊 Export — aap kya Excel file mein chahte hain? Neeche se chunein 👇\nYa likhein: \"export orders customers\" (jo jo chahiye, ek saath).",
+  "export.003": "Abhi export karne ke liye koi data nahi hai ({0}).",
+  "export.004": "✅ Excel file ready — file par tap kar ke download karein; Excel ya Google Sheets mein khulti hai.\nAakhri tab \"Guide\" har column ka matlab batata hai.\nIs mein customers ke phone/address bhi hain, isay sirf apne paas rakhein.",
+  "export.005": "⚠️ Export file bhej nahi saka — thori der baad dobara try karein.",
+  "export.006": "Orders (pichla maah)"
+}

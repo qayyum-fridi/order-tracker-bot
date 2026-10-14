@@ -1,0 +1,14 @@
+{
+  "payouts.001": "🏦 Koi payout baqi nahi.\nCOD order delivered hone par agar \"Cash collect ho gaya?\" ka jawab \"no\" ho (courier ne paise rakhe), to wo yahan aata hai.\nPayout aane par: payout 11700 TCS orders 1 2 3 fee 300  ·  Pichle payouts: payouts",
+  "payouts.002": "🏦 Payout baqi — total {0} ({1} orders)\n\n{2}\n\nPayout aane par: payout <rakam> {3} orders {4} fee <charges>\nCash seedha mil gaya ho to: payout skip <order numbers>",
+  "payouts.003": "Abhi koi payout record nahi. Likhein: payout 11700 TCS orders 1 2 3 fee 300",
+  "payouts.004": "🏦 Pichle payouts:\n{0}\n\nGalti ho to: payout undo",
+  "payouts.005": "Rakam theek nahi lagti — jaise: payout 11700 TCS orders 1 2 3 fee 300",
+  "payouts.006": "Order {0} nahi mila — kuch save nahi kiya.",
+  "payouts.007": "⚠️ {0} — kuch save nahi kiya.",
+  "payouts.008": "{0}\nGalti ho to: payout undo",
+  "payouts.009": "Kaunse orders? Jaise: payout skip 12 13 (jin ka cash aap ko seedha mil gaya, courier se payout nahi aana).",
+  "payouts.010": "Hatane ko koi payout nahi.",
+  "payouts.011": "↩️ Payout #{0} ({1}, {2}) hata diya{3}",
+  "payouts.012": "Courier set nahi"
+}

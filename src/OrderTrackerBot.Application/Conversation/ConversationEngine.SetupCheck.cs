@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -18,7 +19,7 @@ public sealed partial class ConversationEngine
         if (products.Count == 0)
         {
             await ReplyAsync(seller,
-                $"ℹ️ Catalog abhi khali hai. Pehle products likhein, ek line mein:\n\"{Industry(seller).FullProduct}\"\n(ya \"import\" se Excel file bhej dein). Apni dukaan ki qism ke examples ke liye \"industry\" likhein.", ct);
+                MessageTemplates.Get("setup-check.001", Industry(seller).FullProduct), ct);
             return;
         }
 
@@ -45,9 +46,9 @@ public sealed partial class ConversationEngine
         var done = rows.Count(r => r.Ok);
         var lines = string.Join("\n", rows.Select(r => (r.Ok ? "✅ " : "⚠️ ") + r.Line));
         var quality = await DataQualityIssuesAsync(seller, products, ct);
-        var qualityText = quality.Count == 0 ? "" : "\n\n🔎 Galat / shak wali entries:\n" + string.Join("\n", quality.Select(q => "⚠️ " + q));
+        var qualityText = quality.Count == 0 ? "" : MessageTemplates.Get("setup-check.003", string.Join("\n", quality.Select(q => "⚠️ " + q)));
         var allGood = done == rows.Count && quality.Count == 0;
-        var head = allGood ? "✅ Aapka data mukammal aur theek hai — reports poori tarah kaam karengi." : $"📋 Data check: {done}/{rows.Count} mukammal, {quality.Count} galat entries";
+        var head = allGood ? MessageTemplates.Get("setup-check.004") : MessageTemplates.Get("setup-check.005", done, rows.Count, quality.Count);
         await ReplyAsync(seller, $"{head}\n\n{lines}{qualityText}", ct);
         SuggestNext(noCost > 0 ? "catalog" : "margin", noStock > 0 ? "stock" : "audit");
     }
@@ -137,6 +138,6 @@ public sealed partial class ConversationEngine
         if (noCost == 0) return;
         ctx.SetupNudgeDay = day;
         await ReplyAsync(seller,
-            $"ℹ️ {noCost} products ki cost price nahi likhi, is liye profit sahi nahi aayega. Likhein, jaise: \"{Industry(seller).FullProduct}\". Poori list ke liye \"data check\" likhein.", ct);
+            MessageTemplates.Get("setup-check.002", noCost, Industry(seller).FullProduct), ct);
     }
 }

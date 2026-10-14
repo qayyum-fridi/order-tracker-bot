@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -26,7 +27,7 @@ public partial class ConversationEngine
         if (order is null) return;
 
         var collected = MarkFullyPaid(seller, order);
-        await ReplyAsync(seller, $"✅ {Formatters.Money(collected)} COD collected — payment marked PAID" + await DrawerHintAfterCodAsync(seller, ct), ct);
+        await ReplyAsync(seller, MessageTemplates.Get("flows.001", Formatters.Money(collected), await DrawerHintAfterCodAsync(seller, ct)), ct);
     }
 
     private async Task HandleRuntimeFilterChoiceAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
@@ -48,7 +49,7 @@ public partial class ConversationEngine
             case "trending" when choice.Contains("custom") || choice == "3":
                 ctx.RuntimeFilterCommand = null;
                 SetState(session, ConversationState.AwaitingCustomDateRange);
-                await ReplyAsync(seller, "📅 Konsi dates ke beech? (e.g. \"1 May se 15 May\")", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("flows.002"), ct);
                 return;
 
             case "trending":
@@ -120,7 +121,7 @@ public partial class ConversationEngine
             // Not dates at all: a real command ("summary last week", "orders today") or a way out is not an answer to the date question. Leave it and run it.
             if (CancelWords.Contains(message.Trim()))
             {
-                await ReplyAsync(seller, "Theek hai, tareekh ka sawal band kar diya.", ct);
+                await ReplyAsync(seller, MessageTemplates.Get("flows.003"), ct);
                 return;
             }
             if (CommandParser.TryParse(message) is { } command)
@@ -129,7 +130,7 @@ public partial class ConversationEngine
                 return;
             }
             SetState(session, ConversationState.AwaitingCustomDateRange); // still waiting: a wrong try must not lose the question
-            await ReplyAsync(seller, "Maaf kijiye, tareekh samajh nahi aayi. Barae meherbani likhein: \"1 May se 15 May\", \"1 January se aaj tak\", \"pichle 3 mahine\" ya \"last quarter\". Rokne ke liye \"cancel\".", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("flows.004"), ct);
             return;
         }
 
@@ -184,7 +185,7 @@ public partial class ConversationEngine
 
         if (top.Count == 0)
         {
-            await ReplyAsync(seller, "Is period mein koi order nahi mila.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("flows.005"), ct);
             return;
         }
 
@@ -227,12 +228,12 @@ public partial class ConversationEngine
 
         if (slow.Count == 0)
         {
-            await ReplyAsync(seller, $"{days}+ din se sab products mein order aaya hai — koi slow mover nahi.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("flows.006", days), ct);
             return;
         }
 
         var lines = slow.Select((p, i) => $"{i + 1}. {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}");
-        var reply = $"📉 Slow Movers ({days}+ din se koi order nahi):\n\n{string.Join("\n", lines)}";
+        var reply = MessageTemplates.Get("flows.010", days, string.Join("\n", lines));
         var insight = await _ai.GenerateInsightAsync($"Slow-moving products with no orders in {days} days: {string.Join(", ", slow.Select(s => s.Name))}", ct);
         reply += insight is not null ? $"\n\n🤖 Suggestion: {insight}" : "\n\n🤖 Suggestion: Inpe discount code try karein customers wapas laane ke liye.";
         await ReplyAsync(seller, reply, ct);
@@ -252,7 +253,7 @@ public partial class ConversationEngine
         var orders = await query.OrderBy(o => o.DeliveredAt).ToListAsync(ct);
         if (orders.Count == 0)
         {
-            await ReplyAsync(seller, "Koi COD pending nahi hai.", ct);
+            await ReplyAsync(seller, MessageTemplates.Get("flows.007"), ct);
             return;
         }
 
@@ -261,7 +262,7 @@ public partial class ConversationEngine
                                              (o.DeliveredAt is { } d ? $" (delivered {Formatters.DaysAgo(d)})" : ""));
         var total = Formatters.Money(orders.Sum(OrderMoney.Balance));
         await ReplyAsync(seller, minDaysOld is int age
-            ? $"💵 {age}+ Din Purane Unpaid ({orders.Count}):\n\n{string.Join("\n", lines)}\n\nTotal: {total} — follow-up karein."
-            : $"💵 Delivered but Cash Not Collected ({orders.Count}):\n\n{string.Join("\n", lines)}\n\nTotal pending cash: {total}", ct);
+            ? MessageTemplates.Get("flows.008", age, orders.Count, string.Join("\n", lines), total)
+            : MessageTemplates.Get("flows.009", orders.Count, string.Join("\n", lines), total), ct);
     }
 }

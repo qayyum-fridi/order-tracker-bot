@@ -1,0 +1,17 @@
+{
+  "language.chosen.onboarding.roman": "✅ Theek hai, Roman Urdu mein baat karenge.\n(Typed reply bhi chal jata hai, button zaroori nahi — language kabhi bhi \"change language\" se badal sakte hain)\n\nAb kya karna chahenge?",
+  "language.chosen.onboarding.english": "✅ Alright, we'll continue in English.\n(You can also just type your reply — change the language anytime with \"change language\")\n\nWhat would you like to do?",
+  "language.chosen.onboarding.urdu": "✅ ٹھیک ہے، ہم اردو میں بات کریں گے۔\n(ٹائپ کر کے جواب دینا بھی چلتا ہے — زبان کبھی بھی \"change language\" سے بدل سکتے ہیں)\n\nاب کیا کرنا چاہیں گے؟",
+  "language.chosen.roman": "✅ Theek hai — ab Roman Urdu mein baat hogi.\n\nKya karna chahenge?",
+  "language.chosen.english": "✅ Great — switching to English. All replies (menu, guide, orders) will now show in English.\n\nWhat would you like to do?",
+  "language.chosen.urdu": "✅ ٹھیک ہے — اب اردو میں بات ہوگی۔\n\nکیا کرنا چاہیں گے؟",
+  "language.name.roman": "Roman Urdu",
+  "language.name.english": "English",
+  "language.name.urdu": "اردو",
+  "language.ask": "🌐 Konsi language mein baat karein?",
+  "business.name.ask": "Business ka naam bataiye? (ya neeche se option chunein)",
+  "business.name.later": "ℹ️ Theek hai. Jab aap tayyar hon, apne business ka naam bhej dein.",
+  "business.setup.summary": "⚙️ Business Setup — {0}\n📍 City: {1}\n🏷️ Type: {2}\n📸 Instagram: {3}\n💳 Payment: {4}\n🌐 Language: {5}\n\nKya update karna hai?",
+  "payment.method.prompt": "💳 Naya payment method bhejein (e.g. \"easypaisa, 0300-1234567\")",
+  "payment.method.format": "Format yeh hai: \"easypaisa, 0300-1234567\" (jazzcash / easypaisa / bank)."
+}
