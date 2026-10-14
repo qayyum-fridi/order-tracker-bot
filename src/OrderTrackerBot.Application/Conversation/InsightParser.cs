@@ -42,6 +42,8 @@ internal static class InsightParser
     private static readonly Regex Left = W(@"bacha|bachi|bache|bachay|left|remaining|available|hai|baqi|بچا|بچی|بچے|باقی");
     private static readonly Regex Fastest = W(@"tez|fast|fastest|jaldi|best|behtar|quick\w*|تیز|جلدی");
     private static readonly Regex Breakdown = W(@"category\s*wise|breakdown|taqseem|tafseel|details?|تقسیم|تفصیل");
+    private static readonly Regex LeadSubject = W(@"supplier|suppliers|maal|mal|stock|lead\s*time|wholesaler|سپلائر|مال|اسٹاک");
+    private static readonly Regex LeadVerb = W(@"aane|aata|ata|ati|aati|lagta|lagte|lagti|lead\s*time|arrive\w*|takes?|deliver\w*|آنے|لگتے|لگتا|لگتی");
     private static readonly Regex AskWord = W(@"what|kya|how\s+(?:many|much)|kitn\w+|کتن\w+|کیا");
     private static readonly Regex MonthWord = W(@"month|mahine|mahina|mah|مہینے|مہینہ|ماہ");
     private static readonly Regex Pct = new(@"(?<n>\d{1,3}(?:\.\d+)?)\s*(?:%|percent|pc|fisad|فیصد)", Opts);
@@ -65,6 +67,7 @@ internal static class InsightParser
     private static readonly Regex StockWord = W(@"stock|stok|maal|mal|اسٹاک|مال");
     private static readonly Regex Finish = W(@"khatam|khtm|finish\w*|run\s*out|runout|out\s+of\s+stock|end\s+ho\w*|ending|ختم");
     private static readonly Regex DaysLast = W(@"kitne\s+din|kitn[ae]\s+dino|how\s+many\s+days|days?\s+(?:chal|last)|chal\s*eg\w*|chale\s*g\w*|din\s+chal\w*|کتنے\s+دن|چلے\s*گا|چلے\s*گی");
+    private static readonly Regex LastsWord = W(@"chal\s*eg\w*|chale\s*g\w*|chalta|chalti|last\s*s?|چلے\s*گ\w*");
     private static readonly Regex SoldWord = W(@"bik\w*|sell\w*|sold|بک\w*");
     private static readonly Regex Reorder = W(@"restock|re-?order|naya\s+batch|new\s+batch|batch|mangwa\w*|mangw\w*|supplier|wholesale|منگوا\w*|نیا\s+بیچ|بیچ");
     private static readonly Regex Track = W(@"track\w*|ٹریک");
@@ -132,6 +135,8 @@ internal static class InsightParser
         ParsedCommand Topic(string topic, decimal? amount = null, string? periodKey = null, string? subject = null) =>
             new() { Kind = CommandKind.Insight, Text = topic, Text2 = periodKey ?? period, Text3 = subject ?? text, Amount = amount };
 
+        if (AdvancedInsightParser.TryParse(text, period) is { } advanced) return advanced;
+
         // --- discount what-if / price review (margin questions about ONE product, so before the plain ones)
         if (Discount.IsMatch(text) && Margin.IsMatch(text) && Pct.Match(text) is { Success: true } pct
             && decimal.TryParse(pct.Groups["n"].Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var percent))
@@ -170,10 +175,13 @@ internal static class InsightParser
             || (CourierWord.IsMatch(text) && (DaysLast.IsMatch(text) || Fastest.IsMatch(text)))) return Topic("deliverytime");
 
         // --- stock
+        if (LeadSubject.IsMatch(text) && LeadVerb.IsMatch(text) && !How.IsMatch(text) && !Which.IsMatch(text) && DaysNumber.Match(text) is { Success: true } lead
+            && int.TryParse(lead.Groups["n"].Value, out var leadDays) && leadDays > 0)
+            return Topic("leadtime", leadDays);
         if (Track.IsMatch(text) && Not.IsMatch(text) && (Product.IsMatch(text) || StockWord.IsMatch(text))) return Topic("untracked");
         if ((StockWord.IsMatch(text) && Finish.IsMatch(text)) || LowStock.IsMatch(text)) return Topic("stockending", NumberOfDays(text));
         if (Reorder.IsMatch(text) && (StockWord.IsMatch(text) || Product.IsMatch(text) || Need.IsMatch(text))) return Topic("reorder");
-        if ((StockWord.IsMatch(text) && DaysLast.IsMatch(text)) || (Daily.IsMatch(text) && SoldWord.IsMatch(text) && How.IsMatch(text))) return Topic("stockdays");
+        if ((StockWord.IsMatch(text) && DaysLast.IsMatch(text)) || (DaysLast.IsMatch(text) && LastsWord.IsMatch(text) && How.IsMatch(text)) || (Daily.IsMatch(text) && SoldWord.IsMatch(text) && How.IsMatch(text))) return Topic("stockdays");
 
         if (StockWord.IsMatch(text) && How.IsMatch(text) && Left.IsMatch(text)) return Topic("stocklevel");
 
