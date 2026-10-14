@@ -1,0 +1,18 @@
+{
+  "key": "hardware",
+  "order": 6,
+  "title": "Hardware / Building",
+  "aliases": "hardware|building|construction|paint\\w*|tiles?|sanitary|electrical|pipe\\w*|cement|tools?|ہارڈ\\s*ویئر",
+  "productLines": [
+    "Wall Paint 4 ltr - 3800, cost 3000, stock 20, category paint",
+    "PVC Pipe 1 inch - 450",
+    "Cement Bag 50 kg - 1350"
+  ],
+  "orderExample": "Usman, 5 pvc pipe 1 inch, 2 wall paint 4 ltr, 03001234567, Gujranwala",
+  "tips": [
+    "Size / unit naam mein likhein (\"PVC Pipe 1 inch\"): ek hi cheez ke alag size alag products hain.",
+    "Udhaar / baaqi paisa ke liye \"order 12 advance 5000\" likhein: baqi balance \"unpaid orders\" mein dikhta hai.",
+    "Supplier ke hisab se maal dekhne ke liye \"supplier Wall Paint Ali Traders\" likhein."
+  ],
+  "dataFocus": "stock, cost price aur supplier"
+}

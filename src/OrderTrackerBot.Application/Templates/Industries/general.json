@@ -1,0 +1,18 @@
+{
+  "key": "general",
+  "order": 0,
+  "title": "General dukaan",
+  "aliases": "general|dukaan|shop|store|other|mix|aam",
+  "productLines": [
+    "Water Bottle - 500, cost 350, stock 20, category general",
+    "Notebook - 1200",
+    "Rice 5 kg - 800"
+  ],
+  "orderExample": "Ayesha, 2 water bottle, 03001234567",
+  "tips": [
+    "Har product ke saath cost likhein, jaise \"Water Bottle - 500, cost 350\": isse profit sahi aata hai.",
+    "Order aane par \"mark 3 shipped\" / \"mark 3 delivered\" zaroor likhein.",
+    "Apni dukaan ki qism chunne ke liye \"industry\" likhein: phir examples aap ki dukaan ke mutabiq honge."
+  ],
+  "dataFocus": "cost price aur stock"
+}

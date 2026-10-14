@@ -1,0 +1,18 @@
+{
+  "key": "electronics",
+  "order": 4,
+  "title": "Electronics / Mobile",
+  "aliases": "electronic\\w*|mobile\\w*|phone\\s*acc\\w*|gadget\\w*|computer\\w*|laptop\\w*|charger\\w*|appliance\\w*|الیکٹرانک\\w*|موبائل",
+  "productLines": [
+    "Fast Charger 20W - 1800, cost 1100, stock 25, category charger",
+    "Earbuds Pro - 3500",
+    "Phone Cover - 600"
+  ],
+  "orderExample": "Hamza, 1 fast charger 20w, 03001234567, Saddar Rawalpindi",
+  "tips": [
+    "Model / watt / variant naam mein likhein, taake galat cheez na bike.",
+    "Har cheez ka barcode jodein (\"barcode Earbuds Pro 8964000999\"), phir counter par scan se bechein.",
+    "Warranty ya serial ke liye \"note 12 serial 12345 warranty 1 saal\" likhein."
+  ],
+  "dataFocus": "cost price, stock aur barcode"
+}

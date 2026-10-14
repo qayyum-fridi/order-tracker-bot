@@ -1,0 +1,18 @@
+{
+  "key": "beauty",
+  "order": 3,
+  "title": "Cosmetics / Jewellery",
+  "aliases": "cosmetic\\w*|beauty|makeup|jewel+e?ry|jewelry|fashion\\s+accessor\\w*|bags?|purse|watch\\w*|perfume\\w*|skin\\s*care|زیور\\w*",
+  "productLines": [
+    "Lipstick Matte Red - 950, cost 600, stock 30, category makeup",
+    "Bridal Necklace Set - 8500",
+    "Hand Bag - 3200"
+  ],
+  "orderExample": "Sana, 1 lipstick matte red, 03001234567, Johar Town Lahore",
+  "tips": [
+    "Shade / size / colour product ke naam mein likhein (\"Lipstick Matte Red\"): har shade ka stock alag rehta hai.",
+    "Bar-code scanner ho to \"barcode Lipstick Matte Red 8964000123\" se code jod dein.",
+    "Gift wrap jaisi baat ke liye \"note 12 gift wrap\" likhein: receipt par chhap jati hai."
+  ],
+  "dataFocus": "cost price, stock aur category"
+}

@@ -1,0 +1,18 @@
+{
+  "key": "grocery",
+  "order": 2,
+  "title": "Grocery / Kiryana",
+  "aliases": "grocer\\w*|kiryana|karyana|kariyana|rashan|ration|general\\s*store|mart|supermart|گروسری|راشن|کریانہ",
+  "productLines": [
+    "Sugar 5 kg - 500, cost 440, stock 40, category rashan",
+    "Cooking Oil 1 ltr - 520",
+    "Rice 10 kg - 2600"
+  ],
+  "orderExample": "Bilal, 2 sugar 5 kg, 1 oil 1 ltr, 03001234567, DHA Karachi",
+  "tips": [
+    "Weight ya pack naam ke saath likhein: \"Sugar 5 kg - 500\": 5 kg ka pack ek hi product hai.",
+    "Stock zaroor likhein (\"stock Sugar 5 kg 40\"): kam hone par bot khud batata hai.",
+    "Stock 3 ya us se kam reh jaye to bot khud warning bhejta hai."
+  ],
+  "dataFocus": "stock, pack size aur cost price"
+}
