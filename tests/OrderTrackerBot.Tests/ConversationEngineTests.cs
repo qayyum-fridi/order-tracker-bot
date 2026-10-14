@@ -1995,6 +1995,82 @@ public class ConversationEngineTests : IDisposable
         Assert.Equal(OrderStatus.Pending, order.Status);
     }
 
+    private void StatedPriceOrder(decimal? stated)
+    {
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis
+            {
+                IsOrderAttempt = true,
+                Order = new AiOrderDraft
+                {
+                    CustomerName = "Sara",
+                    Phone = "03009876543",
+                    Address = "Gulberg Lahore",
+                    Items = { new AiOrderItemDraft { ProductName = "Kurti", MatchedCatalogProductName = "Kurti", Quantity = 1, StatedUnitPrice = stated } }
+                }
+            });
+    }
+
+    [Theory]
+    [InlineData("1", 1500)]  // the price the seller wrote
+    [InlineData("2", 1800)]  // the catalog rate
+    [InlineData("3", 1500)]  // the seller's price, and the catalog is updated
+    public async Task PriceGuard_AsksWhenStatedPriceDiffers_AndAppliesTheChoice(string choice, int expectedTotal)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        StatedPriceOrder(1500);
+        _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, body, _, _, _) => _sentMessages.Add(body)).Returns(Task.CompletedTask);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara ne kurti 1500 ki li, 03009876543, Gulberg Lahore", default);
+        Assert.Contains(_sentMessages, m => m.Contains("Qeemat mein farq") && m.Contains("1,800") && m.Contains("1,500"));
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("Confirm order"));
+
+        _sentMessages.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, choice, default);
+        Assert.Contains(_sentMessages, m => m.Contains("Confirm order"));
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        Assert.Equal(expectedTotal, (int)(await db.Orders.SingleAsync()).Total);
+        var catalogPrice = (await db.Products.FirstAsync(p => p.Name == "Kurti")).Price;
+        Assert.Equal(choice == "3" ? 1500m : 1800m, catalogPrice);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(1800)]
+    public async Task PriceGuard_StaysQuiet_WhenNoPriceWrittenOrItMatchesTheCatalog(int? stated)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        StatedPriceOrder(stated);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara ne kurti li, 03009876543, Gulberg Lahore", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Confirm order"));
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("Qeemat mein farq"));
+    }
+
+    [Fact]
+    public async Task PriceGuard_AnythingElseKeepsAskingForOneTwoOrThree()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        StatedPriceOrder(1500);
+        _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, body, _, _, _) => _sentMessages.Add(body)).Returns(Task.CompletedTask);
+        await engine.HandleIncomingMessageAsync(Phone, "Sara ne kurti 1500 ki li, 03009876543, Gulberg Lahore", default);
+
+        _sentMessages.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "haan theek hai", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("1 (aapki likhi qeemat)"));
+    }
+
     [Fact]
     public async Task DuplicateOrderConfirmation_HelpOrMenu_StillExecutes_AndPromptStaysOpen()
     {
