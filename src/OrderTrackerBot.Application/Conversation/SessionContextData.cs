@@ -15,6 +15,8 @@ public sealed class PendingOrderItemData
     /// <summary>True when UnitPrice came from a wholesale price tier (quantity is then in UnitType units, e.g. kg).</summary>
     public bool IsTierPrice { get; set; }
     public decimal? TierMinQty { get; set; }
+    /// <summary>The unit price the seller wrote when it differs from the catalog price; cleared once they chose (price guard question).</summary>
+    public decimal? StatedPrice { get; set; }
 }
 
 public sealed class PendingOrderData

@@ -22,6 +22,8 @@ public sealed class AiOrderItemDraft
     public int Quantity { get; init; } = 1;
     /// <summary>Set when the model matched an existing catalog entry (possibly informal/misspelled name).</summary>
     public string? MatchedCatalogProductName { get; init; }
+    /// <summary>The price of one unit as the seller wrote it in the order ("Lawn Suit 3500"); null when none was written. Only compared with the catalog price, never used as the price unasked.</summary>
+    public decimal? StatedUnitPrice { get; init; }
 }
 
 public sealed class AiOrderDraft

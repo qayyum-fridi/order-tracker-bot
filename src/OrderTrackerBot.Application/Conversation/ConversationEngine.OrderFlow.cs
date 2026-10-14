@@ -219,7 +219,14 @@ public partial class ConversationEngine
             var quantity = item.Quantity <= 0 ? 1 : item.Quantity;
             var entry = FindCatalogEntry(catalog, item.MatchedCatalogProductName ?? item.ProductName);
             var line = new PendingOrderItemData { ProductName = entry?.Product.Name ?? item.ProductName, Quantity = quantity, UnitPrice = -1m };
-            if (entry is not null) ApplyCatalogEntry(line, entry);
+            if (entry is not null)
+            {
+                ApplyCatalogEntry(line, entry);
+                // Only a plain per-piece listing is compared: a stated price for a kg / pack listing may mean the pack, the kg or the total.
+                if (item.StatedUnitPrice is { } stated && !fromScreenshot && line.UnitType == "piece" && line.UnitQty == 1
+                    && Math.Abs(stated - line.UnitPrice) >= 0.01m)
+                    line.StatedPrice = stated;
+            }
             pending.Items.Add(line);
         }
 
@@ -279,6 +286,21 @@ public partial class ConversationEngine
             }
             var guess = nearest.Count > 0 ? nearest[0] : null;
             await ReplyAsync(seller, intro + (guess is null ? "" : $"\n\n💡 Kya aap \"{guess}\" keh rahe hain? Haan to likhein: 2 {guess}"), ct);
+            return;
+        }
+
+        if (pending.Items.FirstOrDefault(i => i.StatedPrice is not null) is { } priced)
+        {
+            ctx.PendingMissingField = "PriceChoice";
+            SetState(session, ConversationState.AwaitingOrderMissingFields);
+            await SendChoicesAsync(seller.WhatsAppPhoneNumber,
+                $"⚠️ Qeemat mein farq: aapke catalog mein {priced.ProductName} {Formatters.Money(priced.UnitPrice)} hai, lekin aapne {Formatters.Money(priced.StatedPrice!.Value)} likha hai. Kaunsi qeemat lagayein?",
+                new List<ChoiceOption>
+                {
+                    new($"{Formatters.Money(priced.StatedPrice.Value)} par bechein", "1"),
+                    new($"Catalog rate {Formatters.Money(priced.UnitPrice)}", "2"),
+                    new("Catalog update karein", "3")
+                }, ct);
             return;
         }
 
@@ -755,6 +777,28 @@ public partial class ConversationEngine
                 ctx.PendingMissingField = null;
                 await ContinueResolvingDraftAsync(seller, session, ctx, ct);
                 return;
+
+            case "PriceChoice":
+            {
+                var answer = message.Trim().TrimEnd('.');
+                var item = pending.Items.FirstOrDefault(i => i.StatedPrice is not null);
+                if (item is null) { ctx.PendingMissingField = null; await ContinueResolvingDraftAsync(seller, session, ctx, ct); return; }
+                if (answer is not ("1" or "2" or "3"))
+                {
+                    await ReplyAsync(seller, "Barae meherbani 1 (aapki likhi qeemat), 2 (catalog rate) ya 3 (catalog update) likhein.", ct);
+                    return;
+                }
+                if (answer is "1" or "3") item.UnitPrice = item.StatedPrice!.Value;
+                if (answer == "3" && item.ProductId is { } productId && await _db.Products.FirstOrDefaultAsync(p => p.Id == productId && p.SellerId == seller.Id, ct) is { } listed)
+                {
+                    listed.Price = item.StatedPrice!.Value;
+                    await _db.SaveChangesAsync(ct);
+                }
+                item.StatedPrice = null;
+                ctx.PendingMissingField = null;
+                await ContinueResolvingDraftAsync(seller, session, ctx, ct);
+                return;
+            }
 
             case "CustomerMatch":
             {
