@@ -247,6 +247,7 @@ public static class CommandParser
     private static readonly Regex SupplierReport = new(@"^(?:suppliers?|supplier\s+(?:list|report|wise|wise\s+report))$", Opts);
     private static readonly Regex SupplierRemove = new(@"^supplier\s+(?:remove|hatao|hata\s+do|clear|delete)\s+(?<p>.+)$", Opts);
     private static readonly Regex SupplierFirst = new(@"^supplier\s+(?!ka\b|ki\b|ke\b|se\b|ko\b|mein\b|main\b|ne\b|wise\b|report\b|list\b|sales\b|profit\b|kaun\b|kon\b|kis\b|which\b|who\b|kya\b|takes?\b|delivers?\b|aata\b|lagta\b)(?<rest>.+)$", Opts);
+    private static readonly Regex SupplierSentence = new(@"(?<![\p{L}\p{N}])(?:kitna|kitni|kitne|lagta|lagte|hota|hoti|hote|hai|hain|margin|lead|time|sahab|maal|manga\w*)(?![\p{L}\p{N}])", Opts);
     private static readonly Regex SupplierOf = new(@"^(?<p>.+?)\s+(?:ka|ki|ke)\s+supplier\s+(?!kaun\b|kon\b|kya\b|kaunsa\b|hai\b|hain\b)(?<s>.+)$", Opts);
     private static readonly Regex OrderTaxWithheld = new(@"^(?:order|آرڈر)?\s*#?(?<id>\d+)\s+(?:tax\s+)?(?:withheld|withholding|wht|katauti|kata)\s*:?\s*(?:rs\.?\s*)?(?<a>\d+(?:\.\d+)?)(?:\s*(?:rs|rupees?|روپے))?$", Opts);
 
@@ -1256,7 +1257,7 @@ public static class CommandParser
         if (TryParsePeriodReport(message) is { } periodReport) return periodReport;
         if (SupplierReport.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Insight, Text = "suppliers", Text3 = message };
         if ((m = SupplierRemove.Match(message)).Success) return new ParsedCommand { Kind = CommandKind.SupplierSet, Text = m.Groups["p"].Value.Trim(), Text2 = "remove" };
-        if (!wasQuestion && (m = SupplierFirst.Match(message)).Success) return new ParsedCommand { Kind = CommandKind.SupplierSet, Text = m.Groups["rest"].Value.Trim(), Text2 = "set" };
+        if (!wasQuestion && (m = SupplierFirst.Match(message)).Success && !SupplierSentence.IsMatch(m.Groups["rest"].Value)) return new ParsedCommand { Kind = CommandKind.SupplierSet, Text = m.Groups["rest"].Value.Trim(), Text2 = "set" };
         if (!wasQuestion && (m = SupplierOf.Match(message)).Success) return new ParsedCommand { Kind = CommandKind.SupplierSet, Text = m.Groups["p"].Value.Trim(), Text2 = "of", Text3 = m.Groups["s"].Value.Trim() };
         if (InsightParser.TryParse(message) is { } insight) return insight;
         if ((m = RemoveBranding.Match(message)).Success)
