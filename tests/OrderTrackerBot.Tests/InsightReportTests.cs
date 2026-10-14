@@ -366,6 +366,23 @@ public class InsightReportTests : IDisposable
     }
 
     [Fact]
+    public async Task Categories_ListsCountsAndUncategorised()
+    {
+        await SetupAsync();
+        var a = await ProductAsync("Kurti", 1800);
+        var b = await ProductAsync("Shawl", 3500);
+        await ProductAsync("Chai", 100);
+        a.Category = "Kapray"; b.Category = "kapray";
+        await _db.SaveChangesAsync();
+
+        var reply = await AskAsync("mere paas kitni categories hain?");
+
+        Assert.Contains("1 categories hain (3 products)", reply);
+        Assert.Contains("Kapray: 2 products", reply);
+        Assert.Contains("1 products ki category set nahi", reply);
+    }
+
+    [Fact]
     public async Task UntrackedStock_CountsProductsWithoutAStockNumber()
     {
         await SetupAsync();

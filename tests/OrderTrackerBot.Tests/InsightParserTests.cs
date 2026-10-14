@@ -225,6 +225,12 @@ public class InsightParserTests
     }
 
     [Theory]
+    [InlineData("میرے پاس کتنی کیٹیگریز ہیں؟")]
+    [InlineData("mere paas kitni categories hain?")]
+    [InlineData("how many categories do I have")]
+    public void CatalogCategories(string text) => Topic(text, "categories");
+
+    [Theory]
     [InlineData("کتنے پروڈکٹس ایسے ہیں جن کا اسٹاک میں نے ٹریک نہیں کیا ہوا؟")]
     [InlineData("kitne products ka stock track nahi kiya")]
     [InlineData("how many products are not tracked in stock")]
