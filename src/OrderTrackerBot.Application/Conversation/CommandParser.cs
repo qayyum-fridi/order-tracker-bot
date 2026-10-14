@@ -85,6 +85,8 @@ public enum CommandKind
     CustomerUpdate,
     OrderPayment,
     OrderDeliveryCharge,
+    OrderCourierFee,
+    SupplierSet,
     TaxSettings,
     OrderTaxWithheld,
     RemoveBranding,
@@ -236,6 +238,17 @@ public static class CommandParser
     private static readonly Regex SalesTaxRate = new(@"^(?:sales\s+tax|gst|سیلز\s+ٹیکس)(?:\s+rate)?\s*[:=-]?\s*(?:(?<n>\d{1,2}(?:\.\d{1,2})?)\s*%?|(?<off>off|none|nahi|remove|hata\s*do))?$", Opts);
     private static readonly Regex TaxShow = new(@"^(?:my\s+)?(?:taxes|tax(?:\s+(?:settings?|setup|info))?)$", Opts);
     // Income tax a courier / payment gateway held back from a payout: "order 12 withheld 120" / "12 wht 120" / "order 12 tax withheld 0".
+    // "courier fee 12 250" / "courier bill order 12 250" / "order 12 courier fee 250" / "12 courier charges 250": what the courier charged the seller (seller-only record).
+    private const string CourierWord = @"(?:courier|کوریئر|کورئیر|rider|tcs|leopards)";
+    private const string FeeWord = @"(?:fee|fees|bill|charges?|charged|kharcha|kharch|cost|kiraya|فیس|بل)";
+    private static readonly Regex OrderCourierFee = new(
+        @"^(?:" + CourierWord + @"\s+" + FeeWord + @"\s+(?:order\s+|آرڈر\s+)?#?(?<id>\d+)\s*:?\s*(?:rs\.?\s*)?(?<a>\d+(?:\.\d+)?)|(?:order\s+|آرڈر\s+)?#?(?<id2>\d+)\s+" + CourierWord + @"\s+" + FeeWord + @"\s*:?\s*(?:rs\.?\s*)?(?<a2>\d+(?:\.\d+)?))(?:\s*(?:rs|rupees?|rupay|روپے))?$", Opts);
+    // "supplier Lawn Suit Shah Alam" / "supplier Lawn Suit: Shah Alam" / "supplier Shah Alam: Lawn Suit, Kurti" / "Lawn Suit ka supplier Shah Alam" / "supplier remove Lawn Suit" / "suppliers" (the report).
+    private static readonly Regex SupplierReport = new(@"^(?:suppliers?|supplier\s+(?:list|report|wise|wise\s+report))$", Opts);
+    private static readonly Regex SupplierRemove = new(@"^supplier\s+(?:remove|hatao|hata\s+do|clear|delete)\s+(?<p>.+)$", Opts);
+    private static readonly Regex SupplierFirst = new(@"^supplier\s+(?!ka\b|ki\b|ke\b|se\b|ko\b|mein\b|main\b|ne\b|wise\b|report\b|list\b|sales\b|profit\b|kaun\b|kon\b|kis\b|which\b|who\b|kya\b|takes?\b|delivers?\b|aata\b|lagta\b)(?<rest>.+)$", Opts);
+    private static readonly Regex SupplierSentence = new(@"(?<![\p{L}\p{N}])(?:kitna|kitni|kitne|lagta|lagte|hota|hoti|hote|hai|hain|margin|lead|time|sahab|maal|manga\w*)(?![\p{L}\p{N}])", Opts);
+    private static readonly Regex SupplierOf = new(@"^(?<p>.+?)\s+(?:ka|ki|ke)\s+supplier\s+(?!kaun\b|kon\b|kya\b|kaunsa\b|hai\b|hain\b)(?<s>.+)$", Opts);
     private static readonly Regex OrderTaxWithheld = new(@"^(?:order|آرڈر)?\s*#?(?<id>\d+)\s+(?:tax\s+)?(?:withheld|withholding|wht|katauti|kata)\s*:?\s*(?:rs\.?\s*)?(?<a>\d+(?:\.\d+)?)(?:\s*(?:rs|rupees?|روپے))?$", Opts);
 
     // "Sara ka phone 0300..." / "Sara ka address House 5" / "customer Sara city Lahore" / "customer Sara name Sara Khan".
@@ -1209,6 +1222,13 @@ public static class CommandParser
                 Kind = CommandKind.OrderDeliveryCharge, Number = int.Parse(m.Groups["id"].Value),
                 Amount = m.Groups["n"].Success && m.Groups["n"].Value != "free" ? decimal.Parse(m.Groups["n"].Value) : 0
             };
+        if ((m = OrderCourierFee.Match(message)).Success)
+            return new ParsedCommand
+            {
+                Kind = CommandKind.OrderCourierFee,
+                Number = int.Parse(m.Groups["id"].Success ? m.Groups["id"].Value : m.Groups["id2"].Value),
+                Amount = decimal.Parse(m.Groups["a"].Success ? m.Groups["a"].Value : m.Groups["a2"].Value, System.Globalization.CultureInfo.InvariantCulture)
+            };
         if ((m = OrderTaxWithheld.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.OrderTaxWithheld, Number = int.Parse(m.Groups["id"].Value),
                 Amount = decimal.Parse(m.Groups["a"].Value, System.Globalization.CultureInfo.InvariantCulture) };
@@ -1235,6 +1255,10 @@ public static class CommandParser
         if ((m = ExportTrail.Match(message)).Success && ParseExportRequest(m.Groups["what"].Value) is { Datasets.Count: > 0 } trailing)
             return new ParsedCommand { Kind = CommandKind.Export, Export = trailing };
         if (TryParsePeriodReport(message) is { } periodReport) return periodReport;
+        if (SupplierReport.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Insight, Text = "suppliers", Text3 = message };
+        if ((m = SupplierRemove.Match(message)).Success) return new ParsedCommand { Kind = CommandKind.SupplierSet, Text = m.Groups["p"].Value.Trim(), Text2 = "remove" };
+        if (!wasQuestion && (m = SupplierFirst.Match(message)).Success && !SupplierSentence.IsMatch(m.Groups["rest"].Value)) return new ParsedCommand { Kind = CommandKind.SupplierSet, Text = m.Groups["rest"].Value.Trim(), Text2 = "set" };
+        if (!wasQuestion && (m = SupplierOf.Match(message)).Success) return new ParsedCommand { Kind = CommandKind.SupplierSet, Text = m.Groups["p"].Value.Trim(), Text2 = "of", Text3 = m.Groups["s"].Value.Trim() };
         if (InsightParser.TryParse(message) is { } insight) return insight;
         if ((m = RemoveBranding.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.RemoveBranding, Text = BrandingKind(m.Groups["k"].Value) };

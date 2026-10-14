@@ -231,6 +231,12 @@ public partial class ConversationEngine
             case CommandKind.TaxSettings:
                 await HandleTaxSettingsAsync(seller, cmd, ct);
                 return;
+            case CommandKind.OrderCourierFee:
+                await HandleOrderCourierFeeAsync(seller, ctx, cmd.Number!.Value, cmd.Amount ?? 0, ct);
+                return;
+            case CommandKind.SupplierSet:
+                await HandleSupplierSetAsync(seller, cmd, ct);
+                return;
             case CommandKind.OrderTaxWithheld:
                 await HandleOrderTaxWithheldAsync(seller, ctx, cmd.Number!.Value, cmd.Amount ?? 0, ct);
                 return;

@@ -64,7 +64,7 @@ public partial class ConversationEngine
         var (start, end, label) = InsightWindow(seller, period, "30d");
         var rows = await _db.Orders.AsNoTracking()
             .Where(o => o.SellerId == seller.Id && o.CreatedAt >= start && o.CreatedAt < end && (o.Status == OrderStatus.Cancelled || o.Status == OrderStatus.Returned))
-            .Select(o => new { o.Status, o.Total, o.DeliveryCharge, o.ShippedAt })
+            .Select(o => new { o.Status, o.Total, o.DeliveryCharge, o.ShippedAt, o.CourierFee })
             .ToListAsync(ct);
         if (rows.Count == 0)
         {
@@ -80,7 +80,10 @@ public partial class ConversationEngine
             $"Cancel: {rows.Count(r => r.Status == OrderStatus.Cancelled)} orders · Return: {returned.Count} orders\n" +
             $"In orders ki kul raqam: {Formatters.Money(rows.Sum(r => r.Total))}\n" +
             $"Wapas aaye ya bhej kar cancel hue parcels: {parcels.Count} — un par likhi delivery charges {Formatters.Money(parcels.Sum(r => r.DeliveryCharge))}\n\n" +
-            "Courier ko asal mein kitna diya — yeh bot ke paas save nahi (sirf wo delivery charge jo order par likhi thi). Asal bill ke liye \"expense 300 courier\" likhte rahein.", ct);
+            (parcels.Count(r => r.CourierFee != null) is > 0 and var billed
+                ? $"Courier ko asal mein diya (jo likha gaya): {Formatters.Money(parcels.Sum(r => r.CourierFee ?? 0))} — {billed} / {parcels.Count} parcels ka bill likha hai.\n"
+                : "Courier ka asal bill likha nahi — likhne ke liye: \"courier fee 12 250\".\n") +
+            "Delivery charge wo hai jo order par customer se likhi thi.", ct);
         SuggestNext("courier returns", "expenses");
     }
 

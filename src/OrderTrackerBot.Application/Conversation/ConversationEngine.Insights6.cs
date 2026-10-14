@@ -32,7 +32,7 @@ public partial class ConversationEngine
             case "declining": await InsightDecliningProductsAsync(seller, ct); break;
             case "pricemix": await InsightPriceMixAsync(seller, ct); break;
             case "audit": await InsightAuditAsync(seller, ct); break;
-            default: return false;
+            default: return await TryHandleStrategicInsightAsync(seller, ctx, cmd, period, text, ct);
         }
         return true;
     }
