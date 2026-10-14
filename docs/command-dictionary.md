@@ -102,6 +102,7 @@ Add a period if you want one (`pichle hafte`, `last month`, `is mahine`, `30 din
 | Re-order? | `lawn suit ka naya batch mangwana chahiye` (first tell the supplier's time once: `maal aane mein 5 din lagte hain`) |
 | Products whose stock is not tracked | `kitne products ka stock track nahi kiya` |
 | How many categories the catalog has (with product counts) | `mere paas kitni categories hain`, `میرے پاس کتنی کیٹیگریز ہیں` |
+| Products listed under each category | `category wise products ki list`, `مجھے کیٹیگری وائز شو کریں پروڈکٹس کی لسٹ` |
 | Spending on one thing / biggest expense | `petrol par ab tak kitna kharcha hua` · `sab se zyada kharcha kis cheez par` · `total kharche kitne hain` |
 | Today against yesterday / this week or month against the last | `kal ke muqable aaj sale kaisi rahi` · `is mahine ki sale pichle mahine se kaisi hai` |
 | Profit or loss (product profit minus expenses) | `kya main faide mein hoon ya nuksan mein` |

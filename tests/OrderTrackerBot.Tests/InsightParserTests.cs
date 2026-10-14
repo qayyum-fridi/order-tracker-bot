@@ -225,6 +225,12 @@ public class InsightParserTests
     }
 
     [Theory]
+    [InlineData("مجھے کیٹیگری وائز شو کریں پروڈکٹس کی لسٹ")]
+    [InlineData("category wise products ki list dikhao")]
+    [InlineData("category products")]
+    public void ProductsByCategory(string text) => Topic(text, "catproducts");
+
+    [Theory]
     [InlineData("میرے پاس کتنی کیٹیگریز ہیں؟")]
     [InlineData("mere paas kitni categories hain?")]
     [InlineData("how many categories do I have")]

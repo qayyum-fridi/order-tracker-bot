@@ -176,6 +176,7 @@ internal static class InsightParser
             || (CourierWord.IsMatch(text) && (DaysLast.IsMatch(text) || Fastest.IsMatch(text)))) return Topic("deliverytime");
 
         // --- catalog categories ("mere paas kitni categories hain")
+        if (CategoryWord.IsMatch(text) && Product.IsMatch(text) && !Sale.IsMatch(text) && !Avg.IsMatch(text)) return Topic("catproducts");
         if (CategoryWord.IsMatch(text) && !Sale.IsMatch(text) && (How.IsMatch(text) || Which.IsMatch(text) || AskWord.IsMatch(text))) return Topic("categories");
         // --- stock
         if (LeadSubject.IsMatch(text) && LeadVerb.IsMatch(text) && !How.IsMatch(text) && !Which.IsMatch(text) && DaysNumber.Match(text) is { Success: true } lead

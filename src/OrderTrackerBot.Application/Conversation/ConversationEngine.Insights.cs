@@ -47,6 +47,7 @@ public partial class ConversationEngine
             case "stockdays": await InsightStockDaysAsync(seller, text, ct); break;
             case "reorder": await InsightReorderAsync(seller, text, ctx.SupplierLeadDays, ct); break;
             case "leadtime": await InsightSetLeadTimeAsync(seller, ctx, (int)(cmd.Amount ?? 0), ct); break;
+            case "catproducts": await InsightCategoryProductsAsync(seller, ct); break;
             case "categories": await InsightCategoriesAsync(seller, ct); break;
             case "untracked": await InsightUntrackedStockAsync(seller, ct); break;
             case "expcat": await InsightExpenseCategoryAsync(seller, text, period, ct); break;

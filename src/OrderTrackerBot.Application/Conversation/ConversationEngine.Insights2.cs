@@ -327,6 +327,31 @@ public partial class ConversationEngine
         SuggestNext("sales by category", "catalog");
     }
 
+    private async Task InsightCategoryProductsAsync(Seller seller, CancellationToken ct)
+    {
+        var all = await _db.Products.AsNoTracking().Where(p => p.SellerId == seller.Id && p.IsActive).OrderBy(p => p.Name).ToListAsync(ct);
+        if (all.Count == 0)
+        {
+            await ReplyAsync(seller, "Aapke catalog mein abhi koi product nahi.", ct);
+            return;
+        }
+        var sections = all.GroupBy(p => string.IsNullOrWhiteSpace(p.Category) ? "Bina category" : p.Category!.Trim(), StringComparer.OrdinalIgnoreCase)
+            .OrderBy(g => g.Key == "Bina category" ? 1 : 0).ThenByDescending(g => g.Count()).ThenBy(g => g.Key).ToList();
+        var sb = new System.Text.StringBuilder($"📂 Category ke hisaab se products ({all.Count}):");
+        var shown = 0;
+        foreach (var g in sections)
+        {
+            sb.Append($"\n\n*{g.Key}* ({g.Count()})");
+            foreach (var p in g.Take(8)) { sb.Append($"\n• {Formatters.ProductLabel(p)}"); shown++; }
+            if (g.Count() > 8) sb.Append($"\n…aur {g.Count() - 8}");
+            if (sb.Length > 3000) { sb.Append("\n\n…baqi categories chhoti list ke liye \"catalog\" likhein."); break; }
+        }
+        if (all.All(p => string.IsNullOrWhiteSpace(p.Category)))
+            sb.Append("\n\nCategory set karne ke liye likhein, jaise: \"Kurti - 1800, category kapray\".");
+        await ReplyAsync(seller, sb.ToString(), ct);
+        SuggestNext("sales by category", "catalog");
+    }
+
     private async Task InsightUntrackedStockAsync(Seller seller, CancellationToken ct)
     {
         var all = await _db.Products.AsNoTracking().Where(p => p.SellerId == seller.Id && p.IsActive).OrderBy(p => p.Name).ToListAsync(ct);
