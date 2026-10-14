@@ -77,7 +77,7 @@ public partial class ConversationEngine
         _transcriber = transcriber;
         _importReader = importReader;
         // Unconfigured (e.g. unit tests) means off; the app registers FeatureOptions with its real defaults.
-        _features = features ?? new FeatureOptions { ShortcutButtons = false, ConfirmButtons = false, SuggestionButtons = false };
+        _features = features ?? new FeatureOptions { ShortcutButtons = false, ConfirmButtons = false, SuggestionButtons = false, SetupNudges = false };
     }
 
     private static readonly ConversationState[] OnboardingStates =
@@ -478,6 +478,9 @@ public sealed class FeatureOptions
 
     /// <summary>Did-you-mean taps (nearest catalog products) when an order names a product that is not in the catalog; the typed hint is used when off.</summary>
     public bool SuggestionButtons { get; set; } = true;
+
+    /// <summary>Once-a-day reminder after a saved order when products lack a cost price (profit reports need it); <c>data check</c> works either way.</summary>
+    public bool SetupNudges { get; set; }
 
     /// <summary>Public link to the illustrated English/Urdu guide, sent with the Guide command. Empty = no link.</summary>
     public string GuideUrl { get; set; } = "";

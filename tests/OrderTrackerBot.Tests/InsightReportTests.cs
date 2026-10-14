@@ -408,6 +408,50 @@ public class InsightReportTests : IDisposable
     }
 
     [Fact]
+    public async Task DataCheck_ListsGapsWithTheLineToType()
+    {
+        await SetupAsync();
+        var a = await ProductAsync("Kurti", 1800);
+        await ProductAsync("Shawl", 3500, stock: 5);
+        a.Category = "Kapray";
+        a.CostPrice = 1100;
+        await _db.SaveChangesAsync();
+
+        var reply = await AskAsync("data check");
+
+        Assert.Contains("Cost price nahi: 1/2", reply);
+        Assert.Contains("Category nahi: 1/2", reply);
+        Assert.Contains("Stock track nahi: 1/2", reply);
+        Assert.Contains("✅ Purane orders", reply);
+        Assert.Contains("Data check: 2/5 theek", reply);
+    }
+
+    [Fact]
+    public async Task DataCheck_EmptyCatalog_TellsHowToStart()
+    {
+        await SetupAsync();
+        Assert.Contains("Catalog abhi khali", await AskAsync("data check"));
+    }
+
+    [Fact]
+    public async Task SetupNudge_OncePerDay_OnlyWhenCostMissing_AndFlagOn()
+    {
+        await SetupAsync();
+        await ProductAsync("Kurti", 1800);
+        var engine = new ConversationEngine(_db, Mock.Of<IAiOrderAssistant>(), _sender.Object, Mock.Of<IFounderAlertNotifier>(),
+            features: new FeatureOptions { ShortcutButtons = false, SetupNudges = true });
+        var ctx = new SessionContextData();
+        var maybe = typeof(ConversationEngine).GetMethod("MaybeSendSetupNudgeAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+
+        _text.Clear();
+        await (Task)maybe.Invoke(engine, new object[] { _seller, ctx, CancellationToken.None })!;
+        await (Task)maybe.Invoke(engine, new object[] { _seller, ctx, CancellationToken.None })!;
+
+        Assert.Single(_text);
+        Assert.Contains("1 products ki cost price nahi", _text[0]);
+    }
+
+    [Fact]
     public async Task UntrackedStock_CountsProductsWithoutAStockNumber()
     {
         await SetupAsync();
