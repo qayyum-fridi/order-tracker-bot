@@ -77,13 +77,14 @@ public partial class ConversationEngine
         _transcriber = transcriber;
         _importReader = importReader;
         // Unconfigured (e.g. unit tests) means off; the app registers FeatureOptions with its real defaults.
-        _features = features ?? new FeatureOptions { ShortcutButtons = false, ConfirmButtons = false, SuggestionButtons = false, SetupNudges = false };
+        _features = features ?? new FeatureOptions { ShortcutButtons = false, ConfirmButtons = false, SuggestionButtons = false, SetupNudges = false, IndustryQuestion = false };
     }
 
     private static readonly ConversationState[] OnboardingStates =
     {
         ConversationState.OnboardingBusinessName, ConversationState.OnboardingLanguage, ConversationState.OnboardingOptionalDetails,
-        ConversationState.OnboardingCatalogSize, ConversationState.OnboardingAddProduct, ConversationState.OnboardingStartChoice
+        ConversationState.OnboardingCatalogSize, ConversationState.OnboardingAddProduct, ConversationState.OnboardingStartChoice,
+        ConversationState.OnboardingIndustry
     };
 
     /// <summary>
@@ -481,6 +482,9 @@ public sealed class FeatureOptions
 
     /// <summary>Once-a-day reminder after a saved order when products lack a cost price (profit reports need it); <c>data check</c> works either way.</summary>
     public bool SetupNudges { get; set; }
+
+    /// <summary>Setup asks the kind of shop right after the shop name (taps); off = the old flow without that question (unit tests).</summary>
+    public bool IndustryQuestion { get; set; }
 
     /// <summary>Public link to the illustrated English/Urdu guide, sent with the Guide command. Empty = no link.</summary>
     public string GuideUrl { get; set; } = "";

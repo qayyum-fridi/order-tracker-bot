@@ -107,7 +107,7 @@ public class CategorySalesAndMonthTests : IDisposable
         Assert.Contains("2. Grocery — Rs.1,600 (5 items)", reply);
         Assert.Contains("3. Bina category — Rs.1,000 (4 items)", reply);
         Assert.Contains("Total: Rs.7,200", reply);
-        Assert.Contains("category: Kapron", reply); // how to categorise the rest
+        Assert.Contains("category: general", reply); // how to categorise the rest
     }
 
     [Fact]

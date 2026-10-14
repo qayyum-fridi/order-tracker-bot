@@ -20,7 +20,7 @@ public partial class ConversationEngine
         var products = await _db.Products.AsNoTracking().Where(p => p.SellerId == seller.Id && p.IsActive).OrderBy(p => p.Id).ToListAsync(ct);
         if (products.Count == 0)
         {
-            await ReplyAsync(seller, "📊 Margin: aapke catalog mein abhi koi product nahi. Pehle product likhein, jaise: Kurti - 1800, cost 1200", ct);
+            await ReplyAsync(seller, "📊 Margin: aapke catalog mein abhi koi product nahi. Pehle product likhein, jaise: " + Industry(seller).CostLine, ct);
             return;
         }
 
@@ -30,7 +30,7 @@ public partial class ConversationEngine
         {
             await ReplyAsync(seller,
                 "📊 Margin: kisi product ki cost save nahi, is liye hisaab nahi ho sakta.\n" +
-                "Cost ke saath likhein, jaise: \"Kurti - 1800, cost 1200\" (cost sirf aap ko nazar aati hai, receipt par nahi).", ct);
+                "Cost ke saath likhein, jaise: \"" + Industry(seller).CostLine + "\" (cost sirf aap ko nazar aati hai, receipt par nahi).", ct);
             return;
         }
 
@@ -59,7 +59,7 @@ public partial class ConversationEngine
                 : $"{head}\n   margin {Pct(r.Margin)} · munasib discount ~{Pct(r.Margin / 2)} · is se zyada nahi {Pct(r.Margin)} · 30 din: {units} bike";
         });
         var more = rows.Count > MarginRowsShown ? $"\n…aur {rows.Count - MarginRowsShown} products" : "";
-        var missing = noCost > 0 ? $"\n\nℹ️ {noCost} product(s) ki cost save nahi, wo is list mein nahi. Cost likhein: \"Kurti - 1800, cost 1200\"." : "";
+        var missing = noCost > 0 ? $"\n\nℹ️ {noCost} product(s) ki cost save nahi, wo is list mein nahi. Cost likhein: \"{Industry(seller).CostLine}\"." : "";
 
         await ReplyAsync(seller,
             (lowestFirst ? "📊 Sab se kam margin wale products\n\n" : "📊 Margin aur discount ki gunjaish\n\n") + string.Join("\n", lines) + more + "\n\n" +

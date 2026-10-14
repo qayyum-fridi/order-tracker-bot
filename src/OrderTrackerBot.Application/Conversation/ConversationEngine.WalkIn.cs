@@ -83,7 +83,7 @@ public sealed partial class ConversationEngine
         if (sale.Items.Count == 0)
         {
             await ReplyAsync(seller,
-                "Counter sale aise likhein:\n• walkin Kurti 2, Dupatta\n• counter sale 1500 (sirf rakam)\n• offline sale Chai - 200 bank\n• walkin Kurti 2 kal (kal ki sale)\n" +
+                $"Counter sale aise likhein:\n• walkin {Industry(seller).MainName} 2, {Industry(seller).SimpleProductName}\n• counter sale 1500 (sirf rakam)\n• offline sale Chai - 200 bank\n• walkin {Industry(seller).MainName} 2 kal (kal ki sale)\n" +
                 "Payment: cash (default) / bank / easypaisa / jazzcash / card.", ct);
             return;
         }
@@ -137,7 +137,7 @@ public sealed partial class ConversationEngine
 
         if (matches.Count == 0)
         {
-            await ReplyAsync(seller, $"\"{name}\" naam ka customer saved nahi hai. Naye customer ka order seedha likhein, jaise: {name}: Kurti 2, 0300xxxxxxx", ct);
+            await ReplyAsync(seller, $"\"{name}\" naam ka customer saved nahi hai. Naye customer ka order seedha likhein, jaise: {name}: {Industry(seller).MainName} 2, 0300xxxxxxx", ct);
             return;
         }
         if (matches.Count > 1)
@@ -149,7 +149,7 @@ public sealed partial class ConversationEngine
 
         var customer = matches[0];
         ctx.OrderForCustomer = new OrderForCustomerData { Name = customer.Name, Phone = customer.Phone, Address = customer.Address, At = DateTime.UtcNow };
-        var prompt = $"📝 {customer.Name} ke liye order — items likhein, jaise:\nKurti 2, Dupatta\nya: Lawn Suit - 3200\n(Phone/address pehle se saved hain.)";
+        var prompt = $"📝 {customer.Name} ke liye order — items likhein, jaise:\n{Industry(seller).MainName} 2, {Industry(seller).SimpleProductName}\nya: {Industry(seller).MainLine}\n(Phone/address pehle se saved hain.)";
         var usual = _features.SuggestionButtons ? await UsualItemsAsync(seller, customer, ct) : new List<ProductSuggestion>();
         ctx.ProductSuggestions = usual.Count > 0 ? usual : ctx.ProductSuggestions;
         if (usual.Count == 0)

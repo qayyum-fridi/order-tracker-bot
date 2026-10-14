@@ -42,7 +42,7 @@ public partial class ConversationEngine
 
         var lines = groups.Select((g, i) => $"{i + 1}. {g.Name} — {Formatters.Money(g.Amount)} ({g.Units} items)");
         var hint = groups.Any(g => g.Name == NoCategory)
-            ? "\n\nℹ️ \"Bina category\" wale products ki category likhein, jaise: Kurti - 1800, category: Kapron"
+            ? $"\n\nℹ️ \"Bina category\" wale products ki category likhein, jaise: {Industry(seller).MainLine}, category: {Industry(seller).Category}"
             : "";
         await ReplyAsync(seller,
             $"📊 Category wise sales — {label}\n\n{string.Join("\n", lines)}\n\nTotal: {Formatters.Money(groups.Sum(g => g.Amount))}\n" +

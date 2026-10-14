@@ -64,7 +64,7 @@ public static class SpokenNumbers
         Add(1.5m, "dedh", "derh"); Add(2.5m, "dhai", "dhaai");
 
         // Urdu script 0-10 and the round tens
-        Add(0, "صفر"); Add(1, "ایک"); Add(2, "دو"); Add(3, "تین"); Add(4, "چار"); Add(5, "پانچ"); Add(6, "چھ"); Add(7, "سات"); Add(8, "آٹھ"); Add(9, "نو"); Add(10, "دس");
+        Add(0, "صفر"); Add(1, "ایک"); Add(2, "دو"); Add(3, "تین"); Add(4, "چار"); Add(5, "پانچ"); Add(6, "چھ"); Add(7, "سات"); Add(8, "آٹھ"); Add(9, "نو"); Add(10, "دس"); Add(10, "دیس");
         Add(20, "بیس"); Add(30, "تیس"); Add(40, "چالیس"); Add(50, "پچاس"); Add(60, "ساٹھ"); Add(70, "ستر"); Add(80, "اسی"); Add(90, "نوے");
         Add(1.5m, "ڈیڑھ"); Add(2.5m, "ڈھائی");
 

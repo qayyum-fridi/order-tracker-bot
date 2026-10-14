@@ -389,6 +389,7 @@ public partial class ConversationEngine
             ConversationState.OnboardingLanguage or ConversationState.AwaitingLanguageChoice => "Waiting for the seller to choose a language: Roman Urdu, Urdu or English.",
             ConversationState.OnboardingStartChoice => "Waiting for a choice: \"Setup shuru karein\", \"Guide dekhein\" or \"Purana data\" (bring customers/products from an old system).",
             ConversationState.OnboardingBusinessName => "Waiting for the name of the seller's shop/business.",
+            ConversationState.OnboardingIndustry => "Waiting for the kind of shop (clothing/lawn, grocery, cosmetics/jewellery, electronics, food/bakery, hardware or general): a tap or a word like \"kiryana\".",
             ConversationState.OnboardingOptionalDetails => "Waiting for the shop's city, business type and Instagram handle in ONE step, comma-separated (e.g. \"Lahore, Clothing, @ayesha\"), or \"skip\".",
             ConversationState.OnboardingCatalogSize => "Waiting for how many products the seller has: a number, \"Chhota (20 se kam)\" or \"Bara (20+)\".",
             ConversationState.OnboardingAddProduct =>

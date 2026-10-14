@@ -16,7 +16,7 @@ public partial class ConversationEngine
         ConversationState.Idle when seller.OnboardingComplete => new[] { "command", "reply", "help" },
         ConversationState.Idle => new[] { "reply", "help" },
         ConversationState.OnboardingLanguage or ConversationState.AwaitingLanguageChoice or ConversationState.OnboardingStartChoice
-            or ConversationState.OnboardingBusinessName or ConversationState.OnboardingCatalogSize => new[] { "reply", "choose", "help" },
+            or ConversationState.OnboardingBusinessName or ConversationState.OnboardingIndustry or ConversationState.OnboardingCatalogSize => new[] { "reply", "choose", "help" },
         ConversationState.OnboardingOptionalDetails => new[] { "reply", "skip", "help" },
         ConversationState.OnboardingAddProduct => new[] { "reply", "done", "skip", "help" },
         ConversationState.AwaitingOrderEdit => new[] { "edit_step", "done", "command", "help" },

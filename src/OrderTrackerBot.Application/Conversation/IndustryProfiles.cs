@@ -20,6 +20,20 @@ public sealed record IndustryProfile(
     /// <summary>One simple example line ("Kurti - 1800"), for short prompts.</summary>
     public string SimpleProduct => ProductLines.Last(l => !l.Contains(',')) ;
 
+    /// <summary>The category word of the full example ("lawn", "rashan"), for "category: ..." hints.</summary>
+    public string Category => FullParts.FirstOrDefault(p => p.StartsWith("category ", StringComparison.OrdinalIgnoreCase))?["category ".Length..] ?? "general";
+
+    private string[] FullParts => FullProduct.Split(',', StringSplitOptions.TrimEntries);
+
+    /// <summary>"Sugar 5 kg - 500": the first example without its details.</summary>
+    public string MainLine => FullParts[0];
+
+    /// <summary>"Sugar 5 kg".</summary>
+    public string MainName => MainLine.Split(" - ")[0];
+
+    /// <summary>"Sugar 5 kg - 500, cost 440": the first example with its cost.</summary>
+    public string CostLine => FullParts.Length > 1 ? FullParts[0] + ", " + FullParts[1] : MainLine;
+
     /// <summary>The product name of <see cref="SimpleProduct"/> ("Sugar 5 kg"), for "stock Sugar 5 kg 20".</summary>
     public string SimpleProductName => SimpleProduct.Split(" - ")[0];
 
@@ -34,9 +48,9 @@ public static class IndustryProfiles
 {
     public static readonly IndustryProfile General = new(
         "general", "General dukaan", "general|dukaan|shop|store|other|mix|aam",
-        new[] { "Lawn Suit - 3500, cost 2400, stock 20, category lawn", "Kurti - 1800", "Sugar 5 kg - 500" },
-        "Ayesha, 2 suit, 03001234567",
-        new[] { "Har product ke saath cost likhein, jaise \"Kurti - 1800, cost 1100\": isse profit sahi aata hai.", "Order aane par \"mark 3 shipped\" / \"mark 3 delivered\" zaroor likhein." },
+        new[] { "Water Bottle - 500, cost 350, stock 20, category general", "Notebook - 1200", "Rice 5 kg - 800" },
+        "Ayesha, 2 water bottle, 03001234567",
+        new[] { "Har product ke saath cost likhein, jaise \"Water Bottle - 500, cost 350\": isse profit sahi aata hai.", "Order aane par \"mark 3 shipped\" / \"mark 3 delivered\" zaroor likhein.", "Apni dukaan ki qism chunne ke liye \"industry\" likhein: phir examples aap ki dukaan ke mutabiq honge." },
         "cost price aur stock");
 
     public static readonly IReadOnlyList<IndustryProfile> All = new[]

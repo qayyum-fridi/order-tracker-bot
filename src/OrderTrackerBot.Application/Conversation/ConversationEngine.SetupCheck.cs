@@ -40,6 +40,8 @@ public sealed partial class ConversationEngine
             (stale == 0, stale == 0 ? "Purane orders: koi atka hua nahi" : $"{stale} orders {StaleOrderDays}+ din se Pending/Shipped hain — status update karein: \"mark 12 delivered\""),
             (orders == 0 || expenses > 0, orders == 0 || expenses > 0 ? "Kharcha: pichle 30 din ka likha hua hai" : "30 din mein koi kharcha nahi likha — net/P&L adhoora. Likhein: \"expense 5000 rent\""),
         };
+        if (string.IsNullOrWhiteSpace(seller.BusinessType))
+            rows.Insert(0, (false, "Dukaan ki qism set nahi — examples aur guide aap ki dukaan ke mutabiq nahi. Likhein: \"industry\" (phir list se chunein)"));
         var done = rows.Count(r => r.Ok);
         var lines = string.Join("\n", rows.Select(r => (r.Ok ? "✅ " : "⚠️ ") + r.Line));
         var quality = await DataQualityIssuesAsync(seller, products, ct);

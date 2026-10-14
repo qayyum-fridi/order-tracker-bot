@@ -58,7 +58,7 @@ public class OnboardingTapTests : IDisposable
         sent.Clear();
         await engine.HandleIncomingMessageAsync(Phone, "add product", default);
         Assert.DoesNotContain(sent, m => m.Contains("pehle catalog complete"));
-        Assert.Contains(sent, m => m.Contains("Kurti - 1800"));
+        Assert.Contains(sent, m => m.Contains("Water Bottle - 500"));
     }
 
     public void Dispose() => _dbFactory.Dispose();

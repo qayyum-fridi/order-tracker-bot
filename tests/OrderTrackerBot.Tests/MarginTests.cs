@@ -140,7 +140,7 @@ public class MarginEngineTests : IDisposable
         await ProductAsync(db, "Kurti", 1800, null);
         await engine.HandleIncomingMessageAsync(Phone, "margin", default);
         Assert.Contains("cost save nahi", _text.Last());
-        Assert.Contains("Kurti - 1800, cost 1200", _text.Last());
+        Assert.Contains("Water Bottle - 500, cost 350", _text.Last());
     }
 
     [Fact]
