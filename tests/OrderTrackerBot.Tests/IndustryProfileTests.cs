@@ -144,6 +144,91 @@ public class CatalogViewTests : IDisposable
         Assert.Equal(action, cmd.Text);
     }
 
+    [Theory]
+    [InlineData("catalog size 25", "size:25")]
+    [InlineData("page size 50", "size:50")]
+    [InlineData("per page 5", "size:5")]
+    [InlineData("page 8", "page:8")]
+    [InlineData("go to page 2", "page:2")]
+    [InlineData("catalog last", "last")]
+    [InlineData("last page", "last")]
+    [InlineData("search chini", "q:chini")]
+    [InlineData("catalog search lawn suit", "q:lawn suit")]
+    [InlineData("find Sugar 5 kg", "q:Sugar 5 kg")]
+    public void ParsesSearchSizeAndJump(string text, string action)
+    {
+        var cmd = CommandParser.TryParse(text);
+        Assert.Equal(CommandKind.Catalog, cmd!.Kind);
+        Assert.Equal(action, cmd.Text);
+    }
+
+    [Fact]
+    public async Task Search_ShowsOnlyMatches_PagedAndKeptUntilReset()
+    {
+        await SetupAsync(Enumerable.Range(1, 30).Select(i => (i % 2 == 0 ? $"Chini {i:00}" : $"Atta {i:00}", i % 2 == 0 ? "Rashan" : "Flour")).ToArray());
+        var r = await AskAsync("catalog search chini");
+        Assert.Contains("Talash: \"chini\" — 15 nateeje (30 mein se)", r);
+        Assert.Contains("Dikh rahe hain 1–10 / 15 · Page 1/2", r);
+        Assert.DoesNotContain("Atta", r);
+        Assert.Equal(new[] { "➡️ catalog next", "catalog reset" }, _buttons.Last());
+
+        var p2 = await AskAsync("catalog next");
+        Assert.Contains("Page 2/2", p2);
+        Assert.Contains("Chini 30", p2);
+        Assert.DoesNotContain("Atta", p2);
+
+        var back = await AskAsync("catalog reset");
+        Assert.Contains("Aapka Catalog (30 products)", back);
+        Assert.Contains("Atta", back);
+    }
+
+    [Fact]
+    public async Task Search_MatchesCategory_AndSeveralWords_AndSaysWhenNothingFound()
+    {
+        await SetupAsync(("Chini Safed", "Rashan"), ("Namak", "Rashan"), ("Soap", "Cleaning"));
+        Assert.Contains("2 nateeje", await AskAsync("search rashan"));
+        var two = await AskAsync("search chini safed");
+        Assert.Contains("1 nateeje", two);
+        Assert.Contains("Chini Safed", two);
+        var none = await AskAsync("search xyzzy");
+        Assert.Contains("koi product nahi mila", none);
+        var near = await AskAsync("search Chinni Safed");
+        Assert.Contains("Kya aap \"Chini Safed\"", near);
+    }
+
+    [Fact]
+    public async Task PageSize_IsChosenByTheSeller_RememberedAndClamped()
+    {
+        await SetupAsync(Enumerable.Range(1, 60).Select(i => ($"Item {i:00}", (string?)null)).ToArray());
+        var s25 = await AskAsync("catalog size 25");
+        Assert.Contains("Ab har page par 25 products", s25);
+        Assert.Contains("Page 1/3", s25);
+        Assert.Contains("25 Item 25", s25);
+        Assert.DoesNotContain("26 Item 26", s25);
+
+        // remembered: a later plain "catalog" and next/prev keep using 25
+        var again = await AskAsync("catalog");
+        Assert.Contains("Page 1/3", again);
+        Assert.Contains("26 Item 26", await AskAsync("catalog next"));
+
+        Assert.Contains("50 set kar diya", await AskAsync("catalog size 500"));
+        Assert.Contains("5 set kar diya", await AskAsync("catalog size 1"));
+        Assert.Contains("Page 1/12", await AskAsync("catalog"));
+    }
+
+    [Fact]
+    public async Task JumpToAPage_AndLast_AndOutOfRangeIsClamped()
+    {
+        await SetupAsync(Enumerable.Range(1, 100).Select(i => ($"Item {i:000}", (string?)null)).ToArray());
+        var p8 = await AskAsync("catalog page 8");
+        Assert.Contains("Page 8/10", p8);
+        Assert.Contains("Dikh rahe hain 71–80 / 100", p8);
+        Assert.Contains("71 Item 071", p8);
+        Assert.Contains("Page 10/10", await AskAsync("catalog last"));
+        Assert.Contains("Page 10/10", await AskAsync("page 99"));
+        Assert.Contains("Page 3/10", await AskAsync("page 3"));
+    }
+
     [Fact]
     public async Task NoCategory_StaysFlat_AndTellsHowToAddOne()
     {
@@ -173,14 +258,14 @@ public class CatalogViewTests : IDisposable
     {
         await SetupAsync(Enumerable.Range(1, 25).Select(i => ($"Item {i:00}", (string?)null)).ToArray());
         var p1 = await AskAsync("catalog");
-        Assert.Contains("page 1/3", p1);
+        Assert.Contains("Page 1/3", p1);
         Assert.Contains("1 Item 01", p1);
         Assert.Contains("10 Item 10", p1);
         Assert.DoesNotContain("11 Item 11", p1);
         Assert.Equal(new[] { "➡️ catalog next", "catalog a-z" }, _buttons.Last());
 
         var p2 = await AskAsync("catalog next");
-        Assert.Contains("page 2/3", p2);
+        Assert.Contains("Page 2/3", p2);
         Assert.Contains("11 Item 11", p2);
         Assert.Equal(new[] { "⬅️ catalog prev", "➡️ catalog next", "catalog a-z" }, _buttons.Last());
 
@@ -189,11 +274,11 @@ public class CatalogViewTests : IDisposable
         Assert.Equal(new[] { "⬅️ catalog prev", "catalog a-z" }, _buttons.Last());
 
         var again = await AskAsync("catalog next");
-        Assert.Contains("page 3/3", again);
+        Assert.Contains("Page 3/3", again);
 
         var back = await AskAsync("catalog prev");
-        Assert.Contains("page 2/3", back);
-        Assert.Contains("page 1/3", await AskAsync("catalog page 1"));
+        Assert.Contains("Page 2/3", back);
+        Assert.Contains("Page 1/3", await AskAsync("catalog page 1"));
     }
 
     [Fact]

@@ -99,6 +99,10 @@ public sealed class SessionContextData
     /// <summary>The page (1-based) and order ("az" / "latest" / null = as added) of the catalog list the seller last looked at ("catalog next").</summary>
     public int CatalogPage { get; set; }
     public string? CatalogSort { get; set; }
+    /// <summary>What the seller searched for in the catalog ("catalog search chini"); the list shows only matches until "catalog reset".</summary>
+    public string? CatalogQuery { get; set; }
+    /// <summary>How many products a catalog page holds (5-50); 0 = 10. Kept until the seller changes it ("catalog size 25").</summary>
+    public int CatalogPageSize { get; set; }
     /// <summary>The seller turned the quick-action buttons off ("shortcut off").</summary>
     public bool ShortcutsOff { get; set; }
     /// <summary>The one-time explanation of the quick-action buttons has been shown.</summary>

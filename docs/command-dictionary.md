@@ -54,6 +54,7 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 |---|---|
 | See / share | `catalog` (or `products` · `maal` · `rate list` · `price list` · `catalogue` · `product list` · `show products` · `all products` · `products dikhao`) · `share catalog` |
 | Catalog pages and order (10 a page, grouped by category > sub-category) | `catalog next` · `catalog prev` · `catalog page 2` · `catalog a-z` · `catalog latest` · `catalog reset` |
+| Catalog search, jump, last page, page size (remembered) | `catalog search chini` · `search chini` · `find lawn suit` · `catalog page 8` · `page 8` · `catalog last` · `catalog size 25` (5-50) · `catalog reset` |
 | Add a product | `Kurti - 1800` · `naya product: Kurti - 1800` · `Polo Shirt - 500, cost 300, stock 10, category: Shirts` |
 | Change / remove | `edit product: Kurti - 1900` · `delete product: Kurti` |
 | Stock | `stock` (or `low stock` · `short stock` · `kam stock` · `out of stock` · `khatam maal` · `stock check` · `show stock` · `current stock` · `stock report` · `restock list` · `maal kitna hai`) · `stock Kurti 20` (`+10` · `off`) |

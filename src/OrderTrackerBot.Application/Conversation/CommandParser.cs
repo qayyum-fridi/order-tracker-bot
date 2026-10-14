@@ -194,7 +194,13 @@ public static class CommandParser
     private static readonly Regex LastMonthSummary = new(@"^(?:last\s+month'?s?\s+summary|summary\s+last\s+month|" + LastMonth + @"\s+" + Of + @"\s+" + SummaryWord + @")$", Opts);
     // "catalog next" / "catalog prev" / "catalog page 3" / "catalog a-z" / "catalog latest" / "catalog reset": page and sort the catalog list. Text = next|prev|az|latest|reset|page:N.
     private static readonly Regex CatalogView = new(
-        @"^(?:catalog|catalogue|products)\s+(?:(?<n>next|agla|aage)|(?<p>prev|previous|back|pichla|peeche)|(?<az>a\s*-?\s*z|alphabet\w*|alphabetical|naam\s+ke\s+hisaab\s+se)|(?<l>latest|newest|naya\s+pehle)|(?<r>reset|first|pehla)|page\s*(?<pg>\d{1,3}))$", Opts);
+        @"^(?:catalog|catalogue|products)\s+(?:(?<n>next|agla|aage)|(?<p>prev|previous|back|pichla|peeche)|(?<az>a\s*-?\s*z|alphabet\w*|alphabetical|naam\s+ke\s+hisaab\s+se)|(?<l>latest|newest|naya\s+pehle)|(?<r>reset|clear|first|pehla)|(?<last>last|aakhri|akhri)|page\s*(?<pg>\d{1,3}))$", Opts);
+    // "page 8" on its own (jump), "catalog size 25" / "page size 25" / "per page 50" (how many products a page), "search chini" / "find chini" / "catalog search chini".
+    private static readonly Regex CatalogPageJump = new(@"^(?:go\s+to\s+)?page\s*(?<pg>\d{1,3})$|^(?:last|aakhri)\s+page$", Opts);
+    private static readonly Regex CatalogPageSize = new(@"^(?:(?:catalog|list|page|products)\s+size|per\s+page|page\s+per|catalog\s+per\s+page)\s*[:=]?\s*(?<n>\d{1,3})$", Opts);
+    // "search customer: Sara", "find order 12": other commands that begin with the same words stay theirs.
+    private static readonly Regex SearchOtherThings = new(@"^(?:customers?|orders?|order\s*id|discounts?|expenses?|suppliers?|couriers?|payouts?|queries|query|#?\d+|گاہک|آرڈر)\b", Opts);
+    private static readonly Regex CatalogSearch = new(@"^(?:(?:catalog|products)\s+)?(?:search|find|dhoondo|dhundo|talash|ڈھونڈو|تلاش)\s+(?<q>.{2,60})$", Opts);
     private static readonly Regex Catalog = new(@"^(?:catalog|catalogue|products|my\s+products|product\s+list|item\s+list|show\s+products|all\s+products|(?:saare\s+)?products?\s+dikhao|saare\s+products|maal|rate\s+list|price\s+list|کیٹلاگ|(?:show|dikhao|dikhana|dekhao|dekhein|view)\s+(?:my\s+|mera\s+)?catalog|catalog\s+(?:show|list|view|dikhao|dikhana|dekhao|dekhein|dekhna))$", Opts);
     private static readonly Regex ShareCatalog = new(@"^share\s+catalog$", Opts);
     private static readonly Regex MenuCategory = new(@"^menu\s+(orders|reports|catalog|payments|discounts|customers|settings|shop)$", Opts);
@@ -1205,9 +1211,17 @@ public static class CommandParser
             var value = m.Groups["v"].Value.Trim();
             return new ParsedCommand { Kind = CommandKind.CatalogFilter, Text = CanonicalDetailName(m.Groups["f"].Value), Text2 = value.Length == 0 ? null : value };
         }
+        if (CatalogPageSize.Match(message) is { Success: true } sizeM)
+            return new ParsedCommand { Kind = CommandKind.Catalog, Text = "size:" + sizeM.Groups["n"].Value };
+        if (CatalogPageJump.Match(message) is { Success: true } jump)
+            return new ParsedCommand { Kind = CommandKind.Catalog, Text = jump.Groups["pg"].Success ? "page:" + jump.Groups["pg"].Value : "last" };
+        if (CatalogSearch.Match(message) is { Success: true } search
+            && (message.TrimStart().StartsWith("catalog", StringComparison.OrdinalIgnoreCase) || message.TrimStart().StartsWith("products", StringComparison.OrdinalIgnoreCase)
+                || (!search.Groups["q"].Value.Contains(':') && !SearchOtherThings.IsMatch(search.Groups["q"].Value))))
+            return new ParsedCommand { Kind = CommandKind.Catalog, Text = "q:" + search.Groups["q"].Value.Trim() };
         if (CatalogView.Match(message) is { Success: true } view)
             return new ParsedCommand { Kind = CommandKind.Catalog, Text = view.Groups["n"].Success ? "next" : view.Groups["p"].Success ? "prev" : view.Groups["az"].Success ? "az"
-                : view.Groups["l"].Success ? "latest" : view.Groups["r"].Success ? "reset" : "page:" + view.Groups["pg"].Value };
+                : view.Groups["l"].Success ? "latest" : view.Groups["r"].Success ? "reset" : view.Groups["last"].Success ? "last" : "page:" + view.Groups["pg"].Value };
         if (Catalog.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Catalog };
         if (ShareCatalog.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ShareCatalog };
         if ((m = MenuCategory.Match(message)).Success)
