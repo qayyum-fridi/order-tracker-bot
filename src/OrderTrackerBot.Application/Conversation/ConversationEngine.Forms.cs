@@ -93,9 +93,10 @@ public partial class ConversationEngine
         product.UnitType = unitType;
         if (existing is null) _db.Products.Add(product);
 
-        await ReplyAsync(seller,
-            $"✅ {Formatters.ProductLabel(product)} — {Formatters.Money(price)}{(stock is null ? "" : $", stock {stock}")} — " +
-            (existing is null ? "catalog mein add ho gaya." : "update ho gaya."), ct);
+        await ReplyAsync(seller, MessageTemplates.Get("forms.008",
+            Formatters.ProductLabel(product), Formatters.Money(price),
+            stock is null ? "" : MessageTemplates.Get("forms.009", stock),
+            existing is null ? MessageTemplates.Get("forms.010") : MessageTemplates.Get("forms.011")), ct);
     }
 
     private async Task SaveCustomerFormAsync(Seller seller, Func<string, string?> field, CancellationToken ct)

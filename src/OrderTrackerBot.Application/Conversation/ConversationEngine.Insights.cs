@@ -188,7 +188,7 @@ public partial class ConversationEngine
             return $"{i + 1}. {Formatters.ProductLabel(p)} — {Formatters.Money(p.Price)} · " +
                    (s.Total == 0 ? "abhi tak bika nahi" : $"ab tak {s.Total} bika (pichle 30 din: {s.Last30})");
         });
-        await ReplyAsync(seller, $"{(descending ? "💎 Sab se mehnge products" : "🏷️ Sab se saste products")}\n\n{string.Join("\n", lines)}", ct);
+        await ReplyAsync(seller, MessageTemplates.Get("insights.pricelist", descending ? MessageTemplates.Get("insights.pricelist.high") : MessageTemplates.Get("insights.pricelist.low"), string.Join("\n", lines)), ct);
         SuggestNext("margin", "trending products");
     }
 

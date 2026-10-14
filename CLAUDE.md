@@ -105,6 +105,8 @@ gated by `Database:AutoMigrate`).
 (`WhatsApp:AccessToken`, `OpenAi:ApiKey`, `FounderAlerts:WebhookUrl`) is absent, rather
 than throwing — this is what makes the credential-free local dev loop possible.
 
+**Bot wording lives in templates.** Every seller-facing message is a keyed entry in `src/OrderTrackerBot.Application/Templates/Messages/*.json` (embedded; keys unique across files; the file name only groups them), written in Roman Urdu. Code sends `MessageTemplates.Get("key", args...)` with `{0}`, `{1}` placeholders; the caller formats numbers and money. Add a new message as a key, never as a prose literal in a send call: `TemplateGuardTests` fails on the usual form. Button labels the engine matches on stay in code. Industry shop wording lives in `Templates/Industries/*.json`.
+
 ## Deployment
 
 Full steps are in `README.md` ("Deployment"). Two paths: (A) `dotnet publish` + systemd

@@ -154,8 +154,8 @@ public static class DataExchangeGuide
         _ => MessageTemplates.Get("data-exchange-guide.003")
     };
 
-    private const string UrduHeader = "Kya likhna hai";
-    private const string EnglishHeader = "What to write";
+    private static readonly string UrduHeader = MessageTemplates.Get("data-exchange-guide.header.urdu");
+    private static readonly string EnglishHeader = MessageTemplates.Get("data-exchange-guide.header.english");
     private static readonly string[] GuideHeaders = { "Sheet", "Column", "Needed?", UrduHeader, EnglishHeader, "Example" };
     private const int WrapAt = 90;
 

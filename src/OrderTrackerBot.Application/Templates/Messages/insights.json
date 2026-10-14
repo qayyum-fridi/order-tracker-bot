@@ -31,5 +31,8 @@
   "insights.030": "🛍️ {0} ka aakhri order\n\n#{1} · {2} ({3})\n{4}\nTotal: {5} · {6}\n\nKul orders: {7}. Poori tafseel: \"order {8}\".",
   "insights.031": "✅ Pichle {0} din mein har purane customer ne order kiya hai — koi gayab nahi.",
   "insights.032": "✅ {0} ka koi balance baqi nahi.",
-  "insights.033": "✅ Kisi customer ka balance baqi nahi."
+  "insights.033": "✅ Kisi customer ka balance baqi nahi.",
+  "insights.pricelist": "{0}\n\n{1}",
+  "insights.pricelist.high": "💎 Sab se mehnge products",
+  "insights.pricelist.low": "🏷️ Sab se saste products"
 }

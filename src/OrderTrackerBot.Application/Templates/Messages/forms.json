@@ -5,5 +5,9 @@
   "forms.004": "✅ {0} ({1}) customer list mein {2}.",
   "forms.005": "Customer aur product zaroori hain — form dobara bharein (\"new order (detailed)\").",
   "forms.006": "\"{0}\" catalog mein nahi mila — pehle \"add product (detailed)\" ya \"Naam - price\" se add karein.",
-  "forms.007": "✅ Order saved (#{0}) — {1}, {2} x{3}, {4}{5}, {6}{7}"
+  "forms.007": "✅ Order saved (#{0}) — {1}, {2} x{3}, {4}{5}, {6}{7}",
+  "forms.008": "✅ {0} — {1}{2} — {3}",
+  "forms.009": ", stock {0}",
+  "forms.010": "catalog mein add ho gaya.",
+  "forms.011": "update ho gaya."
 }
