@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using OrderTrackerBot.Infrastructure.Persistence;
 
@@ -15,32 +16,38 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "8.0.11");
+            modelBuilder
+                .HasAnnotation("ProductVersion", "8.0.11")
+                .HasAnnotation("Relational:MaxIdentifierLength", 128);
+
+            SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
             modelBuilder.Entity("OrderTrackerBot.Domain.Entities.ActionLog", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<int>("ActionType")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
 
                     b.Property<int?>("OrderId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<string>("PayloadJson")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("SellerId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<bool>("Undone")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("bit");
 
                     b.HasKey("Id");
 
@@ -53,25 +60,27 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("Channel")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Message")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("SellerId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<string>("TargetFilter")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
@@ -84,28 +93,30 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<int>("CampaignId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<string>("Channel")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("CustomerId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<string>("CustomerPhone")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("SentAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
@@ -114,45 +125,118 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     b.ToTable("CampaignSends");
                 });
 
+            modelBuilder.Entity("OrderTrackerBot.Domain.Entities.CashDrawerSession", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal?>("CountedAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("ExpectedAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("OpenedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("OpeningAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("SellerId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SellerId", "OpenedAt");
+
+                    b.ToTable("CashDrawerSessions");
+                });
+
+            modelBuilder.Entity("OrderTrackerBot.Domain.Entities.CashMovement", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("SellerId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SessionId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SessionId");
+
+                    b.HasIndex("SellerId", "CreatedAt");
+
+                    b.ToTable("CashMovements");
+                });
+
             modelBuilder.Entity("OrderTrackerBot.Domain.Entities.CommentLead", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("ClassifiedIntent")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("CommentText")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("CommenterUsername")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("IgCommentId")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<int>("Number")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<int?>("OrderId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<string>("PostId")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("SellerId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
@@ -168,19 +252,21 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("ContextJson")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("SellerId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<int>("State")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
 
                     b.HasKey("Id");
 
@@ -194,39 +280,41 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("Address")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("City")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("Notes")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Phone")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("PreferredContact")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("SellerId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("SellerId");
+                    b.HasIndex("SellerId", "Name");
 
                     b.ToTable("Customers");
                 });
@@ -235,26 +323,28 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("CustomerName")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("OrderId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<int>("SellerId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<string>("Sentiment")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Text")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
@@ -267,26 +357,28 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("Code")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("ExpiresAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("bit");
 
                     b.Property<int>("SellerId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<int>("Type")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<decimal>("Value")
                         .HasColumnType("decimal(18,2)");
@@ -298,34 +390,67 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     b.ToTable("Discounts");
                 });
 
+            modelBuilder.Entity("OrderTrackerBot.Domain.Entities.Expense", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("SellerId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SellerId", "CreatedAt");
+
+                    b.ToTable("Expenses");
+                });
+
             modelBuilder.Entity("OrderTrackerBot.Domain.Entities.InstagramConnection", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("AccessToken")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("ConnectedAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("IgUserId")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("PageId")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("SellerId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("TokenExpiresAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Username")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
@@ -337,23 +462,104 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     b.ToTable("InstagramConnections");
                 });
 
+            modelBuilder.Entity("OrderTrackerBot.Domain.Entities.IssueRecord", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("BusinessName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Detail")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Error")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SellerPhone")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Severity", "CreatedAt");
+
+                    b.ToTable("IssueRecords");
+                });
+
+            modelBuilder.Entity("OrderTrackerBot.Domain.Entities.Loss", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ProductName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Reason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("SellerId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("UnitCost")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SellerId", "CreatedAt");
+
+                    b.ToTable("Losses");
+                });
+
             modelBuilder.Entity("OrderTrackerBot.Domain.Entities.LoyaltyRule", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<decimal>("DiscountPercent")
                         .HasColumnType("decimal(5,2)");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("bit");
 
                     b.Property<int>("OrderThreshold")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<int>("SellerId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
@@ -366,17 +572,19 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("SellerId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<string>("Text")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
@@ -389,22 +597,24 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Direction")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Phone")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("RawText")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
@@ -417,73 +627,108 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("AmountPaid")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime?>("CancelledAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal?>("CourierFee")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("CustomerId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("DeliveredAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("DeliveryCharge")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime?>("DeliveryDate")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
 
                     b.Property<decimal>("DiscountAmount")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("DiscountCode")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Notes")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("OrderSource")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("PaidAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("PaymentMethod")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<int>("PaymentStatus")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
+
+                    b.Property<int?>("PayoutId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("PayoutSettledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ReceiptNumber")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ReturnedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("SalesTaxRate")
+                        .HasColumnType("decimal(5,2)");
 
                     b.Property<int>("SellerId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("ShippedAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("Status")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<decimal>("Subtotal")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TaxWithheld")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("Total")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("TrackingCourier")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("TrackingNumber")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
 
                     b.HasKey("Id");
 
                     b.HasIndex("CustomerId");
 
-                    b.HasIndex("SellerId");
+                    b.HasIndex("SellerId", "CreatedAt");
+
+                    b.HasIndex("SellerId", "ReceiptNumber")
+                        .IsUnique()
+                        .HasFilter("[ReceiptNumber] IS NOT NULL");
+
+                    b.HasIndex("SellerId", "Status");
 
                     b.ToTable("Orders");
                 });
@@ -492,20 +737,25 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<int>("OrderId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<int?>("ProductId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<string>("ProductNameSnapshot")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("Quantity")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("UnitCost")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("UnitPrice")
                         .HasColumnType("decimal(18,2)");
@@ -517,14 +767,79 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     b.ToTable("OrderItems");
                 });
 
+            modelBuilder.Entity("OrderTrackerBot.Domain.Entities.Payout", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("Fee")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("ReceivedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Reference")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("SellerId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("UndoJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SellerId", "ReceivedAt");
+
+                    b.ToTable("Payouts");
+                });
+
+            modelBuilder.Entity("OrderTrackerBot.Domain.Entities.PendingWebhookMessage", b =>
+                {
+                    b.Property<string>("MessageId")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Sender")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("MessageId");
+
+                    b.ToTable("PendingWebhookMessages");
+                });
+
             modelBuilder.Entity("OrderTrackerBot.Domain.Entities.PriceTier", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
 
                     b.Property<decimal>("MinQty")
                         .HasColumnType("decimal(18,3)");
@@ -533,7 +848,7 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("ProductId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
@@ -542,42 +857,66 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     b.ToTable("PriceTiers");
                 });
 
+            modelBuilder.Entity("OrderTrackerBot.Domain.Entities.ProcessedWebhookMessage", b =>
+                {
+                    b.Property<string>("MessageId")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("ProcessedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("MessageId");
+
+                    b.HasIndex("ProcessedAt");
+
+                    b.ToTable("ProcessedWebhookMessages");
+                });
+
             modelBuilder.Entity("OrderTrackerBot.Domain.Entities.Product", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AttributesJson")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Category")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Color")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal?>("CostPrice")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("bit");
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("Price")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("SellerId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<string>("Size")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Sku")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("StockQty")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<decimal>("UnitQty")
                         .HasColumnType("decimal(18,3)");
@@ -585,7 +924,7 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     b.Property<string>("UnitType")
                         .IsRequired()
                         .HasMaxLength(20)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(20)");
 
                     b.HasKey("Id");
 
@@ -598,49 +937,93 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("BusinessName")
                         .HasMaxLength(200)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("BusinessType")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("City")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("DefaultDeliveryCharge")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Email")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("InstagramHandle")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("LabelSize")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("LastWeeklySummaryAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Ntn")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
 
                     b.Property<bool>("OnboardingComplete")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("bit");
 
                     b.Property<int>("Plan")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<string>("PreferredLanguage")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReceiptContact")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReceiptDesignJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReceiptFooter")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReceiptHeader")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReceiptSize")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("SalesTaxRate")
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Strn")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
 
                     b.Property<DateTime?>("SubscriptionActiveUntil")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TimeZoneId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("TrialEndsAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("TrialReminderSentAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("WhatsAppPhoneNumber")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(450)");
 
                     b.HasKey("Id");
 
@@ -650,24 +1033,54 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     b.ToTable("Sellers");
                 });
 
+            modelBuilder.Entity("OrderTrackerBot.Domain.Entities.SellerBranding", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<byte[]>("Banner")
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<byte[]>("Logo")
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<int>("SellerId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SellerId")
+                        .IsUnique();
+
+                    b.ToTable("SellerBrandings");
+                });
+
             modelBuilder.Entity("OrderTrackerBot.Domain.Entities.SellerPaymentMethod", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("AccountNumberOrId")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("SellerId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<int>("Type")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
@@ -680,49 +1093,82 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("CustomerName")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("CustomerPhone")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("IgCommentId")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("LinkedOrderId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<int>("Number")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<string>("QueryText")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("SellerId")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("int");
 
                     b.Property<string>("Source")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("SuggestedReply")
-                        .HasColumnType("TEXT");
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
                     b.HasIndex("SellerId", "Number");
 
                     b.ToTable("SupportQueries");
+                });
+
+            modelBuilder.Entity("OrderTrackerBot.Domain.Entities.WageEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("Days")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SellerId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("WorkerName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SellerId", "CreatedAt");
+
+                    b.ToTable("WageEntries");
                 });
 
             modelBuilder.Entity("OrderTrackerBot.Domain.Entities.CampaignSend", b =>
@@ -734,6 +1180,17 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Campaign");
+                });
+
+            modelBuilder.Entity("OrderTrackerBot.Domain.Entities.CashMovement", b =>
+                {
+                    b.HasOne("OrderTrackerBot.Domain.Entities.CashDrawerSession", "Session")
+                        .WithMany("Movements")
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Session");
                 });
 
             modelBuilder.Entity("OrderTrackerBot.Domain.Entities.ConversationSession", b =>
@@ -857,6 +1314,11 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("OrderTrackerBot.Domain.Entities.Campaign", b =>
                 {
                     b.Navigation("Sends");
+                });
+
+            modelBuilder.Entity("OrderTrackerBot.Domain.Entities.CashDrawerSession", b =>
+                {
+                    b.Navigation("Movements");
                 });
 
             modelBuilder.Entity("OrderTrackerBot.Domain.Entities.Customer", b =>
