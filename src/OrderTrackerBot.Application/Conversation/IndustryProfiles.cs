@@ -17,7 +17,8 @@ public sealed record IndustryProfile(
     string[] ProductLines,
     string OrderExample,
     string[] Tips,
-    string DataFocus)
+    string DataFocus,
+    string[] Units)
 {
     /// <summary>One simple example line ("Kurti - 1800"), for short prompts.</summary>
     public string SimpleProduct => ProductLines.Last(l => !l.Contains(',')) ;
@@ -97,7 +98,7 @@ public static class IndustryProfiles
                 throw new InvalidOperationException($"Industry template {resource}: key \"{t.Key}\" must equal the file name.");
             if (loaded.Any(x => string.Equals(x.Profile.Key, t.Key, StringComparison.OrdinalIgnoreCase)))
                 throw new InvalidOperationException($"Industry template key \"{t.Key}\" is used by more than one file.");
-            loaded.Add((t.Order, new IndustryProfile(t.Key, t.Title, t.Aliases, t.ProductLines, t.OrderExample, t.Tips, t.DataFocus)));
+            loaded.Add((t.Order, new IndustryProfile(t.Key, t.Title, t.Aliases, t.ProductLines, t.OrderExample, t.Tips, t.DataFocus, t.Units ?? Array.Empty<string>())));
         }
         return loaded;
     }
@@ -111,5 +112,6 @@ public static class IndustryProfiles
         string[] ProductLines,
         string OrderExample,
         string[] Tips,
-        string DataFocus);
+        string DataFocus,
+        string[]? Units);
 }

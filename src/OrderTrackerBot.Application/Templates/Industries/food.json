@@ -14,5 +14,6 @@
     "Delivery charge order mein likhein (\"…, delivery 300\"), warna default \"delivery 300\" set kar lein.",
     "Customer ki khaas farmaish (\"photo cake, name Ali\") ke liye \"note 12 <likhai>\" likhein."
   ],
-  "dataFocus": "advance payment, delivery charge aur cost price"
+  "dataFocus": "advance payment, delivery charge aur cost price",
+  "units": ["piece", "kg", "gram", "dozen", "pack", "tray", "plate", "liter", "ml"]
 }

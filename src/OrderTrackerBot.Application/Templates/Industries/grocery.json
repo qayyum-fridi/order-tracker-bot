@@ -14,5 +14,6 @@
     "Stock zaroor likhein (\"stock Sugar 5 kg 40\"): kam hone par bot khud batata hai.",
     "Stock 3 ya us se kam reh jaye to bot khud warning bhejta hai."
   ],
-  "dataFocus": "stock, pack size aur cost price"
+  "dataFocus": "stock, pack size aur cost price",
+  "units": ["kg", "gram", "ml", "liter", "pack", "dozen", "bag", "carton"]
 }

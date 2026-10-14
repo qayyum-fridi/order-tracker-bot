@@ -234,6 +234,7 @@ shared-state action: confirm with the user and get SSH/host details first.
 - Customer corrections: "Sara ka phone 0300…", "Sara ka address …", "Bilal ki city …", "customer Sara name Sara Khan" (`CommandKind.CustomerUpdate`,
   `ConversationEngine.CustomerUpdate.cs`). Questions ("… kya hai") and non-numeric phones are not treated as updates; an ambiguous name
   lists the matches instead of guessing; each change is undoable (`ActionType.CustomerUpdated`).
+- Units (`CommandParser.UnitAliases`, `ConversationEngine.Import.cs` `NormalizeImportUnit`, `Seller` industry list): stored `Product.UnitType` is a free string (no migration). Parsed units: piece, set, pair, kg, gram, tola, ml, liter, meter, yard, ft, dozen, pack, box, bag, carton, roll, bundle, tray, plate. Each industry template lists its `units` (`IndustryProfile.Units`); a new product sold by the piece gets a hint with them (`commands.049`). `UnitShort` shows unknown units as " <word>". A test checks every listed unit parses back to itself.
 - Product details: `Polo Shirt - 500, cost 300, stock 10, color white, fabric: cotton` (`CommandParser.TryParseProductLine`; the first number is the sale price, parts are
   comma/`;`/`|` separated; only cost/stock/color/size/category/sku keywords and `name: value` attributes are accepted, anything else is not a product line).
   Saved on `Product.CostPrice` (seller-only: never on receipts or the shared catalog), `StockQty` (starts the stock tracking), and `AttributesJson` (custom attributes);

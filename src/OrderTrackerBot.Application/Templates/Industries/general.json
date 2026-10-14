@@ -14,5 +14,6 @@
     "Order aane par \"mark 3 shipped\" / \"mark 3 delivered\" zaroor likhein.",
     "Apni dukaan ki qism chunne ke liye \"industry\" likhein: phir examples aap ki dukaan ke mutabiq honge."
   ],
-  "dataFocus": "cost price aur stock"
+  "dataFocus": "cost price aur stock",
+  "units": ["piece", "kg", "gram", "liter", "pack", "dozen"]
 }
