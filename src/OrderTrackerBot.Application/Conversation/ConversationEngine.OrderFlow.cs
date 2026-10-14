@@ -998,6 +998,22 @@ public partial class ConversationEngine
         await ReplyAsync(seller, "Barae meherbani 1 ya 2 likh kar jawab dein.", ct);
     }
 
+    /// <summary>
+    /// The AI words its clarification options freely ("category details", "inventory status"); when one clearly names a read-only report, the typed command that
+    /// answers it, so a tap shows data instead of a neutral prompt. Never maps to anything that changes data.
+    /// </summary>
+    internal static string? ClarificationOptionCommand(string option)
+    {
+        static bool Has(string text, params string[] words) => words.Any(w => text.Contains(w, StringComparison.OrdinalIgnoreCase));
+
+        if (Has(option, "category", "categories", "کیٹیگری") && !Has(option, "sale", "bikri", "سیل")) return "category products";
+        if (Has(option, "category", "categories", "کیٹیگری")) return "sales by category";
+        if (Has(option, "inventory", "stock", "اسٹاک")) return "stock";
+        if (Has(option, "sales report", "sale report", "summary", "hisaab")) return "today's summary";
+        if (Has(option, "latest products", "products", "catalog", "product list")) return "catalog";
+        return null;
+    }
+
     /// <summary>The AI writes the options freely, so the reply is picked from the option's wording; unrecognised wording gets a neutral prompt, never an order prompt.</summary>
     private static string ClarificationChoiceReply(string option)
     {
@@ -1039,7 +1055,7 @@ public partial class ConversationEngine
             SetState(session, ConversationState.Idle);
             var chosen = options[idx - 1];
             // Keyword-clarification options are typed commands: run the one picked.
-            if (CommandParser.TryParse(chosen) is { } chosenCommand)
+            if ((CommandParser.TryParse(chosen) ?? CommandParser.TryParse(ClarificationOptionCommand(chosen) ?? "")) is { } chosenCommand)
             {
                 await ExecuteCommandAsync(seller, session, ctx, chosenCommand, ct);
                 return;
