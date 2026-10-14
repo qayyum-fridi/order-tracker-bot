@@ -18,7 +18,7 @@ public sealed partial class ConversationEngine
         if (products.Count == 0)
         {
             await ReplyAsync(seller,
-                "ℹ️ Catalog abhi khali hai. Pehle products likhein, ek line mein:\n\"Kurti - 1800, cost 1100, stock 20, category kapray\"\n(ya \"import\" se Excel file bhej dein).", ct);
+                $"ℹ️ Catalog abhi khali hai. Pehle products likhein, ek line mein:\n\"{Industry(seller).FullProduct}\"\n(ya \"import\" se Excel file bhej dein). Apni dukaan ki qism ke examples ke liye \"industry\" likhein.", ct);
             return;
         }
 
@@ -34,9 +34,9 @@ public sealed partial class ConversationEngine
 
         var rows = new List<(bool Ok, string Line)>
         {
-            (noCost == 0, noCost == 0 ? "Cost price: sab products mein" : $"Cost price nahi: {noCost}/{products.Count} products — profit/margin adhoora. Likhein: \"Kurti - 1800, cost 1100\""),
-            (noCategory == 0, noCategory == 0 ? "Category: sab products mein" : $"Category nahi: {noCategory}/{products.Count} — category reports adhoori. Likhein: \"Kurti - 1800, category kapray\""),
-            (noStock == 0, noStock == 0 ? "Stock: sab products ka track hota hai" : $"Stock track nahi: {noStock}/{products.Count} — reorder/dead stock nahi nikal sakta. Likhein: \"stock Kurti 20\""),
+            (noCost == 0, noCost == 0 ? "Cost price: sab products mein" : $"Cost price nahi: {noCost}/{products.Count} products — profit/margin adhoora. Likhein, jaise: \"{Industry(seller).FullProduct}\""),
+            (noCategory == 0, noCategory == 0 ? "Category: sab products mein" : $"Category nahi: {noCategory}/{products.Count} — category reports adhoori. Likhein, jaise: \"{Industry(seller).FullProduct}\""),
+            (noStock == 0, noStock == 0 ? "Stock: sab products ka track hota hai" : $"Stock track nahi: {noStock}/{products.Count} — reorder/dead stock nahi nikal sakta. Likhein, jaise: \"stock {Industry(seller).SimpleProductName} 20\""),
             (stale == 0, stale == 0 ? "Purane orders: koi atka hua nahi" : $"{stale} orders {StaleOrderDays}+ din se Pending/Shipped hain — status update karein: \"mark 12 delivered\""),
             (orders == 0 || expenses > 0, orders == 0 || expenses > 0 ? "Kharcha: pichle 30 din ka likha hua hai" : "30 din mein koi kharcha nahi likha — net/P&L adhoora. Likhein: \"expense 5000 rent\""),
         };
@@ -77,7 +77,7 @@ public sealed partial class ConversationEngine
 
         var negative = products.Where(p => p.StockQty < 0).ToList();
         if (negative.Count > 0)
-            issues.Add($"Stock minus mein ({negative.Count}): {Names(negative.Select(p => $"{p.Name} ({p.StockQty})"), negative.Count)} — maal aane ka stock likhein: \"stock Kurti +10\"");
+            issues.Add($"Stock minus mein ({negative.Count}): {Names(negative.Select(p => $"{p.Name} ({p.StockQty})"), negative.Count)} — maal aane ka stock likhein: \"stock {Industry(seller).SimpleProductName} +10\"");
 
         static string Key(string name) => new string(name.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
         var dupes = new List<string>();
@@ -135,6 +135,6 @@ public sealed partial class ConversationEngine
         if (noCost == 0) return;
         ctx.SetupNudgeDay = day;
         await ReplyAsync(seller,
-            $"ℹ️ {noCost} products ki cost price nahi likhi, is liye profit sahi nahi aayega. Likhein, jaise: \"Kurti - 1800, cost 1100\". Poori list ke liye \"data check\" likhein.", ct);
+            $"ℹ️ {noCost} products ki cost price nahi likhi, is liye profit sahi nahi aayega. Likhein, jaise: \"{Industry(seller).FullProduct}\". Poori list ke liye \"data check\" likhein.", ct);
     }
 }

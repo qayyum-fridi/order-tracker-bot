@@ -357,6 +357,9 @@ public partial class ConversationEngine
             case CommandKind.PaymentMethodPrompt:
                 await StartPaymentMethodInputAsync(seller, session, ct);
                 return;
+            case CommandKind.Industry:
+                await HandleIndustryAsync(seller, cmd.Text, ct);
+                break;
             case CommandKind.SetupCheck:
                 await HandleSetupCheckAsync(seller, ct);
                 break;

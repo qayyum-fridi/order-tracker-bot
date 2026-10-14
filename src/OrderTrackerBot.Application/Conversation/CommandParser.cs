@@ -95,6 +95,7 @@ public enum CommandKind
     Guide,
     Version,
     SetupCheck,
+    Industry,
     GuideLater,
     ChangeLanguage,
     BusinessSetup,
@@ -162,6 +163,8 @@ public static class CommandParser
     private static readonly Regex Greeting = new(@"^(hi|hello|hey|salam|assalam[u]?\s*alaikum|asalam[u]?\s*alaikum)$", Opts);
     private static readonly Regex Help = new(@"^(help|مدد|commands|what\s+can\s+i\s+do|how\s+to\s+use|madad\s+chahiye)$", Opts);
     private static readonly Regex Guide = new(@"^(guide|gaid|guide\s+dekhein|guide\s+dekhna|poora\s+guide|گائیڈ|گائڈ|گائیڈ\s+دیکھیں)$", Opts);
+    // "industry" / "business type clothing" / "dukaan ki qism grocery": pick the kind of shop (examples, tips); Text = what was written (null = show the choices).
+    private static readonly Regex IndustryCmd = new(@"^(?:industry|business\s+type|shop\s+type|dukaan\s+(?:ki\s+)?(?:qism|type)|کاروبار\s+کی\s+قسم)(?:\s*[:=]?\s+(?<v>.+))?$", Opts);
     private static readonly Regex SetupCheckCmd = new(@"^(?:data\s+check|setup\s+check|data\s+checklist|checklist|setup\s+status|data\s+theek\s*hai|ڈیٹا\s*چیک|چیک\s*لسٹ)$", Opts);
     private static readonly Regex VersionCmd = new(@"^(?:bot\s+)?(?:version|build|ورژن)$", Opts);
     private static readonly Regex MarginCmd = new(@"^(?:margins?|margin\s+(?:list|report)|profit\s+margins?|discount\s+(?:room|limit)|munafa\s+per\s+product)$", Opts);
@@ -1181,6 +1184,8 @@ public static class CommandParser
             if (ReportPeriods.TryParseKey(periodText, DateTime.UtcNow, out var catPeriod)) return new ParsedCommand { Kind = CommandKind.CategorySales, Text = catPeriod };
         }
         if (MarginCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Margin };
+        if (IndustryCmd.Match(message) is { Success: true } industry)
+            return new ParsedCommand { Kind = CommandKind.Industry, Text = industry.Groups["v"].Success ? industry.Groups["v"].Value.Trim() : null };
         if (SetupCheckCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.SetupCheck };
         if (VersionCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Version };
         if (GuideLater.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.GuideLater };

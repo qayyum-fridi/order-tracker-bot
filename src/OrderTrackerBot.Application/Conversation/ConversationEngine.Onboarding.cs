@@ -143,7 +143,8 @@ public partial class ConversationEngine
         }
 
         ApplyBusinessInfo(seller, message);
-        await ReplyAsync(seller, $"✅ Business info update ho gayi, shukriya — {BusinessInfoSummary(seller)}.", ct);
+        await ReplyAsync(seller, $"✅ Business info update ho gayi, shukriya — {BusinessInfoSummary(seller)}." +
+            (IndustryProfiles.Resolve(seller.BusinessType) != IndustryProfiles.General ? "\n💡 Is qism ki dukaan ke examples aur tips ke liye \"industry\" likhein." : ""), ct);
     }
     private static readonly Regex DoneOrSkip = new(@"^(done|skip)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     // "ok", "theek hai", "shukriya": a reply to the last message, not a product or an order.
@@ -242,11 +243,11 @@ public partial class ConversationEngine
                 var many = ManyProductsWords.Any(w => message.Contains(w, StringComparison.OrdinalIgnoreCase))
                            || message.Split(' ', StringSplitOptions.RemoveEmptyEntries).Any(w => int.TryParse(w, out var n) && n > 20);
                 await ReplyAsync(seller, many
-                    ? "Bohot khoob — aap ek saath kai products bhi bhej sakte hain, har line mein aik product likhein:\nLawn Suit 3pc - 3500, cost 2400, stock 20, category lawn\nKurti - 1800, cost 1100, stock 15, category stitched\nDupatta - 600\n\n" +
+                    ? "Bohot khoob — aap ek saath kai products bhi bhej sakte hain, har line mein aik product likhein:\n" + string.Join("\n", Industry(seller).ProductLines) + "\n\n" +
                       "(cost aur stock likhna zaroori nahi, lekin likhne se profit aur stock ki reports theek aati hain.)\n\n" +
                       "Ya, agar catalog bohat bara hai, Google Sheet mein bhi bhar kar uska link yahan bhej sakte hain — pehla column naam, doosra column price ho aur sheet \"Anyone with the link can view\" par set ho.\n\n" +
                       "Jab tamam products add ho jayein to \"done\" likh dein."
-                    : "Theek hai, barah-e-meharbani ek ek karke product ka naam aur price bataein — misaal ke taur par 'Lawn Suit - 3500'.", ct);
+                    : "Theek hai, barah-e-meharbani ek ek karke product ka naam aur price bataein — misaal ke taur par '" + Industry(seller).SimpleProduct + "'.", ct);
                 await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, "Ya, abhi kuch aur karna hai?",
                     "Options dekhein", CatalogStepQuickActions, ct);
                 return;
@@ -270,7 +271,7 @@ public partial class ConversationEngine
                 var choice = ButtonWords(message);
                 if (choice is "add another" or "aur product" or "add more" or "aur")
                 {
-                    await ReplyAsync(seller, "Theek hai, agle product ka naam aur price likh dein (jaise 'Kurti - 1800').", ct);
+                    await ReplyAsync(seller, "Theek hai, agle product ka naam aur price likh dein (jaise '" + Industry(seller).SimpleProduct + "').", ct);
                     return;
                 }
 
@@ -328,7 +329,7 @@ public partial class ConversationEngine
 
                 if (AcknowledgementWords.Contains(ButtonWords(message)))
                 {
-                    await ReplyAsync(seller, "👍 Theek hai. Product ka naam aur price bhejein (misaal: 'Kurti - 1800'), ya \"done\" likhein.", ct);
+                    await ReplyAsync(seller, "👍 Theek hai. Product ka naam aur price bhejein (misaal: '" + Industry(seller).SimpleProduct + "'), ya \"done\" likhein.", ct);
                     return;
                 }
 
@@ -352,7 +353,7 @@ public partial class ConversationEngine
                 }
 
                 await ReplyAsync(seller,
-                    "Maazrat, samajh nahi aaya.\n• Product add karna ho to: 'naam - price' (misaal: 'Kurti - 1800')\n" +
+                    "Maazrat, samajh nahi aaya.\n• Product add karna ho to: 'naam - price' (misaal: '" + Industry(seller).SimpleProduct + "')\n" +
                     "• Order darj karna ho to customer ka naam, items aur phone number ek saath bhej dein\n• Ya 'done'/'skip' likhein.", ct);
                 return;
 

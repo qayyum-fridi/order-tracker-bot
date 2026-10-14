@@ -65,7 +65,7 @@ public partial class ConversationEngine
         }
 
         if (choice.Contains("guide"))
-            await ReplyAsync(seller, string.Join("\n\n", GuideFullSteps), ct);
+            await ReplyAsync(seller, string.Join("\n\n", GuideStepsFor(seller)), ct);
 
         await AskBusinessNameAsync(seller, session, ct);
     }
@@ -77,7 +77,7 @@ public partial class ConversationEngine
         // "Pehle guide dekhein" is the start-step button label; sellers type it back when they reply to the question.
         if (choice is "guide dekhein" or "guide" or "pehle guide dekhein")
         {
-            await ReplyAsync(seller, string.Join("\n\n", GuideFullSteps), ct);
+            await ReplyAsync(seller, string.Join("\n\n", GuideStepsFor(seller)), ct);
             await AskBusinessNameAsync(seller, session, ct);
             return true;
         }
