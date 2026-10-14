@@ -106,15 +106,14 @@ public partial class ConversationEngine
             return;
         }
 
-        var isXlsx = mimeType == XlsxMime || (fileName?.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) ?? false);
-        if (!isXlsx)
+        if (!ImportFileTypes.IsSupported(fileName, mimeType))
         {
             await ReplyAsync(seller, MessageTemplates.Get("import.004"), ct);
             await PersistAsync(session, ctx, ct);
             return;
         }
 
-        var plan = await LoadImportPlanAsync(seller, mediaId, ct);
+        var plan = await LoadImportPlanAsync(seller, mediaId, fileName, ct);
         switch (plan.Problem)
         {
             case ImportProblem.Download:
@@ -133,20 +132,23 @@ public partial class ConversationEngine
                 await ReplyAsync(seller, MessageTemplates.Get("import.009", DataExchangeGuide.MaxImportRows), ct);
                 break;
             default:
-                await ReplyWithImportSummaryAsync(seller, session, ctx, plan, mediaId, ct);
+                await ReplyWithImportSummaryAsync(seller, session, ctx, plan, mediaId, fileName, ct);
                 break;
         }
 
         await PersistAsync(session, ctx, ct);
     }
 
-    private async Task ReplyWithImportSummaryAsync(Seller seller, ConversationSession session, SessionContextData ctx, ImportPlan plan, string mediaId, CancellationToken ct)
+    private async Task ReplyWithImportSummaryAsync(Seller seller, ConversationSession session, SessionContextData ctx, ImportPlan plan, string mediaId, string? fileName, CancellationToken ct)
     {
         var lines = new List<string> { MessageTemplates.Get("import.019") };
+        lines.AddRange(DescribeImportMapping(plan.Mapping));
         if (plan.CustomerRows > 0)
             lines.Add($"👥 Customers: {plan.NewCustomers.Count} naye" + Skipped(plan.ExistingCustomers, plan.FileDuplicateCustomers) + Wrong(plan.CustomerErrors));
         if (plan.ProductRows > 0)
             lines.Add($"🛍️ Products: {plan.NewProducts.Count} naye" + Skipped(plan.ExistingProducts, plan.FileDuplicateProducts) + Wrong(plan.ProductErrors));
+        if (plan.VariantNamed > 0) lines.Add(MessageTemplates.Get("import.025", plan.VariantNamed, plan.VariantExample));
+        if (plan.DroppedBarcodes > 0) lines.Add(MessageTemplates.Get("import.026", plan.DroppedBarcodes));
         if (plan.Errors.Count > 0)
         {
             lines.Add("");
@@ -164,6 +166,7 @@ public partial class ConversationEngine
         }
 
         ctx.PendingImportMediaId = mediaId;
+        ctx.PendingImportFileName = fileName;
         ctx.ImportReturnState = session.State;
         SetState(session, ConversationState.AwaitingImportConfirmation);
         lines.Add("");
@@ -175,11 +178,47 @@ public partial class ConversationEngine
         static string Wrong(int errors) => errors > 0 ? $" · {errors} ghalat rows" : "";
     }
 
+    private const int MaxListedIgnoredColumns = 8;
+
+    /// <summary>
+    /// Tells the seller how their own layout was read: which of their headings became which field, which columns were left out, and which sheets
+    /// held nothing usable. A file that already uses our headings needs none of this and gets no extra lines.
+    /// </summary>
+    private static IEnumerable<string> DescribeImportMapping(ImportMapping? mapping)
+    {
+        if (mapping is null) yield break;
+        foreach (var sheet in mapping.Sheets)
+        {
+            var plain = sheet.Ignored.Count == 0 && sheet.Understood.All(u => !u.Guessed && string.Equals(u.Field, u.Source, StringComparison.OrdinalIgnoreCase));
+            if (plain) continue;
+
+            yield return "";
+            yield return MessageTemplates.Get(sheet.Kind == ImportKind.Customers ? "import.020" : "import.027", sheet.Name);
+            yield return MessageTemplates.Get("import.021", string.Join(" · ", sheet.Understood.Select(u => $"{u.Field} ← \"{u.Source}\"")));
+            if (sheet.Ignored.Count > 0)
+            {
+                var listed = string.Join(", ", sheet.Ignored.Take(MaxListedIgnoredColumns).Select(h => $"\"{h}\""));
+                yield return MessageTemplates.Get("import.022", sheet.Ignored.Count > MaxListedIgnoredColumns ? $"{listed} +{sheet.Ignored.Count - MaxListedIgnoredColumns}" : listed);
+            }
+            if (sheet.Understood.FirstOrDefault(u => u.Guessed) is { } guessed)
+                yield return MessageTemplates.Get("import.024", guessed.Source);
+        }
+        foreach (var name in mapping.SkippedSheets)
+            yield return MessageTemplates.Get("import.023", name);
+        if (mapping.Sheets.Any(s => s.Ignored.Count > 0 || s.Understood.Any(u => u.Guessed)) || mapping.SkippedSheets.Count > 0)
+        {
+            yield return MessageTemplates.Get("import.029");
+            yield return "";
+        }
+    }
+
     private async Task HandleImportConfirmationAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         var mediaId = ctx.PendingImportMediaId;
+        var fileName = ctx.PendingImportFileName;
         var returnState = ctx.ImportReturnState ?? ConversationState.Idle;
         ctx.PendingImportMediaId = null;
+        ctx.PendingImportFileName = null;
         ctx.ImportReturnState = null;
         SetState(session, returnState);
 
@@ -190,7 +229,7 @@ public partial class ConversationEngine
         }
 
         // The file is read again instead of keeping its rows in the session, and checked against what exists right now.
-        var plan = await LoadImportPlanAsync(seller, mediaId, ct);
+        var plan = await LoadImportPlanAsync(seller, mediaId, fileName, ct);
         if (plan.Problem != ImportProblem.None || !plan.HasNew)
         {
             await ReplyAsync(seller, plan.Problem == ImportProblem.None
@@ -266,32 +305,37 @@ public partial class ConversationEngine
     private sealed class ImportPlan
     {
         public ImportProblem Problem;
+        public ImportMapping? Mapping;
         public int CustomerRows, ProductRows;
         public List<Customer> NewCustomers = new();
         public List<Product> NewProducts = new();
         public int ExistingCustomers, FileDuplicateCustomers, ExistingProducts, FileDuplicateProducts, CustomerErrors, ProductErrors;
+        public int VariantNamed, DroppedBarcodes;
+        public string? VariantExample;
         public List<string> Errors = new();
         public bool HasNew => NewCustomers.Count + NewProducts.Count > 0;
     }
 
-    private async Task<ImportPlan> LoadImportPlanAsync(Seller seller, string mediaId, CancellationToken ct)
+    private async Task<ImportPlan> LoadImportPlanAsync(Seller seller, string mediaId, string? fileName, CancellationToken ct)
     {
         var media = await _media!.DownloadAsync(mediaId, ct);
         if (media is null) return new ImportPlan { Problem = ImportProblem.Download };
         if (media.Value.Bytes.Length > MaxImportBytes) return new ImportPlan { Problem = ImportProblem.TooBig };
 
-        var sheets = _importReader!.Read(media.Value.Bytes);
-        if (sheets is null) return new ImportPlan { Problem = ImportProblem.Unreadable };
+        var grid = _importReader!.Read(media.Value.Bytes, fileName);
+        if (grid is null) return new ImportPlan { Problem = ImportProblem.Unreadable };
 
-        var customerSheet = sheets.FirstOrDefault(s => s.Name.Equals(DataExchangeGuide.CustomersSheet, StringComparison.OrdinalIgnoreCase));
-        var catalogSheet = sheets.FirstOrDefault(s => s.Name.Equals(DataExchangeGuide.CatalogSheet, StringComparison.OrdinalIgnoreCase));
-        if (customerSheet is null && catalogSheet is null) return new ImportPlan { Problem = ImportProblem.NoSheet };
-        if ((customerSheet?.Rows.Count ?? 0) + (catalogSheet?.Rows.Count ?? 0) > DataExchangeGuide.MaxImportRows)
+        // The seller's own layout is fine: columns are recognised by their headings and renamed to ours before any row is checked.
+        var mapping = ImportColumnMapper.Map(grid);
+        if (mapping.Sheets.Count == 0) return new ImportPlan { Problem = ImportProblem.NoSheet };
+        if (mapping.Sheets.Sum(s => s.Sheet.Rows.Count) > DataExchangeGuide.MaxImportRows)
             return new ImportPlan { Problem = ImportProblem.TooManyRows };
 
-        var plan = new ImportPlan();
-        if (customerSheet is not null) await PlanCustomersAsync(seller, customerSheet, plan, ct);
-        if (catalogSheet is not null) await PlanProductsAsync(seller, catalogSheet, plan, ct);
+        var plan = new ImportPlan { Mapping = mapping };
+        var customerSheets = mapping.Sheets.Where(s => s.Kind == ImportKind.Customers).Select(s => s.Sheet).ToList();
+        var catalogSheets = mapping.Sheets.Where(s => s.Kind == ImportKind.Catalog).Select(s => s.Sheet).ToList();
+        if (customerSheets.Count > 0) await PlanCustomersAsync(seller, customerSheets, plan, ct);
+        if (catalogSheets.Count > 0) await PlanProductsAsync(seller, catalogSheets, plan, ct);
         return plan;
     }
 
@@ -300,12 +344,13 @@ public partial class ConversationEngine
     private static string? TooLong(ImportRow row, params string[] headers) =>
         headers.FirstOrDefault(h => Cell(row, h).Length > MaxImportCellLength) is { } header ? $"\"{header}\" bohat lamba hai" : null;
 
-    private async Task PlanCustomersAsync(Seller seller, ImportSheet sheet, ImportPlan plan, CancellationToken ct)
+    private async Task PlanCustomersAsync(Seller seller, IReadOnlyList<ImportSheet> sheets, ImportPlan plan, CancellationToken ct)
     {
         var existing = (await _db.Customers.AsNoTracking().Where(c => c.SellerId == seller.Id && c.DeletedAt == null)
             .Select(c => new { c.Name, c.Phone }).ToListAsync(ct)).Select(c => CustomerImportKey(c.Name, c.Phone)).ToHashSet();
         var seen = new HashSet<string>();
 
+        foreach (var sheet in sheets)
         foreach (var row in sheet.Rows)
         {
             plan.CustomerRows++;
@@ -318,7 +363,7 @@ public partial class ConversationEngine
             if (problem is not null)
             {
                 plan.CustomerErrors++;
-                plan.Errors.Add($"Customers row {row.Number}: {problem}");
+                plan.Errors.Add($"{sheet.Name} row {row.Number}: {problem}");
                 continue;
             }
 
@@ -335,12 +380,26 @@ public partial class ConversationEngine
         }
     }
 
-    private async Task PlanProductsAsync(Seller seller, ImportSheet sheet, ImportPlan plan, CancellationToken ct)
+    private sealed class ImportProductRow
     {
-        var existing = (await _db.Products.AsNoTracking().Where(p => p.SellerId == seller.Id)
-            .Select(p => new { p.Name, p.UnitType, p.UnitQty }).ToListAsync(ct)).Select(p => ProductImportKey(p.Name, p.UnitType, p.UnitQty)).ToHashSet();
-        var seen = new HashSet<string>();
+        public required ImportRow Row;
+        public required string Name;
+        public decimal Price, PackSize = 1;
+        public decimal? Cost;
+        public int? Stock;
+        public string Unit = "piece";
+        public bool Active = true;
+    }
 
+    private async Task PlanProductsAsync(Seller seller, IReadOnlyList<ImportSheet> sheets, ImportPlan plan, CancellationToken ct)
+    {
+        var catalog = await _db.Products.AsNoTracking().Where(p => p.SellerId == seller.Id)
+            .Select(p => new { p.Name, p.UnitType, p.UnitQty, p.Sku }).ToListAsync(ct);
+        var existing = catalog.Select(p => ProductImportKey(p.Name, p.UnitType, p.UnitQty)).ToHashSet();
+        var usedBarcodes = catalog.Where(p => !string.IsNullOrWhiteSpace(p.Sku)).Select(p => p.Sku!.Trim().ToLowerInvariant()).ToHashSet();
+
+        var parsed = new List<ImportProductRow>();
+        foreach (var sheet in sheets)
         foreach (var row in sheet.Rows)
         {
             plan.ProductRows++;
@@ -375,13 +434,26 @@ public partial class ConversationEngine
             if (problem is not null)
             {
                 plan.ProductErrors++;
-                plan.Errors.Add($"Catalog row {row.Number}: {problem}");
+                plan.Errors.Add($"{sheet.Name} row {row.Number}: {problem}");
                 continue;
             }
 
-            var key = ProductImportKey(name, unit, packSize);
+            parsed.Add(new ImportProductRow { Row = row, Name = name, Price = price, PackSize = packSize, Cost = cost, Stock = stock, Unit = unit, Active = active });
+        }
+
+        NameImportVariants(parsed, plan);
+
+        var seen = new HashSet<string>();
+        foreach (var item in parsed)
+        {
+            var row = item.Row;
+            var key = ProductImportKey(item.Name, item.Unit, item.PackSize);
             if (existing.Contains(key)) { plan.ExistingProducts++; continue; }
             if (!seen.Add(key)) { plan.FileDuplicateProducts++; continue; }
+
+            // A barcode belongs to one product ("scan" finds a product by it): a repeated one is left off, the product is still saved.
+            var barcode = NullIfEmpty(Cell(row, "SKU"));
+            if (barcode is not null && !usedBarcodes.Add(barcode.ToLowerInvariant())) { barcode = null; plan.DroppedBarcodes++; }
 
             var attributes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var field in new[] { "Vendor", "Manufacturer", "Department" })
@@ -394,11 +466,34 @@ public partial class ConversationEngine
 
             plan.NewProducts.Add(new Product
             {
-                SellerId = seller.Id, Name = name, Price = price, CostPrice = cost, UnitType = unit, UnitQty = packSize,
+                SellerId = seller.Id, Name = item.Name, Price = item.Price, CostPrice = item.Cost, UnitType = item.Unit, UnitQty = item.PackSize,
                 Category = NullIfEmpty(Cell(row, "Category")), Size = NullIfEmpty(Cell(row, "Size")), Color = NullIfEmpty(Cell(row, "Color")),
-                Sku = NullIfEmpty(Cell(row, "SKU")), StockQty = stock, IsActive = active,
+                Sku = barcode, StockQty = item.Stock, IsActive = item.Active,
                 AttributesJson = attributes.Count == 0 ? null : JsonSerializer.Serialize(attributes)
             });
+        }
+    }
+
+    /// <summary>
+    /// Many sellers list one product on several rows, one per size / colour. The catalog tells products apart by name, so rows that share a name
+    /// get their size (and the colour, when the sizes alone don't separate them) added to the name: "Tapal Pouch (S) Red". Rows that still
+    /// can't be told apart stay duplicates and are skipped like any repeated row.
+    /// </summary>
+    private static void NameImportVariants(List<ImportProductRow> rows, ImportPlan plan)
+    {
+        foreach (var group in rows.GroupBy(r => ProductImportKey(r.Name, r.Unit, r.PackSize)).Where(g => g.Count() > 1))
+        {
+            var members = group.ToList();
+            var sizes = members.Select(r => Cell(r.Row, "Size")).ToList();
+            var addColor = sizes.Distinct(StringComparer.OrdinalIgnoreCase).Count() < members.Count;
+            foreach (var member in members)
+            {
+                var variant = string.Join(" ", new[] { Cell(member.Row, "Size"), addColor ? Cell(member.Row, "Color") : "" }.Where(v => v.Length > 0));
+                if (variant.Length == 0) continue;
+                member.Name = $"{member.Name} {variant}";
+                plan.VariantNamed++;
+                plan.VariantExample ??= member.Name;
+            }
         }
     }
 

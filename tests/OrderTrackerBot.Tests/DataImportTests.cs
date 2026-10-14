@@ -41,7 +41,7 @@ public class DataImportTests : IDisposable
     public void Dispose() => _dbFactory.Dispose();
 
     private ConversationEngine CreateEngine(AppDbContext db) =>
-        new(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, exportWriter: _writer, importReader: new ImportXlsxReader());
+        new(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, exportWriter: _writer, importReader: new ImportFileReader());
 
     private async Task OnboardAsync(AppDbContext db)
     {
@@ -304,8 +304,8 @@ public class DataImportTests : IDisposable
         await OnboardAsync(db);
         var engine = CreateEngine(db);
 
-        await engine.HandleDocumentMessageAsync(Phone, "m1", "old.csv", "text/csv");
-        Assert.Contains(_texts, t => t.Contains("Sirf Excel file (.xlsx)"));
+        await engine.HandleDocumentMessageAsync(Phone, "m1", "old.pdf", "application/pdf");
+        Assert.Contains(_texts, t => t.Contains("Sirf Excel (.xlsx / .xls), CSV ya ODS"));
 
         ServeFile("junk", new byte[] { 1, 2, 3, 4 });
         await engine.HandleDocumentMessageAsync(Phone, "junk", "x.xlsx", XlsxMime);
@@ -313,7 +313,7 @@ public class DataImportTests : IDisposable
 
         ServeFile("other", _writer.WriteXlsx(new[] { new ExportSheet("Sheet1", new[] { new ExportColumn("A", typeof(string)) }, new List<object?[]> { new object?[] { "x" } }) }));
         await engine.HandleDocumentMessageAsync(Phone, "other", "x.xlsx", XlsxMime);
-        Assert.Contains(_texts, t => t.Contains("\"Customers\" ya \"Catalog\""));
+        Assert.Contains(_texts, t => t.Contains("customers ya products ki list samajh nahi aayi"));
         Assert.Equal(0, await db.Customers.CountAsync());
     }
 
@@ -421,5 +421,240 @@ public class DataImportTests : IDisposable
 
         Assert.Equal("Import-Catalog-Template.xlsx", Assert.Single(_files).File);
         Assert.Equal(ConversationState.OnboardingAddProduct, (await db.Sessions.FirstAsync()).State);
+    }
+
+    // ---- the seller's own layout and other file formats ----
+
+    /// <summary>A workbook written exactly as given: no heading row is added, so a test can put a title above the headings.</summary>
+    private static byte[] Grid(params (string Sheet, object?[][] Rows)[] sheets)
+    {
+        var book = new Dictionary<string, object>();
+        foreach (var (name, rows) in sheets)
+        {
+            // MiniExcel takes the columns from the first row, so every row is padded to the full width.
+            var width = rows.Max(r => r.Length);
+            book[name] = rows.Select(r => (IDictionary<string, object?>)Enumerable.Range(0, width)
+                .ToDictionary(i => ((char)('A' + i)).ToString(), i => i < r.Length ? r[i] : null)).ToList();
+        }
+        using var stream = new MemoryStream();
+        MiniExcel.SaveAs(stream, book, printHeader: false);
+        return stream.ToArray();
+    }
+
+    private async Task<(ConversationEngine Engine, OrderTrackerBot.Domain.Entities.Seller Seller)> SetUpImportAsync(AppDbContext db, byte[] file, string mediaId = "m1")
+    {
+        await OnboardAsync(db);
+        ServeFile(mediaId, file);
+        return (CreateEngine(db), await db.Sellers.FirstAsync());
+    }
+
+    [Fact]
+    public async Task OwnLayout_Products_AreReadFromTheirHeadings_VariantRowsBecomeSeparateProducts_AndTheSummarySaysWhatWasUnderstood()
+    {
+        using var db = _dbFactory.CreateContext();
+        var (engine, _) = await SetUpImportAsync(db, Grid(
+            ("Products", new[]
+            {
+                Row("Bread & Butter Products List"),
+                Row("Product name", "Barcode", "Catagory", "Cost price", "Price", "Variation Colour", "Variation size", "Stock quantity", "Remarks"),
+                Row("Tapal Danedar", 8961103600547d, "Tea", 26.1, 30, "Red", "S", 46, "ok"),
+                Row("Tapal Danedar", 8961103600554d, "Tea", 44.5, 50, "Red", "M", 56, null),
+                Row("Vital", 8964000008430d, "Tea", 44.5, 50, "Yellow", "M", 17, null),
+                Row("Tapal", 8961103601155d, "Pouch", 228, 260, "Grey", "Pouch (S)", 4, null),
+                Row("Tapal", 8961103601094d, "Pouch", 222, 250, "Green", "Pouch (S)", 1, null),
+                Row("Broken", 1d, "Tea", 1, "abc", "Red", "S", 1, null)
+            }),
+            ("Needs Checking", new[] { Row("Excel row", "Photo", "What to check"), Row(7, "Photo 1", "Barcode faint") })));
+
+        await engine.HandleDocumentMessageAsync(Phone, "m1", "Bread & Butter Products List.xlsx", XlsxMime);
+
+        var summary = Assert.Single(_buttonBodies);
+        Assert.Contains("Sheet \"Products\" products ki list", summary);
+        Assert.Contains("Product ← \"Product name\"", summary);
+        Assert.Contains("Cost price ← \"Cost price\"", summary);
+        Assert.Contains("Category ← \"Catagory\"", summary);
+        Assert.Contains("SKU ← \"Barcode\"", summary);
+        Assert.Contains("Size ← \"Variation size\"", summary);
+        Assert.Contains("Color ← \"Variation Colour\"", summary);
+        Assert.Contains("Stock ← \"Stock quantity\"", summary);
+        Assert.Contains("Chhor diye (samajh nahi aaye): \"Remarks\"", summary);
+        Assert.Contains("Sheet \"Needs Checking\" mein na customers ke na products", summary);
+        Assert.Contains("Products: 5 naye · 1 ghalat rows", summary);
+        Assert.Contains("4 products ke naam mein size / colour jor diya", summary);
+        Assert.Contains("Products row 8: Price sahi nahi", summary); // the file's own row number, under its title and headings
+        Assert.Equal(1, await db.Products.CountAsync());           // nothing saved before YES
+
+        await engine.HandleIncomingMessageAsync(Phone, "Yes", default);
+
+        var names = (await db.Products.OrderBy(p => p.Id).Select(p => p.Name).ToListAsync()).ToArray();
+        Assert.Equal(new[] { "Lawn Suit", "Tapal Danedar S", "Tapal Danedar M", "Vital", "Tapal Pouch (S) Grey", "Tapal Pouch (S) Green" }, names);
+        var vital = await db.Products.SingleAsync(p => p.Name == "Vital");
+        Assert.Equal(50m, vital.Price);
+        Assert.Equal(44.5m, vital.CostPrice);
+        Assert.Equal(17, vital.StockQty);
+        Assert.Equal("8964000008430", vital.Sku);
+        Assert.Equal("Tea", vital.Category);
+        Assert.Equal("M", vital.Size);
+        Assert.Equal("Yellow", vital.Color);
+    }
+
+    [Fact]
+    public async Task OwnLayout_Customers_AreReadFromTheirHeadings_AndAPhoneColumnWithAnUnknownHeadingIsGuessedFromItsValues()
+    {
+        using var db = _dbFactory.CreateContext();
+        var (engine, _) = await SetUpImportAsync(db, Grid(
+            ("Clients", new[]
+            {
+                Row("Customer Name", "Tel", "Shehar", "Pata"),
+                Row("Ayesha Khan", 3001234567d, "Lahore", "House 12"),
+                Row("Bilal", "+92 321 7654321", "Karachi", null)
+            })));
+
+        await engine.HandleDocumentMessageAsync(Phone, "m1", "clients.xlsx", XlsxMime);
+
+        var summary = Assert.Single(_buttonBodies);
+        Assert.Contains("Name ← \"Customer Name\"", summary);
+        Assert.Contains("Phone ← \"Tel\"", summary);
+        Assert.Contains("City ← \"Shehar\"", summary);
+        Assert.Contains("Address ← \"Pata\"", summary);
+        Assert.Contains("numbers dekh kar pehchana", summary);
+        Assert.Contains("Customers: 2 naye", summary);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Yes", default);
+
+        var customers = await db.Customers.OrderBy(c => c.Id).ToListAsync();
+        Assert.Equal(new[] { "Ayesha Khan", "Bilal" }, customers.Select(c => c.Name).ToArray());
+        Assert.Equal(new[] { "03001234567", "03217654321" }, customers.Select(c => c.Phone).ToArray());
+        Assert.Equal("House 12", customers[0].Address);
+    }
+
+    [Fact]
+    public async Task OwnLayout_UrduHeadings_AreUnderstood()
+    {
+        using var db = _dbFactory.CreateContext();
+        var (engine, _) = await SetUpImportAsync(db, Grid(("گاہک", new[] { Row("نام", "فون", "شہر"), Row("علی", "03001234567", "لاہور") })));
+
+        await engine.HandleDocumentMessageAsync(Phone, "m1", "گاہک.xlsx", XlsxMime);
+        await engine.HandleIncomingMessageAsync(Phone, "Yes", default);
+
+        var customer = await db.Customers.SingleAsync();
+        Assert.Equal("علی", customer.Name);
+        Assert.Equal("لاہور", customer.City);
+    }
+
+    [Fact]
+    public async Task OwnLayout_AFileOfOurOwnHeadings_GetsNoExtraExplanation()
+    {
+        using var db = _dbFactory.CreateContext();
+        var (engine, _) = await SetUpImportAsync(db, Workbook(new[] { Row("Bilal", "03217654321", null, null) }, null));
+
+        await engine.HandleDocumentMessageAsync(Phone, "m1", "old.xlsx", XlsxMime);
+
+        var summary = Assert.Single(_buttonBodies);
+        Assert.DoesNotContain("Samajh aaye", summary);
+        Assert.DoesNotContain("Chhor diye", summary);
+    }
+
+    [Fact]
+    public async Task Csv_SemicolonSeparated_WithQuotedCommas_IsImported_AndErrorsNameTheFile()
+    {
+        using var db = _dbFactory.CreateContext();
+        var csv = "\uFEFFItem;Rate;Qty\r\n\"Lawn Suit, 3 piece\";3500;5\r\nBroken;abc;1\r\n";
+        var (engine, _) = await SetUpImportAsync(db, System.Text.Encoding.UTF8.GetBytes(csv));
+
+        await engine.HandleDocumentMessageAsync(Phone, "m1", "stock.csv", "text/csv");
+
+        var summary = Assert.Single(_buttonBodies);
+        Assert.Contains("Product ← \"Item\"", summary);
+        Assert.Contains("stock row 3: Price sahi nahi", summary);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Yes", default);
+
+        var product = await db.Products.SingleAsync(p => p.Name == "Lawn Suit, 3 piece");
+        Assert.Equal(3500m, product.Price);
+        Assert.Equal(5, product.StockQty);
+    }
+
+    [Fact]
+    public async Task Csv_SentWithAnExcelMimeTypeAndAWrongExtension_IsStillRead()
+    {
+        using var db = _dbFactory.CreateContext();
+        var (engine, _) = await SetUpImportAsync(db, System.Text.Encoding.UTF8.GetBytes("Name,Phone\nBilal,03217654321\n"));
+
+        await engine.HandleDocumentMessageAsync(Phone, "m1", "customers.xls", "application/vnd.ms-excel");
+        await engine.HandleIncomingMessageAsync(Phone, "Yes", default);
+
+        Assert.Equal("Bilal", (await db.Customers.SingleAsync()).Name);
+    }
+
+    [Fact]
+    public async Task Xls_WithTwoSheets_ImportsTheProductListAndTheCustomerList()
+    {
+        using var db = _dbFactory.CreateContext();
+        var xls = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", "own-layout.xls"));
+        var (engine, _) = await SetUpImportAsync(db, xls);
+
+        await engine.HandleDocumentMessageAsync(Phone, "m1", "own-layout.xls", "application/vnd.ms-excel");
+        await engine.HandleIncomingMessageAsync(Phone, "Yes", default);
+
+        var bread = await db.Products.SingleAsync(p => p.Name == "Bread");
+        Assert.Equal(120m, bread.Price);
+        Assert.Equal(10, bread.StockQty);
+        Assert.Equal("0123456789012", bread.Sku);
+        Assert.Equal(new[] { "03001234567", "03217654321" }, (await db.Customers.OrderBy(c => c.Id).Select(c => c.Phone).ToListAsync()).ToArray());
+    }
+
+    [Fact]
+    public async Task Ods_IsImported()
+    {
+        using var db = _dbFactory.CreateContext();
+        using var stream = new MemoryStream();
+        using (var zip = new System.IO.Compression.ZipArchive(stream, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+        using (var xml = new StreamWriter(zip.CreateEntry("content.xml").Open()))
+            xml.Write("<office:document-content xmlns:office=\"urn:oasis:names:tc:opendocument:xmlns:office:1.0\" xmlns:table=\"urn:oasis:names:tc:opendocument:xmlns:table:1.0\" xmlns:text=\"urn:oasis:names:tc:opendocument:xmlns:text:1.0\"><office:body><office:spreadsheet>" +
+                "<table:table table:name=\"Sheet1\"><table:table-row><table:table-cell office:value-type=\"string\"><text:p>Item</text:p></table:table-cell><table:table-cell office:value-type=\"string\"><text:p>Price</text:p></table:table-cell></table:table-row>" +
+                "<table:table-row><table:table-cell office:value-type=\"string\"><text:p>Chai</text:p></table:table-cell><table:table-cell office:value-type=\"float\" office:value=\"80\"><text:p>80</text:p></table:table-cell></table:table-row></table:table>" +
+                "</office:spreadsheet></office:body></office:document-content>");
+        var (engine, _) = await SetUpImportAsync(db, stream.ToArray());
+
+        await engine.HandleDocumentMessageAsync(Phone, "m1", "tea.ods", "application/vnd.oasis.opendocument.spreadsheet");
+        await engine.HandleIncomingMessageAsync(Phone, "Yes", default);
+
+        Assert.Equal(80m, (await db.Products.SingleAsync(p => p.Name == "Chai")).Price);
+    }
+
+    [Fact]
+    public async Task Barcodes_AlreadyUsedByAnotherProduct_AreLeftOff_TheProductsAreStillSaved()
+    {
+        using var db = _dbFactory.CreateContext();
+        var (engine, seller) = await SetUpImportAsync(db, Grid(("Sheet1", new[]
+        {
+            Row("Item", "Price", "Barcode"),
+            Row("Chai", 80, "111"),       // already on an existing product
+            Row("Biscuit", 50, "222"),
+            Row("Cake", 700, "222")       // same barcode twice in the file
+        })));
+        db.Products.Add(new OrderTrackerBot.Domain.Entities.Product { SellerId = seller.Id, Name = "Old Tea", Price = 10, Sku = "111" });
+        await db.SaveChangesAsync();
+
+        await engine.HandleDocumentMessageAsync(Phone, "m1", "items.xlsx", XlsxMime);
+
+        Assert.Contains("2 barcode pehle se kisi aur product ke hain", Assert.Single(_buttonBodies));
+
+        await engine.HandleIncomingMessageAsync(Phone, "Yes", default);
+
+        Assert.Equal(new string?[] { null, "222", null }, (await db.Products.Where(p => p.Name != "Lawn Suit" && p.Name != "Old Tea").OrderBy(p => p.Id).Select(p => p.Sku).ToListAsync()).ToArray());
+        Assert.Equal(3, await db.Products.CountAsync(p => p.Name != "Lawn Suit" && p.Name != "Old Tea"));
+    }
+
+    [Fact]
+    public async Task Import_AFileWithNoRecognisableList_SaysWhatItNeeds()
+    {
+        using var db = _dbFactory.CreateContext();
+        var (engine, _) = await SetUpImportAsync(db, Grid(("Notes", new[] { Row("Date", "Remark"), Row("Monday", "Shop closed") })));
+
+        await engine.HandleDocumentMessageAsync(Phone, "m1", "notes.xlsx", XlsxMime);
+
+        Assert.Contains(_texts, t => t.Contains("customers ya products ki list samajh nahi aayi") && t.Contains("Price") && t.Contains("Phone"));
     }
 }

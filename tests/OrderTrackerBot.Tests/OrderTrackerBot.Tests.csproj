@@ -30,4 +30,8 @@
     <ProjectReference Include="..\..\src\OrderTrackerBot.Infrastructure\OrderTrackerBot.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Fixtures\*.xls" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

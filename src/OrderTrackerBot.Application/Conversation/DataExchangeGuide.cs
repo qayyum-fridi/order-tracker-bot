@@ -201,7 +201,7 @@ public static class DataExchangeGuide
             Entry("Step 1", "", "", "Har sheet ki pehli row (headings) ko na badlein, na sheet ka naam, na koi column delete karein. / Don't rename the sheets or change the heading row.", "");
             Entry("Step 2", "", "", "Apne purane system ya copy se data copy kar ke dusri row se paste karein — ek row = ek customer ya ek product. / Paste your old data from row 2 down, one row per customer or product.", "");
             Entry("Step 3", "", "", "Neeche 'Needed?' column dekhein: REQUIRED wale columns khali na chhorein, baqi marzi hain. / Required columns must be filled; the rest are optional.", "");
-            Entry("Step 4", "", "", "File ko Excel Workbook (.xlsx) ke taur par save karein — CSV ya .xls nahi chalta. / Save as .xlsx only.", "");
+            Entry("Step 4", "", "", "File ko Excel Workbook (.xlsx) ke taur par save karein (.xls, .ods aur .csv bhi chalti hain, lekin CSV mein sirf ek sheet hoti hai). / Save as .xlsx; .xls, .ods and .csv also work, but a CSV holds one sheet only.", "");
             Entry("Step 5", "", "", "File isi WhatsApp chat mein bhej dein. Bot pehle summary dikhata hai (kitne naye, kitne skip, kisi row mein ghalti); aap YES kahenge tab hi save hota hai, aur \"undo\" se wapas ho jata hai. / Send the file back here; nothing is saved until you reply YES, and \"undo\" reverses it.", "");
             Entry("Note", "", "", "Jo pehle se maujood hai (same phone wala customer, same naam wala product) dobara nahi banega — skip ho jata hai. Ek file mein zyada se zyada " + MaxImportRows + " rows aur 5 MB. / Existing customers (same phone) and products (same name) are skipped, not duplicated. Max " + MaxImportRows + " rows, 5 MB.", "");
         }

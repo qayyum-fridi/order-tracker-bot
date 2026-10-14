@@ -1,44 +1,47 @@
-using System.Globalization;
 using Microsoft.Extensions.Logging;
 using MiniExcelLibs;
 using OrderTrackerBot.Application.Abstractions;
 
 namespace OrderTrackerBot.Infrastructure.Export;
 
-/// <summary>Reads an uploaded .xlsx with MiniExcel. Everything comes back as text; formulas are read as their stored values, never executed.</summary>
+/// <summary>Reads an uploaded .xlsx / .xlsm with MiniExcel. Everything comes back as text, by column position (the sheet's own headings are not interpreted here); formulas are read as their stored values, never executed.</summary>
 public sealed class ImportXlsxReader : IImportFileReader
 {
     private readonly ILogger<ImportXlsxReader>? _logger;
 
     public ImportXlsxReader(ILogger<ImportXlsxReader>? logger = null) => _logger = logger;
 
-    public IReadOnlyList<ImportSheet>? Read(byte[] xlsx)
+    public IReadOnlyList<ImportGridSheet>? Read(byte[] file, string? fileName = null)
     {
         try
         {
-            using var names = new MemoryStream(xlsx);
+            using var names = new MemoryStream(file);
             var sheetNames = MiniExcel.GetSheetNames(names);
 
-            var sheets = new List<ImportSheet>();
+            var sheets = new List<ImportGridSheet>();
             foreach (var name in sheetNames)
             {
-                using var stream = new MemoryStream(xlsx);
-                var rows = new List<ImportRow>();
-                var index = 0;
-                foreach (var raw in MiniExcel.Query(stream, useHeaderRow: true, sheetName: name))
+                using var stream = new MemoryStream(file);
+                var builder = new ImportGridBuilder(name);
+                var number = 0;
+                foreach (var raw in MiniExcel.Query(stream, useHeaderRow: false, sheetName: name))
                 {
-                    var number = index++ + 2; // the heading row is row 1
+                    number++; // the first row of the sheet is row 1
                     if (raw is not IDictionary<string, object?> cells) continue;
-                    var row = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var (header, value) in cells)
+
+                    var texts = new List<string>();
+                    foreach (var (column, value) in cells)
                     {
-                        var key = header.Trim();
-                        var text = CellText(value);
-                        if (key.Length > 0 && text.Length > 0) row[key] = text;
+                        var position = ColumnIndex(column);
+                        if (position is < 0 or >= ImportGridBuilder.MaxColumns) continue;
+                        var text = ImportGridBuilder.CellText(value);
+                        if (text.Length == 0) continue;
+                        while (texts.Count <= position) texts.Add("");
+                        texts[position] = text;
                     }
-                    if (row.Count > 0) rows.Add(new ImportRow(number, row));
+                    builder.Add(number, texts);
                 }
-                sheets.Add(new ImportSheet(name, rows));
+                sheets.Add(builder.Build());
             }
             return sheets;
         }
@@ -49,16 +52,15 @@ public sealed class ImportXlsxReader : IImportFileReader
         }
     }
 
-    private static string CellText(object? value) => value switch
+    /// <summary>"A" -> 0, "B" -> 1, "AA" -> 26. MiniExcel names the columns of a sheet read without a heading row that way.</summary>
+    private static int ColumnIndex(string letters)
     {
-        null => "",
-        string s => s.Trim(),
-        // 3001234567 arrives as a double: no exponent, no ".0"
-        double d => d.ToString("0.############", CultureInfo.InvariantCulture),
-        float f => f.ToString("0.######", CultureInfo.InvariantCulture),
-        decimal m => m.ToString("0.############", CultureInfo.InvariantCulture),
-        DateTime dt => dt.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture),
-        IFormattable f => f.ToString(null, CultureInfo.InvariantCulture)?.Trim() ?? "",
-        _ => value.ToString()?.Trim() ?? ""
-    };
+        var index = 0;
+        foreach (var ch in letters)
+        {
+            if (ch is < 'A' or > 'Z') return -1;
+            index = index * 26 + (ch - 'A' + 1);
+        }
+        return index - 1;
+    }
 }

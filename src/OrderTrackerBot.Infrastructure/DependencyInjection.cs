@@ -89,7 +89,7 @@ public static class DependencyInjection
         services.AddSingleton<WhatsApp.WebhookMessageGate>();
         services.AddSingleton<WhatsApp.WebhookWorkQueue>();
         services.AddSingleton<WhatsApp.WebhookInbox>();        services.AddSingleton<IExportFileWriter, Export.ExportXlsxWriter>();
-        services.AddSingleton<IImportFileReader, Export.ImportXlsxReader>();
+        services.AddSingleton<IImportFileReader, Export.ImportFileReader>();
         services.AddScoped<ConversationEngine>();
 
         return services;
