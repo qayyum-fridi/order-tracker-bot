@@ -113,7 +113,7 @@ public partial class ConversationEngine
         "📋 Business details bhejein (comma se alag):\nCity, Business type, @instagram\n\ne.g. \"Lahore, Clothing, @ayesha.collections\" — ya \"cancel\".";
 
     /// <summary>"Lahore, Clothing, @ayesha.collections" — the @handle can be anywhere; the rest is city then business type.</summary>
-    private static void ApplyBusinessInfo(Seller seller, string message)
+    private static void ApplyBusinessInfo(Seller seller, string message, bool keepType = false)
     {
         var handle = InstagramHandle.Match(message);
         if (handle.Success) seller.InstagramHandle = handle.Value;
@@ -121,7 +121,7 @@ public partial class ConversationEngine
             .Split(new[] { ',', '\n', '|' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Where(p => p.Length > 0).ToList();
         if (parts.Count > 0) seller.City = parts[0];
-        if (parts.Count > 1) seller.BusinessType = parts[1];
+        if (parts.Count > 1 && !keepType) seller.BusinessType = parts[1];
     }
 
     private static string BusinessInfoSummary(Seller seller) =>
@@ -201,6 +201,12 @@ public partial class ConversationEngine
                 if (await TryOnboardingShortcutAsync(seller, session, message, ct)) return;
                 if (await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: true, ct)) return;
                 seller.BusinessName = message;
+                if (_features.IndustryQuestion && string.IsNullOrWhiteSpace(seller.BusinessType))
+                {
+                    SetState(session, ConversationState.OnboardingIndustry);
+                    await AskIndustryAsync(seller, null, ct);
+                    return;
+                }
                 SetState(session, ConversationState.OnboardingOptionalDetails);
                 // Skip is a tap, not a word to type. A real order sent at any step also ends setup (TryOrderDuringOnboardingAsync), and the seller is told so.
                 await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
@@ -208,6 +214,30 @@ public partial class ConversationEngine
                     "Jaise: Lahore, Clothing, @ayesha.collections\n\n" +
                     "Ya \"Skip\" dabayein. Koi order aaya ho to seedha yahan bhej dein — baqi setup baad mein ho jayega.", new[] { "Skip" }, ct);
                 return;
+
+            case ConversationState.OnboardingIndustry:
+            {
+                if (CommandParser.TryParse(message) is { Kind: CommandKind.Help or CommandKind.Menu } helpCmd)
+                {
+                    await ExecuteCommandAsync(seller, session, ctx, helpCmd, ct);
+                    return;
+                }
+                if (await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: true, ct)) return;
+                var picked = PickIndustry(message);
+                if (picked is null)
+                {
+                    await AskIndustryAsync(seller, message.Trim(), ct);
+                    return;
+                }
+                seller.BusinessType = picked.Title;
+                SetState(session, ConversationState.OnboardingOptionalDetails);
+                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
+                    $"✅ Dukaan ki qism: {picked.Title}. Ab aap ko isi ke mutabiq examples milenge.\n\n" +
+                    "Ek line mein bata dein (ikhtiyari): shehar aur Instagram handle.\n" +
+                    "Jaise: Lahore, @ayesha.collections\n\n" +
+                    "Ya \"Skip\" dabayein. Koi order aaya ho to seedha yahan bhej dein — baqi setup baad mein ho jayega.", new[] { "Skip" }, ct);
+                return;
+            }
 
             case ConversationState.OnboardingOptionalDetails:
                 if (CommandParser.TryParse(message) is { Kind: not CommandKind.AddProduct } parsedOptional)
@@ -230,7 +260,7 @@ public partial class ConversationEngine
                 }
                 else
                 {
-                    ApplyBusinessInfo(seller, message);
+                    ApplyBusinessInfo(seller, message, keepType: _features.IndustryQuestion && !string.IsNullOrWhiteSpace(seller.BusinessType));
                     await ReplyAsync(seller, $"✅ Noted — {BusinessInfoSummary(seller)}. Shukriya!\n\n{askCatalog}", ct);
                 }
                 await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, "Aapke paas kitne products hain?",

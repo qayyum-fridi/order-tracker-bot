@@ -423,7 +423,7 @@ public class InsightReportTests : IDisposable
         Assert.Contains("Category nahi: 1/2", reply);
         Assert.Contains("Stock track nahi: 1/2", reply);
         Assert.Contains("✅ Purane orders", reply);
-        Assert.Contains("Data check: 2/5 mukammal, 0 galat entries", reply);
+        Assert.Contains("Data check: 2/6 mukammal, 0 galat entries", reply);
     }
 
     [Fact]

@@ -31,6 +31,7 @@ public class SpokenNumbersTests
     [InlineData("vee hazaar", 20000)]
     [InlineData("ikk hazaar", 1000)]
     [InlineData("sath hazar", 60000)]
+    [InlineData("مجھے دیس سو روپے کی پڑی", 1000)] // the speech model writes "دس" with a ی: seen live in a 36-second product dictation
     public void WordAmounts_ReadsSpokenAmounts(string spoken, long expected) => Assert.Equal(new[] { expected }, Words(spoken));
 
     [Theory]

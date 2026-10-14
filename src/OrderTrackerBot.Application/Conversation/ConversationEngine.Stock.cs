@@ -39,7 +39,7 @@ public partial class ConversationEngine
     private async Task FlushStockWarningsAsync(string phone, CancellationToken ct)
     {
         if (_stockWarnings.Count == 0) return;
-        var text = "📉 Stock alert:\n" + string.Join("\n", _stockWarnings.Distinct()) + "\n\nNaya stock add karne ke liye: \"stock Kurti +10\"";
+        var text = "📉 Stock alert:\n" + string.Join("\n", _stockWarnings.Distinct()) + "\n\nNaya stock add karne ke liye: \"stock <product ka naam> +10\"";
         _stockWarnings.Clear();
         await _sender.SendTextMessageAsync(phone, text, ct);
         await _db.SaveChangesAsync(ct);
@@ -54,14 +54,14 @@ public partial class ConversationEngine
             if (tracked.Count == 0)
             {
                 await ReplyAsync(seller,
-                    "📦 Abhi kisi product ka stock track nahi ho raha.\n\nShuru karne ke liye: \"stock Kurti 20\"\n" +
+                    "📦 Abhi kisi product ka stock track nahi ho raha.\n\nShuru karne ke liye: \"stock " + Industry(seller).MainName + " 20\"\n" +
                     "Phir har order par stock khud kam hoga, cancel/return par wapas aayega, aur kam hone par alert milega.", ct);
                 return;
             }
             var lines = tracked.Select(p => $"{(p.StockQty <= 0 ? "⛔" : p.StockQty <= LowStockThreshold ? "⚠️" : "✅")} {Formatters.ProductLabel(p)}: {p.StockQty}");
             await ReplyAsync(seller,
                 $"📦 Stock ({tracked.Count}):\n{string.Join("\n", lines)}\n\n" +
-                "Set: \"stock Kurti 20\" · Add: \"stock Kurti +10\" · Band: \"stock Kurti off\"", ct);
+                $"Set: \"stock {Industry(seller).MainName} 20\" · Add: \"stock {Industry(seller).MainName} +10\" · Band: \"stock {Industry(seller).MainName} off\"", ct);
             return;
         }
 

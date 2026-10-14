@@ -41,7 +41,9 @@ public enum ConversationState
     AwaitingVoiceConfirmation,
     /// <summary>A customers/catalog file was uploaded and checked; waiting for YES before anything is saved.</summary>
     AwaitingImportConfirmation,
-    AwaitingReceiptDesign
+    AwaitingReceiptDesign,
+    /// <summary>Setup asks what kind of shop this is (after the shop name) so every example and guide matches the seller's trade.</summary>
+    OnboardingIndustry
 }
 
 public enum OrderStatus

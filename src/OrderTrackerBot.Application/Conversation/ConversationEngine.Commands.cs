@@ -421,13 +421,13 @@ public partial class ConversationEngine
                 await HandleCatalogFilterAsync(seller, cmd.Text!, cmd.Text2, ct);
                 return;
             case CommandKind.Catalog:
-                await HandleCatalogAsync(seller, ct);
+                await HandleCatalogAsync(seller, ctx, cmd.Text, ct);
                 return;
             case CommandKind.AddProduct:
                 await HandleAddProductAsync(seller, cmd, ct);
                 return;
             case CommandKind.NewOrderHelp:
-                await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, NewOrderHelpText, "Options dekhein", NewOrderHelpSections, ct);
+                await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, NewOrderHelpTextFor(seller), "Options dekhein", NewOrderHelpSections, ct);
                 return;
             case CommandKind.DetailedForm:
                 await HandleDetailedFormRequestAsync(seller, cmd.Text!, ct);
@@ -437,7 +437,7 @@ public partial class ConversationEngine
                 return;
             case CommandKind.HowTo:
                 if (cmd.Text == "discount") SetState(session, ConversationState.AwaitingDiscountDetails);
-                await ReplyAsync(seller, HowToText(cmd.Text!), ct);
+                await ReplyAsync(seller, HowToText(cmd.Text!, seller), ct);
                 return;
             case CommandKind.AddProductsBulk:
                 await HandleAddProductsBulkAsync(seller, cmd, ct);
@@ -675,28 +675,25 @@ public partial class ConversationEngine
         return ("\n" + string.Join("\n", lines) + "\n", open is not null);
     }
 
-    private async Task HandleCatalogAsync(Seller seller, CancellationToken ct)
+    private async Task HandleCatalogAsync(Seller seller, SessionContextData ctx, string? action, CancellationToken ct)
     {
         var products = await _db.Products.Where(p => p.SellerId == seller.Id && p.IsActive)
             .OrderBy(p => p.Id).ToListAsync(ct);
 
         if (products.Count == 0)
         {
+            var ind = Industry(seller);
             await ReplyAsync(seller,
                 "🛍️ Aapka catalog abhi khali hai.\n\n" +
                 "Product add karne ke liye naam aur price bhejein:\n" +
-                "Lawn Suit - 3500\n\n" +
+                ind.MainLine + "\n\n" +
                 "Ek saath kai products bhi bhej sakte hain (har line mein ek):\n" +
-                "Lawn Suit - 3500\nKurti - 1800\nDupatta - 900\n\n" +
-                "Weight/pack wale products: Sugar 5 kg - 500", ct);
+                string.Join("\n", ind.ProductLines) + "\n\n" +
+                "Apni dukaan ki qism ke examples ke liye \"industry\" likhein.", ct);
             return;
         }
 
-        var lines = products.Select((p, i) => $"{i + 1} {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}" + (p.StockQty is { } q ? $" (stock {q})" : ""));
-        await ReplyAsync(seller,
-            $"🛍️ Aapka Catalog ({products.Count} products):\n\n{string.Join("\n", lines)}\n\n" +
-            "Naya product add karne ke liye likhein: Kurti - 1800\n" +
-            "Price badalne ke liye: edit product: Kurti - 1900", ct);
+        await ShowCatalogPageAsync(seller, ctx, products, action, ct);
     }
 
     /// <summary>The value a product carries for category / vendor / manufacturer / department / brand; attributes saved under an older spelling ("Supplier") count too.</summary>
@@ -749,7 +746,7 @@ public partial class ConversationEngine
         var products = await _db.Products.Where(p => p.SellerId == seller.Id && p.IsActive).OrderBy(p => p.Id).ToListAsync(ct);
         if (products.Count == 0)
         {
-            await ReplyAsync(seller, "Catalog abhi khali hai — pehle products add karein (e.g. Kurti - 1800).", ct);
+            await ReplyAsync(seller, "Catalog abhi khali hai — pehle products add karein (e.g. " + Industry(seller).MainLine + ").", ct);
             return;
         }
 
@@ -760,10 +757,12 @@ public partial class ConversationEngine
     }
 
     // "new order" typed on its own: show how, instead of sending an empty order to the AI.
-    private const string NewOrderHelpText =
+    private static string NewOrderHelpTextFor(Seller seller) => NewOrderHelpTemplate.Replace("{ORDEREX}", Industry(seller).OrderExample);
+
+    private const string NewOrderHelpTemplate =
         "📦 Naya order darj karne ke 3 aasaan tareeqay:\n\n" +
         "1️⃣ Customer ka message yahan forward/paste kar dein\n" +
-        "2️⃣ Ya ek line mein likhein:\nAyesha, 2 Lawn Suit, 03001234567, Lahore\n" +
+        "2️⃣ Ya ek line mein likhein:\n{ORDEREX}\n" +
         "3️⃣ Ya order ki screenshot bhej dein 📷\n\n" +
         "Main tafseel nikaal kar confirm karwa loon ga. Form se darj karna ho to neeche se chunein 👇";
 
@@ -778,7 +777,7 @@ public partial class ConversationEngine
         })
     };
 
-    private static string HowToText(string subject) => subject switch
+    private static string HowToText(string subject, Seller? seller = null) => subject switch
     {
         "discount" =>
             "🎟️ Discount code banane ke liye copy karke bhejein:\n\n" +
@@ -787,7 +786,7 @@ public partial class ConversationEngine
             "create discount: WELCOME50, Rs.50 flat\n\n" +
             "Ya seedha sirf code ka naam bhejein (e.g. EID10) — main value pooch loon ga. \"cancel\" likh kar ruk sakte hain.",
         "product" =>
-            "🛍️ Product shamil karne ke liye is tarah likhein:\n\nKurti - 1800\n\n" +
+            "🛍️ Product shamil karne ke liye is tarah likhein:\n\n" + IndustryProfiles.Resolve(seller?.BusinessType).MainLine + "\n\n" +
             "Aap ek saath kai products bhi bhej sakte hain (har line mein ek product).",
         "payment" =>
             "💳 Payment method save karne ke liye likhein:\n\n" +
@@ -911,7 +910,7 @@ public partial class ConversationEngine
         if (needPrice.Count > 0)
             reply += "📦 Samajh gaya — yeh naye products hain:\n" +
                      string.Join("\n", needPrice.Select(n => $"• {n}{(ctx.PendingProductExtras is { } extras && extras.FirstOrDefault(e => string.Equals(e.Key, n, StringComparison.OrdinalIgnoreCase)) is { Value: not null } found ? ExtrasText(found.Value) : "")}")) +
-                     "\n\nBarae meherbani har product ki sale price bata dein (misaal: 'Kurti - 1800' ya \"teenon ki 5000\") — jo kuch aap ne bataya hai (cost, stock) woh yaad hai.";
+                     "\n\nBarae meherbani har product ki sale price bata dein (misaal: '" + Industry(seller).MainLine + "' ya \"teenon ki 5000\") — jo kuch aap ne bataya hai (cost, stock) woh yaad hai.";
         if (needPrice.Count > 0) reply += "\n\n" + PriceHowToText(needPrice[0]);
         await ReplyAsync(seller, reply.TrimEnd(), ct);
     }

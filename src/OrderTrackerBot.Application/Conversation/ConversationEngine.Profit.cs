@@ -38,13 +38,13 @@ public partial class ConversationEngine
         {
             await ReplyAsync(seller,
                 $"💰 Profit ({label}): abhi hisaab nahi ho sakta — kisi product ki cost save nahi hai.\n" +
-                "Product ke saath cost likhein, jaise: \"Kurti - 1800, cost 1200\".", ct);
+                "Product ke saath cost likhein, jaise: \"" + Industry(seller).CostLine + "\".", ct);
             return;
         }
 
         var skipped = orderCount - counted;
         var skippedNote = skipped == 0 ? "" :
-            $"\n⚠️ {skipped} order(s) shamil nahi — cost maloom nahi. Cost likhein, jaise: \"Kurti - 1800, cost 1200\".";
+            $"\n⚠️ {skipped} order(s) shamil nahi — cost maloom nahi. Cost likhein, jaise: \"{Industry(seller).CostLine}\".";
 
         var profit = revenue - cost;
         var margin = revenue > 0 ? Math.Round(profit / revenue * 100m, 1) : 0m;

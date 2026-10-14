@@ -96,6 +96,9 @@ public sealed class SessionContextData
     public int? SupplierLeadDays { get; set; }
     /// <summary>The seller-local day (yyyy-MM-dd) the "add cost prices" reminder was last sent, so it comes at most once a day.</summary>
     public string? SetupNudgeDay { get; set; }
+    /// <summary>The page (1-based) and order ("az" / "latest" / null = as added) of the catalog list the seller last looked at ("catalog next").</summary>
+    public int CatalogPage { get; set; }
+    public string? CatalogSort { get; set; }
     /// <summary>The seller turned the quick-action buttons off ("shortcut off").</summary>
     public bool ShortcutsOff { get; set; }
     /// <summary>The one-time explanation of the quick-action buttons has been shown.</summary>

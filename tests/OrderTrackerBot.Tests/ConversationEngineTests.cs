@@ -316,7 +316,7 @@ public class ConversationEngineTests : IDisposable
     [InlineData("نیا ڈسکاؤنٹ بنائیں۔", "create discount: EID10")]
     [InlineData("discount bana do", "create discount: EID10")]
     [InlineData("ڈسکاؤنٹ نیا بنا دیں", "create discount: EID10")]
-    [InlineData("New Product", "Kurti - 1800")]
+    [InlineData("New Product", "Water Bottle - 500")]
     [InlineData("add payment", "add payment: jazzcash")]
     [InlineData("create loyalty", "create loyalty: 5 orders")]
     [InlineData("add tracking", "add tracking: Leopards")]
@@ -1380,7 +1380,7 @@ public class ConversationEngineTests : IDisposable
 
         await engine.HandleIncomingMessageAsync(Phone, "profit", default);
 
-        Assert.Contains(_sentMessages, m => m.Contains("cost save nahi hai") && m.Contains("cost 1200"));
+        Assert.Contains(_sentMessages, m => m.Contains("cost save nahi hai") && m.Contains("cost 350"));
     }
 
     [Fact]
