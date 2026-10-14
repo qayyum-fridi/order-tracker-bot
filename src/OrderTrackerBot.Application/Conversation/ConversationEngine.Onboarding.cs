@@ -242,7 +242,8 @@ public partial class ConversationEngine
                 var many = ManyProductsWords.Any(w => message.Contains(w, StringComparison.OrdinalIgnoreCase))
                            || message.Split(' ', StringSplitOptions.RemoveEmptyEntries).Any(w => int.TryParse(w, out var n) && n > 20);
                 await ReplyAsync(seller, many
-                    ? "Bohot khoob — aap ek saath kai products bhi bhej sakte hain, har line mein aik product likhein:\nLawn Suit - 3500\nKurti - 1800\nSugar 5 kg - 500\n\n" +
+                    ? "Bohot khoob — aap ek saath kai products bhi bhej sakte hain, har line mein aik product likhein:\nLawn Suit 3pc - 3500, cost 2400, stock 20, category lawn\nKurti - 1800, cost 1100, stock 15, category stitched\nDupatta - 600\n\n" +
+                      "(cost aur stock likhna zaroori nahi, lekin likhne se profit aur stock ki reports theek aati hain.)\n\n" +
                       "Ya, agar catalog bohat bara hai, Google Sheet mein bhi bhar kar uska link yahan bhej sakte hain — pehla column naam, doosra column price ho aur sheet \"Anyone with the link can view\" par set ho.\n\n" +
                       "Jab tamam products add ho jayein to \"done\" likh dein."
                     : "Theek hai, barah-e-meharbani ek ek karke product ka naam aur price bataein — misaal ke taur par 'Lawn Suit - 3500'.", ct);
