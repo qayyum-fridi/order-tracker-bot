@@ -92,6 +92,8 @@ public sealed class SessionContextData
     /// <summary>Order ids in the order of the last numbered list shown, so "mark 1 shipped" means list position 1.</summary>
     /// <summary>Days the seller's supplier takes to deliver stock ("maal aane mein 5 din lagte hain"); the re-order advice compares days of stock left with it. Null = not told.</summary>
     public int? SupplierLeadDays { get; set; }
+    /// <summary>The seller-local day (yyyy-MM-dd) the "add cost prices" reminder was last sent, so it comes at most once a day.</summary>
+    public string? SetupNudgeDay { get; set; }
     /// <summary>The seller turned the quick-action buttons off ("shortcut off").</summary>
     public bool ShortcutsOff { get; set; }
     /// <summary>The one-time explanation of the quick-action buttons has been shown.</summary>

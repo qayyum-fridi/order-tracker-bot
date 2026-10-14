@@ -1794,6 +1794,35 @@ public class ConversationEngineTests : IDisposable
             Assert.DoesNotContain(_sentMessages, m => m.Contains("order ki tafseel"));
     }
 
+    [Theory]
+    [InlineData("category details", "category products")]
+    [InlineData("inventory status", "stock")]
+    [InlineData("sales report", "today's summary")]
+    [InlineData("latest products", "catalog")]
+    [InlineData("category sales", "sales by category")]
+    public void ClarificationOptionCommand_MapsReportWordingToACommand(string option, string command)
+    {
+        Assert.Equal(command, ConversationEngine.ClarificationOptionCommand(option));
+        Assert.NotNull(CommandParser.TryParse(command));
+    }
+
+    [Fact]
+    public async Task ClarificationChoice_CategoryDetailsShowsData_NotANeutralPrompt()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { IsOrderAttempt = false, ClarificationQuestion = "Aap kya dekhna chahte hain?", ClarificationOptions = { "sales report", "category details" } });
+        await engine.HandleIncomingMessageAsync(Phone, "kuch dikhao", default);
+
+        _sentMessages.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "2", default);
+
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("kya karna hai"));
+        Assert.Contains(_sentMessages, m => m.Contains("Category") || m.Contains("catalog mein abhi koi product nahi") || m.Contains("products"));
+    }
+
     [Fact]
     public async Task ResetAccount_WorksEvenWhenStuckInClarificationMenu()
     {
