@@ -118,6 +118,15 @@ Add a period if you want one (`pichle hafte`, `last month`, `is mahine`, `30 din
 | Cash: drawer shortage, delivered but unpaid, money stuck, expense share | `pichle 7 din drawer mein kitna cash short hua` · `delivered orders ka paisa jama nahi` · `mera kitna paisa phansa hua hai` · `kharche meri sale ka kitne fisad hain` |
 | Stock capital: locked, overstocked, until Eid | `kitna sarmaya 90 din se na bikne wale stock mein phansa hai` · `overstocked products` · `agli eid tak kaun sa stock khatam ho jayega` |
 | Ramadan / Eid sales; category mix between months | `pichle saal ramazan mein roz ki sale` · `september se october mein grocery aur kapron ka ratio` |
+| One-message shop check | `business audit` · `mere business ka audit karo` (locked stock, stock running out, money owed, thin margins, quiet customers, expense share) |
+| What a customer is really worth | `kaun sa bada customer discount aur return ki wajah se sab se kam fayda deta hai` · `Bilal Khan ne pichle saal kitna khalis munafa diya` |
+| New-customer retention / VIP share | `pehli baar kharidne walon mein se kitne ne dobara order diya` · `mere top 10% customers ka sale mein hissa` |
+| Sales that fell by half / fast movers / days of stock / out of stock but selling | `jin ki sales 15 din mein 50% gir gayi` · `kaun sa maal fast moving hai` · `mera sara stock kitne din mein saaf hoga` · `out of stock magar bikta tha` |
+| Margin that fell / cost spike / cost fell but price unchanged | `kaun se products ka margin sab se zyada gira` · `kapron ki cost 15% barh jaye to break even` · `cost kam hui magar rate purana` |
+| Courier cash not received / failed deliveries by city / returned stock / delivery charge change | `TCS ke paas kitna cash baqi` · `kaun se shehar mein parcel fail hote hain` · `return ka stock aur kharab maal` · `delivery charges 200 se 250 kar dun to` |
+| Cash flow / what to keep in the drawer tonight | `kharche cash sales se zyada hain? net cash flow` · `drawer band karne ke baad kal supplier ko 20000 dene hain` |
+| Discount codes: return on a code / new customers by promotion / do code buyers come back at full price | `jo code EID10 chalaya us se munafa barha` · `kis promotion se naye gahak aaye` · `discount wale gahak pura rate dete hain?` |
+| Eid stock plan / daily sale to cover rent and bills / products near end of life / premium vs budget mix | `eid par grocery ka stock kitna barhana chahiye` · `kiraya aur bijli ke liye roz kam se kam kitni sale` · `kaun sa product lifecycle ke aakhri marhale par hai` · `mehnge ya sasti cheezon ka rujhan` |
 
 ## Customers and discounts
 
