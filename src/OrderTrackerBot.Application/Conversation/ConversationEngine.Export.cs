@@ -119,7 +119,7 @@ public partial class ConversationEngine
             Col("Order #", typeof(int)), Col("Date", typeof(DateTime)), Col("Customer", typeof(string)), Col("Phone", typeof(string)),
             Col("Address", typeof(string)), Col("Items", typeof(string)), Col("Subtotal", typeof(decimal)), Col("Discount", typeof(decimal)),
             Col("Discount code", typeof(string)), Col("Delivery", typeof(decimal)), Col("Total", typeof(decimal)), Col("Status", typeof(string)), Col("Payment status", typeof(string)), Col("Amount paid", typeof(decimal)), Col("Balance", typeof(decimal)),
-            Col("Payment method", typeof(string)), Col("Paid on", typeof(DateTime)), Col("Courier", typeof(string)), Col("Tracking #", typeof(string)),
+            Col("Payment method", typeof(string)), Col("Paid on", typeof(DateTime)), Col("Courier", typeof(string)), Col("Tracking #", typeof(string)), Col("Courier fee", typeof(decimal)),
             Col("Source", typeof(string)), Col("Delivery date", typeof(DateTime)), Col("Notes", typeof(string)),
             Col("Receipt #", typeof(int)), Col("Sales tax %", typeof(decimal)), Col("Sales tax", typeof(decimal)),
             Col("Tax withheld", typeof(decimal)), Col("Net after withholding", typeof(decimal))
@@ -130,7 +130,7 @@ public partial class ConversationEngine
             string.Join("; ", o.Items.Select(i => $"{i.Quantity} x {i.ProductNameSnapshot}")), o.Subtotal, o.DiscountAmount,
             o.DiscountCode, o.DeliveryCharge, o.Total, Formatters.Status(o.Status), o.PaymentStatus.ToString(), OrderMoney.Received(o), OrderMoney.Balance(o),
             o.PaymentMethod switch { OrderPaymentMethod.Cod => "COD", OrderPaymentMethod.Manual => "Transfer", OrderPaymentMethod.Gateway => "Online", _ => "" },
-            local(o.PaidAt), o.TrackingCourier, o.TrackingNumber, o.OrderSource, local(o.DeliveryDate), o.Notes,
+            local(o.PaidAt), o.TrackingCourier, o.TrackingNumber, o.CourierFee, o.OrderSource, local(o.DeliveryDate), o.Notes,
             o.ReceiptNumber, o.SalesTaxRate, SalesTax.Amount(o), o.TaxWithheld, SalesTax.NetOfWithheld(o)
         }).ToList());
 
@@ -140,7 +140,16 @@ public partial class ConversationEngine
             Col("Quantity", typeof(int)), Col("Unit price", typeof(decimal)), Col("Line total", typeof(decimal))
         }, orders.SelectMany(o => o.Items.Select(i => new object?[] { o.Id, o.Customer?.Name, i.ProductNameSnapshot, i.Quantity, i.UnitPrice, i.LineTotal })).ToList());
 
-        return (label, new List<ExportSheet> { orderSheet, itemSheet });
+        // Expenses follow the same period as the orders, so "export orders 30 days" carries the matching costs.
+        var expenses = await _db.Expenses.AsNoTracking()
+            .Where(e => e.SellerId == seller.Id && e.CreatedAt >= start && e.CreatedAt < end)
+            .OrderBy(e => e.CreatedAt).ToListAsync(ct);
+        var expenseSheet = new ExportSheet("Expenses", new[]
+        {
+            Col("Date", typeof(DateTime)), Col("Category", typeof(string)), Col("Amount", typeof(decimal)), Col("Note", typeof(string))
+        }, expenses.Select(e => new object?[] { local(e.CreatedAt), e.Category, e.Amount, e.Note }).ToList());
+
+        return (label, new List<ExportSheet> { orderSheet, itemSheet, expenseSheet });
     }
 
     private async Task<(string Label, List<ExportSheet> Sheets)> BuildCustomerSheetsAsync(Seller seller, Func<DateTime?, DateTime?> local, CancellationToken ct)

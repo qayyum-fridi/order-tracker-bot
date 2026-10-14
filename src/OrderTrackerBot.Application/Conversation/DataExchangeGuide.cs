@@ -81,6 +81,7 @@ public static class DataExchangeGuide
         C("Paid on", typeof(DateTime), GuideLevel.Info, "Payment ki tareekh.", "2026-10-02"),
         C("Courier", typeof(string), GuideLevel.Info, "Courier ka naam.", "TCS"),
         C("Tracking #", typeof(string), GuideLevel.Info, "Tracking number.", "TCS123456"),
+        C("Courier fee", typeof(decimal), GuideLevel.Info, "Courier ko di gayi fee (aap ka apna hisaab; receipt par nahi jati). / Courier fee you paid; for your accounts, not on receipts.", "250"),
         C("Source", typeof(string), GuideLevel.Info, "Order kahan se aaya.", "Instagram"),
         C("Delivery date", typeof(DateTime), GuideLevel.Info, "Delivery ki tareekh.", "2026-10-05"),
         C("Notes", typeof(string), GuideLevel.Info, "Order ka note.", "Gift wrap"),
@@ -124,8 +125,18 @@ public static class DataExchangeGuide
         C("Active", typeof(string), GuideLevel.Info, "Yes ya No.", "Yes")
     });
 
+    private static readonly GuideSheetSpec Expenses = new(
+        "Expenses", false,
+        "Aap ke kharche (packaging, petrol, rent...). Abhi import nahi hote. / Your business costs; not importable yet.", new[]
+    {
+        C("Date", typeof(DateTime), GuideLevel.Info, "Kharcha kab hua.", "2026-09-30 14:05"),
+        C("Category", typeof(string), GuideLevel.Info, "Kharche ki qisam (note ka pehla lafz).", "packaging"),
+        C("Amount", typeof(decimal), GuideLevel.Info, "Kitna kharcha hua.", "500"),
+        C("Note", typeof(string), GuideLevel.Info, "Kharche ka note.", "Dabbay")
+    });
+
     private static readonly Dictionary<string, GuideSheetSpec> BySheet =
-        new[] { Customers, Catalog, Orders, OrderItems, Discounts, LoyaltyRules }.ToDictionary(s => s.Sheet, StringComparer.OrdinalIgnoreCase);
+        new[] { Customers, Catalog, Orders, OrderItems, Expenses, Discounts, LoyaltyRules }.ToDictionary(s => s.Sheet, StringComparer.OrdinalIgnoreCase);
 
     public static GuideSheetSpec? SpecFor(string sheetName) => BySheet.GetValueOrDefault(sheetName);
 

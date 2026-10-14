@@ -1574,6 +1574,33 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task Export_Orders_CarriesExpensesOfThePeriod_AndTheCourierFeeOfEachOrder()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        await SeedExportDataAsync(db);
+        var seller = await db.Sellers.FirstAsync();
+        var order = await db.Orders.FirstAsync();
+        order.CourierFee = 250;
+        db.Expenses.AddRange(
+            new OrderTrackerBot.Domain.Entities.Expense { SellerId = seller.Id, Amount = 500, Category = "packaging", Note = "Dabbay", CreatedAt = DateTime.UtcNow.AddDays(-2) },
+            new OrderTrackerBot.Domain.Entities.Expense { SellerId = seller.Id, Amount = 900, Category = "rent", CreatedAt = DateTime.UtcNow.AddDays(-90) });
+        await db.SaveChangesAsync();
+        var (engine, files) = CreateExportEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "export orders 30 days", default);
+
+        var bytes = Assert.Single(files).Bytes;
+        var expenses = MiniExcelLibs.MiniExcel.Query(new MemoryStream(bytes), useHeaderRow: true, sheetName: "Expenses").Cast<IDictionary<string, object>>().ToList();
+        var expense = Assert.Single(expenses);
+        Assert.Equal("packaging", expense["Category"]);
+        Assert.Equal(500d, Convert.ToDouble(expense["Amount"]));
+        Assert.Equal("Dabbay", expense["Note"]);
+        var row = Assert.Single(MiniExcelLibs.MiniExcel.Query(new MemoryStream(bytes), useHeaderRow: true, sheetName: "Orders").Cast<IDictionary<string, object>>().ToList());
+        Assert.Equal(250d, Convert.ToDouble(row["Courier fee"]));
+    }
+
+    [Fact]
     public async Task Export_Orders_SendsWorkbookWithOrdersAndItems_FilteredByPeriod()
     {
         using var db = _dbFactory.CreateContext();
@@ -1587,9 +1614,10 @@ public class ConversationEngineTests : IDisposable
         Assert.Matches(@"^Ayesha-Collections-export-\d{4}-\d{2}-\d{2}\.xlsx$", name);
         Assert.Contains("Orders (30 din) (1)", caption);
         using var stream = new MemoryStream(bytes);
-        Assert.Equal(new[] { "Orders", "Order Items", "Guide" }, MiniExcelLibs.MiniExcel.GetSheetNames(stream).ToArray());
+        Assert.Equal(new[] { "Orders", "Order Items", "Expenses", "Guide" }, MiniExcelLibs.MiniExcel.GetSheetNames(stream).ToArray());
         var orders = MiniExcelLibs.MiniExcel.Query(new MemoryStream(bytes), useHeaderRow: true, sheetName: "Orders").Cast<IDictionary<string, object>>().ToList();
         var row = Assert.Single(orders);
+        Assert.Contains("Courier fee", row.Keys);
         Assert.Equal("Sara", row["Customer"]);
         Assert.Equal("1 x Lawn Suit; 1 x Kurti", row["Items"]);
         Assert.Equal("03001112222", row["Phone"]);
@@ -1609,7 +1637,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "export all", default);
 
         var (_, bytes, _) = Assert.Single(files);
-        Assert.Equal(new[] { "Orders", "Order Items", "Customers", "Catalog", "Discounts", "Loyalty Rules", "Guide" },
+        Assert.Equal(new[] { "Orders", "Order Items", "Expenses", "Customers", "Catalog", "Discounts", "Loyalty Rules", "Guide" },
             MiniExcelLibs.MiniExcel.GetSheetNames(new MemoryStream(bytes)).ToArray());
         var customers = MiniExcelLibs.MiniExcel.Query(new MemoryStream(bytes), useHeaderRow: true, sheetName: "Customers").Cast<IDictionary<string, object>>().ToList();
         Assert.DoesNotContain(customers, c => (string)c["Name"] == "Deleted Dan");
