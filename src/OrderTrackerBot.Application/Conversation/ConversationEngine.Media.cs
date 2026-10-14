@@ -187,6 +187,9 @@ public partial class ConversationEngine
     /// </summary>
     public static IReadOnlyList<string> CorrectMarginQuestion(string transcript, IReadOnlyList<string> steps)
     {
+        // "category wise list of products" is not a sales question: the rewrite must not turn it into a sales report.
+        if (steps.Any(st => st.TrimStart().StartsWith("sales by category", StringComparison.OrdinalIgnoreCase)) && !SalesWords.IsMatch(transcript))
+            steps = steps.Select(st => st.TrimStart().StartsWith("sales by category", StringComparison.OrdinalIgnoreCase) ? "category products" : st).Distinct().ToList();
         if (!steps.Any(IsBareCreateDiscount) || !MarginWords.IsMatch(transcript) || MakesACode.IsMatch(transcript)) return steps;
         return steps.Select(st => IsBareCreateDiscount(st) ? "margin" : st).Distinct().ToList();
     }
@@ -196,6 +199,10 @@ public partial class ConversationEngine
 
     private static readonly System.Text.RegularExpressions.Regex MarginWords = new(
         @"margin|marjin|profit|munafa|nafa|مارجن|مارگن|پرافٹ|پروفٹ|پروفیٹ|منافع|نفع",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static readonly System.Text.RegularExpressions.Regex SalesWords = new(
+        @"sale|sales|bikri|bika|bikay|bikey|farokht|revenue|kamai|kamayi|income|سیل|سیلز|بکری|بکا|بکے|فروخت|کمائی|آمدنی",
         System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.Compiled);
 
     private static readonly System.Text.RegularExpressions.Regex MakesACode = new(

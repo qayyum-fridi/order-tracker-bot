@@ -366,6 +366,48 @@ public class InsightReportTests : IDisposable
     }
 
     [Fact]
+    public async Task Categories_ListsCountsAndUncategorised()
+    {
+        await SetupAsync();
+        var a = await ProductAsync("Kurti", 1800);
+        var b = await ProductAsync("Shawl", 3500);
+        await ProductAsync("Chai", 100);
+        a.Category = "Kapray"; b.Category = "kapray";
+        await _db.SaveChangesAsync();
+
+        var reply = await AskAsync("mere paas kitni categories hain?");
+
+        Assert.Contains("1 categories hain (3 products)", reply);
+        Assert.Contains("Kapray: 2 products", reply);
+        Assert.Contains("1 products ki category set nahi", reply);
+    }
+
+    [Fact]
+    public async Task CategoryProducts_GroupsNamesUnderCategory()
+    {
+        await SetupAsync();
+        var a = await ProductAsync("Kurti", 1800);
+        await ProductAsync("Chai", 100);
+        a.Category = "Kapray";
+        await _db.SaveChangesAsync();
+
+        var reply = await AskAsync("category wise products ki list dikhao");
+
+        Assert.Contains("*Kapray* (1)", reply);
+        Assert.Contains("*Bina category* (1)", reply);
+        Assert.Contains("Kurti", reply);
+    }
+
+    [Fact]
+    public void VoiceGuard_CategoryListIsNotASalesReport()
+    {
+        var fixedSteps = ConversationEngine.CorrectMarginQuestion("مجھے کیٹیگری وائز شو کریں پروڈکٹس کی لسٹ", new[] { "sales by category last products" });
+        Assert.Equal(new[] { "category products" }, fixedSteps);
+        var kept = ConversationEngine.CorrectMarginQuestion("category wise kitni sale hui", new[] { "sales by category" });
+        Assert.Equal(new[] { "sales by category" }, kept);
+    }
+
+    [Fact]
     public async Task UntrackedStock_CountsProductsWithoutAStockNumber()
     {
         await SetupAsync();

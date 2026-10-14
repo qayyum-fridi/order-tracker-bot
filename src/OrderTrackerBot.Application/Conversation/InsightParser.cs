@@ -23,6 +23,7 @@ internal static class InsightParser
     private static readonly Regex Daily = W(@"daily|per\s+day|roz|rozana|roza|har\s+din|روزانہ|روز|ہر\s+دن|فی\s+دن");
     private static readonly Regex Pricey = W(@"mehng\w*|mahng\w*|most\s+expensive|costliest|priciest|expensive|highest\s+pric\w*|مہنگ\w*");
     private static readonly Regex Cheap = W(@"sast\w*|cheapest|lowest\s+pric\w*|least\s+expensive|سست\w*");
+    private static readonly Regex CategoryWord = W(@"categor(?:y|ies|ys)|katigar\w*|kategor\w*|کیٹیگر\w*|کیٹگر\w*|زمر\w*");
     private static readonly Regex Product = W(@"products?|items?|maal|mal|cheez\w*|saman|سامان|پروڈکٹس?|آئٹمز?|مال|چیز\w*");
     private static readonly Regex Which = W(@"kaun\s*sa|kaun\s*si|kon\s*sa|kon\s*si|konsa|konsi|kaunsa|kaunsi|which|کون\s*سا|کون\s*سی|کونسا|کونسی");
     private static readonly Regex How = W(@"kitn\w+|how\s+(?:many|much)|کتن\w+");
@@ -174,6 +175,9 @@ internal static class InsightParser
         if (DeliveryTime.IsMatch(text) || (CourierWord.IsMatch(text) && TimeAvg.IsMatch(text) && Regex.IsMatch(text, @"delivery|ڈلیوری|din|دن|waqt|وقت", Opts))
             || (CourierWord.IsMatch(text) && (DaysLast.IsMatch(text) || Fastest.IsMatch(text)))) return Topic("deliverytime");
 
+        // --- catalog categories ("mere paas kitni categories hain")
+        if (CategoryWord.IsMatch(text) && Product.IsMatch(text) && !Sale.IsMatch(text) && !Avg.IsMatch(text)) return Topic("catproducts");
+        if (CategoryWord.IsMatch(text) && !Sale.IsMatch(text) && (How.IsMatch(text) || Which.IsMatch(text) || AskWord.IsMatch(text))) return Topic("categories");
         // --- stock
         if (LeadSubject.IsMatch(text) && LeadVerb.IsMatch(text) && !How.IsMatch(text) && !Which.IsMatch(text) && DaysNumber.Match(text) is { Success: true } lead
             && int.TryParse(lead.Groups["n"].Value, out var leadDays) && leadDays > 0)

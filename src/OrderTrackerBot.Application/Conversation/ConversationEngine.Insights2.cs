@@ -302,6 +302,56 @@ public partial class ConversationEngine
         SuggestNext("stock", "catalog");
     }
 
+    private async Task InsightCategoriesAsync(Seller seller, CancellationToken ct)
+    {
+        var all = await _db.Products.AsNoTracking().Where(p => p.SellerId == seller.Id && p.IsActive).ToListAsync(ct);
+        if (all.Count == 0)
+        {
+            await ReplyAsync(seller, "Aapke catalog mein abhi koi product nahi.", ct);
+            return;
+        }
+        var groups = all.Where(p => !string.IsNullOrWhiteSpace(p.Category))
+            .GroupBy(p => p.Category!.Trim(), StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(g => g.Count()).ThenBy(g => g.Key).ToList();
+        var without = all.Count(p => string.IsNullOrWhiteSpace(p.Category));
+        if (groups.Count == 0)
+        {
+            await ReplyAsync(seller,
+                $"ℹ️ Aapke {all.Count} products mein se kisi ki category set nahi. Set karne ke liye likhein, jaise: \"Kurti - 1800, category kapray\".", ct);
+            return;
+        }
+        var lines = string.Join("\n", groups.Take(15).Select(g => $"• {g.Key}: {g.Count()} products"));
+        var more = groups.Count > 15 ? $"\n…aur {groups.Count - 15}" : "";
+        var rest = without > 0 ? $"\n\n{without} products ki category set nahi." : "";
+        await ReplyAsync(seller, $"📂 Aapki {groups.Count} categories hain ({all.Count} products):\n\n{lines}{more}{rest}", ct);
+        SuggestNext("sales by category", "catalog");
+    }
+
+    private async Task InsightCategoryProductsAsync(Seller seller, CancellationToken ct)
+    {
+        var all = await _db.Products.AsNoTracking().Where(p => p.SellerId == seller.Id && p.IsActive).OrderBy(p => p.Name).ToListAsync(ct);
+        if (all.Count == 0)
+        {
+            await ReplyAsync(seller, "Aapke catalog mein abhi koi product nahi.", ct);
+            return;
+        }
+        var sections = all.GroupBy(p => string.IsNullOrWhiteSpace(p.Category) ? "Bina category" : p.Category!.Trim(), StringComparer.OrdinalIgnoreCase)
+            .OrderBy(g => g.Key == "Bina category" ? 1 : 0).ThenByDescending(g => g.Count()).ThenBy(g => g.Key).ToList();
+        var sb = new System.Text.StringBuilder($"📂 Category ke hisaab se products ({all.Count}):");
+        var shown = 0;
+        foreach (var g in sections)
+        {
+            sb.Append($"\n\n*{g.Key}* ({g.Count()})");
+            foreach (var p in g.Take(8)) { sb.Append($"\n• {Formatters.ProductLabel(p)}"); shown++; }
+            if (g.Count() > 8) sb.Append($"\n…aur {g.Count() - 8}");
+            if (sb.Length > 3000) { sb.Append("\n\n…baqi categories chhoti list ke liye \"catalog\" likhein."); break; }
+        }
+        if (all.All(p => string.IsNullOrWhiteSpace(p.Category)))
+            sb.Append("\n\nCategory set karne ke liye likhein, jaise: \"Kurti - 1800, category kapray\".");
+        await ReplyAsync(seller, sb.ToString(), ct);
+        SuggestNext("sales by category", "catalog");
+    }
+
     private async Task InsightUntrackedStockAsync(Seller seller, CancellationToken ct)
     {
         var all = await _db.Products.AsNoTracking().Where(p => p.SellerId == seller.Id && p.IsActive).OrderBy(p => p.Name).ToListAsync(ct);
