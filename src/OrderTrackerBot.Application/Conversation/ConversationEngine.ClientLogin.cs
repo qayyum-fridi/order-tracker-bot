@@ -12,7 +12,8 @@ public partial class ConversationEngine
         var now = DateTime.UtcNow;
         if (seller.ClientLoginCodeSentAt is { } sentAt && now - sentAt < ClientLoginCodes.ResendWait)
         {
-            await ReplyAsync(seller, MessageTemplates.Get("clientlogin.wait"), ct);
+            var secondsLeft = Math.Max(1, (int)Math.Ceiling((sentAt + ClientLoginCodes.ResendWait - now).TotalSeconds));
+            await ReplyAsync(seller, MessageTemplates.Get("clientlogin.wait", secondsLeft.ToString()), ct);
             return;
         }
 

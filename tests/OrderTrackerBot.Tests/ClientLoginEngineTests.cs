@@ -74,6 +74,8 @@ public class ClientLoginEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "login", default);
 
         Assert.Equal(hashBefore, (await db.Sellers.SingleAsync()).ClientLoginCodeHash);
-        Assert.Contains("abhi bheja ja chuka hai", Assert.Single(_sent));
+        var reply = Assert.Single(_sent);
+        Assert.Contains("abhi bheja ja chuka hai", reply);
+        Assert.Matches(@"\b(?:[1-5]?\d|60) second baad", reply);
     }
 }
