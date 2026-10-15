@@ -16,6 +16,9 @@ public sealed record CustomerDto(
     int Id, string Name, string? Phone, string? City, string? Address, string? PreferredContact, string? Notes,
     int OrderCount, decimal TotalSpent, DateTime? LastOrderAt, DateTime CreatedAt);
 
+/// <summary>One line of the seller's WhatsApp chat with the bot. Direction is "inbound" (seller → bot) or "outbound" (bot → seller).</summary>
+public sealed record ChatMessageDto(int Id, DateTime At, string Direction, string Text);
+
 public sealed record ProductDto(
     int Id, string Name, decimal Price, decimal? CostPrice, string UnitType, decimal UnitQty, string? Category,
     string? Subcategory, string? Size, string? Color, string? Sku, int? StockQty, bool IsActive, DateTime CreatedAt);

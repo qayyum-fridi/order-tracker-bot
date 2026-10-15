@@ -56,6 +56,11 @@ public class ClientController(ClientQueries queries) : ControllerBase
     public async Task<ActionResult<ProductDto>> Product(int id, CancellationToken ct) =>
         Found(await queries.ProductAsync(SellerId, id, ct), "Product not found.");
 
+    /// <summary>The seller's WhatsApp chat with the bot. Poll with the last id you have as afterId to get only new lines.</summary>
+    [HttpGet("messages")]
+    public async Task<ActionResult<IReadOnlyList<ChatMessageDto>>> Messages([FromQuery] int afterId = 0, [FromQuery] int limit = 50, CancellationToken ct = default) =>
+        Ok(await queries.MessagesAsync(SellerId, afterId, limit, ct));
+
     [HttpGet("categories")]
     public async Task<ActionResult<IReadOnlyList<CategoryDto>>> Categories(CancellationToken ct) =>
         Ok(await queries.CategoriesAsync(SellerId, ct));

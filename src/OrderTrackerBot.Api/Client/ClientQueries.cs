@@ -14,6 +14,7 @@ namespace OrderTrackerBot.Api.Client;
 public sealed class ClientQueries(AppDbContext db)
 {
     private const int MaxPageSize = 100;
+    private const int MaxMessages = 200;
     private const int RecentOrderCount = 8;
     private const int LowStockThreshold = 5;
     private const int LowStockCount = 5;
@@ -326,6 +327,30 @@ public sealed class ClientQueries(AppDbContext db)
         (Math.Max(1, page), Math.Clamp(pageSize, 1, MaxPageSize));
 
     private static decimal Money(decimal value) => Math.Round(value, 2, MidpointRounding.AwayFromZero);
+
+    /// <summary>
+    /// The seller's WhatsApp chat with the bot, oldest first. With afterId above zero, returns only newer lines
+    /// (for polling); otherwise the latest <paramref name="limit"/> lines.
+    /// </summary>
+    public async Task<IReadOnlyList<ChatMessageDto>> MessagesAsync(int sellerId, int afterId, int limit, CancellationToken ct)
+    {
+        var phone = await db.Sellers.AsNoTracking().Where(s => s.Id == sellerId).Select(s => s.WhatsAppPhoneNumber).FirstOrDefaultAsync(ct);
+        if (phone is null) return [];
+
+        limit = Math.Clamp(limit, 1, MaxMessages);
+        var chat = db.MessageLogs.AsNoTracking().Where(m => m.Phone == phone);
+        if (afterId > 0)
+        {
+            var newer = await chat.Where(m => m.Id > afterId).OrderBy(m => m.Id).Take(limit).ToListAsync(ct);
+            return newer.Select(ToChatMessage).ToList();
+        }
+
+        var latest = await chat.OrderByDescending(m => m.Id).Take(limit).ToListAsync(ct);
+        latest.Reverse();
+        return latest.Select(ToChatMessage).ToList();
+    }
+
+    private static ChatMessageDto ToChatMessage(MessageLog m) => new(m.Id, Utc(m.CreatedAt), m.Direction, m.RawText);
 
     /// <summary>
     /// Stored timestamps are UTC, but EF returns them as Unspecified. Without the marker, JSON has no "Z" and
