@@ -190,6 +190,7 @@ Every phrase below is pinned in `StrategicInsightParserTests` (Urdu script and R
 | Bottom buttons | `shortcut off` (`shortcut on`) |
 | Data | `export` · `export orders 30 days` · `import` |
 | Which build is running | `version` |
+| Sign in to the client dashboard (a code comes here) | `login` (`dashboard login`) |
 | Tell us something | `feedback: [message]` |
 | Wipe everything | `reset account` (asks to confirm) |
 

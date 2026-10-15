@@ -48,6 +48,12 @@ public class Seller
     public DateTime? LastWeeklySummaryAt { get; set; }
     /// <summary>SHA-256 of the client dashboard bearer token (null = none issued). The token itself is never stored.</summary>
     public string? ClientApiTokenHash { get; set; }
+    /// <summary>Salted SHA-256 of the WhatsApp login code waiting for this seller (null = none). Cleared on use.</summary>
+    public string? ClientLoginCodeHash { get; set; }
+    public DateTime? ClientLoginCodeSentAt { get; set; }
+    public DateTime? ClientLoginCodeExpiresAt { get; set; }
+    /// <summary>Wrong codes typed against the current login code. The code stops working after five.</summary>
+    public int ClientLoginAttempts { get; set; }
 
     public ConversationSession? Session { get; set; }
     public ICollection<Product> Products { get; set; } = new List<Product>();
