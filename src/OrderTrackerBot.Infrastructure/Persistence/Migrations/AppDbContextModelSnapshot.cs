@@ -954,6 +954,18 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     b.Property<string>("ClientApiTokenHash")
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<int>("ClientLoginAttempts")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ClientLoginCodeExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ClientLoginCodeHash")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("ClientLoginCodeSentAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
