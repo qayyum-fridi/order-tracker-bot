@@ -42,12 +42,15 @@ public class ClientController(ClientQueries queries) : ControllerBase
         return Ok(await queries.AnalysisAsync(SellerId, range, ct));
     }
 
-    /// <summary>A report as a table: sales by day, product sales, customer sales or payments. Same numbers as the CSV download.</summary>
+    /// <summary>A report as a table, the same numbers as the CSV download. Group (day, week or month) applies to the sales report.</summary>
     [HttpGet("reports/{id}")]
-    public async Task<ActionResult<ReportTableDto>> Report(string id, [FromQuery] string? from, [FromQuery] string? to, CancellationToken ct)
+    public async Task<ActionResult<ReportTableDto>> Report(
+        string id, [FromQuery] string? from, [FromQuery] string? to, [FromQuery] string? group, CancellationToken ct)
     {
         if (!AdminDateRange.TryResolve(from, to, 30, out var range, out var error)) return BadRequest(new { error });
-        var report = await queries.ReportAsync(SellerId, id, range, ct);
+        var grouping = string.IsNullOrEmpty(group) ? "day" : group;
+        if (!ClientQueries.ReportGroups.Contains(grouping)) return BadRequest(new { error = "Group must be day, week or month." });
+        var report = await queries.ReportAsync(SellerId, id, range, grouping, ct);
         return report is null ? NotFound(new { error = "Unknown report." }) : Ok(report);
     }
 

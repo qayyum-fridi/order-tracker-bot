@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Api.Admin;
@@ -295,12 +296,24 @@ public sealed class ClientQueries(AppDbContext db)
             Money(lines.Sum(LineProfit)));
     }
 
+    /// <summary>The reports, in the order of the dashboard's Reports page.</summary>
+    public static readonly string[] ReportIds = ["sales", "products", "categories", "customers", "cash", "balances", "returns", "orders", "couriers", "inventory"];
+
+    /// <summary>Groupings for the sales report: a day, a Monday-to-Sunday week, or a calendar month.</summary>
+    public static readonly string[] ReportGroups = ["day", "week", "month"];
+
     private static readonly Dictionary<string, string> ReportTitles = new()
     {
-        ["sales"] = "Sales by day",
+        ["sales"] = "Sales over time",
         ["products"] = "Product sales",
+        ["categories"] = "Category sales",
         ["customers"] = "Customer sales",
-        ["payments"] = "Payments",
+        ["cash"] = "Cash and payments",
+        ["balances"] = "Open balances",
+        ["returns"] = "Returns and cancellations",
+        ["orders"] = "Order status",
+        ["couriers"] = "Delivery and couriers",
+        ["inventory"] = "Stock and stock value",
     };
 
     private static readonly Dictionary<OrderPaymentMethod, string> PaymentLabels = new()
@@ -311,27 +324,36 @@ public sealed class ClientQueries(AppDbContext db)
         [OrderPaymentMethod.Unspecified] = "Not set",
     };
 
+    private const int LowStockAt = 5;
+
     /// <summary>
-    /// A report as a table, for the Reports page and its CSV download. Same rules as the dashboard's report builder:
-    /// cancelled and returned orders are left out, and profit counts only lines whose cost was saved.
+    /// A report as a table, for the Reports page and its CSV download. Sales-based reports use orders in the range; cancelled and
+    /// returned orders are left out of sales, and profit counts only lines whose cost was saved. Balances and stock are snapshots.
     /// Returns null for an unknown report id.
     /// </summary>
-    public async Task<ReportTableDto?> ReportAsync(int sellerId, string id, AdminDateRange range, CancellationToken ct)
+    public async Task<ReportTableDto?> ReportAsync(int sellerId, string id, AdminDateRange range, string group, CancellationToken ct)
     {
         if (!ReportTitles.ContainsKey(id)) return null;
 
         var orders = await db.Orders.AsNoTracking().Include(o => o.Items).Include(o => o.Customer)
-            .Where(o => o.SellerId == sellerId && o.CreatedAt >= range.StartUtc && o.CreatedAt < range.EndUtc && !NotSales.Contains(o.Status))
+            .Where(o => o.SellerId == sellerId && o.CreatedAt >= range.StartUtc && o.CreatedAt < range.EndUtc)
             .OrderBy(o => o.CreatedAt).ThenBy(o => o.Id)
             .ToListAsync(ct);
+        var sales = orders.Where(o => !NotSales.Contains(o.Status)).ToList();
         var categories = await CategoryLookupsAsync(sellerId, ct);
 
         var parts = id switch
         {
-            "sales" => SalesReport(orders),
-            "products" => ProductsReport(orders, categories),
-            "customers" => CustomersReport(orders),
-            _ => PaymentsReport(orders),
+            "sales" => SalesReport(sales, group),
+            "products" => ProductsReport(sales, categories),
+            "categories" => CategoriesReport(sales, categories),
+            "customers" => CustomersReport(sales),
+            "cash" => CashReport(sales),
+            "balances" => await BalancesReport(sellerId, ct),
+            "returns" => ReturnsReport(orders),
+            "orders" => OrdersReport(orders),
+            "couriers" => CouriersReport(orders.Where(o => o.Status != OrderStatus.Cancelled).ToList()),
+            _ => await InventoryReport(sellerId, ct),
         };
 
         return new ReportTableDto(
@@ -339,10 +361,10 @@ public sealed class ClientQueries(AppDbContext db)
             parts.Columns, parts.Rows, Totals(parts.Rows, parts.TotalKeys), parts.Note);
     }
 
-    private static ReportParts SalesReport(List<Order> orders)
+    private static ReportParts SalesReport(List<Order> sales, string group)
     {
-        var rows = orders.GroupBy(o => AdminDateRange.DayOf(o.CreatedAt)).OrderBy(g => g.Key).Select(g => Row(
-            ("date", g.Key.ToString(AdminDateRange.DateFormat)),
+        var rows = sales.GroupBy(o => PeriodStart(AdminDateRange.DayOf(o.CreatedAt), group)).OrderBy(g => g.Key).Select(g => Row(
+            ("period", PeriodLabel(g.Key, group)),
             ("orders", g.Count()),
             ("subtotal", Money(g.Sum(o => o.Subtotal))),
             ("discount", Money(g.Sum(o => o.DiscountAmount))),
@@ -350,16 +372,17 @@ public sealed class ClientQueries(AppDbContext db)
             ("total", Money(g.Sum(o => o.Total))))).ToList();
         var columns = new List<ReportColumnDto>
         {
-            new("date", "Date", "date"), new("orders", "Orders", "number"), new("subtotal", "Items", "money"),
-            new("discount", "Discount", "money"), new("delivery", "Delivery", "money"), new("total", "Total", "money"),
+            new("period", group switch { "week" => "Week", "month" => "Month", _ => "Day" }, "text"),
+            new("orders", "Orders", "number"), new("subtotal", "Items", "money"), new("discount", "Discount", "money"),
+            new("delivery", "Delivery", "money"), new("total", "Total", "money"),
         };
         return new ReportParts(columns, rows, ["orders", "subtotal", "discount", "delivery", "total"], null);
     }
 
-    private static ReportParts ProductsReport(List<Order> orders, (Dictionary<int, string?> ById, Dictionary<string, string?> ByName) categories)
+    private static ReportParts ProductsReport(List<Order> sales, (Dictionary<int, string?> ById, Dictionary<string, string?> ByName) categories)
     {
         var groups = new Dictionary<string, (string? Category, int Units, decimal Revenue, decimal? Cost, decimal CostedRevenue)>();
-        foreach (var line in orders.SelectMany(o => o.Items))
+        foreach (var line in sales.SelectMany(o => o.Items))
         {
             var g = groups.GetValueOrDefault(line.ProductNameSnapshot);
             var category = g.Category ?? CategoryOf(line, categories);
@@ -368,21 +391,19 @@ public sealed class ClientQueries(AppDbContext db)
             groups[line.ProductNameSnapshot] = (category, g.Units + line.Quantity, g.Revenue + line.LineTotal, cost, costedRevenue);
         }
 
-        var rows = groups
-            .OrderByDescending(kv => kv.Value.Revenue)
-            .Select(kv =>
-            {
-                var (category, units, revenue, cost, costedRevenue) = kv.Value;
-                var profit = cost is null ? (decimal?)null : Money(costedRevenue - cost.Value);
-                return Row(
-                    ("product", kv.Key),
-                    ("category", category),
-                    ("units", units),
-                    ("revenue", Money(revenue)),
-                    ("cost", cost is null ? null : Money(cost.Value)),
-                    ("profit", profit),
-                    ("margin", profit is null || costedRevenue == 0 ? null : Money(profit.Value / costedRevenue * 100)));
-            }).ToList();
+        var rows = groups.OrderByDescending(kv => kv.Value.Revenue).Select(kv =>
+        {
+            var (category, units, revenue, cost, costedRevenue) = kv.Value;
+            var profit = cost is null ? (decimal?)null : Money(costedRevenue - cost.Value);
+            return Row(
+                ("product", kv.Key),
+                ("category", category),
+                ("units", units),
+                ("revenue", Money(revenue)),
+                ("cost", cost is null ? null : Money(cost.Value)),
+                ("profit", profit),
+                ("margin", profit is null || costedRevenue == 0 ? null : Money(profit.Value / costedRevenue * 100)));
+        }).ToList();
 
         var columns = new List<ReportColumnDto>
         {
@@ -394,21 +415,53 @@ public sealed class ClientQueries(AppDbContext db)
             someUncosted ? "Profit counts only items whose cost was saved when the order was made. A blank cost means none was recorded." : null);
     }
 
-    private static ReportParts CustomersReport(List<Order> orders)
+    private static ReportParts CategoriesReport(List<Order> sales, (Dictionary<int, string?> ById, Dictionary<string, string?> ByName) categories)
     {
-        var rows = orders.GroupBy(o => o.CustomerId)
-            .OrderByDescending(g => g.Sum(o => o.Total))
-            .Select(g =>
-            {
-                var customer = g.First().Customer!;
-                return Row(
-                    ("customer", customer.Name),
-                    ("phone", customer.Phone),
-                    ("city", customer.City),
-                    ("orders", g.Count()),
-                    ("spent", Money(g.Sum(o => o.Total))),
-                    ("lastOrder", AdminDateRange.DayOf(g.Max(o => o.CreatedAt)).ToString(AdminDateRange.DateFormat)));
-            }).ToList();
+        var groups = new Dictionary<string, (int Units, decimal Revenue, decimal? Cost, decimal CostedRevenue)>();
+        foreach (var line in sales.SelectMany(o => o.Items))
+        {
+            var key = CategoryOf(line, categories) ?? "Not set";
+            var g = groups.GetValueOrDefault(key);
+            var cost = line.UnitCost is { } unitCost ? (g.Cost ?? 0) + unitCost * line.Quantity : g.Cost;
+            var costedRevenue = line.UnitCost is null ? g.CostedRevenue : g.CostedRevenue + line.LineTotal;
+            groups[key] = (g.Units + line.Quantity, g.Revenue + line.LineTotal, cost, costedRevenue);
+        }
+
+        var totalRevenue = groups.Values.Sum(g => g.Revenue);
+        var rows = groups.OrderByDescending(kv => kv.Value.Revenue).Select(kv =>
+        {
+            var (units, revenue, cost, costedRevenue) = kv.Value;
+            var profit = cost is null ? (decimal?)null : Money(costedRevenue - cost.Value);
+            return Row(
+                ("category", kv.Key),
+                ("units", units),
+                ("revenue", Money(revenue)),
+                ("share", totalRevenue > 0 ? Money(revenue / totalRevenue * 100) : 0m),
+                ("profit", profit),
+                ("margin", profit is null || costedRevenue == 0 ? null : Money(profit.Value / costedRevenue * 100)));
+        }).ToList();
+
+        var columns = new List<ReportColumnDto>
+        {
+            new("category", "Category", "text"), new("units", "Units", "number"), new("revenue", "Revenue", "money"),
+            new("share", "Share", "percent"), new("profit", "Profit", "money"), new("margin", "Margin", "percent"),
+        };
+        return new ReportParts(columns, rows, ["units", "revenue", "profit"], null);
+    }
+
+    private static ReportParts CustomersReport(List<Order> sales)
+    {
+        var rows = sales.GroupBy(o => o.CustomerId).OrderByDescending(g => g.Sum(o => o.Total)).Select(g =>
+        {
+            var customer = g.First().Customer!;
+            return Row(
+                ("customer", customer.Name),
+                ("phone", customer.Phone),
+                ("city", customer.City),
+                ("orders", g.Count()),
+                ("spent", Money(g.Sum(o => o.Total))),
+                ("lastOrder", AdminDateRange.DayOf(g.Max(o => o.CreatedAt)).ToString(AdminDateRange.DateFormat)));
+        }).ToList();
         var columns = new List<ReportColumnDto>
         {
             new("customer", "Customer", "text"), new("phone", "Phone", "text"), new("city", "City", "text"),
@@ -417,35 +470,205 @@ public sealed class ClientQueries(AppDbContext db)
         return new ReportParts(columns, rows, ["orders", "spent"], null);
     }
 
-    private static ReportParts PaymentsReport(List<Order> orders)
+    private static ReportParts CashReport(List<Order> sales)
     {
-        var rows = orders.GroupBy(o => o.PaymentMethod)
-            .OrderByDescending(g => g.Sum(o => o.Total))
-            .Select(g =>
-            {
-                var billed = g.Sum(o => o.Total);
-                // Same rule as the rest of the bot: a Paid order is fully received, even if its amount was never filled in.
-                var received = g.Sum(o => o.PaymentStatus == PaymentStatus.Paid ? o.Total : Math.Min(o.AmountPaid, o.Total));
-                return Row(
-                    ("method", PaymentLabels.GetValueOrDefault(g.Key, g.Key.ToString())),
-                    ("orders", g.Count()),
-                    ("billed", Money(billed)),
-                    ("received", Money(received)),
-                    ("balance", Money(billed - received)));
-            }).ToList();
+        static decimal Paid(Order o) => PaidAmount(o.Total, o.AmountPaid, o.PaymentStatus);
+        var rows = sales.GroupBy(o => AdminDateRange.DayOf(o.CreatedAt)).OrderBy(g => g.Key).Select(g => Row(
+            ("date", g.Key.ToString(AdminDateRange.DateFormat)),
+            ("cod", Money(g.Where(o => o.PaymentMethod == OrderPaymentMethod.Cod).Sum(o => Paid(o)))),
+            ("transfer", Money(g.Where(o => o.PaymentMethod == OrderPaymentMethod.Manual).Sum(o => Paid(o)))),
+            ("gateway", Money(g.Where(o => o.PaymentMethod == OrderPaymentMethod.Gateway).Sum(o => Paid(o)))),
+            ("received", Money(g.Sum(o => Paid(o)))),
+            ("due", Money(g.Sum(o => o.Total - Paid(o)))))).ToList();
         var columns = new List<ReportColumnDto>
         {
-            new("method", "Payment method", "text"), new("orders", "Orders", "number"), new("billed", "Billed", "money"),
-            new("received", "Received", "money"), new("balance", "Still due", "money"),
+            new("date", "Date", "date"), new("cod", "Cash on delivery", "money"), new("transfer", "Bank transfer", "money"),
+            new("gateway", "Online gateway", "money"), new("received", "Received", "money"), new("due", "Still due", "money"),
         };
-        return new ReportParts(columns, rows, ["orders", "billed", "received", "balance"], null);
+        return new ReportParts(columns, rows, ["cod", "transfer", "gateway", "received", "due"],
+            "Counted on the order's date. Orders with no payment method set count in Received and Still due only.");
     }
 
-    private sealed record ReportParts(
-        List<ReportColumnDto> Columns, List<IReadOnlyDictionary<string, object?>> Rows, string[] TotalKeys, string? Note);
+    /// <summary>Every open balance, whatever the date range: sales that are not fully paid.</summary>
+    private async Task<ReportParts> BalancesReport(int sellerId, CancellationToken ct)
+    {
+        var open = await db.Orders.AsNoTracking().Where(o => o.SellerId == sellerId && !NotSales.Contains(o.Status))
+            .Select(o => new { o.CustomerId, o.Customer!.Name, o.Customer.Phone, o.Customer.City, o.Total, o.AmountPaid, o.PaymentStatus, o.CreatedAt })
+            .ToListAsync(ct);
+        var rows = open.Select(o => new { o, Due = o.Total - PaidAmount(o.Total, o.AmountPaid, o.PaymentStatus) })
+            .Where(x => x.Due > 0)
+            .GroupBy(x => x.o.CustomerId)
+            .Select(g => new
+            {
+                Customer = g.First().o,
+                Orders = g.Count(),
+                Billed = g.Sum(x => x.o.Total),
+                Received = g.Sum(x => PaidAmount(x.o.Total, x.o.AmountPaid, x.o.PaymentStatus)),
+                Due = g.Sum(x => x.Due),
+                Oldest = g.Min(x => x.o.CreatedAt),
+            })
+            .OrderByDescending(x => x.Due)
+            .Select(x => Row(
+                ("customer", x.Customer.Name),
+                ("phone", x.Customer.Phone),
+                ("city", x.Customer.City),
+                ("orders", x.Orders),
+                ("billed", Money(x.Billed)),
+                ("received", Money(x.Received)),
+                ("due", Money(x.Due)),
+                ("oldest", AdminDateRange.DayOf(x.Oldest).ToString(AdminDateRange.DateFormat))))
+            .ToList();
+        var columns = new List<ReportColumnDto>
+        {
+            new("customer", "Customer", "text"), new("phone", "Phone", "text"), new("city", "City", "text"),
+            new("orders", "Open orders", "number"), new("billed", "Billed", "money"), new("received", "Received", "money"),
+            new("due", "Still due", "money"), new("oldest", "Oldest order", "date"),
+        };
+        return new ReportParts(columns, rows, ["orders", "billed", "received", "due"],
+            "Every open balance, whatever the date range. Partly paid and unpaid orders are included.");
+    }
+
+    private static ReportParts ReturnsReport(List<Order> orders)
+    {
+        var groups = new Dictionary<string, (int Units, decimal Value, HashSet<int> Cancelled, decimal CancelledValue)>();
+        foreach (var o in orders.Where(o => o.Status is OrderStatus.Returned or OrderStatus.Cancelled))
+        {
+            foreach (var line in o.Items)
+            {
+                var g = groups.TryGetValue(line.ProductNameSnapshot, out var existing) ? existing : (Units: 0, Value: 0m, Cancelled: new HashSet<int>(), CancelledValue: 0m);
+                if (o.Status == OrderStatus.Returned) g.Units += line.Quantity;
+                if (o.Status == OrderStatus.Returned) g.Value += line.LineTotal;
+                if (o.Status == OrderStatus.Cancelled) g.Cancelled.Add(o.Id);
+                if (o.Status == OrderStatus.Cancelled) g.CancelledValue += line.LineTotal;
+                groups[line.ProductNameSnapshot] = g;
+            }
+        }
+        var rows = groups.OrderByDescending(kv => kv.Value.Value + kv.Value.CancelledValue).Select(kv => Row(
+            ("product", kv.Key),
+            ("returned", kv.Value.Units),
+            ("returnedValue", Money(kv.Value.Value)),
+            ("cancelled", kv.Value.Cancelled.Count),
+            ("cancelledValue", Money(kv.Value.CancelledValue)))).ToList();
+        var columns = new List<ReportColumnDto>
+        {
+            new("product", "Product", "text"), new("returned", "Returned units", "number"), new("returnedValue", "Returned value", "money"),
+            new("cancelled", "Cancelled orders", "number"), new("cancelledValue", "Cancelled value", "money"),
+        };
+        return new ReportParts(columns, rows, ["returned", "returnedValue", "cancelledValue"],
+            "A cancelled order is counted once for each product it contained.");
+    }
+
+    private static ReportParts OrdersReport(List<Order> orders)
+    {
+        var rows = Enum.GetValues<OrderStatus>().Select(status =>
+        {
+            var inStatus = orders.Where(o => o.Status == status).ToList();
+            return Row(
+                ("status", status.ToString()),
+                ("orders", inStatus.Count),
+                ("share", orders.Count == 0 ? 0m : Money(inStatus.Count * 100m / orders.Count)),
+                ("value", Money(inStatus.Sum(o => o.Total))));
+        }).ToList();
+
+        var days = orders.Where(o => o.DeliveredAt is not null)
+            .Select(o => (double)(AdminDateRange.DayOf(o.DeliveredAt!.Value).DayNumber - AdminDateRange.DayOf(o.CreatedAt).DayNumber))
+            .Where(d => d >= 0).ToList();
+        var note = days.Count == 0
+            ? "No delivery dates recorded yet. Mark an order delivered to see how long deliveries take."
+            : $"Average {days.Average():0.0} days from order to delivery, across {days.Count} delivered orders.";
+        var columns = new List<ReportColumnDto>
+        {
+            new("status", "Status", "text"), new("orders", "Orders", "number"), new("share", "Share", "percent"), new("value", "Value", "money"),
+        };
+        return new ReportParts(columns, rows, ["orders", "value"], note);
+    }
+
+    private static ReportParts CouriersReport(List<Order> orders)
+    {
+        var groups = orders.GroupBy(o => string.IsNullOrWhiteSpace(o.TrackingCourier) ? "Not set" : o.TrackingCourier.Trim())
+            .Select(g =>
+            {
+                var withFee = g.Where(o => o.CourierFee is not null).ToList();
+                var fee = withFee.Count == 0 ? (decimal?)null : withFee.Sum(o => o.CourierFee!.Value);
+                return (Courier: g.Key, Parcels: g.Count(), Delivered: g.Count(o => o.Status == OrderStatus.Delivered),
+                    Returned: g.Count(o => o.Status == OrderStatus.Returned), Charged: g.Sum(o => o.DeliveryCharge), Fee: fee,
+                    Net: fee is null ? (decimal?)null : withFee.Sum(o => o.DeliveryCharge) - fee.Value);
+            })
+            .OrderByDescending(x => x.Parcels)
+            .ToList();
+        var rows = groups.Select(x => Row(
+            ("courier", x.Courier),
+            ("parcels", x.Parcels),
+            ("delivered", x.Delivered),
+            ("returned", x.Returned),
+            ("charged", Money(x.Charged)),
+            ("fee", x.Fee is null ? null : Money(x.Fee.Value)),
+            ("net", x.Net is null ? null : Money(x.Net.Value)))).ToList();
+        var columns = new List<ReportColumnDto>
+        {
+            new("courier", "Courier", "text"), new("parcels", "Parcels", "number"), new("delivered", "Delivered", "number"),
+            new("returned", "Returned", "number"), new("charged", "Delivery charged", "money"), new("fee", "Courier fee", "money"),
+            new("net", "Net of fee", "money"),
+        };
+        return new ReportParts(columns, rows, ["parcels", "delivered", "returned", "charged", "fee"],
+            "Courier fee is what was written down with the courier fee command. Net of fee covers only parcels with a fee written down. A blank fee means none was recorded.");
+    }
+
+    private async Task<ReportParts> InventoryReport(int sellerId, CancellationToken ct)
+    {
+        var products = await db.Products.AsNoTracking().Where(p => p.SellerId == sellerId && p.IsActive)
+            .Select(p => new { p.Name, p.Category, p.Price, p.CostPrice, p.StockQty }).ToListAsync(ct);
+        var rows = products.Select(p =>
+        {
+            var status = p.StockQty is null ? "Not tracked" : p.StockQty == 0 ? "Out of stock" : p.StockQty <= LowStockAt ? "Low" : "In stock";
+            var row = Row(
+                ("product", p.Name),
+                ("category", p.Category),
+                ("stock", p.StockQty),
+                ("costValue", p.StockQty is { } stock && p.CostPrice is { } cost ? Money(stock * cost) : null),
+                ("retailValue", p.StockQty is { } units ? Money(units * p.Price) : null),
+                ("status", status));
+            return (Status: status, Name: p.Name, Row: row);
+        }).OrderBy(x => StockRank(x.Status)).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase).Select(x => x.Row).ToList();
+        var columns = new List<ReportColumnDto>
+        {
+            new("product", "Product", "text"), new("category", "Category", "text"), new("stock", "Stock", "number"),
+            new("costValue", "Value at cost", "money"), new("retailValue", "Value at price", "money"), new("status", "Status", "text"),
+        };
+        return new ReportParts(columns, rows, ["stock", "costValue", "retailValue"],
+            $"Current stock, not limited to a period. \"Low\" means {LowStockAt} or fewer units.");
+    }
+
+    private static int StockRank(string status) => status switch
+    {
+        "Out of stock" => 0,
+        "Low" => 1,
+        "In stock" => 2,
+        _ => 3,
+    };
+
+    private sealed record ReportParts(List<ReportColumnDto> Columns, List<IReadOnlyDictionary<string, object?>> Rows, string[] TotalKeys, string? Note);
 
     private static IReadOnlyDictionary<string, object?> Row(params (string Key, object? Value)[] cells) =>
         cells.ToDictionary(c => c.Key, c => c.Value);
+
+    private static decimal PaidAmount(decimal total, decimal amountPaid, PaymentStatus status) =>
+        status == PaymentStatus.Paid ? total : Math.Min(amountPaid, total);
+
+    /// <summary>The first day of the period a day belongs to: the day itself, its Monday, or the 1st of its month.</summary>
+    private static DateOnly PeriodStart(DateOnly day, string group) => group switch
+    {
+        "week" => day.AddDays(-(((int)day.DayOfWeek + 6) % 7)),
+        "month" => new DateOnly(day.Year, day.Month, 1),
+        _ => day,
+    };
+
+    private static string PeriodLabel(DateOnly start, string group) => group switch
+    {
+        "week" => $"{start:d MMM yyyy} – {start.AddDays(6):d MMM yyyy}",
+        "month" => start.ToString("MMMM yyyy", CultureInfo.InvariantCulture),
+        _ => start.ToString("d MMM yyyy", CultureInfo.InvariantCulture),
+    };
 
     /// <summary>Sums of the given columns. A column with no numbers at all is null, not 0.</summary>
     private static IReadOnlyDictionary<string, decimal?> Totals(IReadOnlyList<IReadOnlyDictionary<string, object?>> rows, string[] keys) =>
