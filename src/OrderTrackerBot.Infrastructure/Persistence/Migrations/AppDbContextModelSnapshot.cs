@@ -951,6 +951,9 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     b.Property<string>("City")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("ClientApiTokenHash")
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -1026,6 +1029,8 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(450)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ClientApiTokenHash");
 
                     b.HasIndex("WhatsAppPhoneNumber")
                         .IsUnique();

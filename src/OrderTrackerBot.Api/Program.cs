@@ -13,6 +13,8 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.Configure<OrderTrackerBot.Api.Admin.AdminOptions>(builder.Configuration.GetSection(OrderTrackerBot.Api.Admin.AdminOptions.SectionName));
 builder.Services.AddScoped<OrderTrackerBot.Api.Admin.AdminApiKeyFilter>();
+builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientAuthFilter>();
+builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientQueries>();
 builder.Services.AddHostedService<OrderTrackerBot.Api.ScheduledMessagesService>();
 builder.Services.AddHostedService<OrderTrackerBot.Api.WebhookWorkerService>(); // handles queued WhatsApp messages after the webhook has answered 200
 

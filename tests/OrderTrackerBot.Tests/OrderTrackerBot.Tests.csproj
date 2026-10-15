@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\OrderTrackerBot.Application\OrderTrackerBot.Application.csproj" />
+    <ProjectReference Include="..\..\src\OrderTrackerBot.Api\OrderTrackerBot.Api.csproj" />
     <ProjectReference Include="..\..\src\OrderTrackerBot.Domain\OrderTrackerBot.Domain.csproj" />
     <ProjectReference Include="..\..\src\OrderTrackerBot.Infrastructure\OrderTrackerBot.Infrastructure.csproj" />
   </ItemGroup>
