@@ -49,6 +49,16 @@ public sealed record DashboardDto(
     IReadOnlyDictionary<string, int> StatusCounts, IReadOnlyList<CategoryShareDto> CategoryMix,
     IReadOnlyList<OrderSummaryDto> RecentOrders, IReadOnlyList<ProductDto> LowStock);
 
+public sealed record TopProductDto(string ProductName, int Units, decimal Revenue, decimal Profit);
+
+/// <summary>Sales per payment method (Cod, Manual, Gateway, Unspecified). Profit is left out: it needs the product cost.</summary>
+public sealed record PaymentMixDto(string Method, int Orders, decimal Revenue);
+
+public sealed record AnalysisDto(
+    DateRangeDto Range, KpisDto Kpis, IReadOnlyList<DayPointDto> Daily, IReadOnlyList<TopProductDto> TopProducts,
+    IReadOnlyList<CategoryShareDto> CategoryMix, IReadOnlyList<PaymentMixDto> PaymentMix,
+    IReadOnlyDictionary<string, int> StatusCounts, double RepeatCustomerRate, int NewCustomers, decimal GrossProfit);
+
 public sealed record CategorySubDto(string Name, int ProductCount, decimal Revenue);
 
 public sealed record CategoryDto(string Name, int ProductCount, decimal Revenue, IReadOnlyList<CategorySubDto> Subcategories);

@@ -15,6 +15,7 @@ builder.Services.Configure<OrderTrackerBot.Api.Admin.AdminOptions>(builder.Confi
 builder.Services.AddScoped<OrderTrackerBot.Api.Admin.AdminApiKeyFilter>();
 builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientAuthFilter>();
 builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientQueries>();
+builder.Services.AddSingleton<OrderTrackerBot.Api.Client.ClientLoginLimiter>();
 builder.Services.AddHostedService<OrderTrackerBot.Api.ScheduledMessagesService>();
 builder.Services.AddHostedService<OrderTrackerBot.Api.WebhookWorkerService>(); // handles queued WhatsApp messages after the webhook has answered 200
 

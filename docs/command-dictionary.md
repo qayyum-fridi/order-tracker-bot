@@ -193,6 +193,7 @@ Every phrase below is pinned in `StrategicInsightParserTests` (Urdu script and R
 | Data | `export` · `export orders 30 days` · `import` |
 | Which build is running | `version` |
 | Sign in to the client dashboard (a code comes here) | `login` (`dashboard login`) |
+| End every dashboard session (if a login was not you) | `dashboard logout` (`logout all`, `sign out`) |
 | Tell us something | `feedback: [message]` |
 | Wipe everything | `reset account` (asks to confirm) |
 

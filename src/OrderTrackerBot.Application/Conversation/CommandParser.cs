@@ -95,6 +95,7 @@ public enum CommandKind
     Guide,
     Version,
     ClientLogin,
+    ClientLogout,
     SetupCheck,
     Industry,
     GuideLater,
@@ -169,6 +170,7 @@ public static class CommandParser
     private static readonly Regex SetupCheckCmd = new(@"^(?:data\s+check|setup\s+check|data\s+checklist|checklist|setup\s+status|data\s+theek\s*hai|ڈیٹا\s*چیک|چیک\s*لسٹ)$", Opts);
     private static readonly Regex VersionCmd = new(@"^(?:bot\s+)?(?:version|build|ورژن)$", Opts);
     private static readonly Regex ClientLoginCmd = new(@"^(?:dashboard\s+)?(?:login|log\s+in|لاگ\s*ان)$", Opts);
+    private static readonly Regex ClientLogoutCmd = new(@"^(?:dashboard\s+)?(?:logout|log\s+out|sign\s*out)(?:\s+all)?$", Opts);
     private static readonly Regex MarginCmd = new(@"^(?:margins?|margin\s+(?:list|report)|profit\s+margins?|discount\s+(?:room|limit)|munafa\s+per\s+product)$", Opts);
     private static readonly Regex CategorySalesCmd = new(@"^(?:category[\s-]*wise\s+(?:sales?|report)|sales?\s+by\s+category|category\s+(?:sales?|report)|category\s+ki\s+sale|categories\s+sales?)(?:\s+(?<p>.+))?$", Opts);
     private static readonly Regex GuideLater = new(@"^baad\s+mein$", Opts);
@@ -1220,6 +1222,7 @@ public static class CommandParser
         if (SetupCheckCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.SetupCheck };
         if (VersionCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Version };
         if (ClientLoginCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ClientLogin };
+        if (ClientLogoutCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ClientLogout };
         if (GuideLater.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.GuideLater };
         if (Menu.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Menu };
         if (OrdersToday.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.OrdersToday };

@@ -6,6 +6,14 @@ namespace OrderTrackerBot.Application.Conversation;
 
 public partial class ConversationEngine
 {
+    /// <summary>"dashboard logout" on WhatsApp: ends every dashboard session for this seller, so a token seen elsewhere stops working.</summary>
+    private async Task HandleClientLogoutAsync(Seller seller, CancellationToken ct)
+    {
+        seller.ClientApiTokenHash = null;
+        await _db.SaveChangesAsync(ct);
+        await ReplyAsync(seller, MessageTemplates.Get("clientlogin.logout"), ct);
+    }
+
     /// <summary>"login" on WhatsApp: a one-time code for the client dashboard, sent only to this chat.</summary>
     private async Task HandleClientLoginAsync(Seller seller, CancellationToken ct)
     {

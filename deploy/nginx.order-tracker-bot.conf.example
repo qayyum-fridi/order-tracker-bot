@@ -6,16 +6,26 @@
 #
 # Install: copy to /etc/nginx/sites-available/order-tracker-bot.conf, symlink into
 # sites-enabled, then `certbot --nginx -d order-tracker.yourdomain.com`.
+#
+# Public routes are an allowlist: Meta's webhooks, the Instagram OAuth callback and the health check.
+# Everything else (the seller API under /api/client, the admin API, internal test endpoints, Swagger)
+# returns 404 from outside. The client dashboard calls /api/client over loopback (127.0.0.1:5001) and never needs nginx.
 
 server {
     listen 80;
     server_name order-tracker.yourdomain.com;
+    server_tokens off;
+    client_max_body_size 1m;
 
-    location / {
+    location ~ ^/(webhook/|instagram/|health$) {
         proxy_pass http://127.0.0.1:5001;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location / {
+        return 404;
     }
 }
