@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Api.Admin;
+using OrderTrackerBot.Api.Client;
 using OrderTrackerBot.Application.Conversation;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
@@ -243,7 +244,27 @@ public class AdminController : ControllerBase
         return Ok(new PagedResultDto<OrderListItemDto>(items, page, pageSize, total));
     }
 
-    private static async Task<List<OrderListItemDto>> LoadOrdersAsync(IQueryable<Order> query, int skip, int take, CancellationToken ct)
+
+    /// <summary>
+    /// Issues a client dashboard token for a seller. The token is returned once and only its hash is stored, so
+    /// issuing again replaces the old token.
+    /// </summary>
+    [HttpPost("sellers/{id:int}/client-token")]
+    public async Task<ActionResult<IssuedClientTokenDto>> IssueClientToken(int id, CancellationToken ct)
+    {
+        var seller = await _db.Sellers.FirstOrDefaultAsync(s => s.Id == id, ct);
+        if (seller is null) return NotFound(new { error = "Seller not found." });
+
+        var token = ClientTokens.Create();
+        seller.ClientApiTokenHash = ClientTokens.Hash(token);
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation("Admin issued a client dashboard token for seller {SellerId}", id);
+        return Ok(new IssuedClientTokenDto(token));
+    }
+
+    private static async Task<List<OrderListItemDto>> LoadOrdersAsync(
+IQueryable<Order> query, int skip, int take, CancellationToken ct)
     {
         var rows = await query
             .OrderByDescending(o => o.CreatedAt).ThenByDescending(o => o.Id)

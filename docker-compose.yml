@@ -6,6 +6,8 @@ services:
         GIT_SHA: ${GIT_SHA:-unknown} # export GIT_SHA=$(git rev-parse HEAD) before docker compose up --build
     container_name: order-tracker-api
     restart: unless-stopped
+    # Keeps the bot from starving the client dashboard on the shared 1.6 GB VPS. Raise if `docker stats` shows OOM restarts.
+    mem_limit: 512m
     ports:
       - "127.0.0.1:8091:8080" # bind to localhost only — nginx on the host proxies to it
     environment:

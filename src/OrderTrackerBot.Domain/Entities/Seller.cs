@@ -46,6 +46,8 @@ public class Seller
     public DateTime? SubscriptionActiveUntil { get; set; }
     public DateTime? TrialReminderSentAt { get; set; }
     public DateTime? LastWeeklySummaryAt { get; set; }
+    /// <summary>SHA-256 of the client dashboard bearer token (null = none issued). The token itself is never stored.</summary>
+    public string? ClientApiTokenHash { get; set; }
 
     public ConversationSession? Session { get; set; }
     public ICollection<Product> Products { get; set; } = new List<Product>();
