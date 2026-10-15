@@ -261,6 +261,51 @@ public sealed class ClientApiTests : IDisposable
         Assert.Equal(2, report.NewCustomers);
     }
 
+    [Fact]
+    public async Task Reports_follow_the_dashboard_rules_and_leave_out_cancelled_orders()
+    {
+        var seller = await SellerAsync("923000000003");
+        var ali = await CustomerAsync(seller.Id, "Ali");
+        var sara = await CustomerAsync(seller.Id, "Sara");
+        var shirt = await ProductAsync(seller.Id, "Shirt", "Clothing", 500m);
+        var today = AdminDateRange.Today();
+        var day = today.ToString(AdminDateRange.DateFormat);
+        Assert.True(AdminDateRange.TryResolve(day, day, 1, out var range, out _));
+
+        var cod = await OrderAsync(seller.Id, ali.Id, shirt, OrderStatus.Delivered, 1000m, DateTime.UtcNow);
+        cod.Subtotal = 800m;
+        cod.DeliveryCharge = 200m;
+        var manual = await OrderAsync(seller.Id, sara.Id, shirt, OrderStatus.Delivered, 400m, DateTime.UtcNow);
+        manual.PaymentMethod = OrderPaymentMethod.Manual;
+        manual.PaymentStatus = PaymentStatus.Paid;
+        await OrderAsync(seller.Id, sara.Id, shirt, OrderStatus.Cancelled, 900m, DateTime.UtcNow);
+        await _db.SaveChangesAsync();
+        var queries = new ClientQueries(_db);
+
+        var sales = await queries.ReportAsync(seller.Id, "sales", range, default);
+        Assert.Equal(day, sales!.Rows.Single()["date"]);
+        Assert.Equal(2m, sales.Totals["orders"]);
+        Assert.Equal(200m, sales.Totals["delivery"]);
+        Assert.Equal(1400m, sales.Totals["total"]);
+
+        var payments = await queries.ReportAsync(seller.Id, "payments", range, default);
+        var paidByTransfer = payments!.Rows.Single(r => (string)r["method"]! == "Manual transfer");
+        Assert.Equal(0m, Convert.ToDecimal(paidByTransfer["balance"]));
+        var onDelivery = payments.Rows.Single(r => (string)r["method"]! == "Cash on delivery");
+        Assert.Equal(1000m, Convert.ToDecimal(onDelivery["balance"]));
+
+        var products = await queries.ReportAsync(seller.Id, "products", range, default);
+        Assert.Equal("Clothing", products!.Rows.Single()["category"]);
+        Assert.Null(products.Rows.Single()["cost"]);
+        Assert.Contains("Profit counts only", products.Note);
+
+        var customers = await queries.ReportAsync(seller.Id, "customers", range, default);
+        Assert.Equal("Ali", customers!.Rows[0]["customer"]);
+        Assert.Equal(1000m, Convert.ToDecimal(customers.Rows[0]["spent"]));
+
+        Assert.Null(await queries.ReportAsync(seller.Id, "unknown", range, default));
+    }
+
     private async Task<Seller> SellerAsync(string phone, SellerStatus status = SellerStatus.Active, string? token = null)
     {
         var seller = new Seller

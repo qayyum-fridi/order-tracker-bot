@@ -59,6 +59,14 @@ public sealed record AnalysisDto(
     IReadOnlyList<CategoryShareDto> CategoryMix, IReadOnlyList<PaymentMixDto> PaymentMix,
     IReadOnlyDictionary<string, int> StatusCounts, double RepeatCustomerRate, int NewCustomers, decimal GrossProfit);
 
+/// <summary>One column of a report: its key in each row, the heading, and how to show it (text, number, money, percent or date).</summary>
+public sealed record ReportColumnDto(string Key, string Label, string Type);
+
+/// <summary>A report as a table. Rows are keyed by column key; Totals holds sums for the summable columns (null when none had a number).</summary>
+public sealed record ReportTableDto(
+    string Id, string Title, DateRangeDto Range, IReadOnlyList<ReportColumnDto> Columns,
+    IReadOnlyList<IReadOnlyDictionary<string, object?>> Rows, IReadOnlyDictionary<string, decimal?> Totals, string? Note);
+
 public sealed record CategorySubDto(string Name, int ProductCount, decimal Revenue);
 
 public sealed record CategoryDto(string Name, int ProductCount, decimal Revenue, IReadOnlyList<CategorySubDto> Subcategories);

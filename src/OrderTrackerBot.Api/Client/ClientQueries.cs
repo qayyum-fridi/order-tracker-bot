@@ -295,6 +295,181 @@ public sealed class ClientQueries(AppDbContext db)
             Money(lines.Sum(LineProfit)));
     }
 
+    private static readonly Dictionary<string, string> ReportTitles = new()
+    {
+        ["sales"] = "Sales by day",
+        ["products"] = "Product sales",
+        ["customers"] = "Customer sales",
+        ["payments"] = "Payments",
+    };
+
+    private static readonly Dictionary<OrderPaymentMethod, string> PaymentLabels = new()
+    {
+        [OrderPaymentMethod.Cod] = "Cash on delivery",
+        [OrderPaymentMethod.Manual] = "Manual transfer",
+        [OrderPaymentMethod.Gateway] = "Online gateway",
+        [OrderPaymentMethod.Unspecified] = "Not set",
+    };
+
+    /// <summary>
+    /// A report as a table, for the Reports page and its CSV download. Same rules as the dashboard's report builder:
+    /// cancelled and returned orders are left out, and profit counts only lines whose cost was saved.
+    /// Returns null for an unknown report id.
+    /// </summary>
+    public async Task<ReportTableDto?> ReportAsync(int sellerId, string id, AdminDateRange range, CancellationToken ct)
+    {
+        if (!ReportTitles.ContainsKey(id)) return null;
+
+        var orders = await db.Orders.AsNoTracking().Include(o => o.Items).Include(o => o.Customer)
+            .Where(o => o.SellerId == sellerId && o.CreatedAt >= range.StartUtc && o.CreatedAt < range.EndUtc && !NotSales.Contains(o.Status))
+            .OrderBy(o => o.CreatedAt).ThenBy(o => o.Id)
+            .ToListAsync(ct);
+        var categories = await CategoryLookupsAsync(sellerId, ct);
+
+        var parts = id switch
+        {
+            "sales" => SalesReport(orders),
+            "products" => ProductsReport(orders, categories),
+            "customers" => CustomersReport(orders),
+            _ => PaymentsReport(orders),
+        };
+
+        return new ReportTableDto(
+            id, ReportTitles[id], new DateRangeDto(range.FromDay.ToString(AdminDateRange.DateFormat), range.ToDay.ToString(AdminDateRange.DateFormat)),
+            parts.Columns, parts.Rows, Totals(parts.Rows, parts.TotalKeys), parts.Note);
+    }
+
+    private static ReportParts SalesReport(List<Order> orders)
+    {
+        var rows = orders.GroupBy(o => AdminDateRange.DayOf(o.CreatedAt)).OrderBy(g => g.Key).Select(g => Row(
+            ("date", g.Key.ToString(AdminDateRange.DateFormat)),
+            ("orders", g.Count()),
+            ("subtotal", Money(g.Sum(o => o.Subtotal))),
+            ("discount", Money(g.Sum(o => o.DiscountAmount))),
+            ("delivery", Money(g.Sum(o => o.DeliveryCharge))),
+            ("total", Money(g.Sum(o => o.Total))))).ToList();
+        var columns = new List<ReportColumnDto>
+        {
+            new("date", "Date", "date"), new("orders", "Orders", "number"), new("subtotal", "Items", "money"),
+            new("discount", "Discount", "money"), new("delivery", "Delivery", "money"), new("total", "Total", "money"),
+        };
+        return new ReportParts(columns, rows, ["orders", "subtotal", "discount", "delivery", "total"], null);
+    }
+
+    private static ReportParts ProductsReport(List<Order> orders, (Dictionary<int, string?> ById, Dictionary<string, string?> ByName) categories)
+    {
+        var groups = new Dictionary<string, (string? Category, int Units, decimal Revenue, decimal? Cost, decimal CostedRevenue)>();
+        foreach (var line in orders.SelectMany(o => o.Items))
+        {
+            var g = groups.GetValueOrDefault(line.ProductNameSnapshot);
+            var category = g.Category ?? CategoryOf(line, categories);
+            var cost = line.UnitCost is { } unitCost ? (g.Cost ?? 0) + unitCost * line.Quantity : g.Cost;
+            var costedRevenue = line.UnitCost is null ? g.CostedRevenue : g.CostedRevenue + line.LineTotal;
+            groups[line.ProductNameSnapshot] = (category, g.Units + line.Quantity, g.Revenue + line.LineTotal, cost, costedRevenue);
+        }
+
+        var rows = groups
+            .OrderByDescending(kv => kv.Value.Revenue)
+            .Select(kv =>
+            {
+                var (category, units, revenue, cost, costedRevenue) = kv.Value;
+                var profit = cost is null ? (decimal?)null : Money(costedRevenue - cost.Value);
+                return Row(
+                    ("product", kv.Key),
+                    ("category", category),
+                    ("units", units),
+                    ("revenue", Money(revenue)),
+                    ("cost", cost is null ? null : Money(cost.Value)),
+                    ("profit", profit),
+                    ("margin", profit is null || costedRevenue == 0 ? null : Money(profit.Value / costedRevenue * 100)));
+            }).ToList();
+
+        var columns = new List<ReportColumnDto>
+        {
+            new("product", "Product", "text"), new("category", "Category", "text"), new("units", "Units", "number"),
+            new("revenue", "Revenue", "money"), new("cost", "Cost", "money"), new("profit", "Profit", "money"), new("margin", "Margin", "percent"),
+        };
+        var someUncosted = rows.Any(r => r["cost"] is null);
+        return new ReportParts(columns, rows, ["units", "revenue", "cost", "profit"],
+            someUncosted ? "Profit counts only items whose cost was saved when the order was made. A blank cost means none was recorded." : null);
+    }
+
+    private static ReportParts CustomersReport(List<Order> orders)
+    {
+        var rows = orders.GroupBy(o => o.CustomerId)
+            .OrderByDescending(g => g.Sum(o => o.Total))
+            .Select(g =>
+            {
+                var customer = g.First().Customer!;
+                return Row(
+                    ("customer", customer.Name),
+                    ("phone", customer.Phone),
+                    ("city", customer.City),
+                    ("orders", g.Count()),
+                    ("spent", Money(g.Sum(o => o.Total))),
+                    ("lastOrder", AdminDateRange.DayOf(g.Max(o => o.CreatedAt)).ToString(AdminDateRange.DateFormat)));
+            }).ToList();
+        var columns = new List<ReportColumnDto>
+        {
+            new("customer", "Customer", "text"), new("phone", "Phone", "text"), new("city", "City", "text"),
+            new("orders", "Orders", "number"), new("spent", "Spent", "money"), new("lastOrder", "Last order", "date"),
+        };
+        return new ReportParts(columns, rows, ["orders", "spent"], null);
+    }
+
+    private static ReportParts PaymentsReport(List<Order> orders)
+    {
+        var rows = orders.GroupBy(o => o.PaymentMethod)
+            .OrderByDescending(g => g.Sum(o => o.Total))
+            .Select(g =>
+            {
+                var billed = g.Sum(o => o.Total);
+                // Same rule as the rest of the bot: a Paid order is fully received, even if its amount was never filled in.
+                var received = g.Sum(o => o.PaymentStatus == PaymentStatus.Paid ? o.Total : Math.Min(o.AmountPaid, o.Total));
+                return Row(
+                    ("method", PaymentLabels.GetValueOrDefault(g.Key, g.Key.ToString())),
+                    ("orders", g.Count()),
+                    ("billed", Money(billed)),
+                    ("received", Money(received)),
+                    ("balance", Money(billed - received)));
+            }).ToList();
+        var columns = new List<ReportColumnDto>
+        {
+            new("method", "Payment method", "text"), new("orders", "Orders", "number"), new("billed", "Billed", "money"),
+            new("received", "Received", "money"), new("balance", "Still due", "money"),
+        };
+        return new ReportParts(columns, rows, ["orders", "billed", "received", "balance"], null);
+    }
+
+    private sealed record ReportParts(
+        List<ReportColumnDto> Columns, List<IReadOnlyDictionary<string, object?>> Rows, string[] TotalKeys, string? Note);
+
+    private static IReadOnlyDictionary<string, object?> Row(params (string Key, object? Value)[] cells) =>
+        cells.ToDictionary(c => c.Key, c => c.Value);
+
+    /// <summary>Sums of the given columns. A column with no numbers at all is null, not 0.</summary>
+    private static IReadOnlyDictionary<string, decimal?> Totals(IReadOnlyList<IReadOnlyDictionary<string, object?>> rows, string[] keys) =>
+        keys.ToDictionary(k => k, k =>
+        {
+            var values = rows.Select(r => r[k]).Where(v => v is int or decimal).Select(Convert.ToDecimal).ToList();
+            return values.Count == 0 ? (decimal?)null : Money(values.Sum());
+        });
+
+    private async Task<(Dictionary<int, string?> ById, Dictionary<string, string?> ByName)> CategoryLookupsAsync(int sellerId, CancellationToken ct)
+    {
+        var products = await db.Products.AsNoTracking().Where(p => p.SellerId == sellerId)
+            .Select(p => new { p.Id, p.Name, p.Category }).ToListAsync(ct);
+        return (products.ToDictionary(p => p.Id, p => p.Category), products.GroupBy(p => p.Name).ToDictionary(g => g.Key, g => g.First().Category));
+    }
+
+    private static string? CategoryOf(OrderItem line, (Dictionary<int, string?> ById, Dictionary<string, string?> ByName) categories)
+    {
+        string? category = null;
+        if (line.ProductId is int productId) categories.ById.TryGetValue(productId, out category);
+        if (string.IsNullOrWhiteSpace(category)) categories.ByName.TryGetValue(line.ProductNameSnapshot, out category);
+        return string.IsNullOrWhiteSpace(category) ? null : category.Trim();
+    }
+
     private async Task<List<CategoryShareDto>> CategoryMixAsync(int sellerId, List<Order> sales, CancellationToken ct)
     {
         var products = await db.Products.AsNoTracking().Where(p => p.SellerId == sellerId)
