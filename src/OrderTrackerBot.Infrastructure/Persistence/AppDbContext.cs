@@ -52,6 +52,7 @@ public class AppDbContext : DbContext, IAppDbContext
         modelBuilder.Entity<Seller>(e =>
         {
             e.HasIndex(s => s.WhatsAppPhoneNumber).IsUnique();
+            e.HasIndex(s => s.ClientApiTokenHash); // client dashboard auth lookup
             e.Property(s => s.BusinessName).HasMaxLength(200);
             e.Property(s => s.DefaultDeliveryCharge).HasColumnType("decimal(18,2)");
             e.Property(s => s.SalesTaxRate).HasColumnType("decimal(5,2)");
