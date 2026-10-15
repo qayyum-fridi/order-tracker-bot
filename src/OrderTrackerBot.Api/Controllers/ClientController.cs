@@ -34,6 +34,14 @@ public class ClientController(ClientQueries queries) : ControllerBase
         return Ok(await queries.DashboardAsync(SellerId, range, ct));
     }
 
+    /// <summary>Analysis for a range (default: last 30 days). Same numbers as the dashboard, plus product profit and payment mix.</summary>
+    [HttpGet("analysis")]
+    public async Task<ActionResult<AnalysisDto>> Analysis([FromQuery] string? from, [FromQuery] string? to, CancellationToken ct)
+    {
+        if (!AdminDateRange.TryResolve(from, to, 30, out var range, out var error)) return BadRequest(new { error });
+        return Ok(await queries.AnalysisAsync(SellerId, range, ct));
+    }
+
     [HttpGet("customers")]
     public async Task<ActionResult<PagedDto<CustomerDto>>> Customers(
         [FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int pageSize = DefaultPageSize, CancellationToken ct = default) =>

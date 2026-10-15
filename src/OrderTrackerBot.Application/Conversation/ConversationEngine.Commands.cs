@@ -341,6 +341,9 @@ public partial class ConversationEngine
             case CommandKind.Version:
                 await ReplyAsync(seller, _build.Describe(), ct);
                 break;
+            case CommandKind.ClientLogout:
+                await HandleClientLogoutAsync(seller, ct);
+                break;
             case CommandKind.ClientLogin:
                 await HandleClientLoginAsync(seller, ct);
                 break;

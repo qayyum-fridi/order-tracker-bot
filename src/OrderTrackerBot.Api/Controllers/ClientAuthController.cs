@@ -3,7 +3,9 @@ using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Api.Client;
+using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Auth;
+using OrderTrackerBot.Application.Templates;
 using OrderTrackerBot.Domain.Enums;
 using OrderTrackerBot.Infrastructure.Persistence;
 
@@ -15,7 +17,7 @@ namespace OrderTrackerBot.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/client/auth")]
-public class ClientAuthController(AppDbContext db) : ControllerBase
+public class ClientAuthController(AppDbContext db, ClientLoginLimiter? limiter = null, IWhatsAppSender? sender = null) : ControllerBase
 {
     public sealed record VerifyCodeRequest(string? Phone, string? Code);
 
@@ -26,6 +28,9 @@ public class ClientAuthController(AppDbContext db) : ControllerBase
         var subscriber = ClientLoginCodes.SubscriberDigits(request.Phone);
         var code = request.Code?.Trim();
         if (subscriber is null || string.IsNullOrEmpty(code)) return Invalid();
+
+        if (limiter is not null && !limiter.TryAcquire(subscriber))
+            return StatusCode(StatusCodes.Status429TooManyRequests, new { error = "Too many attempts. Wait a few minutes and try again." });
 
         // Numbers are stored in WhatsApp's format (92XXXXXXXXXX), so the last 10 digits identify the seller.
         var candidates = await db.Sellers
@@ -53,7 +58,37 @@ public class ClientAuthController(AppDbContext db) : ControllerBase
         seller.ClientLoginCodeExpiresAt = null;
         seller.ClientLoginAttempts = 0;
         await db.SaveChangesAsync(ct);
+
+        // Tell the seller on WhatsApp, so a login they didn't make is noticed and can be ended with "dashboard logout".
+        // The login has already succeeded, so a failed notice must not undo it.
+        if (sender is not null)
+        {
+            try
+            {
+                await sender.SendTextMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("clientlogin.signedin"), ct);
+            }
+            catch (Exception)
+            {
+                // Ignored on purpose (see above).
+            }
+        }
+
         return Ok(new { token, businessName = seller.BusinessName });
+    }
+
+    /// <summary>Ends the dashboard session: the token stops working, and the dashboard clears its cookie.</summary>
+    [HttpPost("logout")]
+    [ServiceFilter(typeof(ClientAuthFilter))]
+    public async Task<IActionResult> Logout(CancellationToken ct)
+    {
+        var sellerId = (int)HttpContext.Items[ClientAuthFilter.SellerIdItem]!;
+        var seller = await db.Sellers.FirstOrDefaultAsync(s => s.Id == sellerId, ct);
+        if (seller is not null)
+        {
+            seller.ClientApiTokenHash = null;
+            await db.SaveChangesAsync(ct);
+        }
+        return NoContent();
     }
 
     private IActionResult Invalid() =>

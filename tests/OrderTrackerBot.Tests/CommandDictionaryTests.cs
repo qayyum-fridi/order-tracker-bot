@@ -88,6 +88,7 @@ public class CommandDictionaryTests
     [InlineData("Kurti - 1800", CommandKind.AddProduct)]
     [InlineData("Polo Shirt - 500, price B 450", CommandKind.AddProduct)]
     [InlineData("Sara ka group B", CommandKind.CustomerUpdate)]
+    [InlineData("dashboard logout", CommandKind.ClientLogout)]
     [InlineData("naya product: Kurti - 1800", CommandKind.AddProduct)]
     [InlineData("Polo Shirt - 500, cost 300, stock 10, category: Shirts", CommandKind.AddProduct)]
     [InlineData("create discount: EID10, 10 percent", CommandKind.CreateDiscount)]

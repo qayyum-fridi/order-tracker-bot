@@ -18,6 +18,7 @@ public sealed class ClientQueries(AppDbContext db)
     private const int RecentOrderCount = 8;
     private const int LowStockThreshold = 5;
     private const int LowStockCount = 5;
+    private const int TopProductCount = 10;
     private static readonly OrderStatus[] NotSales = [OrderStatus.Cancelled, OrderStatus.Returned];
 
     public async Task<ClientProfileDto?> ProfileAsync(int sellerId, CancellationToken ct)
@@ -225,6 +226,74 @@ public sealed class ClientQueries(AppDbContext db)
     }
 
     // ----- helpers -----
+
+    /// <summary>
+    /// The analysis page. Same definitions as the dashboard and the admin reports: sales exclude cancelled and returned
+    /// orders, profit is only counted for lines whose cost was recorded, and pending counts every open order.
+    /// </summary>
+    public async Task<AnalysisDto> AnalysisAsync(int sellerId, AdminDateRange range, CancellationToken ct)
+    {
+        var length = range.ToDay.DayNumber - range.FromDay.DayNumber + 1;
+        var previousFrom = AdminDateRange.ToUtc(range.FromDay.AddDays(-length));
+        var previousTo = AdminDateRange.ToUtc(range.FromDay);
+
+        var orders = await db.Orders.AsNoTracking().Include(o => o.Items)
+            .Where(o => o.SellerId == sellerId && o.CreatedAt >= previousFrom && o.CreatedAt < range.EndUtc)
+            .ToListAsync(ct);
+        var inRange = orders.Where(o => o.CreatedAt >= range.StartUtc).ToList();
+        var sales = inRange.Where(o => !NotSales.Contains(o.Status)).ToList();
+        var previousRevenue = orders.Where(o => o.CreatedAt < previousTo && !NotSales.Contains(o.Status)).Sum(o => o.Total);
+        var pending = await db.Orders.CountAsync(o => o.SellerId == sellerId && o.Status == OrderStatus.Pending, ct);
+
+        var revenue = Money(sales.Sum(o => o.Total));
+        var kpis = new KpisDto(
+            revenue,
+            sales.Count,
+            pending,
+            sales.Select(o => o.CustomerId).Distinct().Count(),
+            sales.Count == 0 ? 0 : Money(revenue / sales.Count),
+            previousRevenue > 0 ? ((double)revenue - (double)previousRevenue) / (double)previousRevenue * 100 : null);
+
+        var byDay = sales.GroupBy(o => AdminDateRange.DayOf(o.CreatedAt))
+            .ToDictionary(g => g.Key, g => (Revenue: g.Sum(o => o.Total), Orders: g.Count()));
+        var daily = new List<DayPointDto>();
+        for (var day = range.FromDay; day <= range.ToDay; day = day.AddDays(1))
+        {
+            byDay.TryGetValue(day, out var v);
+            daily.Add(new DayPointDto(day.ToString(AdminDateRange.DateFormat), Money(v.Revenue), v.Orders));
+        }
+
+        var lines = sales.SelectMany(o => o.Items).ToList();
+        static decimal LineProfit(OrderItem l) => l.UnitCost is { } cost ? l.LineTotal - cost * l.Quantity : 0;
+        var topProducts = lines.GroupBy(l => l.ProductNameSnapshot)
+            .Select(g => new TopProductDto(g.Key, g.Sum(l => l.Quantity), Money(g.Sum(l => l.LineTotal)), Money(g.Sum(LineProfit))))
+            .OrderByDescending(p => p.Revenue).Take(TopProductCount).ToList();
+
+        var paymentMix = sales.GroupBy(o => o.PaymentMethod)
+            .Select(g => new PaymentMixDto(g.Key.ToString(), g.Count(), Money(g.Sum(o => o.Total))))
+            .OrderByDescending(p => p.Revenue).ToList();
+
+        var statusCounts = Enum.GetNames<OrderStatus>().ToDictionary(n => n, _ => 0);
+        foreach (var o in inRange) statusCounts[o.Status.ToString()]++;
+
+        var ordersPerCustomer = sales.GroupBy(o => o.CustomerId).Select(g => g.Count()).ToList();
+        var repeatRate = ordersPerCustomer.Count == 0 ? 0 : (double)ordersPerCustomer.Count(n => n > 1) / ordersPerCustomer.Count * 100;
+
+        var newCustomers = await db.Customers.CountAsync(c => c.SellerId == sellerId && c.DeletedAt == null
+            && c.CreatedAt >= range.StartUtc && c.CreatedAt < range.EndUtc, ct);
+
+        return new AnalysisDto(
+            new DateRangeDto(range.FromDay.ToString(AdminDateRange.DateFormat), range.ToDay.ToString(AdminDateRange.DateFormat)),
+            kpis,
+            daily,
+            topProducts,
+            await CategoryMixAsync(sellerId, sales, ct),
+            paymentMix,
+            statusCounts,
+            Math.Round(repeatRate, 2),
+            newCustomers,
+            Money(lines.Sum(LineProfit)));
+    }
 
     private async Task<List<CategoryShareDto>> CategoryMixAsync(int sellerId, List<Order> sales, CancellationToken ct)
     {
