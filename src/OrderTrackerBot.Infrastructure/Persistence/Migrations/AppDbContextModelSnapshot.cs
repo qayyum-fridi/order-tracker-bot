@@ -309,6 +309,9 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     b.Property<string>("PreferredContact")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("PriceGroup")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int>("SellerId")
                         .HasColumnType("int");
 
@@ -904,6 +907,15 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("Price")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("PriceA")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("PriceB")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("PriceC")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("SellerId")

@@ -137,7 +137,7 @@ public sealed record ProductLine(string Name, decimal Price, string UnitType, de
 
 /// <summary>Extra facts written after the price: "Polo Shirt - 500, cost 300, stock 10, color white, fabric: cotton".</summary>
 public sealed record ProductExtras(decimal? Cost, int? Stock, string? Category, string? Size, string? Color, string? Sku,
-    IReadOnlyDictionary<string, string>? Attributes);
+    IReadOnlyDictionary<string, string>? Attributes, decimal? PriceA = null, decimal? PriceB = null, decimal? PriceC = null);
 
 /// <summary>
 /// A deterministic command: fixed/near-fixed syntax that is answered by a plain DB
@@ -269,7 +269,7 @@ public static class CommandParser
 
     // "Sara ka phone 0300..." / "Sara ka address House 5" / "customer Sara city Lahore" / "customer Sara name Sara Khan".
     // Text = who, Text2 = phone|address|city|name, Text3 = the new value. Questions ("Sara ka phone kya hai") are left alone.
-    private const string CustomerField = @"(?<f>phone|number|fone|mobile|address|pata|patta|city|shehar|naam|name|فون|نمبر|پتہ|شہر|نام)";
+    private const string CustomerField = @"(?<f>phone|number|fone|mobile|address|pata|patta|city|shehar|naam|name|group|price\s*group|فون|نمبر|پتہ|شہر|نام)";
     private static readonly Regex CustomerUpdateOf = new(@"^(?:customer\s+)?(?<name>[^\d,:]{2,40}?)\s+(?:ka|ki|کا|کی)\s+(?:naya\s+|new\s+)?" + CustomerField + @"\s*(?:ab\s+|hai\s+|:|=|-)?\s*(?<v>.+)$", Opts);
     private static readonly Regex CustomerUpdatePrefix = new(@"^customer\s+(?<name>[^\d,:]{2,40}?)\s+" + CustomerField + @"\s*:?\s*(?<v>.+)$", Opts);
     private static readonly Regex QuestionWords = new(@"^(?:kya|kia|kiya|batao|bata|dikhao|kaun|kahan|\?)|\?$", Opts);
@@ -281,11 +281,13 @@ public static class CommandParser
         if (!m.Success) return null;
         var value = m.Groups["v"].Value.Trim();
         if (QuestionWords.IsMatch(value)) return null;
-        var field = m.Groups["f"].Value.ToLowerInvariant() switch
+        var fieldWord = Regex.Replace(m.Groups["f"].Value.ToLowerInvariant(), @"\s+", "");
+        var field = fieldWord switch
         {
             "phone" or "number" or "fone" or "mobile" or "فون" or "نمبر" => "phone",
             "address" or "pata" or "patta" or "پتہ" => "address",
             "city" or "shehar" or "شہر" => "city",
+            "group" or "pricegroup" => "group",
             _ => "name"
         };
         if (field == "phone")
@@ -293,6 +295,12 @@ public static class CommandParser
             var digits = Regex.Replace(value, @"[\s-]", "");
             if (!Regex.IsMatch(digits, @"^\+?\d{7,15}$")) return null;
             value = digits;
+        }
+        else if (field == "group")
+        {
+            // "Sara ka group B" / "group none": only A, B, C or "none" (= regular price); anything else is not a customer update.
+            value = value.ToUpperInvariant() switch { "A" or "B" or "C" => value.ToUpperInvariant(), "NONE" or "REGULAR" => "regular", _ => "" };
+            if (value.Length == 0) return null;
         }
         else if (value.Length < 2) return null;
         return new ParsedCommand { Kind = CommandKind.CustomerUpdate, Text = m.Groups["name"].Value.Trim(), Text2 = field, Text3 = value };
@@ -844,7 +852,7 @@ public static class CommandParser
     private static readonly Regex ProductWithDetailsDigits = new(@"^([^,;:|\n]{2,50}?)\s*[-–=]\s*(?:rs\.?\s*)?(\d{1,7}(?:\.\d+)?)\s*[,;|]\s*(.+)$", Opts);
     private static readonly Regex ProductWithDetails = new(@"^([^\d,;:|\n]{2,50}?)\s*[-–=]\s*(?:rs\.?\s*)?(\d{1,7}(?:\.\d+)?)\s*[,;|]\s*(.+)$", Opts);
     private static readonly Regex KnownDetail = new(
-        @"^(?<key>cost price|purchase price|kharid price|buying price|cost|purchase|kharid|khareed|stock|quantity|qty|tadad|maal|colour|color|rang|size|category|qism|kism|sku)\b\s*[:=]?\s*(?<val>.+)$", Opts);
+        @"^(?<key>price[ ]+[abc]|cost price|purchase price|kharid price|buying price|cost|purchase|kharid|khareed|stock|quantity|qty|tadad|maal|colour|color|rang|size|category|qism|kism|sku)\b\s*[:=]?\s*(?<val>.+)$", Opts);
     private static readonly Regex AttributeDetail = new(@"^(?<key>[^\d:=]{2,30}?)\s*:\s*(?<val>.+)$", Opts);
 
     // The words sellers use for who supplied/made/sorted a product, folded onto one stored name so "vendor: X" and "supplier: X" group together.
@@ -875,6 +883,7 @@ public static class CommandParser
     {
         extras = null;
         decimal? cost = null; int? stock = null;
+        decimal? priceA = null, priceB = null, priceC = null;
         string? category = null, size = null, color = null, sku = null;
         Dictionary<string, string>? attributes = null;
         var any = false;
@@ -896,6 +905,14 @@ public static class CommandParser
                         if (!number.Success) return false;
                         stock = int.Parse(number.Groups[1].Value);
                         break;
+                    case "price a" or "price b" or "price c":
+                        // "price B 450": the buyer price group B (see ApplyBuyerPriceGroupAsync), not the regular price.
+                        if (!number.Success) return false;
+                        var level = decimal.Parse(Regex.Match(value.Replace(",", ""), @"\d+(?:\.\d+)?").Value, System.Globalization.CultureInfo.InvariantCulture);
+                        if (key == "price a") priceA = level;
+                        else if (key == "price b") priceB = level;
+                        else priceC = level;
+                        break;
                     case "color" or "colour" or "rang": color = value; break;
                     case "size": size = value; break;
                     case "category" or "qism" or "kism": category = value; break;
@@ -914,7 +931,7 @@ public static class CommandParser
         }
 
         if (!any) return false;
-        extras = new ProductExtras(cost, stock, category, size, color, sku, attributes);
+        extras = new ProductExtras(cost, stock, category, size, color, sku, attributes, priceA, priceB, priceC);
         return true;
     }
 

@@ -56,6 +56,7 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 | Catalog pages and order (10 a page, grouped by category > sub-category) | `catalog next` · `catalog prev` · `catalog page 2` · `catalog a-z` · `catalog latest` · `catalog reset` |
 | Catalog search, jump, last page, page size (remembered) | `catalog search chini` · `search chini` · `find lawn suit` · `catalog page 8` · `page 8` · `catalog last` · `catalog size 25` (5-50) · `catalog reset` |
 | Add a product | `Kurti - 1800` · `naya product: Kurti - 1800` · `Polo Shirt - 500, cost 300, stock 10, category: Shirts` |
+| Price for a customer group (blank = regular price) | `Polo Shirt - 500, price B 450` (also `price A` and `price C`) |
 | Change / remove | `edit product: Kurti - 1900` · `delete product: Kurti` |
 | Stock | `stock` (or `low stock` · `short stock` · `kam stock` · `out of stock` · `khatam maal` · `stock check` · `show stock` · `current stock` · `stock report` · `restock list` · `maal kitna hai`) · `stock Kurti 20` (`+10` · `off`) |
 | Filter | `products category Shirts` · `products vendor Ali` |
@@ -174,6 +175,7 @@ Every phrase below is pinned in `StrategicInsightParserTests` (Urdu script and R
 |---|---|
 | List / detail / search | `customer list` (or `customers` · `show customers` · `all customers` · `saare customers`) · `customer 1` · `search customer: Sara` |
 | Correct details | `Sara ka phone 03001234567` · `Sara ka address ...` |
+| Customer price group (A / B / C; `none` = regular price) | `Sara ka group B` · `Sara ka group none` |
 | Delete / restore | `delete customer Sara` · `restore customer Sara` |
 | Support / Instagram | `support queries` · `comment leads` · `connect instagram` |
 | Message all customers | `sab customers ko batao: naya stock aaya` |

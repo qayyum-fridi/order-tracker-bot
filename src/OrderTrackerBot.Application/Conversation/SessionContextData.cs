@@ -17,6 +17,10 @@ public sealed class PendingOrderItemData
     public decimal? TierMinQty { get; set; }
     /// <summary>The unit price the seller wrote when it differs from the catalog price; cleared once they chose (price guard question).</summary>
     public decimal? StatedPrice { get; set; }
+    /// <summary>The unit price the seller typed for a plain piece listing; compared with the buyer's price group price, never with the regular price alone.</summary>
+    public decimal? WrittenPrice { get; set; }
+    /// <summary>True once the seller answered the price question (1 or 3): the line keeps its price and is not re-priced for the buyer's group.</summary>
+    public bool PriceDecided { get; set; }
 }
 
 public sealed class PendingOrderData
