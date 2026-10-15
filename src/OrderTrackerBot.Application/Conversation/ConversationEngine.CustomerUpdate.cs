@@ -30,7 +30,7 @@ public partial class ConversationEngine
         }
 
         var customer = matches[0];
-        var previous = cmd.Text2 switch { "phone" => customer.Phone, "address" => customer.Address, "city" => customer.City, _ => customer.Name };
+        var previous = cmd.Text2 switch { "phone" => customer.Phone, "address" => customer.Address, "city" => customer.City, "group" => customer.PriceGroup, _ => customer.Name };
         _db.ActionLogs.Add(new ActionLog
         {
             SellerId = seller.Id, ActionType = ActionType.CustomerUpdated,
@@ -41,10 +41,11 @@ public partial class ConversationEngine
             case "phone": customer.Phone = cmd.Text3; break;
             case "address": customer.Address = cmd.Text3; break;
             case "city": customer.City = cmd.Text3; break;
+            case "group": customer.PriceGroup = cmd.Text3 == "regular" ? null : cmd.Text3; break;
             default: customer.Name = cmd.Text3!; break;
         }
 
-        var label = cmd.Text2 switch { "phone" => "phone", "address" => "address", "city" => "shehar", _ => "naam" };
+        var label = cmd.Text2 switch { "phone" => "phone", "address" => "address", "city" => "shehar", "group" => "price group", _ => "naam" };
         await ReplyAsync(seller,
             MessageTemplates.Get("customer-update.002", (cmd.Text2 == "name" ? previous : customer.Name), label, cmd.Text3, (string.IsNullOrWhiteSpace(previous) ? "" : $" (pehle: {previous})")), ct);
         SuggestNext($"order for {customer.Name}", $"{customer.Name} ka order");
@@ -63,6 +64,7 @@ public partial class ConversationEngine
             case "phone": customer.Phone = previous; break;
             case "address": customer.Address = previous; break;
             case "city": customer.City = previous; break;
+            case "group": customer.PriceGroup = previous; break;
             default: customer.Name = previous ?? customer.Name; break;
         }
         await ReplyAsync(seller, MessageTemplates.Get("customer-update.003", customer.Name, field, previous ?? "(khali)"), ct);

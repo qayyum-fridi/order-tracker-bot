@@ -998,6 +998,9 @@ public partial class ConversationEngine
         if (extras.Category is not null) product.Category = extras.Category;
         if (extras.Size is not null) product.Size = extras.Size;
         if (extras.Color is not null) product.Color = extras.Color;
+        if (extras.PriceA is { } priceA) product.PriceA = priceA;
+        if (extras.PriceB is { } priceB) product.PriceB = priceB;
+        if (extras.PriceC is { } priceC) product.PriceC = priceC;
         if (extras.Sku is not null) product.Sku = extras.Sku;
         if (extras.Attributes is { Count: > 0 } added)
         {
@@ -1028,6 +1031,9 @@ public partial class ConversationEngine
         if (product.CostPrice is { } cost) parts.Add($"cost {Formatters.Money(cost)}");
         if (product.StockQty is { } stock) parts.Add($"stock {stock}");
         if (!string.IsNullOrWhiteSpace(product.Category)) parts.Add($"category: {product.Category}");
+        if (product.PriceA is { } levelA) parts.Add($"price A {Formatters.Money(levelA)}");
+        if (product.PriceB is { } levelB) parts.Add($"price B {Formatters.Money(levelB)}");
+        if (product.PriceC is { } levelC) parts.Add($"price C {Formatters.Money(levelC)}");
         parts.AddRange(ProductAttributes(product).Select(a => $"{a.Key}: {a.Value}"));
         return parts.Count == 0 ? "" : $" ({string.Join(", ", parts)})";
     }
