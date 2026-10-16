@@ -135,6 +135,15 @@ public class ClientController(ClientQueries queries) : ControllerBase
     public async Task<ActionResult<ProductDto>> UpdateProduct(int id, [FromBody] ClientProductInput input, [FromServices] ClientProductWriter writer, CancellationToken ct) =>
         await SavedProduct(await writer.UpdateAsync(SellerId, id, input, ct), ct);
 
+    /// <summary>Hides, shows or sets the category of several products. Returns how many changed.</summary>
+    [HttpPost("products/bulk")]
+    public async Task<ActionResult<object>> BulkProducts([FromBody] ClientProductBulkInput input, [FromServices] ClientProductBulk bulk, CancellationToken ct)
+    {
+        var problem = ClientProductBulk.Validate(input);
+        if (problem is not null) return BadRequest(new { error = problem });
+        return Ok(new { updated = await bulk.BulkAsync(SellerId, input, ct) });
+    }
+
     /// <summary>Hides a product from the catalog. It is not deleted, so past orders still show what was sold.</summary>
     [HttpDelete("products/{id:int}")]
     public async Task<ActionResult> DeactivateProduct(int id, [FromServices] ClientProductWriter writer, CancellationToken ct)
