@@ -125,6 +125,98 @@ public class ClientController(ClientQueries queries) : ControllerBase
     public async Task<ActionResult<ProductDto>> Product(int id, CancellationToken ct) =>
         Found(await queries.ProductAsync(SellerId, id, ct), "Product not found.");
 
+    // ----- store settings, payment methods, discounts -----
+
+    [HttpGet("settings")]
+    public async Task<ActionResult<SellerSettingsDto>> Settings([FromServices] ClientSettings settings, CancellationToken ct) =>
+        Found(await settings.GetAsync(SellerId, ct), "Seller not found.");
+
+    [HttpPut("settings")]
+    public async Task<ActionResult<SellerSettingsDto>> SaveSettings([FromBody] SellerSettingsInput input, [FromServices] ClientSettings settings, CancellationToken ct)
+    {
+        var (problem, saved) = await settings.UpdateAsync(SellerId, input, ct);
+        return problem is not null ? BadRequest(new { error = problem }) : Ok(saved);
+    }
+
+    [HttpPost("settings/payment-methods")]
+    public async Task<ActionResult<PaymentMethodDto>> AddPaymentMethod([FromBody] PaymentMethodInput input, [FromServices] ClientSettings settings, CancellationToken ct)
+    {
+        var (problem, saved) = await settings.AddPaymentMethodAsync(SellerId, input, ct);
+        return problem is not null ? BadRequest(new { error = problem }) : Ok(saved);
+    }
+
+    [HttpDelete("settings/payment-methods/{id:int}")]
+    public async Task<IActionResult> RemovePaymentMethod(int id, [FromServices] ClientSettings settings, CancellationToken ct) =>
+        await settings.RemovePaymentMethodAsync(SellerId, id, ct) ? NoContent() : NotFound(new { error = "Payment method not found." });
+
+    [HttpGet("discounts")]
+    public async Task<ActionResult<IReadOnlyList<DiscountDto>>> Discounts([FromServices] ClientDiscounts discounts, CancellationToken ct) =>
+        Ok(await discounts.ListAsync(SellerId, ct));
+
+    [HttpPost("discounts")]
+    public async Task<ActionResult<DiscountDto>> CreateDiscount([FromBody] DiscountInput input, [FromServices] ClientDiscounts discounts, CancellationToken ct)
+    {
+        var (problem, saved) = await discounts.CreateAsync(SellerId, input, ct);
+        return problem is not null ? BadRequest(new { error = problem }) : Ok(saved);
+    }
+
+    [HttpPut("discounts/{id:int}/active")]
+    public async Task<ActionResult<DiscountDto>> SetDiscountActive(int id, [FromBody] DiscountActiveInput input, [FromServices] ClientDiscounts discounts, CancellationToken ct) =>
+        Found(await discounts.SetActiveAsync(SellerId, id, input.IsActive, ct), "Discount not found.");
+
+    // ----- customers -----
+
+    [HttpPost("customers")]
+    public async Task<ActionResult<CustomerDto>> CreateCustomer([FromBody] CustomerInput input, [FromServices] ClientCustomers customers, CancellationToken ct)
+    {
+        var (problem, saved) = await customers.CreateAsync(SellerId, input, ct);
+        return problem is not null ? BadRequest(new { error = problem }) : Ok(saved);
+    }
+
+    [HttpPut("customers/{id:int}")]
+    public async Task<ActionResult<CustomerDto>> UpdateCustomer(int id, [FromBody] CustomerInput input, [FromServices] ClientCustomers customers, CancellationToken ct)
+    {
+        var (problem, saved) = await customers.UpdateAsync(SellerId, id, input, ct);
+        if (problem is null) return Ok(saved);
+        return problem == "Customer not found." ? NotFound(new { error = problem }) : BadRequest(new { error = problem });
+    }
+
+    [HttpDelete("customers/{id:int}")]
+    public async Task<IActionResult> DeleteCustomer(int id, [FromServices] ClientCustomers customers, CancellationToken ct) =>
+        await customers.DeleteAsync(SellerId, id, ct) ? NoContent() : NotFound(new { error = "Customer not found." });
+
+    // ----- orders and categories -----
+
+    /// <summary>Moves one order to Shipped, Delivered, Cancelled or Returned. Refused moves are a 409 with the reason.</summary>
+    [HttpPut("orders/{id:int}/status")]
+    public async Task<ActionResult<OrderDetailDto>> SetOrderStatus(int id, [FromBody] OrderStatusInput input, [FromServices] ClientOrderStatus orders, CancellationToken ct)
+    {
+        var (problem, saved) = await orders.ChangeAsync(SellerId, id, input.Status, ct);
+        if (problem is null) return Ok(saved);
+        return problem == "Order not found." ? NotFound(new { error = problem }) : Conflict(new { error = problem });
+    }
+
+    [HttpPut("categories/rename")]
+    public async Task<ActionResult<object>> RenameCategory([FromBody] CategoryRenameInput input, [FromServices] ClientCategoryRename rename, CancellationToken ct)
+    {
+        var (problem, updated) = await rename.RenameAsync(SellerId, input, ct);
+        return problem is not null ? BadRequest(new { error = problem }) : Ok(new { updated });
+    }
+
+    // ----- CSV downloads -----
+
+    /// <summary>CSV of orders, order-items, customers or catalog. Orders and items use from/to (Pakistan days); the default is the last 30 days.</summary>
+    [HttpGet("export")]
+    public async Task<IActionResult> Export([FromQuery] string? dataset, [FromQuery] string? format, [FromQuery] string? from, [FromQuery] string? to,
+        [FromServices] ClientExport export, CancellationToken ct)
+    {
+        if (!ClientExport.Datasets.Contains(dataset)) return BadRequest(new { error = "Choose orders, order-items, customers or catalog." });
+        if (format is not (null or "" or "csv")) return BadRequest(new { error = "Only CSV is available here." });
+        if (!AdminDateRange.TryResolve(from, to, 30, out var range, out var error)) return BadRequest(new { error });
+        var (fileName, content) = await export.BuildAsync(SellerId, dataset!, range, ct);
+        return File(System.Text.Encoding.UTF8.GetBytes(content), "text/csv; charset=utf-8", fileName);
+    }
+
     /// <summary>Lists the photos of a product, oldest first. The bytes come from the image route.</summary>
     [HttpGet("products/{id:int}/images")]
     public async Task<ActionResult<IReadOnlyList<ProductImageDto>>> ProductImages(int id, [FromServices] ClientProductImages images, CancellationToken ct) =>

@@ -180,7 +180,7 @@ public sealed class ClientQueries(AppDbContext db)
                 g.Key,
                 g.Count(),
                 Money(g.Sum(p => ProductRevenue(p, revenueByProduct, revenueByName))),
-                g.GroupBy(p => Label(Subcategory(p.AttributesJson)))
+                g.GroupBy(p => Label(SubcategoryOf(p.AttributesJson)))
                     .Select(s => new CategorySubDto(s.Key, s.Count(), Money(s.Sum(p => ProductRevenue(p, revenueByProduct, revenueByName)))))
                     .OrderByDescending(s => s.Revenue).ThenBy(s => s.Name).ToList()))
             .OrderByDescending(c => c.Revenue).ThenBy(c => c.Name)
@@ -760,15 +760,15 @@ public sealed class ClientQueries(AppDbContext db)
         stats.TryGetValue(c.Id, out var stat);
         return new CustomerDto(
             c.Id, c.Name, c.Phone, c.City, c.Address, c.PreferredContact, c.Notes,
-            stat?.OrderCount ?? 0, stat?.TotalSpent ?? 0, Utc(stat?.LastOrderAt), Utc(c.CreatedAt));
+            stat?.OrderCount ?? 0, stat?.TotalSpent ?? 0, Utc(stat?.LastOrderAt), Utc(c.CreatedAt), c.PriceGroup);
     }
 
     private static ProductDto ToProduct(Product p) => new(
-        p.Id, p.Name, p.Price, p.CostPrice, p.UnitType, p.UnitQty, p.Category, Subcategory(p.AttributesJson),
+        p.Id, p.Name, p.Price, p.CostPrice, p.UnitType, p.UnitQty, p.Category, SubcategoryOf(p.AttributesJson),
         p.Size, p.Color, p.Sku, p.StockQty, p.IsActive, Utc(p.CreatedAt), p.DefaultPriceGroup, p.ItemKind);
 
     /// <summary>Subcategory lives in AttributesJson until the bot gets a column for it (see docs/API_CONTRACT.md).</summary>
-    private static string? Subcategory(string? attributesJson)
+    public static string? SubcategoryOf(string? attributesJson)
     {
         if (string.IsNullOrWhiteSpace(attributesJson)) return null;
         try

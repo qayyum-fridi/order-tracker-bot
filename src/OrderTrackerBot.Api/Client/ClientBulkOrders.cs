@@ -53,10 +53,10 @@ public sealed class ClientOrderBulk(AppDbContext db)
                 continue;
 
             var previous = order.Status;
-            var before = Footprint(order);
+            var before = ClientOrderStatus.Footprint(order);
             order.Status = target;
-            var after = Footprint(order);
-            ApplyStock(products, before, after);
+            var after = ClientOrderStatus.Footprint(order);
+            ClientOrderStatus.ApplyStock(products, before, after);
 
             var now = DateTime.UtcNow;
             if (target == OrderStatus.Shipped) order.ShippedAt = now;
@@ -85,22 +85,6 @@ public sealed class ClientOrderBulk(AppDbContext db)
         (OrderStatus.Returned, OrderStatus.Shipped or OrderStatus.Delivered) => true,
         _ => false,
     };
-
-    private static Dictionary<int, int> Footprint(Order order) =>
-        order.Status is OrderStatus.Cancelled or OrderStatus.Returned
-            ? new Dictionary<int, int>()
-            : order.Items.Where(i => i.ProductId is not null).GroupBy(i => i.ProductId!.Value).ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
-
-    private static void ApplyStock(List<Product> products, Dictionary<int, int> before, Dictionary<int, int> after)
-    {
-        foreach (var productId in before.Keys.Union(after.Keys))
-        {
-            var delta = after.GetValueOrDefault(productId) - before.GetValueOrDefault(productId);
-            if (delta == 0) continue;
-            var product = products.FirstOrDefault(p => p.Id == productId);
-            if (product?.StockQty is not null) product.StockQty -= delta;
-        }
-    }
 }
 
 /// <summary>Sets the price group of several of the seller's customers at once. Deleted customers are ignored.</summary>

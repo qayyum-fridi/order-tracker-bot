@@ -14,7 +14,7 @@ public sealed record DateRangeDto(string From, string To);
 
 public sealed record CustomerDto(
     int Id, string Name, string? Phone, string? City, string? Address, string? PreferredContact, string? Notes,
-    int OrderCount, decimal TotalSpent, DateTime? LastOrderAt, DateTime CreatedAt);
+    int OrderCount, decimal TotalSpent, DateTime? LastOrderAt, DateTime CreatedAt, string? PriceGroup);
 
 /// <summary>One line of the seller's WhatsApp chat with the bot. Direction is "inbound" (seller → bot) or "outbound" (bot → seller).</summary>
 public sealed record ChatMessageDto(int Id, DateTime At, string Direction, string Text);
@@ -75,3 +75,14 @@ public sealed record CategoryDto(string Name, int ProductCount, decimal Revenue,
 public sealed record SetupStepDto(string Key, string Label, bool Done, string Href);
 
 public sealed record SetupDto(IReadOnlyList<SetupStepDto> Steps, int StepsDone, int StepsTotal, string? StuckReason);
+
+public sealed record PaymentMethodDto(int Id, string Type, string AccountNumberOrId);
+
+public sealed record SellerSettingsDto(
+    string? BusinessName, string? City, string? BusinessType, string? Email, string? InstagramHandle,
+    decimal DefaultDeliveryCharge, decimal SalesTaxRate, string? Ntn, string? Strn,
+    string ReceiptSize, string? ReceiptHeader, string? ReceiptFooter, string? ReceiptContact,
+    IReadOnlyList<PaymentMethodDto> PaymentMethods);
+
+/// <summary>A discount code. ExpiresAt is the last Pakistan day it works (yyyy-MM-dd), or null for no expiry.</summary>
+public sealed record DiscountDto(int Id, string Code, string Type, decimal Value, string? ExpiresAt, bool IsActive);
