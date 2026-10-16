@@ -5,7 +5,7 @@
 namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
-    public partial class AddProductTypeAndDefaultPrice : Migration
+    public partial class AddItemKindAndDefaultPrice : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -17,7 +17,7 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                 nullable: true);
 
             migrationBuilder.AddColumn<string>(
-                name: "ProductType",
+                name: "ItemKind",
                 table: "Products",
                 type: "nvarchar(max)",
                 nullable: true);
@@ -31,7 +31,7 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                 table: "Products");
 
             migrationBuilder.DropColumn(
-                name: "ProductType",
+                name: "ItemKind",
                 table: "Products");
         }
     }

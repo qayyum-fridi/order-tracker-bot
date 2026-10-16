@@ -12,8 +12,8 @@ using OrderTrackerBot.Infrastructure.Persistence;
 namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261016064136_AddProductTypeAndDefaultPrice")]
-    partial class AddProductTypeAndDefaultPrice
+    [Migration("20261016064426_AddItemKindAndDefaultPrice")]
+    partial class AddItemKindAndDefaultPrice
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -908,6 +908,9 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
+                    b.Property<string>("ItemKind")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -923,9 +926,6 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
 
                     b.Property<decimal?>("PriceC")
                         .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("ProductType")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("SellerId")
                         .HasColumnType("int");

@@ -12,7 +12,7 @@ namespace OrderTrackerBot.Api.Client;
 public sealed record ClientProductInput(
     string? Name, decimal? Price, decimal? PriceA, decimal? PriceB, decimal? PriceC, string? UnitType, decimal? UnitQty,
     string? Category, string? Size, string? Color, string? Sku, int? StockQty, decimal? CostPrice, bool? IsActive,
-    string? DefaultPriceGroup, string? ProductType);
+    string? DefaultPriceGroup, string? ItemKind);
 
 /// <summary>Outcome of a product write. Status is the HTTP status to return; Id is set when the product was saved.</summary>
 public sealed record ProductWriteResult(int? Id, int Status, string? Error);
@@ -96,7 +96,7 @@ public sealed class ClientProductWriter(AppDbContext db)
         product.StockQty = input.StockQty;
         product.CostPrice = input.CostPrice is { } cost ? Math.Round(cost, 2) : null;
         product.DefaultPriceGroup = Clean(input.DefaultPriceGroup)?.ToUpperInvariant();
-        product.ProductType = Clean(input.ProductType)?.ToLowerInvariant() ?? "sale";
+        product.ItemKind = Clean(input.ItemKind)?.ToLowerInvariant() ?? "sale";
     }
 
     /// <summary>The first problem found, in words a shop owner can act on. Null when the input is fine.</summary>
@@ -113,7 +113,7 @@ public sealed class ClientProductWriter(AppDbContext db)
         if (input.StockQty is < 0 or > MaxStock) return "Stock must be between 0 and 1,000,000.";
         if (Clean(input.DefaultPriceGroup) is { } group && !PriceGroups.Contains(group.ToUpperInvariant()))
             return "The default price must be A, B or C, or left empty.";
-        if (Clean(input.ProductType) is { } type && !ProductTypes.Contains(type.ToLowerInvariant()))
+        if (Clean(input.ItemKind) is { } type && !ProductTypes.Contains(type.ToLowerInvariant()))
             return "The product type must be sale or service.";
         if (Clean(input.UnitType) is { Length: > 20 }) return "The unit name is too long (20 characters at most).";
         if (Clean(input.Sku) is { Length: > 40 }) return "The SKU is too long (40 characters at most).";

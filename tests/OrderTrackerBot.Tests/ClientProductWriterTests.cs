@@ -52,7 +52,7 @@ public sealed class ClientProductWriterTests : IDisposable
         var saved = await _db.Products.SingleAsync(p => p.Id == result.Id);
         Assert.StartsWith("SKU-", saved.Sku);
         Assert.Equal("B", saved.DefaultPriceGroup);
-        Assert.Equal("service", saved.ProductType);
+        Assert.Equal("service", saved.ItemKind);
         Assert.Null(saved.StockQty);
     }
 
