@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using OrderTrackerBot.Api.Admin;
 using OrderTrackerBot.Api.Client;
+using OrderTrackerBot.Application.Conversation;
 using OrderTrackerBot.Domain.Enums;
 
 namespace OrderTrackerBot.Api.Controllers;
@@ -25,6 +27,53 @@ public class ClientController(ClientQueries queries) : ControllerBase
     [HttpGet("setup")]
     public async Task<ActionResult<SetupDto>> Setup(CancellationToken ct) =>
         Found(await queries.SetupAsync(SellerId, ct), "Seller not found.");
+
+    /// <summary>Plans an uploaded customer or catalog file. Nothing is saved yet: the file is kept for 15 minutes for the commit.</summary>
+    [HttpPost("imports/preview")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(ClientImportLimits.MaxUploadBytes)]
+    public async Task<ActionResult<ClientImportPreviewDto>> PreviewImport(
+        [FromForm] string? kind, IFormFile? file, [FromServices] ConversationEngine engine, [FromServices] ClientImportStore store, CancellationToken ct)
+    {
+        if (kind is not ("customers" or "catalog")) return BadRequest(new { error = "Kind must be customers or catalog." });
+        if (file is null || file.Length == 0) return BadRequest(new { error = "Choose a file to upload." });
+        if (file.Length > ClientImportLimits.MaxFileBytes) return BadRequest(new { error = "The file is larger than 5 MB." });
+        if (!ImportFileTypes.IsSupported(file.FileName, file.ContentType))
+            return BadRequest(new { error = "This file type is not supported. Use .xlsx, .xls, .ods, .csv or .txt." });
+
+        using var buffer = new MemoryStream();
+        await file.CopyToAsync(buffer, ct);
+        var bytes = buffer.ToArray();
+
+        var preview = await engine.PreviewClientImportAsync(SellerId, kind, bytes, file.FileName, ct);
+        if (preview.Problem is not null) return BadRequest(new { error = ImportProblemMessage(preview.Problem) });
+
+        var id = store.Add(SellerId, kind, file.FileName, bytes, DateTime.UtcNow);
+        if (id is null) return StatusCode(StatusCodes.Status429TooManyRequests, new { error = "Too many imports are waiting. Try again in a few minutes." });
+        return Ok(ClientImportPreviewDto.From(id, kind, file.FileName, preview));
+    }
+
+    /// <summary>Saves the new rows of a previewed file. Existing rows are skipped, and the import can be undone from WhatsApp with "undo".</summary>
+    [HttpPost("imports/{id}/commit")]
+    public async Task<ActionResult<ClientImportResultDto>> CommitImport(
+        string id, [FromServices] ConversationEngine engine, [FromServices] ClientImportStore store, CancellationToken ct)
+    {
+        var waiting = store.Take(id, SellerId, DateTime.UtcNow);
+        if (waiting is null) return NotFound(new { error = "This import expired. Upload the file again." });
+
+        var result = await engine.CommitClientImportAsync(SellerId, waiting.Kind, waiting.Bytes, waiting.FileName, ct);
+        if (result is null) return BadRequest(new { error = "Nothing new to import in this file." });
+        return Ok(new ClientImportResultDto(result.Created, 0, result.Skipped));
+    }
+
+    private static string ImportProblemMessage(string problem) => problem switch
+    {
+        "TooBig" => "The file is larger than 5 MB.",
+        "Unreadable" => "This file could not be read. Check that it is not damaged or password-protected.",
+        "NoSheet" => "No customer or product table found. Check the column headings.",
+        "TooManyRows" => "The file has too many rows. Split it and upload the parts.",
+        _ => "The file could not be imported.",
+    };
 
     /// <summary>Dashboard numbers for a range (default: last 14 days). Revenue excludes cancelled and returned orders.</summary>
     [HttpGet("dashboard")]
