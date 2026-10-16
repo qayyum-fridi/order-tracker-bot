@@ -125,9 +125,18 @@ public partial class ConversationEngine
         return id is { } found ? await SellerCustomers(seller).FirstOrDefaultAsync(c => c.Id == found, ct) : null;
     }
 
+    // "remove customer list" / "delete all customers": a whole list is never deleted; say how to remove one customer instead.
+    private static readonly HashSet<string> BulkCustomerWords = new(StringComparer.OrdinalIgnoreCase) { "list", "lists", "all", "sab", "customers", "customer", "saare", "sabhi" };
+
     // Screen 6f: soft delete with confirm; restorable for 30 days, then purged along with its orders.
     private async Task HandleDeleteCustomerRequestAsync(Seller seller, ConversationSession session, SessionContextData ctx, ParsedCommand cmd, CancellationToken ct)
     {
+        if (BulkCustomerWords.Contains(cmd.Text!.Trim()))
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("customers.012"), ct);
+            return;
+        }
+
         var customer = await FindCustomerAsync(seller, ctx, cmd.Text!, cmd.Number, ct);
         if (customer is null)
         {

@@ -402,7 +402,11 @@ public partial class ConversationEngine
             ConversationState.AwaitingCancelConfirmation or ConversationState.AwaitingBulkStatusConfirmation or ConversationState.AwaitingDuplicateOrderConfirmation
                 or ConversationState.AwaitingCodCollectedConfirmation or ConversationState.AwaitingResetConfirmation or ConversationState.AwaitingDeleteCustomerConfirmation
                 or ConversationState.AwaitingLoyaltyDiscountConfirmation or ConversationState.AwaitingMultiOrderConfirmation
-                or ConversationState.AwaitingSupportReplyConfirmation or ConversationState.AwaitingImportConfirmation => "Waiting for a yes or no confirmation.",
+                or ConversationState.AwaitingSupportReplyConfirmation => "Waiting for a yes or no confirmation.",
+            ConversationState.AwaitingImportConfirmation =>
+                "Waiting for yes or no to import the customer/product file the seller just sent (its summary was shown). " +
+                "\"yes\", \"haan\", \"import karo\", \"save karo\", and any sentence asking to read, import, save or add that file or its customers (\"ye file import karo\", \"is ko read karein aur customers add karein\") mean \"yes\". " +
+                "\"no\", \"cancel\" or \"nahi\" mean \"no\". Never answer with a menu.",
             ConversationState.AwaitingVoiceConfirmation => "Waiting for yes or no on the actions the bot just listed from the seller's previous voice note.",
             ConversationState.AwaitingClarificationChoice or ConversationState.AwaitingOrderGroupingChoice or ConversationState.AwaitingRuntimeFilterChoice
                 or ConversationState.AwaitingBroadcastAudienceChoice or ConversationState.AwaitingBroadcastChannelChoice or ConversationState.AwaitingReceiptOrderChoice

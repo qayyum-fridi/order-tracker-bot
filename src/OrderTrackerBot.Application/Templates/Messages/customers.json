@@ -9,5 +9,6 @@
   "customers.008": "✅ {0} wapas active ho gaya — {1} orders aur history restore ho gayi.",
   "customers.009": "🔍 \"{0}\" se koi customer nahi mila.",
   "customers.010": "🔍 {0} customer mila{1}:\n\n{2}\n\n\"customer {3}\" likh kar full detail dekhein.",
-  "customers.011": " (partial match \"{0}\")"
+  "customers.011": " (partial match \"{0}\")",
+  "customers.012": "⚠️ Poori customer list ek saath delete nahi hoti.\n\n• Ek customer delete karne ke liye: \"delete customer <naam>\"\n• List dekhne ke liye: \"customer list\"\n• Abhi import ki gayi list wapas karni ho to import ke foran baad \"undo\" likhein."
 }
