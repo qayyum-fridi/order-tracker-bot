@@ -144,6 +144,23 @@ public class ClientController(ClientQueries queries) : ControllerBase
         return Ok(new { updated = await bulk.BulkAsync(SellerId, input, ct) });
     }
 
+    [HttpPost("orders/bulk-status")]
+    public async Task<ActionResult<object>> BulkOrderStatus([FromBody] ClientOrderBulkInput input, [FromServices] ClientOrderBulk bulk, CancellationToken ct)
+    {
+        var problem = ClientOrderBulk.Validate(input);
+        if (problem is not null) return BadRequest(new { error = problem });
+        var result = await bulk.BulkStatusAsync(SellerId, input, ct);
+        return Ok(new { updated = result.Updated, skipped = result.Skipped });
+    }
+
+    [HttpPost("customers/bulk-price-group")]
+    public async Task<ActionResult<object>> BulkCustomerPriceGroup([FromBody] ClientCustomerBulkInput input, [FromServices] ClientCustomerBulk bulk, CancellationToken ct)
+    {
+        var problem = ClientCustomerBulk.Validate(input);
+        if (problem is not null) return BadRequest(new { error = problem });
+        return Ok(new { updated = await bulk.BulkPriceGroupAsync(SellerId, input, ct) });
+    }
+
     /// <summary>Sends a receipt, a customer card, a report summary or an export to the shop's own WhatsApp chat.</summary>
     [HttpPost("send-whatsapp")]
     public async Task<ActionResult<object>> SendToWhatsApp([FromBody] DashboardSendRequest input, [FromServices] ConversationEngine engine, CancellationToken ct)

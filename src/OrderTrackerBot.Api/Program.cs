@@ -17,6 +17,8 @@ builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientAuthFilter>();
 builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientQueries>();
 builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientProductWriter>();
 builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientProductBulk>();
+builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientOrderBulk>();
+builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientCustomerBulk>();
 builder.Services.AddSingleton<OrderTrackerBot.Api.Client.ClientLoginLimiter>();
 builder.Services.AddSingleton<OrderTrackerBot.Api.Client.ClientImportStore>();
 builder.Services.AddHostedService<OrderTrackerBot.Api.ScheduledMessagesService>();
