@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Ai;
@@ -352,6 +353,16 @@ public partial class ConversationEngine
         }
     }
 
+    // Three or more lines and a header line naming both a name and a phone column ("Customer Name Phone Number City Address").
+    private static bool LooksLikePastedCustomerTable(string message)
+    {
+        var lines = message.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (lines.Length < 3) return false;
+        var header = lines[0];
+        return Regex.IsMatch(header, @"\bname\b", RegexOptions.IgnoreCase)
+            && Regex.IsMatch(header, @"(phone|mobile|number|contact)", RegexOptions.IgnoreCase);
+    }
+
     private async Task HandleIdleCoreAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         var decision = TurnGate.DecideTyped(message);
@@ -362,6 +373,13 @@ public partial class ConversationEngine
         }
 
         if (await TryHandleOrderForCustomerItemsAsync(seller, session, ctx, message, ct)) return;
+
+        // A customer table copied from a chat or an app: its columns run together, so no rows can be read from it safely. Say to send a file instead.
+        if (LooksLikePastedCustomerTable(message))
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("import.030"), ct);
+            return;
+        }
 
         // Waiting for the price of ONE new product and the seller sends just an amount ("9000", "Rs. 9,000"): that is its price. Plain code, no AI guess.
         if (ctx.PendingPriceProducts is { Count: 1 } waiting && BareAmount.Match(message.Trim()) is { Success: true } bare
