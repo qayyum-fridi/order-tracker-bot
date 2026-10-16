@@ -26,5 +26,6 @@
   "import.025": "ℹ️ Ek hi naam kai rows mein tha, is liye {0} products ke naam mein size / colour jor diya (jaise \"{1}\").",
   "import.026": "ℹ️ {0} barcode pehle se kisi aur product ke hain — woh products bina barcode ke save honge.",
   "import.027": "📄 Sheet \"{0}\" products ki list ke taur par parhi gayi.",
-  "import.029": "Agar koi column ghalat samjha gaya ho to file ki heading theek kar ke dobara bhej dein (jaise Price, Stock, Phone)."
+  "import.029": "Agar koi column ghalat samjha gaya ho to file ki heading theek kar ke dobara bhej dein (jaise Price, Stock, Phone).",
+  "import.030": "⚠️ Yeh text list ke taur par save nahi hogi — copy kiya hua text columns alag nahi kar sakta (naam aur phone mil jate hain).\n\nCustomers ki list ko .xlsx ya .csv file ke taur par bhejein. Format ke liye \"import template customers\" likhein."
 }
