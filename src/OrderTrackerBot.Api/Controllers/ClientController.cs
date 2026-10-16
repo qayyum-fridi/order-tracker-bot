@@ -125,6 +125,30 @@ public class ClientController(ClientQueries queries) : ControllerBase
     public async Task<ActionResult<ProductDto>> Product(int id, CancellationToken ct) =>
         Found(await queries.ProductAsync(SellerId, id, ct), "Product not found.");
 
+    /// <summary>Adds a product. A blank SKU gets an automatic one.</summary>
+    [HttpPost("products")]
+    public async Task<ActionResult<ProductDto>> CreateProduct([FromBody] ClientProductInput input, [FromServices] ClientProductWriter writer, CancellationToken ct) =>
+        await SavedProduct(await writer.CreateAsync(SellerId, input, ct), ct);
+
+    /// <summary>Replaces a product's details. A field left empty is cleared.</summary>
+    [HttpPut("products/{id:int}")]
+    public async Task<ActionResult<ProductDto>> UpdateProduct(int id, [FromBody] ClientProductInput input, [FromServices] ClientProductWriter writer, CancellationToken ct) =>
+        await SavedProduct(await writer.UpdateAsync(SellerId, id, input, ct), ct);
+
+    /// <summary>Hides a product from the catalog. It is not deleted, so past orders still show what was sold.</summary>
+    [HttpDelete("products/{id:int}")]
+    public async Task<ActionResult> DeactivateProduct(int id, [FromServices] ClientProductWriter writer, CancellationToken ct)
+    {
+        var result = await writer.DeactivateAsync(SellerId, id, ct);
+        return result.Error is null ? NoContent() : StatusCode(result.Status, new { error = result.Error });
+    }
+
+    private async Task<ActionResult<ProductDto>> SavedProduct(ProductWriteResult result, CancellationToken ct)
+    {
+        if (result.Error is not null || result.Id is null) return StatusCode(result.Status, new { error = result.Error });
+        return Ok(await queries.ProductAsync(SellerId, result.Id.Value, ct));
+    }
+
     /// <summary>The seller's WhatsApp chat with the bot. Poll with the last id you have as afterId to get only new lines.</summary>
     [HttpGet("messages")]
     public async Task<ActionResult<IReadOnlyList<ChatMessageDto>>> Messages([FromQuery] int afterId = 0, [FromQuery] int limit = 50, CancellationToken ct = default) =>

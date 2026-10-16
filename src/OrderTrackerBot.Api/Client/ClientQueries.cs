@@ -765,7 +765,7 @@ public sealed class ClientQueries(AppDbContext db)
 
     private static ProductDto ToProduct(Product p) => new(
         p.Id, p.Name, p.Price, p.CostPrice, p.UnitType, p.UnitQty, p.Category, Subcategory(p.AttributesJson),
-        p.Size, p.Color, p.Sku, p.StockQty, p.IsActive, Utc(p.CreatedAt));
+        p.Size, p.Color, p.Sku, p.StockQty, p.IsActive, Utc(p.CreatedAt), p.DefaultPriceGroup, p.ProductType);
 
     /// <summary>Subcategory lives in AttributesJson until the bot gets a column for it (see docs/API_CONTRACT.md).</summary>
     private static string? Subcategory(string? attributesJson)

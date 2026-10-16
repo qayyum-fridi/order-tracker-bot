@@ -899,6 +899,9 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("DefaultPriceGroup")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -917,6 +920,9 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
 
                     b.Property<decimal?>("PriceC")
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("ProductType")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("SellerId")
                         .HasColumnType("int");

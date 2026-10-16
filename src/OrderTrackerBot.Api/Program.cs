@@ -15,6 +15,7 @@ builder.Services.Configure<OrderTrackerBot.Api.Admin.AdminOptions>(builder.Confi
 builder.Services.AddScoped<OrderTrackerBot.Api.Admin.AdminApiKeyFilter>();
 builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientAuthFilter>();
 builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientQueries>();
+builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientProductWriter>();
 builder.Services.AddSingleton<OrderTrackerBot.Api.Client.ClientLoginLimiter>();
 builder.Services.AddSingleton<OrderTrackerBot.Api.Client.ClientImportStore>();
 builder.Services.AddHostedService<OrderTrackerBot.Api.ScheduledMessagesService>();
