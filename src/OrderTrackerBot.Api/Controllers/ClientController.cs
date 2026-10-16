@@ -125,6 +125,39 @@ public class ClientController(ClientQueries queries) : ControllerBase
     public async Task<ActionResult<ProductDto>> Product(int id, CancellationToken ct) =>
         Found(await queries.ProductAsync(SellerId, id, ct), "Product not found.");
 
+    /// <summary>Lists the photos of a product, oldest first. The bytes come from the image route.</summary>
+    [HttpGet("products/{id:int}/images")]
+    public async Task<ActionResult<IReadOnlyList<ProductImageDto>>> ProductImages(int id, [FromServices] ClientProductImages images, CancellationToken ct) =>
+        Ok(await images.ListAsync(SellerId, id, ct));
+
+    /// <summary>Uploads one photo (multipart field "file"): JPG, PNG or WebP, 2 MB at most.</summary>
+    [HttpPost("products/{id:int}/images")]
+    [RequestSizeLimit(ClientProductImages.MaxBytes + 64 * 1024)]
+    public async Task<ActionResult<object>> UploadProductImage(int id, IFormFile? file, [FromServices] ClientProductImages images, CancellationToken ct)
+    {
+        if (file is null) return BadRequest(new { error = "Choose a photo to upload." });
+        if (file.Length > ClientProductImages.MaxBytes) return BadRequest(new { error = "Photos can be 2 MB at most." });
+        using var buffer = new MemoryStream();
+        await file.CopyToAsync(buffer, ct);
+        var (problem, imageId) = await images.AddAsync(SellerId, id, buffer.ToArray(), ct);
+        if (problem is not null) return BadRequest(new { error = problem });
+        return Ok(new { id = imageId });
+    }
+
+    /// <summary>The photo itself, for the dashboard to show.</summary>
+    [HttpGet("products/{id:int}/images/{imageId:int}")]
+    public async Task<IActionResult> ProductImageFile(int id, int imageId, [FromServices] ClientProductImages images, CancellationToken ct)
+    {
+        var image = await images.GetAsync(SellerId, id, imageId, ct);
+        if (image is null) return NotFound(new { error = "Photo not found." });
+        Response.Headers.CacheControl = "private, max-age=3600";
+        return File(image.Data, image.ContentType);
+    }
+
+    [HttpDelete("products/{id:int}/images/{imageId:int}")]
+    public async Task<IActionResult> DeleteProductImage(int id, int imageId, [FromServices] ClientProductImages images, CancellationToken ct) =>
+        await images.DeleteAsync(SellerId, id, imageId, ct) ? NoContent() : NotFound(new { error = "Photo not found." });
+
     /// <summary>Adds a product. A blank SKU gets an automatic one.</summary>
     [HttpPost("products")]
     public async Task<ActionResult<ProductDto>> CreateProduct([FromBody] ClientProductInput input, [FromServices] ClientProductWriter writer, CancellationToken ct) =>

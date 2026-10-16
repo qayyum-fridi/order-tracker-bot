@@ -8,6 +8,7 @@ public interface IAppDbContext
     DbSet<Seller> Sellers { get; }
     DbSet<ConversationSession> Sessions { get; }
     DbSet<Product> Products { get; }
+    DbSet<ProductImage> ProductImages { get; }
     DbSet<Customer> Customers { get; }
     DbSet<Order> Orders { get; }
     DbSet<OrderItem> OrderItems { get; }
