@@ -115,10 +115,11 @@ public class ClientController(ClientQueries queries) : ControllerBase
     [HttpGet("products")]
     public async Task<ActionResult<PagedDto<ProductDto>>> Products(
         [FromQuery] string? search, [FromQuery] string? category, [FromQuery] string? status = "active",
-        [FromQuery] int page = 1, [FromQuery] int pageSize = DefaultPageSize, CancellationToken ct = default)
+        [FromQuery] int page = 1, [FromQuery] int pageSize = DefaultPageSize, [FromQuery] string? stock = null, CancellationToken ct = default)
     {
         if (status is not ("active" or "inactive" or "all")) return BadRequest(new { error = "Status must be active, inactive or all." });
-        return Ok(await queries.ProductsAsync(SellerId, search, category, status, page, pageSize, ct));
+        if (stock is not (null or "" or "tracked" or "low")) return BadRequest(new { error = "Stock must be tracked or low." });
+        return Ok(await queries.ProductsAsync(SellerId, search, category, status, page, pageSize, ct, stock));
     }
 
     [HttpGet("products/{id:int}")]
@@ -215,6 +216,76 @@ public class ClientController(ClientQueries queries) : ControllerBase
         if (!AdminDateRange.TryResolve(from, to, 30, out var range, out var error)) return BadRequest(new { error });
         var (fileName, content) = await export.BuildAsync(SellerId, dataset!, range, ct);
         return File(System.Text.Encoding.UTF8.GetBytes(content), "text/csv; charset=utf-8", fileName);
+    }
+
+    /// <summary>Sets the stock count of a tracked product (one with a stock number).</summary>
+    [HttpPut("products/{id:int}/stock")]
+    public async Task<ActionResult<ProductStockDto>> SetStock(int id, [FromBody] StockInput input, [FromServices] ClientStock stock, CancellationToken ct)
+    {
+        var (problem, saved) = await stock.SetAsync(SellerId, id, input, ct);
+        if (problem is null) return Ok(saved);
+        return problem == "Product not found." ? NotFound(new { error = problem }) : BadRequest(new { error = problem });
+    }
+
+    // ----- money out and stock write-offs (dates are Pakistan days, default the last 30) -----
+
+    [HttpGet("expenses")]
+    public async Task<ActionResult<MoneyListDto<ExpenseDto>>> Expenses([FromQuery] string? from, [FromQuery] string? to, [FromServices] ClientExpenses expenses, CancellationToken ct)
+    {
+        if (!AdminDateRange.TryResolve(from, to, 30, out var range, out var error)) return BadRequest(new { error });
+        return Ok(await expenses.ListAsync(SellerId, range, ct));
+    }
+
+    [HttpPost("expenses")]
+    public async Task<ActionResult<ExpenseDto>> CreateExpense([FromBody] ExpenseInput input, [FromServices] ClientExpenses expenses, CancellationToken ct)
+    {
+        var (problem, saved) = await expenses.CreateAsync(SellerId, input, ct);
+        return problem is not null ? BadRequest(new { error = problem }) : Ok(saved);
+    }
+
+    [HttpDelete("expenses/{id:int}")]
+    public async Task<IActionResult> DeleteExpense(int id, [FromServices] ClientExpenses expenses, CancellationToken ct) =>
+        await expenses.DeleteAsync(SellerId, id, ct) ? NoContent() : NotFound(new { error = "Expense not found." });
+
+    [HttpGet("wages")]
+    public async Task<ActionResult<MoneyListDto<WageDto>>> Wages([FromQuery] string? from, [FromQuery] string? to, [FromServices] ClientWages wages, CancellationToken ct)
+    {
+        if (!AdminDateRange.TryResolve(from, to, 30, out var range, out var error)) return BadRequest(new { error });
+        return Ok(await wages.ListAsync(SellerId, range, ct));
+    }
+
+    [HttpPost("wages")]
+    public async Task<ActionResult<WageDto>> CreateWage([FromBody] WageInput input, [FromServices] ClientWages wages, CancellationToken ct)
+    {
+        var (problem, saved) = await wages.CreateAsync(SellerId, input, ct);
+        return problem is not null ? BadRequest(new { error = problem }) : Ok(saved);
+    }
+
+    [HttpDelete("wages/{id:int}")]
+    public async Task<IActionResult> DeleteWage(int id, [FromServices] ClientWages wages, CancellationToken ct) =>
+        await wages.DeleteAsync(SellerId, id, ct) ? NoContent() : NotFound(new { error = "Wage entry not found." });
+
+    [HttpGet("losses")]
+    public async Task<ActionResult<MoneyListDto<LossDto>>> Losses([FromQuery] string? from, [FromQuery] string? to, [FromServices] ClientLosses losses, CancellationToken ct)
+    {
+        if (!AdminDateRange.TryResolve(from, to, 30, out var range, out var error)) return BadRequest(new { error });
+        return Ok(await losses.ListAsync(SellerId, range, ct));
+    }
+
+    /// <summary>Writes off stock. Tracked products lose the units; the cost is copied from the product.</summary>
+    [HttpPost("losses")]
+    public async Task<ActionResult<LossDto>> CreateLoss([FromBody] LossInput input, [FromServices] ClientLosses losses, CancellationToken ct)
+    {
+        var (problem, saved) = await losses.CreateAsync(SellerId, input, ct);
+        return problem is not null ? BadRequest(new { error = problem }) : Ok(saved);
+    }
+
+    /// <summary>Creates a sale from the dashboard. Prices come from the catalog; stock and the undo log are updated like WhatsApp orders.</summary>
+    [HttpPost("orders")]
+    public async Task<ActionResult<OrderDetailDto>> CreateOrder([FromBody] NewOrderInput input, [FromServices] ClientOrderCreate orders, CancellationToken ct)
+    {
+        var (problem, saved) = await orders.CreateAsync(SellerId, input, ct);
+        return problem is not null ? BadRequest(new { error = problem }) : Ok(saved);
     }
 
     /// <summary>Lists the photos of a product, oldest first. The bytes come from the image route.</summary>

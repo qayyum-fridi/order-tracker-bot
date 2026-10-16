@@ -18,3 +18,18 @@ public sealed record DiscountActiveInput(bool IsActive);
 public sealed record OrderStatusInput(string? Status);
 
 public sealed record CategoryRenameInput(string? From, string? To);
+
+public sealed record ExpenseInput(decimal? Amount, string? Category, string? Note, string? Date);
+
+public sealed record WageInput(string? WorkerName, decimal? Amount, int? Days, string? Date);
+
+public sealed record LossInput(int? ProductId, string? ProductName, int? Quantity, string? Reason);
+
+public sealed record StockInput(int? StockQty);
+
+public sealed record NewOrderLineInput(int? ProductId, int? Quantity);
+
+/// <summary>A new order from the dashboard. Prices come from the catalog (the customer's price group when set); the discount code is optional.</summary>
+public sealed record NewOrderInput(
+    int? CustomerId, IReadOnlyList<NewOrderLineInput>? Items, string? PaymentMethod, decimal? AmountPaid,
+    decimal? DeliveryCharge, string? DiscountCode, string? Notes);

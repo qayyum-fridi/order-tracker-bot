@@ -138,7 +138,7 @@ public sealed class ClientQueries(AppDbContext db)
         return ToCustomer(c, stats);
     }
 
-    public async Task<PagedDto<ProductDto>> ProductsAsync(int sellerId, string? search, string? category, string status, int page, int pageSize, CancellationToken ct)
+    public async Task<PagedDto<ProductDto>> ProductsAsync(int sellerId, string? search, string? category, string status, int page, int pageSize, CancellationToken ct, string? stock = null)
     {
         var query = db.Products.AsNoTracking().Where(p => p.SellerId == sellerId);
         query = status switch
@@ -148,6 +148,9 @@ public sealed class ClientQueries(AppDbContext db)
             _ => query.Where(p => p.IsActive),
         };
         if (!string.IsNullOrWhiteSpace(category)) query = query.Where(p => p.Category == category);
+        // "tracked" = products with a stock number; "low" = tracked and at or below the low-stock line (3, as in WhatsApp warnings).
+        if (stock == "tracked") query = query.Where(p => p.StockQty != null);
+        if (stock == "low") query = query.Where(p => p.StockQty != null && p.StockQty <= 3);
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();

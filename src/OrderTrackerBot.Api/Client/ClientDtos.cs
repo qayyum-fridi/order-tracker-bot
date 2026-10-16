@@ -86,3 +86,12 @@ public sealed record SellerSettingsDto(
 
 /// <summary>A discount code. ExpiresAt is the last Pakistan day it works (yyyy-MM-dd), or null for no expiry.</summary>
 public sealed record DiscountDto(int Id, string Code, string Type, decimal Value, string? ExpiresAt, bool IsActive);
+
+public sealed record ExpenseDto(int Id, decimal Amount, string Category, string? Note, DateTime CreatedAt);
+public sealed record WageDto(int Id, string WorkerName, decimal Amount, int? Days, DateTime CreatedAt);
+public sealed record LossDto(int Id, int? ProductId, string ProductName, int Quantity, decimal UnitCost, string? Reason, DateTime CreatedAt);
+
+/// <summary>A list of money-out or write-off rows for a date range, with the total.</summary>
+public sealed record MoneyListDto<T>(IReadOnlyList<T> Items, decimal Total);
+
+public sealed record ProductStockDto(int Id, string Name, int? StockQty);
