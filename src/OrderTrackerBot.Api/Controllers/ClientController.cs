@@ -144,6 +144,30 @@ public class ClientController(ClientQueries queries) : ControllerBase
         return Ok(new { updated = await bulk.BulkAsync(SellerId, input, ct) });
     }
 
+    /// <summary>Sends a receipt, a customer card, a report summary or an export to the shop's own WhatsApp chat.</summary>
+    [HttpPost("send-whatsapp")]
+    public async Task<ActionResult<object>> SendToWhatsApp([FromBody] DashboardSendRequest input, [FromServices] ConversationEngine engine, CancellationToken ct)
+    {
+        var result = await engine.SendFromDashboardAsync(SellerId, input, ct);
+        if (!result.Sent) return BadRequest(new { error = SendReasonText(result.Reason) });
+        return Ok(new { sent = true, message = SendReasonText(result.Reason) });
+    }
+
+    private static string SendReasonText(string reason) => reason switch
+    {
+        "receipt-sent" => "Receipt sent to the shop's WhatsApp.",
+        "customer-sent" => "Customer card sent to the shop's WhatsApp.",
+        "report-sent" => "Report summary sent to the shop's WhatsApp.",
+        "export-sent" => "Export sent to the shop's WhatsApp.",
+        "export-needs-dataset" => "Choose orders, customers or catalog to export.",
+        "no-receipt-pdf" => "Receipt PDFs aren't available on this bot yet.",
+        "order-not-found" => "Order not found.",
+        "customer-not-found" => "Customer not found.",
+        "bad-range" => "Choose a start and end date, with the end on or after the start (at most a year).",
+        "send-failed" => "WhatsApp did not accept the file. The shop must message the bot within the last 24 hours, then try again.",
+        _ => "Unknown send request.",
+    };
+
     /// <summary>Hides a product from the catalog. It is not deleted, so past orders still show what was sold.</summary>
     [HttpDelete("products/{id:int}")]
     public async Task<ActionResult> DeactivateProduct(int id, [FromServices] ClientProductWriter writer, CancellationToken ct)
