@@ -82,6 +82,29 @@ public partial class ConversationEngine
     /// which already saves the customer and walks through adding unmatched products to the catalog.
     /// <paramref name="requirePhoneHint"/> avoids an AI call on steps where free text is normally something else (business name, city...).
     /// </summary>
+    /// <summary>
+    /// One line is one product, but "Lawn Suit - 3500; Kurti - 1800" may hold several separated by ';'.
+    /// A line that parses whole (including "cost 300; stock 10" details) is never split.
+    /// </summary>
+    private static IEnumerable<ProductLine?> ExpandProductLine(string line)
+    {
+        if (CommandParser.TryParseProductLine(line, out ProductLine? whole))
+        {
+            yield return whole;
+            yield break;
+        }
+
+        var parts = line.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length < 2)
+        {
+            yield return ParseLooseProductLine(line);
+            yield break;
+        }
+
+        foreach (var part in parts)
+            yield return CommandParser.TryParseProductLine(part, out ProductLine? p) ? p : ParseLooseProductLine(part);
+    }
+
     private async Task<bool> TryOrderDuringOnboardingAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message,
         bool requirePhoneHint, CancellationToken ct)
     {
@@ -226,9 +249,10 @@ public partial class ConversationEngine
                     return;
                 }
                 seller.BusinessType = picked.Title;
-                SetState(session, ConversationState.OnboardingOptionalDetails);
-                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
-                    MessageTemplates.Get("onboarding.007", picked.Title), new[] { "Skip" }, ct);
+                // Quick start: products come right after the shop type. City, Instagram and catalog size are asked after the first save.
+                SetState(session, ConversationState.OnboardingAddProduct);
+                await ReplyAsync(seller, MessageTemplates.Get("onboarding.007", picked.Title), ct);
+                await ReplyAsync(seller, MessageTemplates.Get("onboarding.021", picked.SimpleProduct), ct);
                 return;
             }
 
@@ -306,7 +330,7 @@ public partial class ConversationEngine
                 }
 
                 var productLines = message.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                    .Select(l => CommandParser.TryParseProductLine(l, out ProductLine? p) ? p : ParseLooseProductLine(l))
+                    .SelectMany(ExpandProductLine)
                     .ToList();
                 if (productLines.Count > 0 && productLines.All(p => p is not null))
                 {
