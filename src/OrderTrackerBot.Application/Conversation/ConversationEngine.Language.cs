@@ -15,6 +15,12 @@ public partial class ConversationEngine
     private static readonly string[] BusinessNameButtons = { "📖 Guide dekhein", "🌐 Language badlein", "Baad mein karunga" };
     private static readonly string[] AfterLanguageButtons = { "📋 Menu", "📦 New Order", "📖 Guide" };
     private static readonly string[] BusinessSetupButtons = { "Business Info", "Payment Method", "Language" };
+    // Normalised (ButtonWords) labels of the start and name-step buttons, so a tap is never saved as a shop name.
+    private static readonly HashSet<string> ButtonLikeOnboardingWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "setup shuru karein", "pehle guide dekhein", "guide dekhein", "purana data", "puraana data",
+        "language badlein", "change language", "baad mein karunga", "baad mein"
+    };
 
     private static string LanguageChosenText(string language, bool onboarding) => (language, onboarding) switch
     {
@@ -44,8 +50,19 @@ public partial class ConversationEngine
         await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, LanguageChosenText(seller.PreferredLanguage, true), StartChoiceButtons, ct);
     }
 
+    /// <summary>A language button tapped again after the language is already chosen (duplicate tap). Matched on the same normalised words as the other buttons.</summary>
+    private static bool IsLanguageButton(string message) =>
+        Lang.ButtonLabels.Any(label => ButtonWords(label) == ButtonWords(message));
+
     private async Task HandleOnboardingStartChoiceAsync(Seller seller, ConversationSession session, string message, CancellationToken ct)
     {
+        // A repeated language tap must not restart the language step or lose the start choice: show the start choice again.
+        if (IsLanguageButton(message))
+        {
+            await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, LanguageChosenText(seller.PreferredLanguage, true), StartChoiceButtons, ct);
+            return;
+        }
+
         var choice = ButtonWords(message);
         if (choice.Contains("language"))
         {
@@ -94,6 +111,13 @@ public partial class ConversationEngine
         if (choice is "baad mein karunga" or "baad mein")
         {
             await ReplyAsync(seller, MessageTemplates.Get("business.name.later"), ct);
+            return true;
+        }
+
+        // A start-step button that reached the name question (a repeated or mangled tap) is never the shop name: ask again, move on only after a real name.
+        if (ButtonLikeOnboardingWords.Contains(choice))
+        {
+            await AskBusinessNameAsync(seller, session, ct);
             return true;
         }
 

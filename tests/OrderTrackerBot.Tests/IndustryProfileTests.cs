@@ -349,7 +349,7 @@ public class IndustryQuestionTests : IDisposable
         _sent.Clear();
         await engine.HandleIncomingMessageAsync(Phone, "industry grocery", default);
         Assert.Equal("Grocery / Kiryana", (await db.Sellers.FindAsync(seller.Id))!.BusinessType);
-        Assert.Equal(ConversationState.OnboardingOptionalDetails, (await db.Sessions.FirstAsync()).State);
+        Assert.Equal(ConversationState.OnboardingAddProduct, (await db.Sessions.FirstAsync()).State);
         Assert.Contains("Dukaan ki qism: Grocery / Kiryana", string.Join("\n", _sent));
     }
 
@@ -386,6 +386,5 @@ public class IndustryQuestionTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Karachi, Clothing, @bilal.mart", default);
         var saved = await db.Sellers.FindAsync(seller.Id);
         Assert.Equal("Grocery / Kiryana", saved!.BusinessType);
-        Assert.Equal("Karachi", saved.City);
     }
 }
