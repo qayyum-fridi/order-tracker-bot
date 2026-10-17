@@ -44,7 +44,18 @@ public sealed record CategoryShareDto(string Category, decimal Revenue, double S
 public sealed record DashboardDto(
     DateRangeDto Range, KpisDto Kpis, IReadOnlyList<DayPointDto> RevenueByDay,
     IReadOnlyDictionary<string, int> StatusCounts, IReadOnlyList<CategoryShareDto> CategoryMix,
-    IReadOnlyList<OrderSummaryDto> RecentOrders, IReadOnlyList<ProductDto> LowStock);
+    IReadOnlyList<OrderSummaryDto> RecentOrders, IReadOnlyList<ProductDto> LowStock,
+    TodayDto Today, OwedDto Owed);
+
+/// <summary>Today's sales in Pakistan time, whatever range the dashboard shows. Cancelled and returned orders are not counted.</summary>
+public sealed record TodayDto(string Date, decimal Sales, int Orders);
+
+/// <summary>Money still to collect across all open sales (total minus amount paid), not only the range shown.</summary>
+public sealed record OwedDto(decimal Total, int Orders);
+
+/// <summary>Days since the last order or expense. Status: ok (0-1 days), behind (2-3), stale (4+ or never).</summary>
+public sealed record EntryActivityDto(
+    string? LastEntryDay, int? DaysSinceLastEntry, int StreakDays, IReadOnlyList<string> MissedDaysLast14, string Status);
 
 public sealed record CategorySubDto(string Name, int ProductCount, decimal Revenue);
 
