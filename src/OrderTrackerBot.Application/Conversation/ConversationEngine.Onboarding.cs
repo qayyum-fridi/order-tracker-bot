@@ -427,6 +427,15 @@ public partial class ConversationEngine
                     await ExecuteCommandAsync(seller, session, ctx, helpCmd, ct);
                     return;
                 }
+                // A start-step button tapped here (e.g. "Purana data") is not an unknown shop type: answer it instead of apologising.
+                if (ButtonLikeOnboardingWords.Contains(ButtonWords(message)))
+                {
+                    if (ButtonWords(message) is "purana data" or "puraana data")
+                        await HandleImportHelpAsync(seller, ct);
+                    else
+                        await AskIndustryAsync(seller, null, ct);
+                    return;
+                }
                 var picked = PickIndustry(message);
                 if (picked is null && await TrySaveProductDuringOnboardingAsync(seller, session, message, ct)) return;
                 if ((picked is null || PhoneNumber.IsMatch(message))
