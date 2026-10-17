@@ -238,18 +238,7 @@ public partial class ConversationEngine
             return;
         }
 
-        _db.Customers.AddRange(plan.NewCustomers);
-        _db.Products.AddRange(plan.NewProducts);
-        await _db.SaveChangesAsync(ct);
-        _db.ActionLogs.Add(new ActionLog
-        {
-            SellerId = seller.Id, ActionType = ActionType.DataImported,
-            PayloadJson = JsonSerializer.Serialize(new
-            {
-                CustomerIds = plan.NewCustomers.Select(c => c.Id).ToList(),
-                ProductIds = plan.NewProducts.Select(p => p.Id).ToList()
-            })
-        });
+        await SaveImportPlanAsync(seller, plan, customers: true, products: true, ct);
 
         var done = new List<string>();
         if (plan.NewCustomers.Count > 0) done.Add($"👥 {plan.NewCustomers.Count} customers");
@@ -320,9 +309,15 @@ public partial class ConversationEngine
     {
         var media = await _media!.DownloadAsync(mediaId, ct);
         if (media is null) return new ImportPlan { Problem = ImportProblem.Download };
-        if (media.Value.Bytes.Length > MaxImportBytes) return new ImportPlan { Problem = ImportProblem.TooBig };
+        return await PlanImportBytesAsync(seller, media.Value.Bytes, fileName, ct);
+    }
 
-        var grid = _importReader!.Read(media.Value.Bytes, fileName);
+    /// <summary>Plans a file's contents. Used by WhatsApp (after download) and by the dashboard upload. Nothing is saved here.</summary>
+    private async Task<ImportPlan> PlanImportBytesAsync(Seller seller, byte[] bytes, string? fileName, CancellationToken ct)
+    {
+        if (bytes.Length > MaxImportBytes) return new ImportPlan { Problem = ImportProblem.TooBig };
+
+        var grid = _importReader!.Read(bytes, fileName);
         if (grid is null) return new ImportPlan { Problem = ImportProblem.Unreadable };
 
         // The seller's own layout is fine: columns are recognised by their headings and renamed to ours before any row is checked.

@@ -87,6 +87,10 @@ public class Product
     public decimal? PriceA { get; set; }
     public decimal? PriceB { get; set; }
     public decimal? PriceC { get; set; }
+    /// <summary>Price group (A, B or C) a new sale uses for this product; null = the regular price.</summary>
+    public string? DefaultPriceGroup { get; set; }
+    /// <summary>sale | service. null = sale.</summary>
+    public string? ItemKind { get; set; }
     /// <summary>The price a buyer in this group pays: the group's level when set, else <see cref="Price"/>.</summary>
     public decimal PriceFor(string? group) => group switch
     {
