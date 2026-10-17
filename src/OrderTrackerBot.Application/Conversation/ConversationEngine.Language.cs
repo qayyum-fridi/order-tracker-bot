@@ -50,8 +50,19 @@ public partial class ConversationEngine
         await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, LanguageChosenText(seller.PreferredLanguage, true), StartChoiceButtons, ct);
     }
 
+    /// <summary>A language button tapped again after the language is already chosen (duplicate tap). Matched on the same normalised words as the other buttons.</summary>
+    private static bool IsLanguageButton(string message) =>
+        Lang.ButtonLabels.Any(label => ButtonWords(label) == ButtonWords(message));
+
     private async Task HandleOnboardingStartChoiceAsync(Seller seller, ConversationSession session, string message, CancellationToken ct)
     {
+        // A repeated language tap must not restart the language step or lose the start choice: show the start choice again.
+        if (IsLanguageButton(message))
+        {
+            await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, LanguageChosenText(seller.PreferredLanguage, true), StartChoiceButtons, ct);
+            return;
+        }
+
         var choice = ButtonWords(message);
         if (choice.Contains("language"))
         {

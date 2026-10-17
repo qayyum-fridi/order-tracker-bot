@@ -243,7 +243,7 @@ public partial class ConversationEngine
                 }
                 if (await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: true, ct)) return;
                 // A start-step button tapped here (e.g. "Purana data") is not an unknown shop type: answer it instead of apologising.
-                if (ButtonLikeOnboardingWords.Contains(ButtonWords(message)))
+                if (ButtonLikeOnboardingWords.Contains(ButtonWords(message)) || IsLanguageButton(message))
                 {
                     if (ButtonWords(message) is "purana data" or "puraana data")
                         await HandleImportHelpAsync(seller, ct);
