@@ -115,7 +115,7 @@ public class ConversationEngineTests : IDisposable
         Assert.Null(seller.BusinessName);
         Assert.Equal(ConversationState.OnboardingLanguage, seller.Session!.State);
         Assert.Equal(0, await db.Products.CountAsync());
-        Assert.Contains(_sentMessages, m => m.Contains("Order Assistant"));
+        Assert.Contains(_sentMessages, m => m.Contains("آرڈر اسسٹنٹ"));
         _sender.Verify(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(),
             It.Is<IReadOnlyList<string>>(l => l.Count == 3), It.IsAny<CancellationToken>()), Times.AtLeastOnce);
     }
@@ -1857,7 +1857,7 @@ public class ConversationEngineTests : IDisposable
         var engine = CreateEngine(db);
 
         await engine.HandleIncomingMessageAsync(Phone, "hi", default);
-        Assert.Contains(_sentMessages, m => m.Contains("Order Assistant"));
+        Assert.Contains(_sentMessages, m => m.Contains("آرڈر اسسٹنٹ"));
         Assert.Equal(ConversationState.OnboardingLanguage, (await db.Sessions.FirstAsync()).State);
 
         await engine.HandleIncomingMessageAsync(Phone, reply, default);
