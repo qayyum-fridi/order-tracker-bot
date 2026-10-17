@@ -17,6 +17,8 @@ public sealed class ClientQueries(AppDbContext db)
     private const int RecentOrderCount = 8;
     private const int LowStockThreshold = 5;
     private const int LowStockCount = 5;
+    /// <summary>How far back the activity check reads entry days. Older entries only count for the last-entry date.</summary>
+    private const int ActivityWindowDays = 400;
     private static readonly OrderStatus[] NotSales = [OrderStatus.Cancelled, OrderStatus.Returned];
 
     public async Task<ClientProfileDto?> ProfileAsync(int sellerId, CancellationToken ct)
@@ -100,6 +102,21 @@ public sealed class ClientQueries(AppDbContext db)
             .Where(p => p.SellerId == sellerId && p.IsActive && p.StockQty != null && p.StockQty <= LowStockThreshold)
             .OrderBy(p => p.StockQty).ThenBy(p => p.Id).Take(LowStockCount).ToListAsync(ct);
 
+        // Today and owed do not depend on the range shown, so they are read separately.
+        var todayDay = AdminDateRange.Today();
+        var todayOrders = await db.Orders.AsNoTracking()
+            .Where(o => o.SellerId == sellerId && o.CreatedAt >= AdminDateRange.ToUtc(todayDay)
+                && o.CreatedAt < AdminDateRange.ToUtc(todayDay.AddDays(1)) && !NotSales.Contains(o.Status))
+            .Select(o => o.Total).ToListAsync(ct);
+        var today = new TodayDto(todayDay.ToString(AdminDateRange.DateFormat), Money(todayOrders.Sum()), todayOrders.Count);
+
+        // Owed is summed in memory: SQLite can't compare or sum decimal columns in the database.
+        var openOrders = await db.Orders.AsNoTracking()
+            .Where(o => o.SellerId == sellerId && !NotSales.Contains(o.Status))
+            .Select(o => new { o.Total, o.AmountPaid }).ToListAsync(ct);
+        var balances = openOrders.Select(o => Money(o.Total - o.AmountPaid)).Where(b => b > 0).ToList();
+        var owed = new OwedDto(Money(balances.Sum()), balances.Count);
+
         return new DashboardDto(
             new DateRangeDto(range.FromDay.ToString(AdminDateRange.DateFormat), range.ToDay.ToString(AdminDateRange.DateFormat)),
             kpis,
@@ -107,7 +124,31 @@ public sealed class ClientQueries(AppDbContext db)
             statusCounts,
             await CategoryMixAsync(sellerId, sales, ct),
             recent.Select(ToOrderSummary).ToList(),
-            lowStock.Select(ToProduct).ToList());
+            lowStock.Select(ToProduct).ToList(),
+            today,
+            owed);
+    }
+
+    /// <summary>Last entry (order or expense), streak and missed days. Drives the dashboard's missed-days notice.</summary>
+    public async Task<EntryActivityDto> ActivityAsync(int sellerId, CancellationToken ct)
+    {
+        var today = AdminDateRange.Today();
+        var recentFrom = AdminDateRange.ToUtc(today.AddDays(-ActivityWindowDays));
+
+        var orderTimes = await db.Orders.AsNoTracking()
+            .Where(o => o.SellerId == sellerId && o.CreatedAt >= recentFrom).Select(o => o.CreatedAt).ToListAsync(ct);
+        var expenseTimes = await db.Expenses.AsNoTracking()
+            .Where(e => e.SellerId == sellerId && e.CreatedAt >= recentFrom).Select(e => e.CreatedAt).ToListAsync(ct);
+        var entryDays = orderTimes.Concat(expenseTimes).Select(AdminDateRange.DayOf).ToHashSet();
+
+        var lastOrder = await db.Orders.AsNoTracking().Where(o => o.SellerId == sellerId)
+            .OrderByDescending(o => o.CreatedAt).Select(o => (DateTime?)o.CreatedAt).FirstOrDefaultAsync(ct);
+        var lastExpense = await db.Expenses.AsNoTracking().Where(e => e.SellerId == sellerId)
+            .OrderByDescending(e => e.CreatedAt).Select(e => (DateTime?)e.CreatedAt).FirstOrDefaultAsync(ct);
+        DateTime? lastUtc = lastOrder is null ? lastExpense : lastExpense is null ? lastOrder : (lastOrder > lastExpense ? lastOrder : lastExpense);
+        DateOnly? lastDay = lastUtc is null ? null : AdminDateRange.DayOf(lastUtc.Value);
+
+        return EntryActivityRules.Compute(entryDays, lastDay, today);
     }
 
     public async Task<PagedDto<CustomerDto>> CustomersAsync(int sellerId, string? search, int page, int pageSize, CancellationToken ct)
