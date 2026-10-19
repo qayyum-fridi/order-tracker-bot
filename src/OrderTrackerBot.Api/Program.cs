@@ -20,6 +20,7 @@ builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientProductBulk>();
 builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientOrderBulk>();
 builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientCustomerBulk>();
 builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientProductImages>();
+builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientCustomerPhotos>();
 builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientSettings>();
 builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientDiscounts>();
 builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientCustomers>();
