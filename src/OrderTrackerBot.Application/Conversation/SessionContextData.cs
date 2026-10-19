@@ -87,6 +87,8 @@ public sealed class SessionContextData
     public List<string>? PendingPriceProducts { get; set; }
     /// <summary>Cost/stock/attributes already given for those products, kept until their price arrives (product name -> details).</summary>
     public Dictionary<string, ProductExtras>? PendingProductExtras { get; set; }
+    /// <summary>A product line waiting for the seller's YES (JSON of the ProductLine); null when nothing waits.</summary>
+    public string? PendingProductJson { get; set; }
     public List<int>? BulkStatusOrderIds { get; set; }
     public int? CancelOrderId { get; set; }
     public int? CodCollectedOrderId { get; set; }

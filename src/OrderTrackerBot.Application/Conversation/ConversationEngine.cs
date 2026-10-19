@@ -127,6 +127,9 @@ public partial class ConversationEngine
         _turnSeller = seller;
         _turnCtx = ctx;
 
+        // A product line waiting for YES: saved on YES, dropped on NO (see ConversationEngine.ProductConfirm.cs).
+        if (await TryHandlePendingProductAsync(seller, ctx, message, ct)) return;
+
         // A tap on a product button: an answer to the unknown-product question ("2 <product>" / "1"), or one of the customer's usual items after "order for Sara"
         // (read as her items). With no such question waiting it is a stale tap.
         if (ctx.ProductSuggestions is { Count: > 0 } offered
@@ -493,6 +496,9 @@ public sealed class FeatureOptions
 
     /// <summary>Setup asks the kind of shop right after the shop name (taps); off = the old flow without that question (unit tests).</summary>
     public bool IndustryQuestion { get; set; }
+
+    /// <summary>A product line is shown back (name, colour, price, stock) and saved only after YES; off = saved straight away (unit tests).</summary>
+    public bool ProductConfirmation { get; set; }
 
     /// <summary>Public link to the illustrated English/Urdu guide, sent with the Guide command. Empty = no link.</summary>
     public string GuideUrl { get; set; } = "";

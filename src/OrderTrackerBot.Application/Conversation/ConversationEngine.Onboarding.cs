@@ -342,6 +342,12 @@ public partial class ConversationEngine
                     .ToList();
                 if (productLines.Count > 0 && productLines.All(p => p is not null))
                 {
+                    // One product line is shown back for YES first (saved by TryHandlePendingProductAsync).
+                    if (_features.ProductConfirmation && productLines.Count == 1)
+                    {
+                        await AskProductConfirmationAsync(seller, ctx, productLines[0]!, ct);
+                        return;
+                    }
                     var added = new List<Product>();
                     foreach (var line in productLines) added.Add((await UpsertProductAsync(seller, line!, ct)).Product);
                     await _db.SaveChangesAsync(ct);
