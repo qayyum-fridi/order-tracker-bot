@@ -1,0 +1,64 @@
+# Grocery / Kiryana — poora business. Naya phone number chunein.
+# Chalaane ka tareeqa: scripts/run-scenario.sh docs/scenarios/grocery.txt 923001110102
+# Mutawaqqa nateeja: docs/industry-test-cases.md (grocery section).
+
+# --- Setup ---
+start
+Roman Urdu
+Setup shuru karein
+Bilal Kiryana Store
+skip
+Chhota (20 se kam)
+industry grocery
+
+# --- Catalog ---
+Sugar 5 kg - 500, cost 440, stock 40, category rashan
+Cooking Oil 1 ltr - 520, cost 450, stock 25, category rashan
+Rice 10 kg - 2600, cost 2200, stock 30, category rashan
+Tea Packet 950 gm - 380, cost 300, stock 50, category rashan
+Dal Masoor 1 kg - 260, cost 200, stock 3, category rashan
+Biscuits Family Pack - 150, cost 120, stock 100, category snacks
+Milk Pack 1 ltr - 220, cost 200, stock 30, category dairy
+Shampoo Sachet - 10, cost 6, stock 200, category household
+catalog
+catalog size 5
+catalog page 2
+catalog reset
+stock Sugar 5 kg 3
+stock
+
+# --- Orders ---
+Bilal, 2 sugar 5 kg, 1 oil 1 ltr, 03001234567, DHA Karachi
+yes
+Hina, 3 rice 10 kg, 2 tea packet 950 gm, 03211234567, Gulshan Karachi, delivery 200
+yes
+Bilal, 4 dal masoor 1 kg, 03001234567, DHA Karachi
+yes
+note 3 bina pani wali dal
+mark 1 shipped
+mark 1 delivered
+order 2 advance 1000
+unpaid orders
+orders today
+
+# --- Walk-in (dukaan par) ---
+walkin Milk Pack 1 ltr 2, Biscuits Family Pack 3 then yes (cash)
+walkin Shampoo Sachet 10 then yes (cash)
+
+# --- Stock aur kharcha ---
+stock Dal Masoor 1 kg 1
+expense 2500 bijli bill
+expense 4000 rent
+monthly net
+drawer open 3000
+cash in 2000 owner ne rakhe
+drawer close 9000
+drawer history
+
+# --- Reports ---
+summary
+profit
+margin
+trending
+data check
+aaj ka hisaab

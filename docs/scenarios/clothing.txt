@@ -1,0 +1,75 @@
+# Kapray / Lawn / Boutique — poora business. Naya phone number chunein.
+# Chalaane ka tareeqa: scripts/run-scenario.sh docs/scenarios/clothing.txt 923001110101
+# Har line ka mutawaqqa nateeja: docs/industry-test-cases.md (CLO-xx rows).
+
+# --- Setup ---
+start
+Roman Urdu
+Setup shuru karein
+Ayesha Collections
+skip
+Chhota (20 se kam)
+industry clothing
+
+# --- Catalog: mushkil products ---
+3 Piece Lawn Suit - 3500, cost 2400, stock 20, category lawn
+Design 1203 - 3500, cost 2400, stock 6, category lawn
+Kurti - 1800, cost 1100, stock 15, category stitched, size M, color blue
+Cotton Shalwar Kameez 2 piece - 2800, cost 1900, stock 10, category stitched
+Bridal Lehenga - 45000, cost 30000, stock 2, category bridal
+Dupatta Chiffon - 600, cost 350, stock 40, category dupatta, fabric: chiffon
+Kurti - 1800, cost 1100, stock 15, category stitched
+3 Piece Lawn Suit - 3600
+3 Piece Lawn Suit - 3500
+stock Design 1203 2
+catalog
+catalog size 5
+catalog page 2
+catalog a-z
+catalog reset
+
+# --- Orders ---
+Ayesha, 2 lawn suit, 03001234567, Gulberg Lahore
+yes
+Sana, 1 bridal lehenga, 1 dupatta chiffon, 03331234567, Johar Town Lahore, advance 15000, delivery 500
+yes
+Ayesha, 1 kurti, 03001234567, Gulberg Lahore
+cancel
+note 1 sleeves lambi, chaak 6 inch
+customer Sana name Sana Khan
+Sana ka address Johar Town Block C
+
+# --- Status, payment, courier ---
+mark 1 shipped
+mark 1 delivered
+order 2 advance 5000
+order 2
+order 2 courier fee 250
+orders today
+unpaid orders
+mark 1 returned
+
+# --- Saved order edit ---
+edit order 2
+price 1 = 3300
+done
+
+# --- Kharcha aur cash ---
+expense 1500 packaging
+kharcha 800 petrol
+monthly net
+drawer open 5000
+cash sale 1200 walk-in
+drawer status
+drawer close 6200
+
+# --- Counter sale ---
+walkin 3 Piece Lawn Suit 1, Dupatta Chiffon 2 then yes (cash)
+
+# --- Reports ---
+summary
+profit
+margin
+category sales
+data check
+aaj ka hisaab
