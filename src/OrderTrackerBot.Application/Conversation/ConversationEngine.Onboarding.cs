@@ -198,6 +198,12 @@ public partial class ConversationEngine
             case ConversationState.OnboardingBusinessName:
                 if (await TryOnboardingShortcutAsync(seller, session, message, ct)) return;
                 if (await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: true, ct)) return;
+                // A product line is not a shop name: ask for the name again instead of saving "Kurti - 1800" as the shop.
+                if (CommandParser.TryParseProductLine(message, out _))
+                {
+                    await ReplyAsync(seller, MessageTemplates.Get("onboarding.033"), ct);
+                    return;
+                }
                 seller.BusinessName = message;
                 if (_features.IndustryQuestion && string.IsNullOrWhiteSpace(seller.BusinessType))
                 {
@@ -222,6 +228,20 @@ public partial class ConversationEngine
                 var picked = PickIndustry(message);
                 if (picked is null)
                 {
+                    // A real command here (e.g. "orders today") runs only after setup: say so, then show the list again.
+                    if (CommandParser.TryParse(message) is { Kind: not (CommandKind.Help or CommandKind.Menu) })
+                    {
+                        await ReplyAsync(seller, MessageTemplates.Get("onboarding.036"), ct);
+                        await AskIndustryAsync(seller, null, ct);
+                        return;
+                    }
+                    // A product line here means the seller skipped the shop type: say what is expected first, then show the list again.
+                    if (CommandParser.TryParseProductLine(message, out _))
+                    {
+                        await ReplyAsync(seller, MessageTemplates.Get("onboarding.034"), ct);
+                        await AskIndustryAsync(seller, null, ct);
+                        return;
+                    }
                     await AskIndustryAsync(seller, message.Trim(), ct);
                     return;
                 }
@@ -245,6 +265,12 @@ public partial class ConversationEngine
                     return;
                 }
                 if (await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: true, ct)) return;
+                // A product line is not the city or Instagram handle: keep this step open and say what it expects.
+                if (CommandParser.TryParseProductLine(message, out _))
+                {
+                    await ReplyAsync(seller, MessageTemplates.Get("onboarding.035"), ct);
+                    return;
+                }
                 SetState(session, ConversationState.OnboardingCatalogSize);
                 var askCatalog = MessageTemplates.Get("onboarding.023");
                 if (DoneOrSkip.IsMatch(message))
