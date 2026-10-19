@@ -52,7 +52,7 @@ public class TurnDecisionTests
 
     [Theory]
     [InlineData("shayad order 12 cancel kar dun", "cancel order 12")]
-    [InlineData("hmm order 12 shipped kar dun", "mark 12 shipped")]
+    [InlineData("hmm order 12 discount de do", "discount 12 10%")]
     [InlineData("agar ho sake to order 12 delivery 300", "order 12 delivery 300")]
     public void HedgedTranscript_BecomingARiskyStep_IsRefused(string transcript, string step)
     {
