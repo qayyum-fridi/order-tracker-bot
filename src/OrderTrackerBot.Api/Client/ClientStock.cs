@@ -18,4 +18,15 @@ public sealed class ClientStock(AppDbContext db)
         await db.SaveChangesAsync(ct);
         return (null, new ProductStockDto(product.Id, product.Name, product.StockQty));
     }
+
+    /// <summary>Stops tracking a product's stock. The count is removed; the product and its past orders are kept.</summary>
+    public async Task<(string? Problem, ProductStockDto? Value)> UntrackAsync(int sellerId, int productId, CancellationToken ct)
+    {
+        var product = await db.Products.FirstOrDefaultAsync(p => p.SellerId == sellerId && p.Id == productId, ct);
+        if (product is null) return ("Product not found.", null);
+        if (product.StockQty is null) return ("This product's stock is not tracked.", null);
+        product.StockQty = null;
+        await db.SaveChangesAsync(ct);
+        return (null, new ProductStockDto(product.Id, product.Name, null));
+    }
 }

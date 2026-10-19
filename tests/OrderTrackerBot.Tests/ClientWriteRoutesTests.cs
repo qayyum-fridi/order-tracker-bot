@@ -227,4 +227,33 @@ public sealed class ClientWriteRoutesTests : IDisposable
     {
         Assert.Equal(["orders", "order-items", "customers", "catalog"], ClientExport.Datasets);
     }
+
+    [Fact]
+    public async Task Deleting_a_category_uncategorizes_its_products_and_keeps_them()
+    {
+        await SellerAsync();
+        var shirt = await ProductAsync("Shirt", "Tops");
+        var rename = new ClientCategoryRename(_db);
+
+        var (problem, updated) = await rename.DeleteAsync(_sellerId, "Tops", default);
+
+        Assert.Null(problem);
+        Assert.Equal(1, updated);
+        Assert.Null((await _db.Products.FindAsync(shirt.Id))!.Category);
+        Assert.NotNull((await rename.DeleteAsync(_sellerId, "Uncategorized", default)).Problem);
+    }
+
+    [Fact]
+    public async Task Untracking_stock_removes_the_count_only_for_tracked_products()
+    {
+        await SellerAsync();
+        var tracked = await ProductAsync("Kurti", "Tops", stock: 4);
+        var stock = new ClientStock(_db);
+
+        var (problem, saved) = await stock.UntrackAsync(_sellerId, tracked.Id, default);
+
+        Assert.Null(problem);
+        Assert.Null(saved!.StockQty);
+        Assert.NotNull((await stock.UntrackAsync(_sellerId, tracked.Id, default)).Problem);
+    }
 }

@@ -25,6 +25,19 @@ public sealed class ClientCategoryRename(AppDbContext db)
         await db.SaveChangesAsync(ct);
         return (null, products.Count);
     }
+
+    /// <summary>Removes a category: its products become uncategorized. The products themselves are kept.</summary>
+    public async Task<(string? Problem, int Updated)> DeleteAsync(int sellerId, string? name, CancellationToken ct)
+    {
+        var category = name?.Trim();
+        if (string.IsNullOrEmpty(category)) return ("Choose the category to delete.", 0);
+        if (string.Equals(category, "Uncategorized", StringComparison.OrdinalIgnoreCase)) return ("Products without a category can't be deleted.", 0);
+
+        var products = await db.Products.Where(p => p.SellerId == sellerId && p.Category == category).ToListAsync(ct);
+        foreach (var p in products) p.Category = null;
+        await db.SaveChangesAsync(ct);
+        return (null, products.Count);
+    }
 }
 
 /// <summary>

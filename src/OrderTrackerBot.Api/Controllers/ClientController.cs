@@ -198,6 +198,14 @@ public class ClientController(ClientQueries queries) : ControllerBase
         return problem == "Order not found." ? NotFound(new { error = problem }) : Conflict(new { error = problem });
     }
 
+    /// <summary>Deletes a category. Its products become uncategorized.</summary>
+    [HttpDelete("categories")]
+    public async Task<ActionResult<object>> DeleteCategory([FromQuery] string? name, [FromServices] ClientCategoryRename rename, CancellationToken ct)
+    {
+        var (problem, updated) = await rename.DeleteAsync(SellerId, name, ct);
+        return problem is not null ? BadRequest(new { error = problem }) : Ok(new { updated });
+    }
+
     [HttpPut("categories/rename")]
     public async Task<ActionResult<object>> RenameCategory([FromBody] CategoryRenameInput input, [FromServices] ClientCategoryRename rename, CancellationToken ct)
     {
@@ -220,6 +228,15 @@ public class ClientController(ClientQueries queries) : ControllerBase
     }
 
     /// <summary>Sets the stock count of a tracked product (one with a stock number).</summary>
+    /// <summary>Stops tracking a product's stock (removes its count).</summary>
+    [HttpDelete("products/{id:int}/stock")]
+    public async Task<ActionResult<ProductStockDto>> UntrackStock(int id, [FromServices] ClientStock stock, CancellationToken ct)
+    {
+        var (problem, saved) = await stock.UntrackAsync(SellerId, id, ct);
+        if (problem is null) return Ok(saved);
+        return problem == "Product not found." ? NotFound(new { error = problem }) : BadRequest(new { error = problem });
+    }
+
     [HttpPut("products/{id:int}/stock")]
     public async Task<ActionResult<ProductStockDto>> SetStock(int id, [FromBody] StockInput input, [FromServices] ClientStock stock, CancellationToken ct)
     {
