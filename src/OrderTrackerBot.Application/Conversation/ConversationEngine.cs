@@ -120,6 +120,13 @@ public partial class ConversationEngine
                 : MessageTemplates.Get("engine.005"), ct);
             return;
         }
+        // Every text counts against the seller's hourly text cap and USD budget, before any AI call can be made for it.
+        if (!TryTakeUsage(seller, fromPhoneNumber, MediaKind.Text, out var textDecision, out var textWait))
+        {
+            await ReplyAsync(seller, UsageLimitText(seller, MediaKind.Text, textDecision, textWait), ct);
+            await _db.SaveChangesAsync(ct);
+            return;
+        }
         message = _translator.RestoreButtonLabel(message);
 
         var session = seller.Session!;

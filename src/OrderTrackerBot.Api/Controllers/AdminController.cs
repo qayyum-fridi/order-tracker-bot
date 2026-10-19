@@ -149,22 +149,23 @@ public class AdminController : ControllerBase
 
     /// <summary>
     /// Sets a seller's plan and paid-until date (the manual step after a payment is verified; billing trusts this field).
-    /// Trial clears the paid-until date; Basic and Pro require one.
+    /// Trial and Free clear the paid-until date (Free is never billed, for sellers granted free use beyond the first N); Basic and Pro require one.
     /// </summary>
     [HttpPut("sellers/{id:int}/subscription")]
     public async Task<ActionResult<SellerDetailDto>> UpdateSubscription(int id, [FromBody] UpdateSubscriptionRequest request, CancellationToken ct)
     {
         if (!Enum.TryParse<SubscriptionPlan>(request.Plan, ignoreCase: true, out var plan) || !Enum.IsDefined(plan))
-            return BadRequest(new { error = "Plan must be one of: Trial, Basic, Pro." });
+            return BadRequest(new { error = "Plan must be one of: Trial, Basic, Pro, Free." });
 
         var seller = await _db.Sellers.FirstOrDefaultAsync(s => s.Id == id, ct);
         if (seller is null) return NotFound(new { error = "Seller not found." });
 
-        if (plan != SubscriptionPlan.Trial && request.SubscriptionActiveUntil is null)
+        var openEnded = plan is SubscriptionPlan.Trial or SubscriptionPlan.Free;
+        if (!openEnded && request.SubscriptionActiveUntil is null)
             return BadRequest(new { error = "Basic and Pro need subscriptionActiveUntil." });
 
         seller.Plan = plan;
-        seller.SubscriptionActiveUntil = plan == SubscriptionPlan.Trial ? null : ToUtc(request.SubscriptionActiveUntil!.Value);
+        seller.SubscriptionActiveUntil = openEnded ? null : ToUtc(request.SubscriptionActiveUntil!.Value);
         await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Admin set seller {SellerId} to plan {Plan}, paid until {Until}", id, plan, seller.SubscriptionActiveUntil);

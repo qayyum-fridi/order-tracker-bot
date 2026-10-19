@@ -14,14 +14,6 @@ public partial class ConversationEngine
 {
     private static readonly Regex OrderRef = new(@"#?(\d+)", RegexOptions.Compiled);
 
-    private static string MediaLimitText(MediaKind kind, int limit, TimeSpan wait)
-    {
-        var minutes = Math.Max(1, (int)Math.Ceiling(wait.TotalMinutes));
-        return kind == MediaKind.Voice
-            ? $"🎤 Ek ghante mein {limit} voice notes ki limit poori ho gayi.\n{minutes} minute baad dobara bhejein, ya abhi text mein likh dein."
-            : $"📷 Ek ghante mein {limit} screenshots ki limit poori ho gayi.\n{minutes} minute baad dobara bhejein, ya abhi order text mein likh dein.";
-    }
-
     /// <summary>Voice note: transcribe, echo what was heard so the seller can catch mistakes, then handle it exactly like typed text.</summary>
     public async Task HandleAudioMessageAsync(string fromPhoneNumber, string mediaId, CancellationToken ct = default)
     {
@@ -32,9 +24,9 @@ public partial class ConversationEngine
         }
 
         var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
-        if (_mediaLimiter is { } voiceLimiter && !voiceLimiter.TryConsume(fromPhoneNumber, MediaKind.Voice, out var voiceWait))
+        if (!TryTakeUsage(seller, fromPhoneNumber, MediaKind.Voice, out var voiceDecision, out var voiceWait))
         {
-            await _sender.SendTextMessageAsync(fromPhoneNumber, MediaLimitText(MediaKind.Voice, voiceLimiter.LimitFor(MediaKind.Voice), voiceWait), ct);
+            await _sender.SendTextMessageAsync(fromPhoneNumber, UsageLimitText(seller, MediaKind.Voice, voiceDecision, voiceWait), ct);
             await _db.SaveChangesAsync(ct);
             return;
         }
@@ -441,10 +433,10 @@ public partial class ConversationEngine
         }
 
         // Receipt logo/banner pictures are not paid AI calls, so only order/receipt screenshots count towards the hourly cap.
-        if (_mediaLimiter is { } imageLimiter && !CommandParser.TryParseBrandingCaption(caption, out _)
-            && !imageLimiter.TryConsume(fromPhoneNumber, MediaKind.Image, out var imageWait))
+        if (!CommandParser.TryParseBrandingCaption(caption, out _)
+            && !TryTakeUsage(seller, fromPhoneNumber, MediaKind.Image, out var imageDecision, out var imageWait))
         {
-            await ReplyAsync(seller, MediaLimitText(MediaKind.Image, imageLimiter.LimitFor(MediaKind.Image), imageWait), ct);
+            await ReplyAsync(seller, UsageLimitText(seller, MediaKind.Image, imageDecision, imageWait), ct);
             await PersistAsync(session, ctx, ct);
             return;
         }
