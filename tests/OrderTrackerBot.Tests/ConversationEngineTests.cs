@@ -807,7 +807,8 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "menu", default);
         await engine.HandleIncomingMessageAsync(Phone, "help", default);
 
-        Assert.Equal(8, lists[0].Sections.SelectMany(s => s.Rows).Count(r => r.Id.StartsWith("menu ")));
+        // Payments, Discounts and Counter Sales are hidden from the menu list (they stay reachable by typing their commands).
+        Assert.Equal(5, lists[0].Sections.SelectMany(s => s.Rows).Count(r => r.Id.StartsWith("menu ")));
         Assert.True(lists[0].Body.Length <= 1024, $"main menu body is {lists[0].Body.Length} chars");
         Assert.InRange(lists[0].Sections.SelectMany(s => s.Rows).Count(), 1, 10);
         Assert.Contains("Main Menu", lists[0].Body);
