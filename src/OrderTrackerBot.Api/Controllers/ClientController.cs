@@ -22,6 +22,11 @@ public class ClientController(ClientQueries queries) : ControllerBase
     public async Task<ActionResult<ClientProfileDto>> Me(CancellationToken ct) =>
         Found(await queries.ProfileAsync(SellerId, ct), "Seller not found.");
 
+    /// <summary>Days since the last order or expense, streak and missed days. Drives the dashboard's missed-days notice.</summary>
+    [HttpGet("activity")]
+    public async Task<ActionResult<EntryActivityDto>> Activity(CancellationToken ct) =>
+        Ok(await queries.ActivityAsync(SellerId, ct));
+
     [HttpGet("setup")]
     public async Task<ActionResult<SetupDto>> Setup(CancellationToken ct) =>
         Found(await queries.SetupAsync(SellerId, ct), "Seller not found.");
