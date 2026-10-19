@@ -23,11 +23,13 @@ public class AdminController : ControllerBase
 
     private readonly AppDbContext _db;
     private readonly ILogger<AdminController> _logger;
+    private readonly BillingOptions _billing;
 
-    public AdminController(AppDbContext db, ILogger<AdminController> logger)
+    public AdminController(AppDbContext db, ILogger<AdminController> logger, BillingOptions billing)
     {
         _db = db;
         _logger = logger;
+        _billing = billing;
     }
 
     /// <summary>
@@ -148,8 +150,10 @@ public class AdminController : ControllerBase
     }
 
     /// <summary>
-    /// Sets a seller's plan and paid-until date (the manual step after a payment is verified; billing trusts this field).
-    /// Trial and Free clear the paid-until date (Free is never billed, for sellers granted free use beyond the first N); Basic and Pro require one.
+    /// Moves a seller between trial, paid and free, in either direction, whenever the owner decides.
+    /// Trial clears the paid-until date and, when no trial is running any more, starts a new one of <see cref="BillingOptions.TrialDays"/>.
+    /// Basic and Pro need a paid-until date (the step after a payment is verified; billing trusts this field).
+    /// Free is never billed and has no end date. Sellers among the first <see cref="BillingOptions.FreeSellerLimit"/> ids stay free whatever their plan.
     /// </summary>
     [HttpPut("sellers/{id:int}/subscription")]
     public async Task<ActionResult<SellerDetailDto>> UpdateSubscription(int id, [FromBody] UpdateSubscriptionRequest request, CancellationToken ct)
@@ -164,8 +168,11 @@ public class AdminController : ControllerBase
         if (!openEnded && request.SubscriptionActiveUntil is null)
             return BadRequest(new { error = "Basic and Pro need subscriptionActiveUntil." });
 
+        var now = DateTime.UtcNow;
         seller.Plan = plan;
         seller.SubscriptionActiveUntil = openEnded ? null : ToUtc(request.SubscriptionActiveUntil!.Value);
+        if (plan == SubscriptionPlan.Trial && seller.TrialEndsAt is not > now)
+            seller.TrialEndsAt = now.Date.AddDays(_billing.TrialDays);
         await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Admin set seller {SellerId} to plan {Plan}, paid until {Until}", id, plan, seller.SubscriptionActiveUntil);
