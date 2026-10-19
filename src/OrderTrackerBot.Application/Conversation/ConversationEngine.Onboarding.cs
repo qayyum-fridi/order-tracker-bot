@@ -228,6 +228,13 @@ public partial class ConversationEngine
                 var picked = PickIndustry(message);
                 if (picked is null)
                 {
+                    // A real command here (e.g. "orders today") runs only after setup: say so, then show the list again.
+                    if (CommandParser.TryParse(message) is { Kind: not (CommandKind.Help or CommandKind.Menu) })
+                    {
+                        await ReplyAsync(seller, MessageTemplates.Get("onboarding.036"), ct);
+                        await AskIndustryAsync(seller, null, ct);
+                        return;
+                    }
                     // A product line here means the seller skipped the shop type: say what is expected first, then show the list again.
                     if (CommandParser.TryParseProductLine(message, out _))
                     {
