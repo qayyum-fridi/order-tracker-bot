@@ -408,7 +408,7 @@ public partial class ConversationEngine
                 // Show the product back first; it is saved when the seller says YES (TryHandlePendingProductAsync).
                 if (_features.ProductConfirmation && cmd.Product is not null)
                 {
-                    await AskProductConfirmationAsync(seller, ctx, cmd.Product, ct);
+                    await AskProductConfirmationAsync(seller, ctx, new[] { cmd.Product }, ct);
                     return;
                 }
                 await HandleAddProductAsync(seller, cmd, ct);
@@ -830,6 +830,8 @@ public partial class ConversationEngine
 
         var saved = new List<string>();
         var priceKept = new List<string>();
+        // With confirmation on, priced products are shown back and saved only after YES (TryHandlePendingProductAsync).
+        var toConfirm = new List<ProductLine>();
         foreach (var p in products.Where(p => p.Price is not null))
         {
             // A price the AI read out of free text never silently overwrites a product that already exists: the seller changes prices on purpose.
@@ -841,8 +843,14 @@ public partial class ConversationEngine
                 continue;
             }
             pendingExtras.TryGetValue(p.Name, out var earlier);
-            var (product, _) = await UpsertProductAsync(seller, new ProductLine(p.Name, p.Price!.Value, "piece", 1, MergeExtras(earlier, ExtrasOf(p))), ct);
+            var line = new ProductLine(p.Name, p.Price!.Value, "piece", 1, MergeExtras(earlier, ExtrasOf(p)));
             pendingExtras.Remove(p.Name);
+            if (_features.ProductConfirmation)
+            {
+                toConfirm.Add(line);
+                continue;
+            }
+            var (product, _) = await UpsertProductAsync(seller, line, ct);
             saved.Add($"• {Formatters.ProductLabel(product)} - {Formatters.Money(product.Price)}{ProductDetailsText(product)}");
         }
 
@@ -883,7 +891,8 @@ public partial class ConversationEngine
                      string.Join("\n", needPrice.Select(n => $"• {n}{(ctx.PendingProductExtras is { } extras && extras.FirstOrDefault(e => string.Equals(e.Key, n, StringComparison.OrdinalIgnoreCase)) is { Value: not null } found ? ExtrasText(found.Value) : "")}")) +
                      "\n\nBarae meherbani har product ki sale price bata dein (misaal: '" + Industry(seller).MainLine + "' ya \"teenon ki 5000\") — jo kuch aap ne bataya hai (cost, stock) woh yaad hai.";
         if (needPrice.Count > 0) reply += "\n\n" + PriceHowToText(needPrice[0]);
-        await ReplyAsync(seller, reply.TrimEnd(), ct);
+        if (reply.Trim().Length > 0) await ReplyAsync(seller, reply.TrimEnd(), ct);
+        if (toConfirm.Count > 0) await AskProductConfirmationAsync(seller, ctx, toConfirm, ct);
     }
 
     /// <summary>Three ways to send a price, shown wherever the bot waits for one, so the seller knows the right input before trying.</summary>

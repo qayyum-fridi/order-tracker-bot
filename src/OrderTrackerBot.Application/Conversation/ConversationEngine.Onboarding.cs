@@ -345,7 +345,7 @@ public partial class ConversationEngine
                     // One product line is shown back for YES first (saved by TryHandlePendingProductAsync).
                     if (_features.ProductConfirmation && productLines.Count == 1)
                     {
-                        await AskProductConfirmationAsync(seller, ctx, productLines[0]!, ct);
+                        await AskProductConfirmationAsync(seller, ctx, new[] { productLines[0]! }, ct);
                         return;
                     }
                     var added = new List<Product>();
