@@ -219,6 +219,14 @@ public partial class ConversationEngine
 
             case ConversationState.OnboardingIndustry:
             {
+                // The shop type was already saved (the dashboard Config page sets it): the question is answered, so move on.
+                if (IndustryProfiles.All.Any(p => p.Title == seller.BusinessType))
+                {
+                    SetState(session, ConversationState.OnboardingOptionalDetails);
+                    await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
+                        MessageTemplates.Get("onboarding.007", seller.BusinessType!), new[] { "Skip" }, ct);
+                    return;
+                }
                 if (CommandParser.TryParse(message) is { Kind: CommandKind.Help or CommandKind.Menu } helpCmd)
                 {
                     await ExecuteCommandAsync(seller, session, ctx, helpCmd, ct);
