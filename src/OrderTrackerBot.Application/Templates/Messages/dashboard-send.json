@@ -1,0 +1,4 @@
+{
+  "dashsend.customer": "👤 *{0}*\n📞 {1}\n📍 {2}\nOrders: {3}\nKul kharid: {4}\nAakhri order: {5}",
+  "dashsend.report": "📊 *{0} se {1} tak*\nOrders: {2}\nSale: {3}\nAverage order: {4}\nCancelled: {5} · Returned: {6}"
+}

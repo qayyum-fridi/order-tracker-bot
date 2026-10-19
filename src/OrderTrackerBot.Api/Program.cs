@@ -15,7 +15,24 @@ builder.Services.Configure<OrderTrackerBot.Api.Admin.AdminOptions>(builder.Confi
 builder.Services.AddScoped<OrderTrackerBot.Api.Admin.AdminApiKeyFilter>();
 builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientAuthFilter>();
 builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientQueries>();
+builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientProductWriter>();
+builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientProductBulk>();
+builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientOrderBulk>();
+builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientCustomerBulk>();
+builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientProductImages>();
+builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientSettings>();
+builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientDiscounts>();
+builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientCustomers>();
+builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientOrderStatus>();
+builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientCategoryRename>();
+builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientExport>();
+builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientStock>();
+builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientExpenses>();
+builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientWages>();
+builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientLosses>();
+builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientOrderCreate>();
 builder.Services.AddSingleton<OrderTrackerBot.Api.Client.ClientLoginLimiter>();
+builder.Services.AddSingleton<OrderTrackerBot.Api.Client.ClientImportStore>();
 builder.Services.AddHostedService<OrderTrackerBot.Api.ScheduledMessagesService>();
 builder.Services.AddHostedService<OrderTrackerBot.Api.WebhookWorkerService>(); // handles queued WhatsApp messages after the webhook has answered 200
 

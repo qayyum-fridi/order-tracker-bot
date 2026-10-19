@@ -173,6 +173,16 @@ public partial class ConversationEngine
             return;
         }
 
+        // "login" and "dashboard logout" work at every step, including onboarding: the dashboard only needs the WhatsApp number.
+        var dashboardKind = CommandParser.TryParse(message)?.Kind;
+        if (dashboardKind is CommandKind.ClientLogin or CommandKind.ClientLogout)
+        {
+            if (dashboardKind == CommandKind.ClientLogin) await HandleClientLoginAsync(seller, ct);
+            else await HandleClientLogoutAsync(seller, ct);
+            await PersistAsync(session, ctx, ct);
+            return;
+        }
+
         // An incomplete seller normally always routes to the onboarding handler — except a state that
         // has its own handler elsewhere (currently just the guide, reachable as a mid-onboarding escape
         // hatch): otherwise the very next message after opening it would fall to HandleOnboardingAsync's
