@@ -12,6 +12,7 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<ConversationSession> Sessions => Set<ConversationSession>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
+    public DbSet<CustomerPhoto> CustomerPhotos => Set<CustomerPhoto>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
@@ -159,6 +160,7 @@ public class AppDbContext : DbContext, IAppDbContext
         });
         modelBuilder.Entity<SupportQuery>(e => e.HasIndex(q => new { q.SellerId, q.Number }));
         modelBuilder.Entity<SellerBranding>(e => e.HasIndex(b => b.SellerId).IsUnique());
+        modelBuilder.Entity<CustomerPhoto>(e => e.HasIndex(p => new { p.SellerId, p.CustomerId }).IsUnique());
         modelBuilder.Entity<ProductImage>(e =>
         {
             e.HasIndex(i => new { i.SellerId, i.ProductId });

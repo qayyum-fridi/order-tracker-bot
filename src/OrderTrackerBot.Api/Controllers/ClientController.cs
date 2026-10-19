@@ -306,6 +306,33 @@ public class ClientController(ClientQueries queries) : ControllerBase
         return problem is not null ? BadRequest(new { error = problem }) : Ok(saved);
     }
 
+    /// <summary>Uploads or replaces a customer's photo (multipart field "file"): JPG, PNG or WebP, 2 MB at most.</summary>
+    [HttpPost("customers/{id:int}/photo")]
+    [RequestSizeLimit(ClientCustomerPhotos.MaxBytes + 64 * 1024)]
+    public async Task<IActionResult> UploadCustomerPhoto(int id, IFormFile? file, [FromServices] ClientCustomerPhotos photos, CancellationToken ct)
+    {
+        if (file is null) return BadRequest(new { error = "Choose a photo to upload." });
+        if (file.Length > ClientCustomerPhotos.MaxBytes) return BadRequest(new { error = "Photos can be 2 MB at most." });
+        using var buffer = new MemoryStream();
+        await file.CopyToAsync(buffer, ct);
+        var problem = await photos.SetAsync(SellerId, id, buffer.ToArray(), ct);
+        return problem is null ? NoContent() : BadRequest(new { error = problem });
+    }
+
+    /// <summary>The customer's photo itself, for the dashboard to show.</summary>
+    [HttpGet("customers/{id:int}/photo")]
+    public async Task<IActionResult> CustomerPhotoFile(int id, [FromServices] ClientCustomerPhotos photos, CancellationToken ct)
+    {
+        var photo = await photos.GetAsync(SellerId, id, ct);
+        if (photo is null) return NotFound(new { error = "Photo not found." });
+        Response.Headers.CacheControl = "private, max-age=3600";
+        return File(photo.Data, photo.ContentType);
+    }
+
+    [HttpDelete("customers/{id:int}/photo")]
+    public async Task<IActionResult> DeleteCustomerPhoto(int id, [FromServices] ClientCustomerPhotos photos, CancellationToken ct) =>
+        await photos.DeleteAsync(SellerId, id, ct) ? NoContent() : NotFound(new { error = "Photo not found." });
+
     /// <summary>Lists the photos of a product, oldest first. The bytes come from the image route.</summary>
     [HttpGet("products/{id:int}/images")]
     public async Task<ActionResult<IReadOnlyList<ProductImageDto>>> ProductImages(int id, [FromServices] ClientProductImages images, CancellationToken ct) =>
