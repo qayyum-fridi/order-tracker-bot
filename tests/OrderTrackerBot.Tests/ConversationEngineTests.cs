@@ -975,7 +975,8 @@ public class ConversationEngineTests : IDisposable
 
         await engine.HandleIncomingMessageAsync(Phone, "orders today", default);
 
-        Assert.Contains(_sentMessages, m => m.Contains("pehle catalog complete karein"));
+        // "orders today" is a read-only lookup, so it runs during setup and changes nothing.
+        Assert.Contains(_sentMessages, m => m.Contains("Aaj koi order nahi"));
         var orderCount = await db.Orders.CountAsync();
         Assert.Equal(0, orderCount);
     }

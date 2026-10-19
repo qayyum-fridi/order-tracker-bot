@@ -23,6 +23,11 @@ public partial class ConversationEngine
         @"[\s,;.]*(?:(?:(?:catalog|catalogue|product|products|list)\s+(?:mein|me)|product\s+ke\s+(?:taur|tor)\s+par)\s+)?(?:add|ad)\s+(?:kar\s*)?(?:do|dein|den|karo|kardo|kardein)[\s.!]*$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
+    // "kurti price 1800": the price word is not part of the product name, so it becomes "kurti - 1800".
+    private static readonly Regex PriceWordBeforeAmount = new(
+        @"^(.+?)(?:\s+(?:ki|ka|ke|کی|کا|کے))?\s+(?:price|rate|qeemat|keemat|kimat|قیمت|ریٹ)\s*[-–—:=]?\s*(?=(?:rs\.?\s*)?\d[\d.,]*\s*(?:/-|rs\.?|rupay|rupees|pkr)?\s*$)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+
     // Onboarding accepts any "name - price" (digits allowed in the name, e.g. "Suit 2pc - 3500"), also with ":"/"=" or an Rs/PKR marker.
     internal static ProductLine? ParseLooseProductLine(string line)
     {
@@ -30,6 +35,7 @@ public partial class ConversationEngine
         line = CommandParser.NormalizeProductPriceText(line);
         // "address mein" is a mis-heard "catalog mein": it only matters when it trails the price like the other filler.
         line = AddFiller.Replace(Regex.Replace(line, @"[\s,;]+address\s+(?:mein|me)\b", ""), "");
+        line = PriceWordBeforeAmount.Replace(line, "$1 - ");
         var m = LooseProductLine.Match(line);
         if (m.Success) return CommandParser.SplitUnit(m.Groups[1].Value, decimal.Parse(m.Groups[2].Value));
         if (CommandParser.TryParseSpacedProductLine(line, out ProductLine? spaced)) return spaced;
@@ -357,7 +363,11 @@ public partial class ConversationEngine
                     if (parsed.Kind is CommandKind.Help or CommandKind.Menu or CommandKind.ConnectInstagram or CommandKind.ImportCatalogSheet
                         or CommandKind.BusinessSetup or CommandKind.NewOrderHelp or CommandKind.Guide or CommandKind.Stock
                         or CommandKind.ImportHelp or CommandKind.ImportTemplate or CommandKind.HowTo
-                        or CommandKind.CustomerSearch or CommandKind.CustomerOrderLookup)
+                        or CommandKind.CustomerSearch or CommandKind.CustomerOrderLookup
+                        // Read-only lookups: they change nothing, so the seller can check orders or reports during setup.
+                        or CommandKind.OrdersToday or CommandKind.PendingOrders or CommandKind.UnpaidOrders
+                        or CommandKind.TodaysSummary or CommandKind.Profit or CommandKind.Margin or CommandKind.WeeklySummary
+                        or CommandKind.CustomerList)
                     {
                         await ExecuteCommandAsync(seller, session, ctx, parsed, ct);
                         return;
