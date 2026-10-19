@@ -18,4 +18,15 @@ public class OnboardingProductLineTests
         Assert.Equal(name, parsed!.Name, ignoreCase: true);
         Assert.Equal(price, parsed.Price);
     }
+
+    // A detail word right after the price works without a comma ("stock 1000" from the shop chat).
+    [Fact]
+    public void Stock_after_price_without_comma_is_a_product()
+    {
+        Assert.True(CommandParser.TryParseProductLine("Lipstick mattr red - 950 stock 1000", out ProductLine? product));
+        Assert.Equal("Lipstick mattr", product!.Name);
+        Assert.Equal(950m, product.Price);
+        Assert.Equal(1000, product.Extras!.Stock);
+        Assert.Equal("red", product.Extras.Color);
+    }
 }

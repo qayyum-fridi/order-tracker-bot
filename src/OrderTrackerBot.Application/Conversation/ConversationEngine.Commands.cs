@@ -405,6 +405,12 @@ public partial class ConversationEngine
                 await HandleCatalogAsync(seller, ctx, cmd.Text, ct);
                 return;
             case CommandKind.AddProduct:
+                // Show the product back first; it is saved when the seller says YES (TryHandlePendingProductAsync).
+                if (_features.ProductConfirmation && cmd.Product is not null)
+                {
+                    await AskProductConfirmationAsync(seller, ctx, cmd.Product, ct);
+                    return;
+                }
                 await HandleAddProductAsync(seller, cmd, ct);
                 return;
             case CommandKind.NewOrderHelp:

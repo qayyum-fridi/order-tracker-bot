@@ -850,6 +850,24 @@ public static class CommandParser
         return ok;
     }
 
+    // Colours a seller writes after a product name ("Lipstick mattr red - 950"): the last word is the variant, the rest is the name.
+    private static readonly HashSet<string> ColourWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "red", "white", "black", "blue", "green", "pink", "gold", "silver", "brown", "grey", "gray", "yellow", "purple",
+        "orange", "maroon", "navy", "cream", "beige", "magenta", "peach", "lilac", "ivory", "teal"
+    };
+
+    private static ProductLine SplitColourWord(ProductLine product)
+    {
+        var words = product.Name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length < 2 || !ColourWords.Contains(words[^1]) || product.Extras?.Color is not null) return product;
+        var extras = product.Extras ?? new ProductExtras(null, null, null, null, null, null, null);
+        return product with { Name = string.Join(' ', words[..^1]), Extras = extras with { Color = words[^1] } };
+    }
+
+    private static readonly Regex ProductDetailWithoutComma = new(
+        @"^([^,;|]*?[-–=]\s*(?:rs\.?\s*)?\d[\d.]*)\s+(stock|cost|color|colour|size|category|sku)\b", Opts);
+
     // "Polo Shirt - 500, cost 300, stock 10": the first number is the sale price, the rest are comma/semicolon/pipe separated details.
     private static readonly Regex ProductWithDetailsDigits = new(@"^([^,;:|\n]{2,50}?)\s*[-–=]\s*(?:rs\.?\s*)?(\d{1,7}(?:\.\d+)?)\s*[,;|]\s*(.+)$", Opts);
     private static readonly Regex ProductWithDetails = new(@"^([^\d,;:|\n]{2,50}?)\s*[-–=]\s*(?:rs\.?\s*)?(\d{1,7}(?:\.\d+)?)\s*[,;|]\s*(.+)$", Opts);
@@ -940,6 +958,7 @@ public static class CommandParser
     public static bool TryParseProductLine(string line, out ProductLine? product)
     {
         if (!ParseProductLineCore(line, out product)) return false;
+        product = SplitColourWord(product!);
         // "Kurti - -5" (name "Kurti -", price 5) is a typo, not a product: never saved. (A price of 0 stays allowed: free sample products.)
         var name = product!.Name.Trim();
         if (!name.Any(char.IsLetter) || name.EndsWith('-') || name.EndsWith('–') || name.EndsWith('='))
@@ -954,6 +973,8 @@ public static class CommandParser
     {
         product = null;
         var text = NormalizeProductPriceText(line.Trim());
+        // "Lipstick - 950 stock 1000": a detail word after the price is enough; the comma is optional.
+        text = ProductDetailWithoutComma.Replace(text, "$1, $2");
 
         var detailed = ProductWithDetails.Match(text);
         if (detailed.Success && TryParseProductDetails(detailed.Groups[3].Value, out var extras))
