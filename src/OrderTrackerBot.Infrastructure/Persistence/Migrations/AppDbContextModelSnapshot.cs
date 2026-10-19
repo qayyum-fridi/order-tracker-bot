@@ -356,6 +356,39 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     b.ToTable("CustomerFeedbacks");
                 });
 
+            modelBuilder.Entity("OrderTrackerBot.Domain.Entities.CustomerPhoto", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CustomerId")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<int>("SellerId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SellerId", "CustomerId")
+                        .IsUnique();
+
+                    b.ToTable("CustomerPhotos");
+                });
+
             modelBuilder.Entity("OrderTrackerBot.Domain.Entities.Discount", b =>
                 {
                     b.Property<int>("Id")
