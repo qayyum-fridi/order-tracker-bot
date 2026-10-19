@@ -1,4 +1,4 @@
-using OrderTrackerBot.Application.Time;
+﻿using OrderTrackerBot.Application.Time;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Ai;
@@ -33,6 +33,18 @@ public partial class ConversationEngine
         })
     };
 
+    // Rows hidden from the menu lists. They stay in the code; remove an id here to show it again.
+    private static readonly HashSet<string> HiddenMenuRowIds = new()
+    {
+        "menu payments", "menu discounts", "menu shop", "walkin", "label", "new order (detailed)", "add product (detailed)", "scan cart",
+        "discount performance", "discount list", "add discount", "create loyalty", "loyal customers"
+    };
+
+    private static IReadOnlyList<MenuRow> VisibleRows(IEnumerable<MenuRow> rows) => rows.Where(r => !HiddenMenuRowIds.Contains(r.Id)).ToArray();
+
+    private static IReadOnlyList<MenuSection> VisibleSections(IEnumerable<MenuSection> sections) =>
+        sections.Select(s => new MenuSection(s.Title, VisibleRows(s.Rows))).ToArray();
+
     private static readonly IReadOnlyList<MenuSection> MainMenuSections = new[]
     {
         new MenuSection("Categories", new[]
@@ -40,7 +52,10 @@ public partial class ConversationEngine
             new MenuRow("menu orders", "📦 Orders"),
             new MenuRow("menu reports", "📊 Reports"),
             new MenuRow("menu catalog", "🛍️ Catalog"),
+            new MenuRow("menu payments", "💰 Payments"),
+            new MenuRow("menu discounts", "🎟️ Discounts"),
             new MenuRow("menu customers", "👥 Customers"),
+            new MenuRow("menu shop", "🏪 Counter Sales"),
             new MenuRow("menu settings", "⚙️ Settings"),
             new MenuRow("business setup", "⚙️ Business Setup"),
             new MenuRow("change language", "🌐 Language")
@@ -52,7 +67,7 @@ public partial class ConversationEngine
     private static readonly IReadOnlyDictionary<string, (string Title, string Body, MenuRow[] Rows)> MenuCategories =
         new Dictionary<string, (string, string, MenuRow[])>
         {
-            ["orders"] = ("📦 Orders", "📦 Orders\n • naya order: customer ka message ya details bhejein\n • order [n] — order ki tafseel\n • edit order [n] — order mein tabdeeli\n • [customer] ka order — customer ka order\n • mark [n] shipped / delivered / returned\n • receipt [n] — PDF receipt\n • order for Sara — mehfooz customer ka order\n • walkin Kurti 2 — dukaan par sale\n • note 12 [text] · label 12 · email receipt 12", new[]
+            ["orders"] = ("📦 Orders", "📦 Orders — yeh likh kar dekhein:\n • Naya order: Ayesha, 2 suit, 03001234567\n • Dekhein: order 12 · orders today · pending orders\n • Status: mark 12 shipped · mark 12 delivered · mark 12 paid\n • Advance: order 12 advance 500\n • Edit: edit order 12, phir 1 = 3 · remove 2 · done\n • Cancel: cancel 12\n • Receipt: receipt 12", new[]
             {
                 new MenuRow("orders today", "Orders today"), new MenuRow("pending orders", "Pending orders"),
                 new MenuRow("unpaid orders", "Unpaid orders"), new MenuRow("cod pending", "COD pending"), new MenuRow("receipt", "Last order receipt (PDF)"), new MenuRow("edit order", "Last order edit"),
@@ -66,7 +81,7 @@ public partial class ConversationEngine
                 new MenuRow("discount performance", "Discount performance"),
                 new MenuRow("monthly net", "Monthly net"), new MenuRow("expenses", "Expenses"), BackToMenu
             }),
-            ["catalog"] = ("🛍️ Catalog", "🛍️ Catalog\n • naya product: Kurti - 1800\n • stock: \"stock Kurti 20\" ya \"stock\"\n • weight / pack: Sugar 5 kg - 500\n • edit product: Kurti - 1900\n • delete product: Kurti\n • filter: \"products vendor Ali\" ya \"products category Shirts\"\n • wholesale: Kaju - price tiers: 1kg=320, 10kg=300\n • barcode: \"barcode Kurti 8961234567890\"\n • ek message mein kai products bhi bheje ja sakte hain", new[]
+            ["catalog"] = ("🛍️ Catalog", "🛍️ Catalog — yeh likh kar dekhein:\n • Naya product: Kurti - 1800, stock 10\n • Detail ke saath: Polo Shirt - 500, cost 300, stock 10, category: Shirts\n • Price badlein: edit product: Kurti - 1900\n • Hatayein: delete product: Kurti\n • Stock: stock Kurti 20 · stock Kurti +10 · stock Kurti off\n • Dekhein: catalog · catalog search chini\n • Barcode: barcode Kurti 8961234567890", new[]
             {
                 new MenuRow("catalog", "View catalog"), new MenuRow("share catalog", "Share catalog"),
                 new MenuRow("add product", "Add product"), new MenuRow("add product (detailed)", "Add product (form)"),
@@ -84,7 +99,7 @@ public partial class ConversationEngine
                 new MenuRow("create loyalty", "Add loyalty rule"), new MenuRow("loyal customers", "Loyal customers"),
                 new MenuRow("campaign status", "Campaign status"), BackToMenu
             }),
-            ["customers"] = ("👥 Customers", "👥 Customers\n • \"customer 1\" ya naam likh kar tafseel dekhein\n • update: \"Sara ka phone 0300...\" / \"Sara ka address ...\"\n • \"search customer: naam ya phone\"\n • \"delete customer naam\" / \"restore customer naam\"\n • promotion: \"sab customers ko batao: naya stock aaya\"\n • customer ka sawal: \"order kab aayega? — Bilal ne poocha\"\n • \"mark [n] resolved\"", new[]
+            ["customers"] = ("👥 Customers", "👥 Customers — yeh likh kar dekhein:\n • Dekhein: customer list · customer 1 · search customer: Sara\n • Phone badlein: Sara ka phone 03001234567\n • Address badlein: Sara ka address Model Town\n • Customer ke orders: Sara ka order\n • Hatayein: delete customer Sara\n • Wapas layein: restore customer Sara", new[]
             {
                 new MenuRow("customer list", "Customer list"), new MenuRow("support queries", "Support queries"),
                 new MenuRow("comment leads", "📷 Comment leads"), new MenuRow("connect instagram", "📷 Connect Instagram"),
@@ -112,7 +127,7 @@ public partial class ConversationEngine
         // Free sellers never see the plan/subscribe entry.
         var shown = BillingApplies(seller) ? rows : rows.Where(r => r.Id != "subscribe").ToArray();
         return _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, body, "Options dekhein",
-            new[] { new MenuSection(title, shown) }, ct);
+            new[] { new MenuSection(title, VisibleRows(shown)) }, ct);
     }
 
     private async Task ExecuteCommandAsync(Seller seller, ConversationSession session, SessionContextData ctx, ParsedCommand cmd, CancellationToken ct)
@@ -359,7 +374,7 @@ public partial class ConversationEngine
                 await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, HelpText, "Commands dekhein", HelpSections, ct);
                 return;
             case CommandKind.Menu:
-                await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MenuText, "Menu kholein", MainMenuSections, ct);
+                await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MenuText, "Menu kholein", VisibleSections(MainMenuSections), ct);
                 return;
             case CommandKind.MenuCategory:
                 await HandleMenuCategoryAsync(seller, cmd.Text!, ct);
