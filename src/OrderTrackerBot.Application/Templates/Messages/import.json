@@ -12,6 +12,7 @@
   "import.011": "✅ Import ho gaya: {0}.\nDekhne ke liye \"customers\" / \"catalog\" · Ghalti ho to \"undo\".",
   "import.012": "Aur products bhejna chahein to bhej dein, warna \"done\" likhein.",
   "import.013": "↩️ Reverted — import hata diya: {0} customers, {1} products.",
+  "import.014": "↩️ Sales import wapas: {0} orders cancel kiye aur stock wapas kar diya.",
   "import.014": "✅ File ready — download kar ke data paste karein aur isi chat mein wapas bhej dein.\n\"Guide\" sheet har column ka matlab aur example batati hai. Doosri file ke liye \"import\" likhein.",
   "import.015": "⚠️ File bhej nahi saka — thori der baad dobara try karein.",
   "import.016": "Ab koi nayi row save karne ke liye nahi bachi.",

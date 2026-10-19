@@ -284,6 +284,24 @@ public partial class ConversationEngine
             else _db.Products.Remove(product);
         }
 
+        // Imported sales are cancelled rather than deleted, so the day's history stays readable, and their units go back to stock.
+        var orderIds = Ids("OrderIds");
+        if (orderIds.Count > 0)
+        {
+            var orders = await _db.Orders.Include(o => o.Items)
+                .Where(o => o.SellerId == seller.Id && orderIds.Contains(o.Id)).ToListAsync(ct);
+            foreach (var order in orders.Where(o => o.Status is not (OrderStatus.Cancelled or OrderStatus.Returned)))
+            {
+                var stockBefore = StockFootprint(order);
+                order.Status = OrderStatus.Cancelled;
+                order.CancelledAt = DateTime.UtcNow;
+                await ApplyStockChangeAsync(seller, stockBefore, StockFootprint(order), ct);
+            }
+            _stockWarnings.Clear();
+            await _db.SaveChangesAsync(ct);
+            await ReplyAsync(seller, MessageTemplates.Get("import.014", orders.Count), ct);
+        }
+
         await ReplyAsync(seller, MessageTemplates.Get("import.013", customers.Count, products.Count), ct);
     }
 

@@ -30,6 +30,7 @@ public partial class ConversationEngine
     /// <summary>Plans an uploaded file for the seller. `kind` is "customers" or "catalog" and decides which rows count and are shown.</summary>
     public async Task<ClientImportPreview> PreviewClientImportAsync(int sellerId, string kind, byte[] bytes, string fileName, CancellationToken ct)
     {
+        if (kind == "sales") return await PreviewSalesImportAsync(sellerId, bytes, fileName, ct);
         var seller = await _db.Sellers.FirstAsync(s => s.Id == sellerId, ct);
         var plan = await PlanImportBytesAsync(seller, bytes, fileName, ct);
         if (plan.Problem != ImportProblem.None)
@@ -62,6 +63,7 @@ public partial class ConversationEngine
     /// <summary>Saves the new rows of an uploaded file. Returns null when the file has nothing new to save.</summary>
     public async Task<ClientImportResult?> CommitClientImportAsync(int sellerId, string kind, byte[] bytes, string fileName, CancellationToken ct)
     {
+        if (kind == "sales") return await CommitSalesImportAsync(sellerId, bytes, fileName, ct);
         var seller = await _db.Sellers.FirstAsync(s => s.Id == sellerId, ct);
         var plan = await PlanImportBytesAsync(seller, bytes, fileName, ct);
         if (plan.Problem != ImportProblem.None || !plan.HasNew) return null;

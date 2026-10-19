@@ -35,7 +35,7 @@ public class ClientController(ClientQueries queries) : ControllerBase
     public async Task<ActionResult<ClientImportPreviewDto>> PreviewImport(
         [FromForm] string? kind, IFormFile? file, [FromServices] ConversationEngine engine, [FromServices] ClientImportStore store, CancellationToken ct)
     {
-        if (kind is not ("customers" or "catalog")) return BadRequest(new { error = "Kind must be customers or catalog." });
+        if (kind is not ("customers" or "catalog" or "sales")) return BadRequest(new { error = "Kind must be customers, catalog or sales." });
         if (file is null || file.Length == 0) return BadRequest(new { error = "Choose a file to upload." });
         if (file.Length > ClientImportLimits.MaxFileBytes) return BadRequest(new { error = "The file is larger than 5 MB." });
         if (!ImportFileTypes.IsSupported(file.FileName, file.ContentType))
@@ -71,6 +71,7 @@ public class ClientController(ClientQueries queries) : ControllerBase
         "TooBig" => "The file is larger than 5 MB.",
         "Unreadable" => "This file could not be read. Check that it is not damaged or password-protected.",
         "NoSheet" => "No customer or product table found. Check the column headings.",
+        "NoSales" => "No daily sales table found. Needs columns: Product, Quantity and Customer or Phone. Date, Price, Payment and Status are optional.",
         "TooManyRows" => "The file has too many rows. Split it and upload the parts.",
         _ => "The file could not be imported.",
     };
