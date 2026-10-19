@@ -1,0 +1,55 @@
+# Food / Bakery — poora business. Naya phone number chunein.
+# Chalaane ka tareeqa: scripts/run-scenario.sh docs/scenarios/food.txt 923001110105
+# Mutawaqqa nateeja: docs/industry-test-cases.md (food section).
+
+# --- Setup ---
+start
+Roman Urdu
+Setup shuru karein
+Sweet Home Bakery
+skip
+Chhota (20 se kam)
+industry food
+
+# --- Catalog ---
+Chocolate Cake 2 lb - 3200, cost 1500, category cakes
+Custom Photo Cake 2 lb - 4200, cost 2000, category cakes
+Chicken Biryani Tray - 4500, cost 3000, category meals
+Brownies Box - 1200, cost 600, category snacks
+Samosa Dozen - 400, cost 220, category snacks
+Mango Juice 1 ltr - 250, cost 150, stock 20, category drinks
+delivery 300
+catalog
+
+# --- Advance wale pre-orders ---
+Maryam, 1 chocolate cake 2 lb, 03001234567, Clifton Karachi, advance 1000, delivery 300
+yes
+Ali, 1 custom photo cake 2 lb, 1 brownies box, 03211234567, Gulshan Karachi
+yes
+note 2 cake par "Happy Birthday Ali" likhna
+Ali, 1 samosa dozen, 03211234567, Gulshan Karachi, kal
+yes
+order 1 advance 2000
+mark 1 shipped
+mark 1 delivered
+mark 2 shipped
+orders today
+unpaid orders
+
+# --- Counter sale aur kharcha ---
+walkin Mango Juice 1 ltr 3 then yes (cash)
+expense 800 gas cylinder
+expense 1200 bijli
+expenses today
+monthly net
+drawer open 2000
+cash sale 900 counter
+drawer close 2900
+
+# --- Reports ---
+summary
+profit
+margin
+trending
+data check
+aaj ka hisaab

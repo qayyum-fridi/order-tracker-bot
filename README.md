@@ -238,11 +238,20 @@ download a `.db.gz` from the folder, `gunzip` it, stop the app and replace the `
 
 ## Free first 100 sellers and hourly media limits
 
-`BILLING_FREE_SELLER_LIMIT` (default 100): the first N sellers (by registration order) are free with no time limit and never see a trial, plan or
+`BILLING_FREE_SELLER_LIMIT` (default 20): the first N sellers (by registration order) are free with no time limit and never see a trial, plan or
 subscription message. Seller N+1 onwards gets the normal 14-day trial and plans (keep `BILLING_ENABLED=true`). Set it to 0 to turn the free tier off.
+Any seller can be moved by hand, in either direction, with `PUT /api/admin/sellers/{id}/subscription` (admin key header):
+- `{"plan": "Trial"}`: back to trial. A new trial of `Billing:TrialDays` starts if the old one has ended.
+- `{"plan": "Basic", "subscriptionActiveUntil": "2026-11-19T00:00:00Z"}` (or `Pro`): paid until that date.
+- `{"plan": "Free"}`: free, no expiry, never billed.
+Sellers among the first N (`BILLING_FREE_SELLER_LIMIT`) stay free whatever their plan. Trial-ending and weekly messages still reach only sellers who wrote in the last 24 hours.
 
-`MEDIA_VOICE_PER_HOUR` / `MEDIA_IMAGE_PER_HOUR` (default 10 each, 0 = unlimited): per seller, per rolling hour, to keep OpenAI cost down. Over the
-limit the seller is told to type instead or retry in N minutes, and no paid call is made. Logo/banner pictures are not counted.
+Hourly caps per seller, rolling one hour, in memory (a restart resets them). Texts, voice notes and screenshots each have a count cap
+(`MEDIA_TEXT_PER_HOUR` 150, `MEDIA_VOICE_PER_HOUR` 30, `MEDIA_IMAGE_PER_HOUR` 15; 0 = unlimited). On top of that, one USD budget per hour covers all three:
+`MEDIA_FREE_USD_PER_HOUR` (default 1.00) for free sellers and `MEDIA_PAID_USD_PER_HOUR` (default 5.00) for trial and paid sellers. Each use costs an
+estimate (`MediaLimits:TextUsd` 0.002, `VoiceUsd` 0.015, `ImageUsd` 0.01): these are estimates, not the OpenAI bill, so check them against the price page.
+At the default numbers the three count caps add up to about $0.90, so the budget only binds if the estimates are too low. Over a limit the seller is told
+to wait N minutes, and no paid call is made. Logo/banner pictures are not counted.
 
 ## Error log (CSV, Google Drive, email)
 

@@ -1,0 +1,57 @@
+# Hardware / Building — poora business. Naya phone number chunein.
+# Chalaane ka tareeqa: scripts/run-scenario.sh docs/scenarios/hardware.txt 923001110106
+# Mutawaqqa nateeja: docs/industry-test-cases.md (hardware section).
+
+# --- Setup ---
+start
+Roman Urdu
+Setup shuru karein
+Usman Hardware Store
+skip
+Chhota (20 se kam)
+industry hardware
+
+# --- Catalog ---
+Wall Paint 4 ltr - 3800, cost 3000, stock 20, category paint
+PVC Pipe 1 inch - 450, cost 300, stock 50, category pipes
+Cement Bag 50 kg - 1350, cost 1150, stock 80, category cement
+Ceramic Tile 12x12 - 65, cost 45, stock 500, category tiles
+Electric Wire 2.5 mm - 95, cost 70, stock 300, category electrical
+Hammer Steel - 850, cost 500, stock 10, category tools
+supplier Wall Paint: Ali Traders
+supplier PVC Pipe 1 inch: Usman Traders
+suppliers
+catalog
+stock Cement Bag 50 kg 3
+
+# --- Orders aur udhaar ---
+Usman, 5 pvc pipe 1 inch, 2 wall paint 4 ltr, 03001234567, Gujranwala, advance 5000
+yes
+Ahmed, 10 cement bag 50 kg, 03331234567, Model Town Gujranwala
+yes
+note 2 Model Town site par pohanchana hai
+mark 1 shipped
+order 1 advance 3000
+unpaid orders
+balance
+mark 2 shipped
+mark 2 delivered
+mark 2 returned
+
+# --- Counter sale aur kharcha ---
+walkin Hammer Steel 1, Electric Wire 2.5 mm 2 then yes (cash)
+expense 15000 transport
+expense 3000 labour
+expenses today
+monthly net
+drawer open 10000
+cash out 2000 supplier ko
+drawer close 8000
+
+# --- Reports ---
+summary
+profit
+margin
+stock
+data check
+aaj ka hisaab

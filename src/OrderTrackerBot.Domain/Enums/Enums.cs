@@ -111,5 +111,7 @@ public enum SubscriptionPlan
 {
     Trial,
     Basic,
-    Pro
+    Pro,
+    /// <summary>Granted by the admin API: never billed, no trial, no expiry. Appended last so stored values of the others do not change.</summary>
+    Free
 }

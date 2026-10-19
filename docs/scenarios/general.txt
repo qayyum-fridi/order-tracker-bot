@@ -1,0 +1,47 @@
+# General dukaan — poora business. Naya phone number chunein.
+# Chalaane ka tareeqa: scripts/run-scenario.sh docs/scenarios/general.txt 923001110107
+# Mutawaqqa nateeja: docs/industry-test-cases.md (general section).
+
+# --- Setup ---
+start
+Roman Urdu
+Setup shuru karein
+Ayesha General Store
+skip
+Chhota (20 se kam)
+industry general
+
+# --- Catalog ---
+Water Bottle - 500, cost 350, stock 20, category general
+Notebook A4 - 250, cost 150, stock 40, category stationery
+Pen Pack 10 - 300, cost 180, stock 25, category stationery
+Rice 5 kg - 800, cost 700, stock 15, category rashan
+catalog
+catalog a-z
+
+# --- Orders ---
+Ayesha, 2 water bottle, 1 notebook a4, 03001234567
+yes
+Kashif, 3 pen pack 10, 03121234567, Lahore, delivery 150
+yes
+mark 1 shipped
+mark 1 delivered
+orders today
+cancel 2
+unpaid orders
+
+# --- Kharcha aur cash ---
+expense 600 bijli
+kharcha 300 chai
+monthly net
+drawer open 2000
+cash sale 800 counter
+drawer close 2800
+
+# --- Reports ---
+summary
+profit
+margin
+stock
+data check
+aaj ka hisaab

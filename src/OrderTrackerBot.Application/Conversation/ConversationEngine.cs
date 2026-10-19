@@ -120,6 +120,13 @@ public partial class ConversationEngine
                 : MessageTemplates.Get("engine.005"), ct);
             return;
         }
+        // Every text counts against the seller's hourly text cap and USD budget, before any AI call can be made for it.
+        if (!TryTakeUsage(seller, fromPhoneNumber, MediaKind.Text, out var textDecision, out var textWait))
+        {
+            await ReplyAsync(seller, UsageLimitText(seller, MediaKind.Text, textDecision, textWait), ct);
+            await _db.SaveChangesAsync(ct);
+            return;
+        }
         message = _translator.RestoreButtonLabel(message);
 
         var session = seller.Session!;
@@ -499,6 +506,9 @@ public sealed class FeatureOptions
 
     /// <summary>A product line is shown back (name, colour, price, stock) and saved only after YES; off = saved straight away (unit tests).</summary>
     public bool ProductConfirmation { get; set; }
+
+    /// <summary>Instagram connect, comment leads and the Meta webhooks. Off = "connect instagram" says it is not active, comments are ignored and the Instagram endpoints answer 404.</summary>
+    public bool Instagram { get; set; }
 
     /// <summary>Public link to the illustrated English/Urdu guide, sent with the Guide command. Empty = no link.</summary>
     public string GuideUrl { get; set; } = "";

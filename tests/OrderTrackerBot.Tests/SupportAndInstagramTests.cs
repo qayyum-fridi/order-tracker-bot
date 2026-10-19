@@ -43,7 +43,8 @@ public class SupportAndInstagramTests : IDisposable
     public void Dispose() => _dbFactory.Dispose();
 
     private ConversationEngine Engine(AppDbContext db) =>
-        new(db, _ai.Object, _sender.Object, _founderAlerts.Object, instagram: _instagram.Object);
+        new(db, _ai.Object, _sender.Object, _founderAlerts.Object, instagram: _instagram.Object,
+            features: new FeatureOptions { ShortcutButtons = false, Instagram = true });
 
     private async Task<ConversationEngine> OnboardAsync(AppDbContext db)
     {

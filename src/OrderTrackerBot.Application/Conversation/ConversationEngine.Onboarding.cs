@@ -186,6 +186,13 @@ public partial class ConversationEngine
         })
     };
 
+    /// <summary>The "connect instagram" row is left out while Features:Instagram is off.</summary>
+    private IReadOnlyList<Abstractions.MenuSection> CatalogStepQuickActionsFor() => _features.Instagram
+        ? CatalogStepQuickActions
+        : CatalogStepQuickActions
+            .Select(s => new Abstractions.MenuSection(s.Title, s.Rows.Where(r => r.Id != "connect instagram").ToArray()))
+            .ToArray();
+
     /// <summary>After each product: the confirmation and the next-step buttons in one message, so the options sit right under it.</summary>
     private Task SendAddProductChoicesAsync(Seller seller, string text, CancellationToken ct) =>
         _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
@@ -309,7 +316,7 @@ public partial class ConversationEngine
                     ? MessageTemplates.Get("onboarding.020", string.Join("\n", Industry(seller).ProductLines))
                     : MessageTemplates.Get("onboarding.021", Industry(seller).SimpleProduct), ct);
                 await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("onboarding.012"),
-                    "Options dekhein", CatalogStepQuickActions, ct);
+                    "Options dekhein", CatalogStepQuickActionsFor(), ct);
                 return;
 
             case ConversationState.OnboardingAddProduct:
