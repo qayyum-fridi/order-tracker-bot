@@ -40,10 +40,7 @@ public partial class ConversationEngine
             new MenuRow("menu orders", "📦 Orders"),
             new MenuRow("menu reports", "📊 Reports"),
             new MenuRow("menu catalog", "🛍️ Catalog"),
-            new MenuRow("menu payments", "💰 Payments"),
-            new MenuRow("menu discounts", "🎟️ Discounts"),
             new MenuRow("menu customers", "👥 Customers"),
-            new MenuRow("menu shop", "🏪 Counter Sales"),
             new MenuRow("menu settings", "⚙️ Settings"),
             new MenuRow("business setup", "⚙️ Business Setup"),
             new MenuRow("change language", "🌐 Language")
