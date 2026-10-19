@@ -22,11 +22,13 @@ public class InstagramController : ControllerBase
     private readonly ConversationEngine _engine;
     private readonly ILogger<InstagramController> _logger;
     private readonly IIssueReporter _issues;
+    private readonly FeatureOptions _features;
 
     public InstagramController(InstagramClient instagram, IOptions<InstagramOptions> options, IOptions<WhatsAppOptions> whatsApp,
-        AppDbContext db, ConversationEngine engine, ILogger<InstagramController> logger, IIssueReporter issues)
+        IOptions<FeatureOptions> features, AppDbContext db, ConversationEngine engine, ILogger<InstagramController> logger, IIssueReporter issues)
     {
         _issues = issues;
+        _features = features.Value;
         _instagram = instagram;
         _options = options.Value;
         _whatsApp = whatsApp.Value;
@@ -39,6 +41,7 @@ public class InstagramController : ControllerBase
     [HttpGet("instagram/connect/{state}")]
     public IActionResult Connect(string state)
     {
+        if (!_features.Instagram) return NotFound();
         if (!_instagram.IsConfigured) return Page("Instagram connect abhi active nahi hai.", ok: false);
         if (!_instagram.TryReadState(state, DateTime.UtcNow, out _))
             return Page("Yeh link expire ho gaya hai. WhatsApp par dobara \"connect instagram\" likhein.", ok: false);
@@ -49,6 +52,7 @@ public class InstagramController : ControllerBase
     public async Task<IActionResult> Callback([FromQuery] string? code, [FromQuery] string? state,
         [FromQuery(Name = "error_description")] string? errorDescription, CancellationToken ct)
     {
+        if (!_features.Instagram) return NotFound();
         if (!_instagram.TryReadState(state, DateTime.UtcNow, out var sellerId))
             return Page("Yeh link expire ho gaya hai. WhatsApp par dobara \"connect instagram\" likhein.", ok: false);
         if (string.IsNullOrEmpty(code))
@@ -98,6 +102,7 @@ public class InstagramController : ControllerBase
         [FromQuery(Name = "hub.verify_token")] string? verifyToken,
         [FromQuery(Name = "hub.challenge")] string? challenge)
     {
+        if (!_features.Instagram) return NotFound();
         var expected = string.IsNullOrEmpty(_options.VerifyToken) ? _whatsApp.VerifyToken : _options.VerifyToken;
         if (mode == "subscribe" && !string.IsNullOrEmpty(expected) && verifyToken == expected && challenge is not null)
             return Content(challenge, "text/plain");
@@ -107,6 +112,7 @@ public class InstagramController : ControllerBase
     [HttpPost("webhook/instagram")]
     public async Task<IActionResult> Receive(CancellationToken ct)
     {
+        if (!_features.Instagram) return NotFound();
         using var reader = new StreamReader(Request.Body);
         var rawBody = await reader.ReadToEndAsync(ct);
 
