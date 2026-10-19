@@ -1070,7 +1070,8 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Chhota (20 se kam)", default);
 
         var rows = sections!.SelectMany(s => s.Rows).ToList();
-        Assert.Equal(new[] { "add product", "setup", "new order", "guide", "connect instagram" }, rows.Select(r => r.Id));
+        // "connect instagram" is hidden while Features:Instagram is off (the engine default here).
+        Assert.Equal(new[] { "add product", "setup", "new order", "guide" }, rows.Select(r => r.Id));
         Assert.All(rows, r => Assert.NotNull(CommandParser.TryParse(r.Id)));
     }
 

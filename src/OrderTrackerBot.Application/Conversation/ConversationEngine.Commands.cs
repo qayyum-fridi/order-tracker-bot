@@ -40,6 +40,9 @@ public partial class ConversationEngine
         "discount performance", "discount list", "add discount", "create loyalty", "loyal customers"
     };
 
+    // Instagram rows, shown only when Features:Instagram is on (see FeatureOptions.Instagram).
+    private static readonly HashSet<string> InstagramMenuRowIds = new() { "comment leads", "connect instagram" };
+
     private static IReadOnlyList<MenuRow> VisibleRows(IEnumerable<MenuRow> rows) => rows.Where(r => !HiddenMenuRowIds.Contains(r.Id)).ToArray();
 
     private static IReadOnlyList<MenuSection> VisibleSections(IEnumerable<MenuSection> sections) =>
@@ -124,8 +127,9 @@ public partial class ConversationEngine
     private Task HandleMenuCategoryAsync(Seller seller, string category, CancellationToken ct)
     {
         var (title, body, rows) = MenuCategories[category];
-        // Free sellers never see the plan/subscribe entry.
+        // Free sellers never see the plan/subscribe entry; Instagram rows show only while Features:Instagram is on.
         var shown = BillingApplies(seller) ? rows : rows.Where(r => r.Id != "subscribe").ToArray();
+        if (!_features.Instagram) shown = shown.Where(r => !InstagramMenuRowIds.Contains(r.Id)).ToArray();
         return _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, body, "Options dekhein",
             new[] { new MenuSection(title, VisibleRows(shown)) }, ct);
     }
