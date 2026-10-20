@@ -77,6 +77,29 @@ public partial class ConversationEngine
         return false;
     }
 
+    // Context for the AI while a product waits for YES: a spoken correction to it (category, variants, price, stock) must come back as a
+    // plain step for that product, so the model does not read the same product again as a new one. Null when none waits.
+    internal static string? PendingProductSituation(SessionContextData ctx)
+    {
+        if (ctx.PendingProductJson is null) return null;
+        var waiting = JsonSerializer.Deserialize<List<ProductLine>>(ctx.PendingProductJson);
+        if (waiting is not { Count: > 0 }) return null;
+        var described = string.Join("; ", waiting.Select(l =>
+        {
+            var e = l.Extras;
+            var parts = new List<string> { $"name \"{l.Name}\"", $"price {l.Price}" };
+            if (e?.Cost is { } cost) parts.Add($"cost {cost}");
+            if (e?.Stock is { } stock) parts.Add($"stock {stock}");
+            if (e?.Category is { } category) parts.Add($"category \"{category}\"");
+            if (e?.Size is { } size) parts.Add($"size \"{size}\"");
+            if (e?.Color is { } color) parts.Add($"colour \"{color}\"");
+            return string.Join(", ", parts);
+        }));
+        return $"A product is waiting for the seller's YES and is NOT saved yet: {described}. " +
+               "If the seller now corrects it, reply with one plain step for that same product, e.g. \"category Summer Wear\" or \"variants excel mein hain\" (variants in a sheet/Excel file), " +
+               "or the new price/stock as \"<name> - <price>\". Never list that product again as a new product.";
+    }
+
     // The category and/or "variants are in a sheet" from one message; null when the message is neither.
     private static (string? Category, bool VariantsInSheet)? ProductCorrectionOf(string message)
     {

@@ -729,6 +729,20 @@ public class ConversationEngineTests : IDisposable
         Assert.DoesNotMatch(ConversationEngine.VariantsInFile, transcript);
 
     [Fact]
+    public void A_waiting_product_is_described_to_the_voice_model_so_its_correction_is_not_read_as_a_new_product()
+    {
+        var waiting = new[] { new ProductLine("Lawn Shirt", 2500, "piece", 1, new ProductExtras(1500, 100, null, null, null, null, null)) };
+        var ctx = new SessionContextData { PendingProductJson = System.Text.Json.JsonSerializer.Serialize(waiting) };
+
+        var situation = ConversationEngine.PendingProductSituation(ctx);
+
+        Assert.NotNull(situation);
+        Assert.Contains("name \"Lawn Shirt\", price 2500, cost 1500, stock 100", situation);
+        Assert.Contains("Never list that product again", situation);
+        Assert.Null(ConversationEngine.PendingProductSituation(new SessionContextData()));
+    }
+
+    [Fact]
     public async Task A_correction_to_the_product_waiting_for_yes_is_applied_not_read_as_new_products()
     {
         using var db = _dbFactory.CreateContext();
