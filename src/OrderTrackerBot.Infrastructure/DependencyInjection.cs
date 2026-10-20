@@ -69,7 +69,7 @@ public static class DependencyInjection
         services.Configure<InstagramOptions>(configuration.GetSection(InstagramOptions.SectionName));
 
         services.AddHttpClient<IWhatsAppSender, WhatsAppSender>();
-        services.AddHttpClient<IAiOrderAssistant, OpenAiOrderAssistant>();
+        services.AddHttpClient<IAiOrderAssistant, OpenAiOrderAssistant>(c => c.Timeout = TimeSpan.FromSeconds(30));
         services.AddHttpClient<IAudioTranscriber, OpenAiAudioTranscriber>();
         services.AddHttpClient<IFounderAlertNotifier, FounderAlertNotifier>();
         services.AddHttpClient<IIssueReporter, IssueReporter>(c => c.Timeout = TimeSpan.FromSeconds(5));
