@@ -171,7 +171,7 @@ public class AdminController : ControllerBase
         var now = DateTime.UtcNow;
         seller.Plan = plan;
         seller.SubscriptionActiveUntil = openEnded ? null : ToUtc(request.SubscriptionActiveUntil!.Value);
-        if (plan == SubscriptionPlan.Trial && seller.TrialEndsAt is not > now)
+        if (plan == SubscriptionPlan.Trial && (seller.TrialEndsAt is null || seller.TrialEndsAt.Value <= now))
             seller.TrialEndsAt = now.Date.AddDays(_billing.TrialDays);
         await _db.SaveChangesAsync(ct);
 
