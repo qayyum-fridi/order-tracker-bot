@@ -35,6 +35,7 @@ builder.Services.AddScoped<OrderTrackerBot.Api.Client.ClientOrderCreate>();
 builder.Services.AddSingleton<OrderTrackerBot.Api.Client.ClientLoginLimiter>();
 builder.Services.AddSingleton<OrderTrackerBot.Api.Client.ClientImportStore>();
 builder.Services.AddHostedService<OrderTrackerBot.Api.ScheduledMessagesService>();
+builder.Services.AddHostedService<OrderTrackerBot.Api.WarmupService>(); // keeps the first message after a quiet spell fast (JIT, DB, OpenAI/Meta connections)
 builder.Services.AddHostedService<OrderTrackerBot.Api.WebhookWorkerService>(); // handles queued WhatsApp messages and Instagram comments after the webhook has answered 200
 
 var backupOptions = builder.Configuration.GetSection(BackupOptions.SectionName).Get<BackupOptions>();
