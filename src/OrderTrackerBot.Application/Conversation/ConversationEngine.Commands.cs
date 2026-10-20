@@ -805,7 +805,7 @@ public partial class ConversationEngine
             existingReply is not null ? existingReply
             : updated ? MessageTemplates.Get("commands.033", label, Formatters.Money(product.Price), ProductDetailsText(product))
             : line.UnitType != "piece" || line.UnitQty != 1 ? MessageTemplates.Get("commands.034", label, Formatters.Money(product.Price), ProductDetailsText(product))
-            : MessageTemplates.Get("commands.035", label, Formatters.Money(product.Price), ProductDetailsText(product)), ct);
+            : MessageTemplates.Get("commands.035", label, Formatters.Money(product.Price), ProductDetailsText(product), Industry(seller).FullProduct), ct);
 
         // A new product sold by the piece: say which units suit this kind of shop, so a kg / set / pair / tola product isn't saved as pieces by accident.
         if (!updated && line.UnitType == "piece" && line.UnitQty == 1 && Industry(seller).Units.Length > 0)

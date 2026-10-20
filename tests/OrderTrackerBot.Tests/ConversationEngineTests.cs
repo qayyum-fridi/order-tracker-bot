@@ -689,6 +689,19 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task AddedProductReply_lists_the_ways_to_add_products_in_the_same_message()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Lawn Shirt - 2500", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("catalog mein add ho gaya") && m.Contains("Ek line mein:") &&
+            m.Contains("har line mein ek product") && m.Contains("Bol kar") && m.Contains("Excel"));
+    }
+
+    [Fact]
     public async Task ProductPreview_ShowsCostAndCategory_AndLeavesOutWhatWasNotGiven()
     {
         using var db = _dbFactory.CreateContext();

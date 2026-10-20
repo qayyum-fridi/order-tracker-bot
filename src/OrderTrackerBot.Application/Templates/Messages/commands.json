@@ -33,7 +33,7 @@
   "commands.032": "💸 Unpaid Orders ({0}):\n\n{1}\n\nTotal pending: {2}\n\n\"payment link 1\" likh kar link bhej sakte hain.",
   "commands.033": "✅ {0} price updated: {1}{2}",
   "commands.034": "✅ Added: {0} - {1}{2}",
-  "commands.035": "✅ {0} - {1}{2} catalog mein add ho gaya.\n\nAur add karein (Naam - price), ya \"catalog\" likhein.",
+  "commands.035": "✅ {0} - {1}{2} catalog mein add ho gaya.\n\nAur product add karne ke 4 tareeqay:\n✍️ Ek line mein: {3}\n📝 Kai products ek saath: har line mein ek product\n🎤 Bol kar: naam aur price, voice note mein\n📄 Excel / CSV file: Naam, Price, Cost, Stock, Category columns\n\n\"catalog\" likh kar poori list dekhein.",
   "commands.036": "Order #{0} pehle se RETURNED hai.",
   "commands.037": "Order #{0} abhi {1} hai — bheja hi nahi gaya to wapas nahi aa sakta. Hatana ho to: \"cancel order {2}\"",
   "commands.038": "Last Month's",
