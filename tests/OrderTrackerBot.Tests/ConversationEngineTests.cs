@@ -743,6 +743,23 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task A_number_sent_long_after_a_new_product_price_question_is_not_taken_as_its_price()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var session = await db.Sessions.FirstAsync();
+        session.ContextJson = new SessionContextData { PendingPriceProducts = new List<string> { "Handbag" }, PendingPriceSetAt = DateTime.UtcNow.AddHours(-1) }.ToJson();
+        await db.SaveChangesAsync();
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "unknown" });
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "100", default);
+
+        Assert.False(await db.Products.AnyAsync(p => p.Name == "Handbag"));
+    }
+
+    [Fact]
     public async Task Tapping_Save_on_the_product_preview_saves_the_product()
     {
         using var db = _dbFactory.CreateContext();

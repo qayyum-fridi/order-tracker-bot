@@ -31,6 +31,7 @@ public partial class ConversationEngine
     private readonly FeatureOptions _features;
     private readonly IIssueReporter? _issues;
     private readonly Microsoft.Extensions.Logging.ILogger<ConversationEngine>? _logger;
+    private static readonly TimeSpan PendingPriceWindow = TimeSpan.FromMinutes(10);
     private static readonly System.Text.RegularExpressions.Regex BareAmount = new(@"^(?:rs\.?\s*|pkr\s*)?(?<n>\d[\d,]*(?:\.\d+)?)(?:\s*(?:rs|rupay|rupees|روپے))?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
     private DateTime? _sentAtUtc;
     private List<string>? _nextActions;
@@ -364,6 +365,12 @@ public partial class ConversationEngine
     {
         // Waiting for new products' prices, but the seller clearly asks for something else ("Kashif ka naya order likho"): park the price
         // question for this turn so the message is read on its own, and put it back unless this turn started its own price question.
+        // An old price question is dropped first: a number sent much later (a stock quantity, say) must not be read as that product's price.
+        if (ctx.PendingPriceSetAt is { } askedAt && _clock.GetUtcNow().UtcDateTime - askedAt > PendingPriceWindow)
+        {
+            ctx.PendingPriceProducts = null;
+            ctx.PendingPriceSetAt = null;
+        }
         var parkedPrices = ctx.PendingPriceProducts is { Count: > 0 } && CommonWordPathRouter.ShouldLeavePriceWait(message) ? ctx.PendingPriceProducts : null;
         if (parkedPrices is not null) ctx.PendingPriceProducts = null;
         try

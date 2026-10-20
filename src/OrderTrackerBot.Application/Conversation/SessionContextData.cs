@@ -85,6 +85,8 @@ public sealed class SessionContextData
     public string? PendingCustomerMatchName { get; set; }
     /// <summary>Products the seller named ("naye products hain") that the bot is still waiting to get a price for.</summary>
     public List<string>? PendingPriceProducts { get; set; }
+    /// <summary>When <see cref="PendingPriceProducts"/> was last set; an old question is dropped, so a number sent later is not taken as a price.</summary>
+    public DateTime? PendingPriceSetAt { get; set; }
     /// <summary>Cost/stock/attributes already given for those products, kept until their price arrives (product name -> details).</summary>
     public Dictionary<string, ProductExtras>? PendingProductExtras { get; set; }
     /// <summary>A product line waiting for the seller's YES (JSON of the ProductLine); null when nothing waits.</summary>
