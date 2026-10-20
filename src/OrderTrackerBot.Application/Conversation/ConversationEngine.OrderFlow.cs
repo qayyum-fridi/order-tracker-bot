@@ -731,6 +731,27 @@ public partial class ConversationEngine
             return;
         }
 
+        // "cancel" is offered on the phone / name question, so it must work there; so must a whole new order message sent instead of the answer.
+        if (ctx.PendingMissingField is "Phone" or "CustomerName")
+        {
+            var text = message.Trim();
+            var newOrderInstead = ctx.PendingMissingField == "Phone" && !IsPlausiblePhone(text)
+                && text.Any(char.IsLetter) && System.Text.RegularExpressions.Regex.IsMatch(text, @"\d{10}");
+            if (OpensWithLeavePhrase(text) || CancelWords.Contains(text) || newOrderInstead)
+            {
+                ctx.PendingOrder = null;
+                ctx.PendingMissingField = null;
+                SetState(session, ConversationState.Idle);
+                if (newOrderInstead)
+                {
+                    await HandleFreeformMessageAsync(seller, session, ctx, message, ct);
+                    return;
+                }
+                await ReplyAsync(seller, MessageTemplates.Get("order-flow.015"), ct);
+                return;
+            }
+        }
+
         switch (ctx.PendingMissingField)
         {
             case "ProductChoice":
