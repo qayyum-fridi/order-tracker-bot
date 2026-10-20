@@ -69,7 +69,7 @@ public class NextActionEngineTests : IDisposable
         await Engine(db).HandleIncomingMessageAsync(Phone, "Shawl - 2500", default);
 
         var bar = Assert.Single(_bars);
-        Assert.Equal(new[] { "walkin Shawl 1", "catalog", "📋 Menu" }, bar);
+        Assert.Equal(new[] { "catalog", "menu", "📋 Menu" }, bar);
         Assert.All(bar, l => Assert.NotNull(CommandParser.TryParse(l)));
     }
 

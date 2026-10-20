@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Application.Templates;
 using OrderTrackerBot.Domain.Entities;
@@ -14,7 +15,7 @@ public partial class ConversationEngine
     {
         ctx.PendingProductJson = JsonSerializer.Serialize(lines);
         var body = lines.Count == 1
-            ? MessageTemplates.Get("commands.050", string.Join("\n", ProductPreviewRows(lines[0])))
+            ? MessageTemplates.Get("commands.050", string.Join("\n", await ProductPreviewRowsAsync(seller, lines[0], ct)))
             : MessageTemplates.Get("commands.052", string.Join("\n", lines.Select(l =>
                 $"• {l.Name} - {Formatters.Money(l.Price)}" + (ProductPreviewDetails(l) is { Length: > 0 } d ? $" ({d})" : ""))));
         await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, body, new[] { "✅ Save", "❌ Cancel" }, ct);
@@ -30,6 +31,24 @@ public partial class ConversationEngine
         if (e?.Size is { } size) rows.Add($"• Size: {size}");
         if (e?.Color is { } color) rows.Add($"• Rang: {color}");
         if (e?.Stock is { } stock) rows.Add($"• Stock: {stock}");
+        // Other "name: value" details, such as "supplier: Shah Alam", are shown too so the seller can see they were kept.
+        if (e?.Attributes is { } attributes)
+            foreach (var (key, value) in attributes.Where(a => a.Key.Length > 0))
+                rows.Add($"• {char.ToUpperInvariant(key[0]) + key[1..]}: {value}");
+        return rows;
+    }
+
+    // Says whether the product is new or already in the catalog (same name and pack, as the save matches it), with the price that will change.
+    private async Task<List<string>> ProductPreviewRowsAsync(Seller seller, ProductLine line, CancellationToken ct)
+    {
+        var rows = ProductPreviewRows(line);
+        var lower = line.Name.ToLower();
+        var existing = (await _db.Products.Where(p => p.SellerId == seller.Id && p.Name.ToLower() == lower).ToListAsync(ct))
+            .FirstOrDefault(p => p.UnitType == line.UnitType && p.UnitQty == line.UnitQty);
+        var note = existing is null ? "• Naya product: catalog mein pehle se nahi hai"
+            : existing.Price == line.Price ? $"• Catalog mein pehle se hai ({Formatters.Money(existing.Price)}): price wohi hai, sirf details update hongi"
+            : $"• Catalog mein pehle se hai: {Formatters.Money(existing.Price)} → {Formatters.Money(line.Price)} (price update hogi)";
+        rows.Insert(0, note);
         return rows;
     }
 
@@ -62,10 +81,11 @@ public partial class ConversationEngine
         if (CommandParser.IsAffirmative(answer))
         {
             foreach (var line in pending)
-                await HandleAddProductAsync(seller, new ParsedCommand { Kind = CommandKind.AddProduct, Text = line.Name, Amount = line.Price, Product = line }, ct);
+                await HandleAddProductAsync(seller, new ParsedCommand { Kind = CommandKind.AddProduct, Text = line.Name, Amount = line.Price, Product = line }, ct, ctx);
             return true;
         }
-        if (CommandParser.IsNegative(answer))
+        // "cancel" is the Cancel button's word; the plain "no" pattern does not include it, so it is read as a no here.
+        if (CommandParser.IsNegative(answer) || answer.Trim().Equals("cancel", StringComparison.OrdinalIgnoreCase))
         {
             await ReplyAsync(seller, MessageTemplates.Get("commands.051"), ct);
             return true;

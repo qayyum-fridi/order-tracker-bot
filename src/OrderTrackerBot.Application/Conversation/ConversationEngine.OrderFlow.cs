@@ -46,7 +46,7 @@ public partial class ConversationEngine
         var products = await _db.Products.Where(p => p.SellerId == seller.Id && p.IsActive).OrderBy(p => p.Id).ToListAsync(ct);
         var ids = products.Select(p => p.Id).ToList();
         var tiers = await _db.PriceTiers.Where(t => ids.Contains(t.ProductId)).ToListAsync(ct);
-        return products.Select(p => new CatalogEntry(p, Formatters.ProductLabel(p),
+        return products.Select(p => new CatalogEntry(p, Formatters.ProductMatchLabel(p),
             tiers.Where(t => t.ProductId == p.Id).OrderBy(t => t.MinQty).ToList())).ToList();
     }
 

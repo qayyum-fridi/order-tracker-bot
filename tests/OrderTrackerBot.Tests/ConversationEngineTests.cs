@@ -5,6 +5,7 @@ using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Ai;
 using OrderTrackerBot.Application.Conversation;
 using OrderTrackerBot.Application.Formatting;
+using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
 using OrderTrackerBot.Infrastructure.Persistence;
 using Xunit;
@@ -764,6 +765,37 @@ public class ConversationEngineTests : IDisposable
 
         Assert.Contains(_sentMessages, m => m.Contains("Cost: Rs.1,500") && m.Contains("Category: Summer Wear") && m.Contains("Stock: 100"));
         Assert.DoesNotContain(_sentMessages, m => m.Contains("Rang: -"));
+    }
+
+    [Fact]
+    public async Task ProductPreview_CancelButton_DropsTheWaitingProduct_NotAStaleTap()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, catalogSheets: _catalogSheets.Object,
+            features: new FeatureOptions { ProductConfirmation = true, ShortcutButtons = false, ConfirmButtons = true, SuggestionButtons = false, SetupNudges = false, IndustryQuestion = false });
+
+        await engine.HandleIncomingMessageAsync(Phone, "Chiffon Suit - 3500", default);
+        await engine.HandleIncomingMessageAsync(Phone, "❌ Cancel", default);
+
+        Assert.DoesNotContain(_sentMessages, m => m.Contains(OrderTrackerBot.Application.Templates.MessageTemplates.Get("engine.002")));
+        Assert.False(db.Products.Any(p => p.Name == "Chiffon Suit"));
+    }
+
+    [Fact]
+    public async Task ProductPreview_ShowsSupplierAndWhetherTheProductIsNewOrInCatalog()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        db.Products.Add(new Product { SellerId = db.Sellers.First().Id, Name = "Lawn Suit", Price = 3600 });
+        await db.SaveChangesAsync();
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, catalogSheets: _catalogSheets.Object,
+            features: new FeatureOptions { ProductConfirmation = true, ShortcutButtons = false, ConfirmButtons = true, SuggestionButtons = false, SetupNudges = false, IndustryQuestion = false });
+
+        await engine.HandleIncomingMessageAsync(Phone, "Lawn Suit - 3500, supplier: Shah Alam", default);
+
+        // Onboarding already seeds a "Lawn Suit" at Rs.3,500, so the preview must say it is in the catalog and show the supplier (stored as "vendor").
+        Assert.Contains(_sentMessages, m => m.Contains("Catalog mein pehle se hai") && m.Contains("Vendor: Shah Alam"));
     }
 
     [Theory]
