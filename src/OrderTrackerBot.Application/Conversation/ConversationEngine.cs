@@ -135,7 +135,11 @@ public partial class ConversationEngine
         _turnCtx = ctx;
 
         // A product line waiting for YES: saved on YES, dropped on NO (see ConversationEngine.ProductConfirm.cs).
-        if (await TryHandlePendingProductAsync(seller, ctx, message, ct)) return;
+        if (await TryHandlePendingProductAsync(seller, ctx, message, ct))
+        {
+            await PersistAsync(session, ctx, ct); // the saved products and the cleared pending state must reach the database
+            return;
+        }
 
         // A tap on a product button: an answer to the unknown-product question ("2 <product>" / "1"), or one of the customer's usual items after "order for Sara"
         // (read as her items). With no such question waiting it is a stale tap.

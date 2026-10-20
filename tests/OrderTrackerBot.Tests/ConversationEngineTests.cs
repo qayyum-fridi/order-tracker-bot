@@ -743,6 +743,21 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task Tapping_Save_on_the_product_preview_saves_the_product()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, catalogSheets: _catalogSheets.Object,
+            features: new FeatureOptions { ProductConfirmation = true, ShortcutButtons = false, ConfirmButtons = false, SuggestionButtons = false, SetupNudges = false, IndustryQuestion = false });
+        await engine.HandleIncomingMessageAsync(Phone, "Lawn Suit - 2500, stock 100", default);
+
+        await engine.HandleIncomingMessageAsync(Phone, "✅ Save", default);
+
+        Assert.True(await db.Products.AnyAsync(p => p.Name == "Lawn Suit" && p.Price == 2500m));
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("purane order"));
+    }
+
+    [Fact]
     public async Task A_correction_to_the_product_waiting_for_yes_is_applied_not_read_as_new_products()
     {
         using var db = _dbFactory.CreateContext();
