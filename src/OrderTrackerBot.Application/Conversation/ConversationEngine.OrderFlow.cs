@@ -352,8 +352,11 @@ public partial class ConversationEngine
         {
             ctx.PendingMissingField = "Phone";
             SetState(session, ConversationState.AwaitingOrderMissingFields);
+            var waiting = ctx.QueuedOrders?.Count ?? 0;
             await ReplyAsync(seller, badPhone is null
-                ? MessageTemplates.Get("order-flow.034")
+                ? (waiting > 0 && !string.IsNullOrWhiteSpace(pending.CustomerName)
+                    ? MessageTemplates.Get("order-flow.phone-many", pending.CustomerName, waiting)
+                    : MessageTemplates.Get("order-flow.034"))
                 : MessageTemplates.Get("order-flow.035", badPhone, badPhone.Count(char.IsDigit)), ct);
             return;
         }
@@ -834,6 +837,16 @@ public partial class ConversationEngine
                 return;
 
             case "Phone":
+                // Several customers in one message: "first one X, second Y" fills this order and the queued ones in the same order.
+                var phones = System.Text.RegularExpressions.Regex.Matches(JoinSpacedPhones(message), @"(?<!\d)\d{10,13}(?!\d)").Select(m => m.Value).ToList();
+                var needPhone = new[] { pending }.Concat(ctx.QueuedOrders ?? new List<PendingOrderData>()).Where(o => string.IsNullOrWhiteSpace(o.Phone) && !o.PaidInFull).ToList();
+                if (phones.Count >= 2 && phones.Count <= needPhone.Count)
+                {
+                    for (var i = 0; i < phones.Count; i++) needPhone[i].Phone = phones[i];
+                    ctx.PendingMissingField = null;
+                    await ContinueResolvingDraftAsync(seller, session, ctx, ct);
+                    return;
+                }
                 if (!IsPlausiblePhone(message))
                 {
                     await ReplyAsync(seller, MessageTemplates.Get("order-flow.023"), ct);

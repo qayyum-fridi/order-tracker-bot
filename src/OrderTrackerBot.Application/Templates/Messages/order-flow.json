@@ -33,6 +33,7 @@
   "order-flow.032": "Category alag se nahi banti — product ke saath likhein: Polo Shirt - 500, category: Women Cloths.\nDekhne ke liye: catalog category",
   "order-flow.033": "Maaf kijiye, samajh nahi aaya. Discount banana ho to \"create discount\" likhein, ya \"menu\" kholein.",
   "order-flow.034": "Customer ka phone number bhi bataiye?",
+  "order-flow.phone-many": "{0} ka phone number bhi bataiye? Is ke baad {1} aur order bhi hain: aap sab ke numbers usi tarteeb mein ek saath bhi bhej sakte hain.",
   "order-flow.035": "⚠️ Phone number \"{0}\" poora nahi lagta ({1} digits). Barae meherbani sahi number bhejein, jaise 03001234567.",
   "order-flow.036": "✅ Order saved (#{0}).",
   "order-flow.037": "✅ {0} orders saved ({1}).",
