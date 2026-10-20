@@ -46,7 +46,9 @@ public partial class ConversationEngine
         var existing = (await _db.Products.Where(p => p.SellerId == seller.Id && p.Name.ToLower() == lower).ToListAsync(ct))
             .FirstOrDefault(p => p.UnitType == line.UnitType && p.UnitQty == line.UnitQty);
         var note = existing is null ? "• Naya product: catalog mein pehle se nahi hai"
-            : existing.Price == line.Price ? $"• Catalog mein pehle se hai ({Formatters.Money(existing.Price)}): price wohi hai, sirf details update hongi"
+            : existing.Price == line.Price ? (line.Extras is null
+                ? $"• Catalog mein pehle se hai ({Formatters.Money(existing.Price)}): koi tabdeeli nahi"
+                : $"• Catalog mein pehle se hai ({Formatters.Money(existing.Price)}): price wohi hai, sirf details update hongi")
             : $"• Catalog mein pehle se hai: {Formatters.Money(existing.Price)} → {Formatters.Money(line.Price)} (price update hogi)";
         rows.Insert(0, note);
         return rows;
