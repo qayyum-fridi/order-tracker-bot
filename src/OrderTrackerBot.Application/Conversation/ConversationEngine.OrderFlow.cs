@@ -564,8 +564,6 @@ public partial class ConversationEngine
         "cancel", "stop", "back", "no", "nahi", "nahin", "chhod do", "chhodo", "chhoro", "chhor do", "rehne do", "رہنے دو", "نہیں"
     };
 
-    // While an order is half-entered, a cancel word or any command (menu, help, catalog, ...) abandons the draft
-    // instead of being swallowed as a customer name or phone number. Product-add lines keep the draft.
     /// <summary>Catalog labels that share a word (3+ letters) with a product name the seller typed.</summary>
     private static IReadOnlyList<string> WordSharingLabels(string name, IReadOnlyList<CatalogEntry> catalog)
     {
@@ -577,6 +575,8 @@ public partial class ConversationEngine
     private static HashSet<string> NameWords(string text) =>
         Regex.Split(text.ToLowerInvariant(), @"[^\p{L}]+").Where(w => w.Length >= 3).ToHashSet();
 
+    // While an order is half-entered, a cancel word or any command (menu, help, catalog, ...) abandons the draft
+    // instead of being swallowed as a customer name or phone number. Product-add lines keep the draft.
     private async Task<bool> TryLeaveOrderDraftAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         var trimmed = message.Trim();
