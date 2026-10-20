@@ -5,7 +5,7 @@
   "aliases": "cloth\\w*|kapr\\w*|kapd\\w*|lawn|boutique|garment\\w*|suit\\w*|stitch\\w*|fabric|abaya|shawl|dress\\w*|کپڑ\\w*",
   "productLines": [
     "3 Piece Lawn Suit - 3500, cost 2400, stock 20, category lawn",
-    "Kurti - 1800, cost 1100, stock 15, category stitched",
+    "Lawn Suit XL - 2500, cost 1500, stock 35, category: Summer Wear",
     "Dupatta - 600"
   ],
   "orderExample": "Ayesha, 2 lawn suit, 03001234567, Gulberg Lahore",

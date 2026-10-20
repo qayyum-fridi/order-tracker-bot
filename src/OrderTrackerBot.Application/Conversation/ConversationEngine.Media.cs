@@ -14,6 +14,11 @@ public partial class ConversationEngine
 {
     private static readonly Regex OrderRef = new(@"#?(\d+)", RegexOptions.Compiled);
 
+    // A sheet/file mentioned together with variants (size, colour, verient) in one message, in Roman Urdu / Urdu script / English.
+    internal static readonly Regex VariantsInFile = new(
+        @"(?:excel|ایکسل|sheet|شیٹ|file|فائل).*(?:variant|verient|ویر[اائیی]+ن[ٹت]|size|سائز|colou?r|rang|رنگ)|(?:variant|verient|ویر[اائیی]+ن[ٹت]|size|سائز|colou?r|rang|رنگ).*(?:excel|ایکسل|sheet|شیٹ|file|فائل)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     /// <summary>Voice note: transcribe, echo what was heard so the seller can catch mistakes, then handle it exactly like typed text.</summary>
     public async Task HandleAudioMessageAsync(string fromPhoneNumber, string mediaId, CancellationToken ct = default)
     {
@@ -45,8 +50,17 @@ public partial class ConversationEngine
             return;
         }
 
-        var decision = await InterpretVoiceAsync(seller, text, ct);
         var heard = $"🎤 Maine suna: \"{text}\"";
+        // Variants (sizes / colours) that the seller says are in a sheet: the voice rewrite keeps only the product, so the variants
+        // would be lost. Nothing is saved; the seller sends the file and the import handles the rows.
+        if (VariantsInFile.IsMatch(text) && SessionContextData.FromJson(seller.Session!.ContextJson).PendingProductJson is null)
+        {
+            await _sender.SendTextMessageAsync(fromPhoneNumber, $"{heard}\n\n{MessageTemplates.Get("commands.053")}", ct);
+            await _db.SaveChangesAsync(ct);
+            return;
+        }
+
+        var decision = await InterpretVoiceAsync(seller, text, ct);
         if (decision.Kind == DecisionKind.Clarify)
         {
             // Clear intent but a detail is missing (which order, the new price): ask for it instead of guessing or failing.
@@ -404,6 +418,8 @@ public partial class ConversationEngine
 
         if (ctx.ClarificationOptions is { Count: > 0 } options)
             core += " Options offered: " + string.Join(" | ", options.Select((o, i) => $"{i + 1}) {o}")) + ".";
+        if (PendingProductSituation(ctx) is { } waitingProduct)
+            core += " " + waitingProduct;
         if (ctx.PendingPriceProducts is { Count: > 0 } waiting)
             core += $" The bot is waiting for the price of these new products: {string.Join(", ", waiting)}. A spoken price (one price for all, or one each) is for them: " +
                     "write it as one sentence naming that price and who it is for (\"sab ki price 5000\" or \"chadar 800, dupatte 1200\"), never as a new product.";

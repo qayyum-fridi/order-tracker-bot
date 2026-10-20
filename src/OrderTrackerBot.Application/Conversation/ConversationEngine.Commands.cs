@@ -769,8 +769,9 @@ public partial class ConversationEngine
             "create discount: WELCOME50, Rs.50 flat\n\n" +
             "Ya seedha sirf code ka naam bhejein (e.g. EID10) — main value pooch loon ga. \"cancel\" likh kar ruk sakte hain.",
         "product" =>
-            "🛍️ Product shamil karne ke liye is tarah likhein:\n\n" + IndustryProfiles.Resolve(seller?.BusinessType).MainLine + "\n\n" +
-            "Aap ek saath kai products bhi bhej sakte hain (har line mein ek product).",
+            "🛍️ Product shamil karne ke liye is tarah likhein (naam - price, cost, stock, category):\n\n" +
+            string.Join("\n", IndustryProfiles.Resolve(seller?.BusinessType).ProductLines) + "\n\n" +
+            "Cost, stock aur category zaroori nahi — jo chahein likhein. Aap ek saath kai products bhi bhej sakte hain (har line mein ek product).",
         "payment" =>
             "💳 Payment method save karne ke liye likhein:\n\n" +
             "add payment: jazzcash, 0300-1234567\nadd payment: easypaisa, 0300-1234567",
@@ -804,7 +805,7 @@ public partial class ConversationEngine
             existingReply is not null ? existingReply
             : updated ? MessageTemplates.Get("commands.033", label, Formatters.Money(product.Price), ProductDetailsText(product))
             : line.UnitType != "piece" || line.UnitQty != 1 ? MessageTemplates.Get("commands.034", label, Formatters.Money(product.Price), ProductDetailsText(product))
-            : MessageTemplates.Get("commands.035", label, Formatters.Money(product.Price), ProductDetailsText(product)), ct);
+            : MessageTemplates.Get("commands.035", label, Formatters.Money(product.Price), ProductDetailsText(product), Industry(seller).FullProduct), ct);
 
         // A new product sold by the piece: say which units suit this kind of shop, so a kg / set / pair / tola product isn't saved as pieces by accident.
         if (!updated && line.UnitType == "piece" && line.UnitQty == 1 && Industry(seller).Units.Length > 0)

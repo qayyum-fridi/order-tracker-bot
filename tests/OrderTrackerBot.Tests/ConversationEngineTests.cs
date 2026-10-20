@@ -674,6 +674,92 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task AddProductHowTo_ShowsEveryExampleLineOfTheSellersIndustry()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        var seller = await db.Sellers.SingleAsync();
+        var examples = IndustryProfiles.Resolve(seller.BusinessType).ProductLines;
+
+        await engine.HandleIncomingMessageAsync(Phone, "add product", default);
+
+        Assert.True(examples.Length >= 3);
+        Assert.Contains(_sentMessages, m => examples.All(line => m.Contains(line)));
+    }
+
+    [Fact]
+    public async Task AddedProductReply_lists_the_ways_to_add_products_in_the_same_message()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Lawn Shirt - 2500", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("catalog mein add ho gaya") && m.Contains("Ek line mein:") &&
+            m.Contains("har line mein ek product") && m.Contains("Bol kar") && m.Contains("Excel"));
+    }
+
+    [Fact]
+    public async Task ProductPreview_ShowsCostAndCategory_AndLeavesOutWhatWasNotGiven()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, catalogSheets: _catalogSheets.Object,
+            features: new FeatureOptions { ProductConfirmation = true, ShortcutButtons = false, ConfirmButtons = false, SuggestionButtons = false, SetupNudges = false, IndustryQuestion = false });
+
+        await engine.HandleIncomingMessageAsync(Phone, "Lawn Shirt - 2500, cost 1500, stock 100, category: Summer Wear", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Cost: Rs.1,500") && m.Contains("Category: Summer Wear") && m.Contains("Stock: 100"));
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("Rang: -"));
+    }
+
+    [Theory]
+    [InlineData("ایکسل اس کی ویرائنٹ ہے اور کیا کہتے ہیں")]
+    [InlineData("lawn shirt ke variants excel mein hain")]
+    [InlineData("size aur colour file mein hain")]
+    public void Voice_saying_variants_are_in_a_sheet_is_recognised(string transcript) =>
+        Assert.Matches(ConversationEngine.VariantsInFile, transcript);
+
+    [Theory]
+    [InlineData("میرے پاس ایک پروڈکٹ ہے لون شرٹ، پچیس سو")]
+    [InlineData("excel report bhejo")]
+    public void Voice_without_variants_or_a_sheet_is_not_treated_as_one(string transcript) =>
+        Assert.DoesNotMatch(ConversationEngine.VariantsInFile, transcript);
+
+    [Fact]
+    public void A_waiting_product_is_described_to_the_voice_model_so_its_correction_is_not_read_as_a_new_product()
+    {
+        var waiting = new[] { new ProductLine("Lawn Shirt", 2500, "piece", 1, new ProductExtras(1500, 100, null, null, null, null, null)) };
+        var ctx = new SessionContextData { PendingProductJson = System.Text.Json.JsonSerializer.Serialize(waiting) };
+
+        var situation = ConversationEngine.PendingProductSituation(ctx);
+
+        Assert.NotNull(situation);
+        Assert.Contains("name \"Lawn Shirt\", price 2500, cost 1500, stock 100", situation);
+        Assert.Contains("Never list that product again", situation);
+        Assert.Null(ConversationEngine.PendingProductSituation(new SessionContextData()));
+    }
+
+    [Fact]
+    public async Task A_correction_to_the_product_waiting_for_yes_is_applied_not_read_as_new_products()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, catalogSheets: _catalogSheets.Object,
+            features: new FeatureOptions { ProductConfirmation = true, ShortcutButtons = false, ConfirmButtons = false, SuggestionButtons = false, SetupNudges = false, IndustryQuestion = false });
+        await engine.HandleIncomingMessageAsync(Phone, "Lawn Shirt - 2500, cost 1500, stock 100", default);
+        _sentMessages.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "category is Summer Wear aur jo iska variant hai woh Excel hai.", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Naam: Lawn Shirt") && m.Contains("Category: Summer Wear"));
+        Assert.Contains(_sentMessages, m => m.Contains("Excel file mein hain"));
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("naye products"));
+    }
+
+    [Fact]
     public async Task ProductForm_SavesVariantDetails_AndUpdatesSameVariantInsteadOfDuplicating()
     {
         using var db = _dbFactory.CreateContext();
