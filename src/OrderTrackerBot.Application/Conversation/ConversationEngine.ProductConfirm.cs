@@ -52,13 +52,20 @@ public partial class ConversationEngine
         var pending = JsonSerializer.Deserialize<List<ProductLine>>(ctx.PendingProductJson);
         ctx.PendingProductJson = null;
         if (pending is null || pending.Count == 0) return false;
-        if (CommandParser.IsAffirmative(message))
+        // The preview's ✅ Save / ❌ Cancel buttons arrive as their labels; they mean yes / no, the same as typing them.
+        var answer = Array.IndexOf(ConfirmButtonLabels, message.Trim()) switch
+        {
+            0 => ConfirmButtonCommands[0],
+            2 => ConfirmButtonCommands[2],
+            _ => message
+        };
+        if (CommandParser.IsAffirmative(answer))
         {
             foreach (var line in pending)
                 await HandleAddProductAsync(seller, new ParsedCommand { Kind = CommandKind.AddProduct, Text = line.Name, Amount = line.Price, Product = line }, ct);
             return true;
         }
-        if (CommandParser.IsNegative(message))
+        if (CommandParser.IsNegative(answer))
         {
             await ReplyAsync(seller, MessageTemplates.Get("commands.051"), ct);
             return true;

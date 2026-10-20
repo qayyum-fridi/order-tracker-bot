@@ -885,6 +885,7 @@ public partial class ConversationEngine
             .Where(n => !activeNames.Contains(n, StringComparer.OrdinalIgnoreCase))
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         ctx.PendingPriceProducts = stillWaiting.Count == 0 ? null : stillWaiting;
+        ctx.PendingPriceSetAt = stillWaiting.Count == 0 ? null : _clock.GetUtcNow().UtcDateTime;
         ctx.PendingProductExtras = pendingExtras.Where(e => stillWaiting.Contains(e.Key, StringComparer.OrdinalIgnoreCase)).ToDictionary(e => e.Key, e => e.Value);
         if (ctx.PendingProductExtras.Count == 0) ctx.PendingProductExtras = null;
         needPrice = stillWaiting;
