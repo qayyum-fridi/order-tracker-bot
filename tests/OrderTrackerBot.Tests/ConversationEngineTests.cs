@@ -674,6 +674,21 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task AddProductHowTo_ShowsEveryExampleLineOfTheSellersIndustry()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        var seller = await db.Sellers.SingleAsync();
+        var examples = IndustryProfiles.Resolve(seller.BusinessType).ProductLines;
+
+        await engine.HandleIncomingMessageAsync(Phone, "add product", default);
+
+        Assert.True(examples.Length >= 3);
+        Assert.Contains(_sentMessages, m => examples.All(line => m.Contains(line)));
+    }
+
+    [Fact]
     public async Task ProductForm_SavesVariantDetails_AndUpdatesSameVariantInsteadOfDuplicating()
     {
         using var db = _dbFactory.CreateContext();
