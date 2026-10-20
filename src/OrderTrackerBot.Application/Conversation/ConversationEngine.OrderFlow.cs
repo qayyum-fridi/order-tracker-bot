@@ -740,6 +740,9 @@ public partial class ConversationEngine
             var text = message.Trim();
             var newOrderInstead = ctx.PendingMissingField == "Phone" && !IsPlausiblePhone(text)
                 && text.Any(char.IsLetter) && System.Text.RegularExpressions.Regex.IsMatch(text, @"\d{10}");
+            // A name is a few plain words: digits or several lines mean the seller sent a whole new order ("Sara 0300 1234567 / Kurti 2"), not a name.
+            if (ctx.PendingMissingField == "CustomerName" && (text.Any(char.IsDigit) || text.Contains('\n') || text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length > 5))
+                newOrderInstead = true;
             if (OpensWithLeavePhrase(text) || CancelWords.Contains(text) || newOrderInstead)
             {
                 ctx.PendingOrder = null;
