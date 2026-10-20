@@ -28,7 +28,8 @@ public sealed class ClientOrderCreate(AppDbContext db, ClientQueries queries)
 
         var customer = await db.Customers.FirstOrDefaultAsync(c => c.Id == input.CustomerId && c.SellerId == sellerId && c.DeletedAt == null, ct);
         if (customer is null) return ("Customer not found.", null);
-        var seller = await db.Sellers.AsNoTracking().FirstAsync(s => s.Id == sellerId, ct);
+        var seller = await db.Sellers.AsNoTracking().FirstOrDefaultAsync(s => s.Id == sellerId, ct);
+        if (seller is null) return ("Seller not found.", null);
 
         var productIds = lines.Select(l => l.ProductId!.Value).Distinct().ToList();
         var products = await db.Products.Where(p => p.SellerId == sellerId && productIds.Contains(p.Id)).ToListAsync(ct);

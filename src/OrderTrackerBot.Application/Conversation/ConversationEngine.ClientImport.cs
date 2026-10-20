@@ -31,7 +31,9 @@ public partial class ConversationEngine
     public async Task<ClientImportPreview> PreviewClientImportAsync(int sellerId, string kind, byte[] bytes, string fileName, CancellationToken ct)
     {
         if (kind == "sales") return await PreviewSalesImportAsync(sellerId, bytes, fileName, ct);
-        var seller = await _db.Sellers.FirstAsync(s => s.Id == sellerId, ct);
+        var seller = await _db.Sellers.FirstOrDefaultAsync(s => s.Id == sellerId, ct);
+        if (seller is null)
+            return new ClientImportPreview("SellerNotFound", [], [], 0, 0, 0, [], []);
         var plan = await PlanImportBytesAsync(seller, bytes, fileName, ct);
         if (plan.Problem != ImportProblem.None)
             return new ClientImportPreview(plan.Problem.ToString(), [], [], 0, 0, 0, [], []);
@@ -64,7 +66,8 @@ public partial class ConversationEngine
     public async Task<ClientImportResult?> CommitClientImportAsync(int sellerId, string kind, byte[] bytes, string fileName, CancellationToken ct)
     {
         if (kind == "sales") return await CommitSalesImportAsync(sellerId, bytes, fileName, ct);
-        var seller = await _db.Sellers.FirstAsync(s => s.Id == sellerId, ct);
+        var seller = await _db.Sellers.FirstOrDefaultAsync(s => s.Id == sellerId, ct);
+        if (seller is null) return null;
         var plan = await PlanImportBytesAsync(seller, bytes, fileName, ct);
         if (plan.Problem != ImportProblem.None || !plan.HasNew) return null;
 
