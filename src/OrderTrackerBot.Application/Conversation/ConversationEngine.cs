@@ -109,7 +109,8 @@ public partial class ConversationEngine
 
     private async Task HandleIncomingCoreAsync(string fromPhoneNumber, string rawMessage, CancellationToken ct)
     {
-        var message = TextHygiene.StripInvisible(rawMessage ?? string.Empty).Trim();
+        // A typed backslash-n (copied from code or a template) is meant as a line break.
+        var message = TextHygiene.StripInvisible(rawMessage ?? string.Empty).Replace("\\n", "\n").Trim();
         if (message.Length == 0) return;
 
         _db.MessageLogs.Add(new MessageLog { Phone = fromPhoneNumber, Direction = "inbound", RawText = message });

@@ -150,6 +150,10 @@ public partial class ConversationEngine
         var exchanges = lastMessages.AsEnumerable().Reverse()
             .Select(m => $"{(m.Direction == "outbound" ? "Bot" : "Seller")}: {(m.RawText.Length > 300 ? m.RawText[..300] : m.RawText)}").ToList();
 
+        // A spoken "cancel" while an order draft waits is a cancel, whatever the model would make of it ("kis order ko cancel karna hai?").
+        if (ctx.PendingOrder is not null && OpensWithLeavePhrase(transcript.Trim().Trim('.', '!', '?', '،', '۔', ' ')))
+            return TurnDecision.Execute(new[] { "cancel" });
+
         var result = await _ai.InterpretVoiceAsync(new AiVoiceContext
         {
             BusinessName = seller.BusinessName ?? "",
