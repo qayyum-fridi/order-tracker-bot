@@ -715,6 +715,20 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task OrdersMenu_and_the_order_start_reply_both_show_the_full_order_example()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        const string example = "Zainab, 2 Lawn Kurti XL, 1 Kurti, 03219876543, address: House 42 Street 5 DHA Phase 6 Lahore, delivery 250";
+
+        await engine.HandleIncomingMessageAsync(Phone, "menu orders", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains(example));
+        Assert.Contains(example, OrderTrackerBot.Application.Templates.MessageTemplates.Get("order-flow.045"));
+    }
+
+    [Fact]
     public async Task ProductPreview_ShowsCostAndCategory_AndLeavesOutWhatWasNotGiven()
     {
         using var db = _dbFactory.CreateContext();

@@ -70,7 +70,7 @@ public partial class ConversationEngine
     private static readonly IReadOnlyDictionary<string, (string Title, string Body, MenuRow[] Rows)> MenuCategories =
         new Dictionary<string, (string, string, MenuRow[])>
         {
-            ["orders"] = ("📦 Orders", "📦 Orders — yeh likh kar dekhein:\n • Naya order: Ayesha, 2 suit, 03001234567\n • Dekhein: order 12 · orders today · pending orders\n • Status: mark 12 shipped · mark 12 delivered · mark 12 paid\n • Advance: order 12 advance 500\n • Edit: edit order 12, phir 1 = 3 · remove 2 · done\n • Cancel: cancel 12\n • Receipt: receipt 12", new[]
+            ["orders"] = ("📦 Orders", "📦 Orders — yeh likh kar dekhein:\n • Naya order: Zainab, 2 Lawn Kurti XL, 1 Kurti, 03219876543, address: House 42 Street 5 DHA Phase 6 Lahore, delivery 250\n • Dekhein: order 12 · orders today · pending orders\n • Status: mark 12 shipped · mark 12 delivered · mark 12 paid\n • Advance: order 12 advance 500\n • Edit: edit order 12, phir 1 = 3 · remove 2 · done\n • Cancel: cancel 12\n • Receipt: receipt 12", new[]
             {
                 new MenuRow("orders today", "Orders today"), new MenuRow("pending orders", "Pending orders"),
                 new MenuRow("unpaid orders", "Unpaid orders"), new MenuRow("cod pending", "COD pending"), new MenuRow("receipt", "Last order receipt (PDF)"), new MenuRow("edit order", "Last order edit"),
