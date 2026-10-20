@@ -311,7 +311,8 @@ public class InsightReportTests : IDisposable
         Assert.Contains("Kul orders: 5", reply);
         Assert.Contains("Cancel: 2 (40%) — 1 bhejne ke baad", reply);
         Assert.Contains("Return: 1 (25% bheje gaye 4 orders mein se)", reply);   // shipped ever: 2 delivered + 1 returned (cancelled-after-ship has ShippedAt too -> 4)
-        Assert.Contains("Rakam jo nahi mili: Rs.1,500", reply);
+        // Returned (500) + cancelled after shipping (700). The 300 cancelled before shipping lost only the sale, not money.
+        Assert.Contains("Rakam jo nahi mili: Rs.1,200", reply);
     }
 
     [Fact]

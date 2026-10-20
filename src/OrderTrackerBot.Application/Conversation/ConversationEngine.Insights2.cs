@@ -120,7 +120,8 @@ public partial class ConversationEngine
         var returned = orders.Where(o => o.Status == OrderStatus.Returned).ToList();
         var shippedEver = orders.Count(o => o.ShippedAt != null || o.Status is OrderStatus.Shipped or OrderStatus.Delivered or OrderStatus.Returned);
         var cancelledAfterShip = cancelled.Count(o => o.ShippedAt != null);
-        var lost = cancelled.Sum(o => o.Total) + returned.Sum(o => o.Total);
+        // Money really lost: returned parcels, and orders cancelled after they were shipped. A cancelled order that never left the shop lost only the sale.
+        var lost = returned.Sum(o => o.Total) + cancelled.Where(o => o.ShippedAt != null).Sum(o => o.Total);
 
         await ReplyAsync(seller,
             MessageTemplates.Get("insights2.008", label, orders.Count, cancelled.Count, Pct((decimal)cancelled.Count / orders.Count * 100m), (cancelledAfterShip > 0 ? $" — {cancelledAfterShip} bhejne ke baad" : ""), returned.Count, (shippedEver > 0 ? $" ({Pct((decimal)returned.Count / shippedEver * 100m)} bheje gaye {shippedEver} orders mein se)" : ""), Formatters.Money(lost)), ct);
