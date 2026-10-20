@@ -299,7 +299,9 @@ public partial class ConversationEngine
             SetState(session, ConversationState.AwaitingOrderMissingFields);
             // A near miss of a catalog name is most likely a typo: offer the nearest products as taps (or name the closest one in the typed hint).
             var catalog = await LoadCatalogAsync(seller, ct);
-            var nearest = TextDistance.Nearest(unresolved.ProductName, catalog.Select(c => c.Label), 2, 3);
+            IReadOnlyList<string> nearest = TextDistance.Nearest(unresolved.ProductName, catalog.Select(c => c.Label), 2, 3);
+            // No near miss: products sharing a word with the name are offered ("Ayesha 2 suit" -> the catalog's "Lawn Suit").
+            if (nearest.Count == 0) nearest = WordSharingLabels(unresolved.ProductName, catalog);
             var suggestions = _features.SuggestionButtons ? BuildSuggestions(catalog, nearest) : new List<ProductSuggestion>();
             ctx.ProductSuggestions = suggestions.Count > 0 ? suggestions : null;
             var intro = MessageTemplates.Get("order-flow.049", unresolved.ProductName);
@@ -564,6 +566,17 @@ public partial class ConversationEngine
 
     // While an order is half-entered, a cancel word or any command (menu, help, catalog, ...) abandons the draft
     // instead of being swallowed as a customer name or phone number. Product-add lines keep the draft.
+    /// <summary>Catalog labels that share a word (3+ letters) with a product name the seller typed.</summary>
+    private static IReadOnlyList<string> WordSharingLabels(string name, IReadOnlyList<CatalogEntry> catalog)
+    {
+        var words = NameWords(name);
+        if (words.Count == 0) return Array.Empty<string>();
+        return catalog.Where(c => NameWords(c.Label).Overlaps(words)).Select(c => c.Label).Take(3).ToList();
+    }
+
+    private static HashSet<string> NameWords(string text) =>
+        Regex.Split(text.ToLowerInvariant(), @"[^\p{L}]+").Where(w => w.Length >= 3).ToHashSet();
+
     private async Task<bool> TryLeaveOrderDraftAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         var trimmed = message.Trim();
@@ -574,6 +587,14 @@ public partial class ConversationEngine
         var isCancel = CancelWords.Contains(trimmed) || (command is null && (OpensWithLeavePhrase(trimmed) || NegatedCancelInstruction.IsMatch(trimmed)));
         var isCommand = command is not null && command.Kind is not (CommandKind.AddProduct or CommandKind.AddProductsBulk or CommandKind.MoreCustomers);
         if (!isCancel && !isCommand) return false;
+
+        // "edit order 1" for an order that does not exist: say so and keep the draft, instead of throwing it away.
+        if (!isCancel && command!.Kind == CommandKind.EditOrder && command.Number is { } missingNo
+            && !await _db.Orders.AnyAsync(o => o.SellerId == seller.Id && o.Id == missingNo, ct))
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("commands.028", missingNo), ct);
+            return true;
+        }
 
         ResetFlowContext(ctx);
         SetState(session, ConversationState.Idle);
