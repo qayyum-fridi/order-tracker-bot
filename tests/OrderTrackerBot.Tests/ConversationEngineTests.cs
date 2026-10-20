@@ -715,6 +715,14 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public void Clarification_never_offers_the_draft_buttons_as_choices()
+    {
+        Assert.Equal(new[] { "Lawn Suit", "Kurti" }, ConversationEngine.UsableClarificationOptions(new[] { "✅ Save", "Lawn Suit", "✏️ Edit", "Kurti", "❌ Cancel" }));
+        Assert.Equal(new[] { "Naya order add karna chahte hain", "Kisi order ka status update karna chahte hain" },
+            ConversationEngine.UsableClarificationOptions(new[] { "✅ Save", "❌ Cancel" }));
+    }
+
+    [Fact]
     public async Task OrdersMenu_and_the_order_start_reply_both_show_the_full_order_example()
     {
         using var db = _dbFactory.CreateContext();
