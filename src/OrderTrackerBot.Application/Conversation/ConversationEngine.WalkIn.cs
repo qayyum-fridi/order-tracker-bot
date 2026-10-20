@@ -213,6 +213,7 @@ public sealed partial class ConversationEngine
         if (session.State != ConversationState.Idle || !seller.OnboardingComplete || ctx.PendingOrder is not null) return false;
         var parts = message.Split(new[] { ',', '\n', '،' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (parts.Length == 0) return false;
+        if (await TryRefuseNegativeQuantityAsync(seller, parts, ct)) return true;
         if (await TryHandleUnitItemsAsync(seller, session, ctx, message, parts, ct)) return true;
         if (!parts.All(p => ItemsOnlyPart.IsMatch(p))) return false;
         if (CommandParser.TryParse(message) is not null) return false;
@@ -262,6 +263,19 @@ public sealed partial class ConversationEngine
 
         ctx.PendingOrder = BuildPendingFromWalkIn(catalog, new WalkInSale(sale, null, 0, false));
         await ContinueResolvingDraftAsync(seller, session, ctx, ct);
+        return true;
+    }
+
+    // "Kurti -2, Dupatta": a minus sign stuck to the number is a negative quantity, not a "name - price" separator. Nothing is saved; the seller is told which line is wrong.
+    private static readonly Regex NegativeQtyPart = new(@"^(?<n>.*[^\W\d_].*?)\s*[-–−]\s*(?<q>\d{1,3})$", RegexOptions.Compiled);
+
+    private async Task<bool> TryRefuseNegativeQuantityAsync(Seller seller, string[] parts, CancellationToken ct)
+    {
+        var bad = parts.Select(p => NegativeQtyPart.Match(p)).FirstOrDefault(m => m.Success && !Regex.IsMatch(m.Value, @"[-–−]\s+\d"));
+        if (bad is null) return false;
+        var name = bad.Groups["n"].Value.Trim();
+        if (FindCatalogEntry(await LoadCatalogAsync(seller, ct), name) is not { } entry) return false;
+        await ReplyAsync(seller, MessageTemplates.Get("order-flow.negative-qty", bad.Value.Trim(), entry.Product.Name), ct);
         return true;
     }
 }
