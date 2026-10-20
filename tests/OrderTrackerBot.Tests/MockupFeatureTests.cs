@@ -177,7 +177,7 @@ public class MockupFeatureTests : IDisposable
         var engine = await OnboardAsync(db);
 
         await engine.HandleIncomingMessageAsync(Phone, "Sugar 5 kg - 500", default);
-        Assert.Contains(_sent, m => m.Contains("Added: Sugar - 5kg - Rs.500"));
+        Assert.Contains(_sent, m => m.Contains("Added: Sugar (5 kg) - Rs.500"));
         var sugar = await db.Products.FirstAsync(p => p.Name == "Sugar");
         Assert.Equal("kg", sugar.UnitType);
         Assert.Equal(5m, sugar.UnitQty);

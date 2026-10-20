@@ -81,7 +81,7 @@ public class ProductChoiceTests : IDisposable
         Assert.Equal(0, await db.Orders.CountAsync());                    // the half-made order is not saved
         _sent.Clear();
         await engine.HandleIncomingMessageAsync(Phone, "Shawl - 900", default);   // and the seller is no longer stuck
-        Assert.Contains(_sent, m => m.Contains("Shawl") && m.Contains("add ho gaya"));
+        Assert.Contains(_sent, m => m.Contains("Shawl") && (m.Contains("add ho gaya") || m.Contains("Added:")));
     }
 
     [Fact]

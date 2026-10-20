@@ -104,6 +104,8 @@ public sealed class SessionContextData
     public int? SupplierLeadDays { get; set; }
     /// <summary>The seller-local day (yyyy-MM-dd) the "add cost prices" reminder was last sent, so it comes at most once a day.</summary>
     public string? SetupNudgeDay { get; set; }
+    /// <summary>True once the "4 ways to add products" tips and the units hint were shown, so later saves only confirm the product.</summary>
+    public bool ProductHowToShown { get; set; }
     /// <summary>The page (1-based) and order ("az" / "latest" / null = as added) of the catalog list the seller last looked at ("catalog next").</summary>
     public int CatalogPage { get; set; }
     public string? CatalogSort { get; set; }

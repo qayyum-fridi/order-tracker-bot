@@ -427,7 +427,7 @@ public partial class ConversationEngine
                     await AskProductConfirmationAsync(seller, ctx, new[] { cmd.Product }, ct);
                     return;
                 }
-                await HandleAddProductAsync(seller, cmd, ct);
+                await HandleAddProductAsync(seller, cmd, ct, ctx);
                 return;
             case CommandKind.NewOrderHelp:
                 await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, NewOrderHelpTextFor(seller), "Options dekhein", NewOrderHelpSections, ct);
@@ -784,7 +784,7 @@ public partial class ConversationEngine
     // Price and active flag of the product before the last upsert changed it, so the reply can say what really happened.
     private (decimal Price, bool WasActive)? _upsertBefore;
 
-    private async Task HandleAddProductAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
+    private async Task HandleAddProductAsync(Seller seller, ParsedCommand cmd, CancellationToken ct, SessionContextData? ctx = null)
     {
         var line = cmd.Product ?? new ProductLine(cmd.Text!, cmd.Amount!.Value, "piece", 1);
         _upsertBefore = null;
@@ -801,14 +801,18 @@ public partial class ConversationEngine
                 : hasDetails ? $"✅ {label} pehle se catalog mein hai (price wohi: {Formatters.Money(product.Price)}) — details update:{ProductDetailsText(product)}"
                 : $"ℹ️ {label} pehle se catalog mein hai ({Formatters.Money(product.Price)}) — koi tabdeeli nahi.\nPrice badalna ho to naya price likhein, e.g. {product.Name} - {Formatters.Money(product.Price + 100).Replace("Rs.", "").Replace(",", "")}";
         }
+        // The how-to tips show once per session (first new piece product); later saves only confirm the product.
+        var showHowTo = ctx is { ProductHowToShown: false } && !updated && existingReply is null && line.UnitType == "piece" && line.UnitQty == 1;
         await ReplyAsync(seller,
             existingReply is not null ? existingReply
             : updated ? MessageTemplates.Get("commands.033", label, Formatters.Money(product.Price), ProductDetailsText(product))
-            : line.UnitType != "piece" || line.UnitQty != 1 ? MessageTemplates.Get("commands.034", label, Formatters.Money(product.Price), ProductDetailsText(product))
-            : MessageTemplates.Get("commands.035", label, Formatters.Money(product.Price), ProductDetailsText(product), Industry(seller).FullProduct), ct);
+            : showHowTo ? MessageTemplates.Get("commands.035", label, Formatters.Money(product.Price), ProductDetailsText(product), Industry(seller).FullProduct)
+            : MessageTemplates.Get("commands.034", label, Formatters.Money(product.Price), ProductDetailsText(product)), ct);
 
+        if (!showHowTo) return;
+        ctx!.ProductHowToShown = true;
         // A new product sold by the piece: say which units suit this kind of shop, so a kg / set / pair / tola product isn't saved as pieces by accident.
-        if (!updated && line.UnitType == "piece" && line.UnitQty == 1 && Industry(seller).Units.Length > 0)
+        if (Industry(seller).Units.Length > 0)
             await ReplyAsync(seller, MessageTemplates.Get("commands.049", Industry(seller).MainLine, string.Join(", ", Industry(seller).Units)), ct);
     }
 
@@ -1013,7 +1017,7 @@ public partial class ConversationEngine
             existing.Price = line.Price;
             existing.IsActive = true;
             ApplyProductExtras(existing, line.Extras);
-            SuggestNext($"walkin {existing.Name} 1", "catalog");
+            SuggestNext("catalog", "menu");
             return (existing, true);
         }
 
@@ -1021,7 +1025,7 @@ public partial class ConversationEngine
         ApplyProductExtras(product, line.Extras);
         _db.Products.Add(product);
         await _db.SaveChangesAsync(ct);
-        SuggestNext($"walkin {product.Name} 1", "catalog");
+        SuggestNext("catalog", "menu");
         return (product, false);
     }
 

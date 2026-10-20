@@ -23,6 +23,15 @@ public static class Formatters
     {
         var variant = string.Join(", ", new[] { product.Color, product.Size }.Where(v => !string.IsNullOrWhiteSpace(v)));
         var label = variant.Length == 0 ? product.Name : $"{product.Name} ({variant})";
+        // The pack goes in brackets so "5 kg" reads as a unit, not as part of the name ("Sugar (5 kg)", not "Sugar - 5kg").
+        return product.UnitType is "piece" or "" && product.UnitQty == 1 ? label : $"{label} ({Quantity(product.UnitQty)} {UnitShort(product.UnitType).Trim()})";
+    }
+
+    /// <summary>The label the order AI and the product matcher see ("Sugar - 5kg"): kept in the old form so matching stays the same.</summary>
+    public static string ProductMatchLabel(Product product)
+    {
+        var variant = string.Join(", ", new[] { product.Color, product.Size }.Where(v => !string.IsNullOrWhiteSpace(v)));
+        var label = variant.Length == 0 ? product.Name : $"{product.Name} ({variant})";
         return product.UnitType is "piece" or "" && product.UnitQty == 1 ? label : $"{label} - {Quantity(product.UnitQty)}{UnitShort(product.UnitType)}";
     }
 
