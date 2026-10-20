@@ -182,6 +182,9 @@ internal static class InsightParser
         if (LeadSubject.IsMatch(text) && LeadVerb.IsMatch(text) && !How.IsMatch(text) && !Which.IsMatch(text) && DaysNumber.Match(text) is { Success: true } lead
             && int.TryParse(lead.Groups["n"].Value, out var leadDays) && leadDays > 0)
             return Topic("leadtime", leadDays);
+        // Short phrases on their own: "untracked", "stock value", "stock ka total value".
+        if (Regex.IsMatch(text, @"^\s*untracked(\s+(stock|products?))?\s*$", RegexOptions.IgnoreCase)) return Topic("untracked");
+        if (Regex.IsMatch(text, @"^\s*(total\s+)?stock\s+(ka\s+|ki\s+)?(total\s+)?value\s*$", RegexOptions.IgnoreCase)) return Topic("stockvalue");
         if (Track.IsMatch(text) && Not.IsMatch(text) && (Product.IsMatch(text) || StockWord.IsMatch(text))) return Topic("untracked");
         if ((StockWord.IsMatch(text) && Finish.IsMatch(text)) || LowStock.IsMatch(text)) return Topic("stockending", NumberOfDays(text));
         if (Reorder.IsMatch(text) && (StockWord.IsMatch(text) || Product.IsMatch(text) || Need.IsMatch(text))) return Topic("reorder");

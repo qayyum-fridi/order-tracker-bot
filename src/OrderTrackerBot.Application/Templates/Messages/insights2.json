@@ -29,5 +29,8 @@
   "insights2.028": "📊 Aaj bamuqabla kal\n\nAaj ab tak: {0} ({1} orders)\nKal isi waqt tak: {2} ({3} orders) → {4}\nKal poora din: {5} ({6} orders)\n\nSale mein delivery shamil hai; cancel aur return shamil nahi.",
   "insights2.029": "💰 Faida ya nuqsan ({0}): is dauran na koi order hai na koi kharcha.",
   "insights2.030": "💰 Faida ya nuqsan ({0}): {1} orders hain magar kisi product ki cost save nahi, is liye munafa nahi nikal sakta.\nCost ke saath likhein, jaise: \"Kurti - 1800, cost 1200\". Sale aur kharcha dekhne ke liye: \"monthly net\".",
-  "insights2.031": "💰 Faida ya nuqsan — {0}\n\nSale (delivery ke baghair): {1}\nProduct ki cost: {2}\nMunafa (kharche se pehle): {3}\nKharche: {4}\nKhalis: {5}\n\n{6}{7}"
+  "insights2.031": "💰 Faida ya nuqsan — {0}\n\nSale (delivery ke baghair): {1}\nProduct ki cost: {2}\nMunafa (kharche se pehle): {3}\nKharche: {4}\nKhalis: {5}\n\n{6}{7}",
+  "insights2.032": "ℹ️ Stock ki value nikalne ke liye pehle stock track karein, jaise: \"stock Kurti 20\".",
+  "insights2.033": "📦 Stock ki value: {1}\nTracked products: {0}\n\nHisaab: stock ki miqdar x cost price (cost na ho to price).{2}",
+  "insights2.034": "\n\nℹ️ {0} product ki cost price nahi likhi, un ki value price par nikali gayi hai. \"data check\" likhein."
 }

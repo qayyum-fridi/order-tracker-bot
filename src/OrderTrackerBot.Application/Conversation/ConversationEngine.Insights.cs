@@ -51,6 +51,7 @@ public partial class ConversationEngine
             case "catproducts": await InsightCategoryProductsAsync(seller, ct); break;
             case "categories": await InsightCategoriesAsync(seller, ct); break;
             case "untracked": await InsightUntrackedStockAsync(seller, ct); break;
+            case "stockvalue": await InsightStockValueAsync(seller, ct); break;
             case "expcat": await InsightExpenseCategoryAsync(seller, text, period, ct); break;
             case "exptop": await InsightTopExpensesAsync(seller, period, ct); break;
             case "vsyesterday": await InsightTodayVsYesterdayAsync(seller, ct); break;

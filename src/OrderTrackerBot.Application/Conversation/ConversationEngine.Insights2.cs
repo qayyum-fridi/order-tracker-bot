@@ -346,6 +346,21 @@ public partial class ConversationEngine
         SuggestNext("sales by category", "catalog");
     }
 
+    /// <summary>Money tied up in tracked stock: units x cost price (the selling price when no cost is written). Plain arithmetic.</summary>
+    private async Task InsightStockValueAsync(Seller seller, CancellationToken ct)
+    {
+        var tracked = await _db.Products.AsNoTracking().Where(p => p.SellerId == seller.Id && p.IsActive && p.StockQty != null).ToListAsync(ct);
+        if (tracked.Count == 0)
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("insights2.032"), ct);
+            return;
+        }
+        var total = tracked.Sum(p => (decimal)p.StockQty!.Value * (p.CostPrice ?? p.Price));
+        var noCost = tracked.Count(p => p.CostPrice is null);
+        var note = noCost > 0 ? MessageTemplates.Get("insights2.034", noCost) : "";
+        await ReplyAsync(seller, MessageTemplates.Get("insights2.033", tracked.Count, Formatters.Money(total), note), ct);
+    }
+
     private async Task InsightUntrackedStockAsync(Seller seller, CancellationToken ct)
     {
         var all = await _db.Products.AsNoTracking().Where(p => p.SellerId == seller.Id && p.IsActive).OrderBy(p => p.Name).ToListAsync(ct);
