@@ -60,7 +60,11 @@ public partial class ConversationEngine
             return;
         }
 
-        var decision = await InterpretVoiceAsync(seller, text, ct);
+        // A transcript that is only a phone number needs no rewrite (a second, slow model call): it is the answer as typed.
+        var joined = JoinSpacedPhones(text.Trim().Trim('.', '!', '?', '،', '۔', ' '));
+        var decision = joined.All(c => char.IsDigit(c) || c == '+') && IsPlausiblePhone(joined)
+            ? TurnDecision.Execute(new[] { joined })
+            : await InterpretVoiceAsync(seller, text, ct);
         if (decision.Kind == DecisionKind.Clarify)
         {
             // Clear intent but a detail is missing (which order, the new price): ask for it instead of guessing or failing.
@@ -140,10 +144,10 @@ public partial class ConversationEngine
         var catalog = await LoadCatalogAsync(seller, ct);
         var recent = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
             .Where(o => o.SellerId == seller.Id).OrderByDescending(o => o.Id).Take(5).ToListAsync(ct);
-        var customers = await _db.Customers.Include(c => c.Orders)
-            .Where(c => c.SellerId == seller.Id && c.DeletedAt == null).ToListAsync(ct);
-        var knownCustomers = customers
-            .OrderByDescending(c => c.Orders.Select(o => o.Id).DefaultIfEmpty(0).Max()).ThenByDescending(c => c.Id).Take(40)
+        // Only the 40 customers with the latest orders are sent to the model: pick them in SQL instead of loading every customer and order.
+        var knownCustomers = (await _db.Customers.Include(c => c.Orders)
+            .Where(c => c.SellerId == seller.Id && c.DeletedAt == null)
+            .OrderByDescending(c => c.Orders.Max(o => (int?)o.Id)).ThenByDescending(c => c.Id).Take(40).ToListAsync(ct))
             .Select(DescribeCustomerForVoice).ToList();
         var lastMessages = await _db.MessageLogs.Where(m => m.Phone == seller.WhatsAppPhoneNumber)
             .OrderByDescending(m => m.Id).Take(6).ToListAsync(ct);
