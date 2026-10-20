@@ -5,8 +5,8 @@ using OrderTrackerBot.Infrastructure.WhatsApp;
 namespace OrderTrackerBot.Api;
 
 /// <summary>
-/// Handles queued WhatsApp messages outside the webhook request, so a slow AI call can no longer make Meta time out and retry, and
-/// a dropped connection can no longer cancel a message half-way. Each message gets its own scope and its own timeout, and goes
+/// Handles queued WhatsApp messages and Instagram comments outside the webhook request, so a slow AI call can no longer make Meta time
+/// out and retry, and a dropped connection can no longer cancel a message half-way. Each message gets its own scope and its own timeout, and goes
 /// through <see cref="WebhookMessageGate"/> exactly as before (per-sender lock + message-id claim). When a message ends, its
 /// pending row is deleted. At start, rows left over from a crash or restart are recovered: a message that never started is queued
 /// again; one that had already started is NOT re-run (it may have saved an order) — the seller is asked to send it again.
@@ -41,7 +41,7 @@ public sealed class WebhookWorkerService : BackgroundService
             var dropped = await _inbox.DropUnreadableAsync(stoppingToken);
             if (dropped > 0)
                 _logger.LogWarning("Removed {Dropped} unreadable WhatsApp message rows left by an earlier run", dropped);
-            var (requeued, interrupted) = await _inbox.RecoverAsync(AskToResendAsync, stoppingToken);
+            var (requeued, interrupted) = await _inbox.RecoverAsync(HandleInterruptedAsync, stoppingToken);
             if (requeued + interrupted > 0)
                 _logger.LogWarning("Recovered WhatsApp messages from the last run: {Requeued} queued again, {Interrupted} cut off mid-way (sellers asked to resend)", requeued, interrupted);
         }
@@ -51,11 +51,19 @@ public sealed class WebhookWorkerService : BackgroundService
         }
     }
 
-    private async Task AskToResendAsync(WebhookMessage message)
+    private async Task HandleInterruptedAsync(WebhookMessage message)
     {
         try
         {
             using var scope = _scopes.CreateScope();
+            if (message.Kind == WebhookMessageKind.InstagramComment)
+            {
+                // No WhatsApp chat behind a comment (From is the IG account id): nobody to ask, so the founder is told instead.
+                await scope.ServiceProvider.GetRequiredService<IIssueReporter>().ReportAsync(
+                    IssueCodes.InstagramCommentFailed, null, $"IG account {message.From}, comment {message.Id} cut off by a restart; not re-run");
+                return;
+            }
+
             await scope.ServiceProvider.GetRequiredService<IWhatsAppSender>().SendTextMessageAsync(message.From,
                 "⚠️ Server restart ki wajah se aapka pichla message poora process nahi ho saka — meherbani karke dobara bhej dein. Kuch delete nahi hua.");
             await scope.ServiceProvider.GetRequiredService<IIssueReporter>().ReportAsync(

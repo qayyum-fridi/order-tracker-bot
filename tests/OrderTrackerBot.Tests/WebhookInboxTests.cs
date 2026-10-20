@@ -10,6 +10,7 @@ namespace OrderTrackerBot.Tests;
 public class WebhookInboxTests : IDisposable
 {
     private const string Phone = "923001110001";
+    private const string IgAccount = "17841400000000001";
 
     private readonly TestDbContextFactory _dbFactory = new();
     private readonly ServiceProvider _services;
@@ -106,11 +107,25 @@ public class WebhookInboxTests : IDisposable
             new WebhookMessage("c", WebhookMessageKind.Audio, Phone, MediaId: "m2"),
             new WebhookMessage("d", WebhookMessageKind.Document, Phone, MediaId: "m3", FileName: "x.xlsx", MimeType: "application/vnd.ms-excel"),
             new WebhookMessage("e", WebhookMessageKind.Flow, Phone, Json: "{\"k\":1}"),
-            new WebhookMessage("f", WebhookMessageKind.Unsupported, Phone, Type: "sticker")
+            new WebhookMessage("f", WebhookMessageKind.Unsupported, Phone, Type: "sticker"),
+            new WebhookMessage("g", WebhookMessageKind.InstagramComment, IgAccount, Text: "price?", MediaId: "m9", CommenterId: "555", Username: "buyer")
         };
 
         foreach (var message in messages)
             Assert.Equal(message, WebhookMessage.TryDeserialize(message.Serialize()));
+    }
+
+    [Fact]
+    public async Task An_instagram_comment_is_queued_on_its_account_lane_and_never_messages_the_seller()
+    {
+        var comment = new WebhookMessage("17900001", WebhookMessageKind.InstagramComment, IgAccount, Text: "price?", CommenterId: "555", Username: "buyer");
+
+        Assert.Equal(InboxResult.Accepted, await _inbox.AcceptAsync(comment));
+
+        Assert.True(_queue.Reader(WebhookWorkQueue.LaneFor(IgAccount)).TryRead(out var work));
+        Assert.Equal("17900001", work.MessageId);
+        Assert.Equal(IssueCodes.InstagramCommentFailed, work.FailureCode);
+        Assert.False(work.NotifySellerOnFailure);
     }
 
     [Fact]

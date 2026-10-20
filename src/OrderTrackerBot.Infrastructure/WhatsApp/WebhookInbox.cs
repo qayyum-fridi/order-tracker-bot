@@ -8,13 +8,17 @@ using OrderTrackerBot.Domain.Entities;
 namespace OrderTrackerBot.Infrastructure.WhatsApp;
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
-public enum WebhookMessageKind { Text, Image, Audio, Document, Flow, Unsupported }
+public enum WebhookMessageKind { Text, Image, Audio, Document, Flow, Unsupported, InstagramComment }
 
-/// <summary>An inbound WhatsApp message in a form that can be stored and replayed after a restart.</summary>
+/// <summary>
+/// An inbound WhatsApp message (or Instagram comment, kind <see cref="WebhookMessageKind.InstagramComment"/>) in a form that can be
+/// stored and replayed after a restart. For a comment, <c>Id</c> is the comment id, <c>From</c> the IG account id.
+/// </summary>
 public sealed record WebhookMessage(
     string Id, WebhookMessageKind Kind, string From,
     string? Text = null, string? MediaId = null, string? Caption = null, string? FileName = null,
-    string? MimeType = null, string? Json = null, string? Type = null, long? SentAt = null)
+    string? MimeType = null, string? Json = null, string? Type = null, long? SentAt = null,
+    string? CommenterId = null, string? Username = null)
 {
     public string Serialize() => JsonSerializer.Serialize(this);
 
@@ -36,6 +40,9 @@ public sealed record WebhookMessage(
             (engine, ct) => engine.HandleDocumentMessageAsync(From, MediaId!, FileName, MimeType, ct)),
         WebhookMessageKind.Flow => new WebhookWork(From, Id, IssueCodes.FlowSubmissionFailed, null, true,
             (engine, ct) => engine.HandleFlowSubmissionAsync(From, Json!, ct)),
+        // No chat to reply in: the seller is never messaged about a failed comment (the founder gets the issue report).
+        WebhookMessageKind.InstagramComment => new WebhookWork(From, Id, IssueCodes.InstagramCommentFailed, $"IG account {From}, comment {Id}", false,
+            (engine, ct) => engine.HandleInstagramCommentAsync(From, Id, CommenterId, Username, Text!, MediaId, ct)),
         _ => new WebhookWork(From, Id, IssueCodes.UnsupportedMediaReplyFailed, $"media type: {Type}", false,
             (engine, ct) => engine.HandleUnsupportedMediaAsync(From, Type ?? "unknown", ct))
     };

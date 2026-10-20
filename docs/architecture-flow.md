@@ -6,7 +6,7 @@ Line numbers refer to `src/OrderTrackerBot.Application/Conversation/Conversation
 ## 1. Text message
 
 ```
-WhatsApp webhook
+WhatsApp webhook (Instagram comments: same inbox, kind InstagramComment)
   └─ WebhookInbox → WebhookWorkQueue (per-sender lane) → WebhookMessageGate
        └─ HandleIncomingMessageAsync                          (ConversationEngine.cs:71)
             ├─ TryHandleVoiceConfirmationAsync                 parked voice steps?  YES → run / NO → cancel
