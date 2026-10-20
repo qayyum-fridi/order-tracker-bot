@@ -43,7 +43,7 @@
   "order-flow.042": "category products",
   "order-flow.043": "sales by category",
   "order-flow.044": "Kaunsa order aur naya status? (e.g. \"mark 3 shipped\")",
-  "order-flow.045": "Theek — order ki tafseel bhej dein: naam, product, phone, address\n\n📋 Misaal (is tarah likhein):\nZainab, 2 Lawn Kurti XL, 1 Kurti, 03219876543, address: House 42 Street 5 DHA Phase 6 Lahore, delivery 250",
+  "order-flow.045": "Theek — order ki tafseel bhej dein: naam, product, phone, address\n\n📋 Order bhejne ke 4 tareeqay:\n✍️ Ek line mein (misaal): Zainab, 2 Lawn Kurti XL, 1 Kurti, 03219876543, address: House 42 Street 5 DHA Phase 6 Lahore, delivery 250\n📩 Customer ka message forward ya paste karein\n🎤 Voice note mein bolein\n📷 Order ki screenshot bhej dein",
   "order-flow.046": "Products dekhne ke liye \"catalog\" likhein, ya apna sawal likh dein.",
   "order-flow.047": "Theek hai — bata dein kya karna hai, ya \"menu\" likhein.",
   "order-flow.048": "➕ Naya product",
