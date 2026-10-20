@@ -715,6 +715,14 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public void Clarification_never_offers_the_draft_buttons_as_choices()
+    {
+        Assert.Equal(new[] { "Lawn Suit", "Kurti" }, ConversationEngine.UsableClarificationOptions(new[] { "✅ Save", "Lawn Suit", "✏️ Edit", "Kurti", "❌ Cancel" }));
+        Assert.Equal(new[] { "Naya order add karna chahte hain", "Kisi order ka status update karna chahte hain" },
+            ConversationEngine.UsableClarificationOptions(new[] { "✅ Save", "❌ Cancel" }));
+    }
+
+    [Fact]
     public async Task A_stale_order_confirmation_state_with_no_draft_does_not_capture_later_messages()
     {
         using var db = _dbFactory.CreateContext();

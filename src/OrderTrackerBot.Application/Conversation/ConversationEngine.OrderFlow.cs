@@ -1102,8 +1102,16 @@ public partial class ConversationEngine
         return MessageTemplates.Get("order-flow.047");
     }
 
+    // The AI sometimes offers the order draft's own buttons (Save / Edit / Cancel) as choices for an unrelated question. Those mean nothing here.
+    internal static List<string> UsableClarificationOptions(IEnumerable<string> options)
+    {
+        var usable = options.Where(o => !ConfirmButtonLabels.Contains(o.Trim())).ToList();
+        return usable.Count > 0 ? usable : DefaultClarificationOptions.ToList();
+    }
+
     private async Task AskClarificationAsync(Seller seller, ConversationSession session, SessionContextData ctx, string question, List<string> options, CancellationToken ct)
     {
+        options = UsableClarificationOptions(options);
         ctx.ClarificationOptions = options;
         SetState(session, ConversationState.AwaitingClarificationChoice);
         // A tap sends the command itself when the option is one ("create discount"), otherwise its number (handled by HandleClarificationChoiceAsync).
