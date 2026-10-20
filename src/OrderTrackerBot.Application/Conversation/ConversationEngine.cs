@@ -398,6 +398,7 @@ public partial class ConversationEngine
         }
 
         if (await TryHandleOrderForCustomerItemsAsync(seller, session, ctx, message, ct)) return;
+        if (await TryHandleItemsOnlyAsync(seller, session, ctx, message, ct)) return;
 
         // Waiting for the price of ONE new product and the seller sends just an amount ("9000", "Rs. 9,000"): that is its price. Plain code, no AI guess.
         if (ctx.PendingPriceProducts is { Count: 1 } waiting && BareAmount.Match(message.Trim()) is { Success: true } bare

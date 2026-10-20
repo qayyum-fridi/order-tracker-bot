@@ -204,4 +204,24 @@ public sealed partial class ConversationEngine
         await ContinueResolvingDraftAsync(seller, session, ctx, ct);
         return true;
     }
+
+    // "2x Kurti, 1 x Dupatta": every part is "<qty>x <catalog product>" — items with no customer. Plain code (no AI call); the draft then asks for the name and phone.
+    private static readonly Regex ItemsOnlyPart = new(@"^\s*\d{1,3}\s*[x×]\s+\S.*$|^\s*\S.*?\s+[x×]\s*\d{1,3}\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private async Task<bool> TryHandleItemsOnlyAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
+    {
+        if (session.State != ConversationState.Idle || !seller.OnboardingComplete || ctx.PendingOrder is not null) return false;
+        var parts = message.Split(new[] { ',', '\n', '،' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length == 0 || !parts.All(p => ItemsOnlyPart.IsMatch(p))) return false;
+        if (CommandParser.TryParse(message) is not null) return false;
+
+        var sale = ParseWalkIn(string.Join(", ", parts));
+        if (sale.Items.Count != parts.Length || sale.Items.Any(i => i.Name == "Counter sale")) return false;
+        var catalog = await LoadCatalogAsync(seller, ct);
+        if (sale.Items.Any(i => FindCatalogEntry(catalog, i.Name) is null)) return false;
+
+        ctx.PendingOrder = BuildPendingFromWalkIn(catalog, sale);
+        await ContinueResolvingDraftAsync(seller, session, ctx, ct);
+        return true;
+    }
 }
