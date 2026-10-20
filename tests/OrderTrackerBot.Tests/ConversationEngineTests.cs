@@ -715,6 +715,22 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task A_stale_order_confirmation_state_with_no_draft_does_not_capture_later_messages()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var session = await db.Sessions.FirstAsync();
+        session.State = ConversationState.AwaitingOrderConfirmation;
+        session.ContextJson = new SessionContextData().ToJson();
+        await db.SaveChangesAsync();
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "help", default);
+
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("Order confirm karne ke liye YES"));
+    }
+
+    [Fact]
     public async Task OrdersMenu_and_the_order_start_reply_both_show_the_full_order_example()
     {
         using var db = _dbFactory.CreateContext();

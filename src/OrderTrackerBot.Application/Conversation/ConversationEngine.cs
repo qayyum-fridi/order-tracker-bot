@@ -214,6 +214,10 @@ public partial class ConversationEngine
             return;
         }
 
+        // A draft state with no draft behind it (left by an earlier turn) would answer every message as if an order were waiting.
+        if (session.State is ConversationState.AwaitingOrderConfirmation or ConversationState.AwaitingOrderMissingFields && ctx.PendingOrder is null)
+            SetState(session, ConversationState.Idle);
+
         if (session.State is ConversationState.AwaitingOrderConfirmation or ConversationState.AwaitingOrderMissingFields
                 or ConversationState.AwaitingOrderGroupingChoice or ConversationState.AwaitingMultiOrderConfirmation
             && await TryLeaveOrderDraftAsync(seller, session, ctx, message, ct))
