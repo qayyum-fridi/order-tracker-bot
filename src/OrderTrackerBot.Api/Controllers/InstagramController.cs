@@ -2,7 +2,6 @@ using System.Net;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Conversation;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Infrastructure.Instagram;
@@ -21,13 +20,13 @@ public class InstagramController : ControllerBase
     private readonly AppDbContext _db;
     private readonly ConversationEngine _engine;
     private readonly ILogger<InstagramController> _logger;
-    private readonly IIssueReporter _issues;
+    private readonly WebhookInbox _inbox;
     private readonly FeatureOptions _features;
 
     public InstagramController(InstagramClient instagram, IOptions<InstagramOptions> options, IOptions<WhatsAppOptions> whatsApp,
-        IOptions<FeatureOptions> features, AppDbContext db, ConversationEngine engine, ILogger<InstagramController> logger, IIssueReporter issues)
+        IOptions<FeatureOptions> features, AppDbContext db, ConversationEngine engine, ILogger<InstagramController> logger, WebhookInbox inbox)
     {
-        _issues = issues;
+        _inbox = inbox;
         _features = features.Value;
         _instagram = instagram;
         _options = options.Value;
@@ -123,22 +122,22 @@ public class InstagramController : ControllerBase
             return Unauthorized();
         }
 
+        // Same durable hand-off as WhatsApp (WebhookInbox → WebhookWorkerService): the AI call runs after the 200, so a slow
+        // reply never makes Meta retry, and a restart cannot lose an accepted comment. A full queue answers 503 so Meta retries later.
+        var accepted = true;
         foreach (var comment in InstagramWebhookPayload.ExtractComments(rawBody))
         {
-            try
+            var message = new WebhookMessage(comment.CommentId, WebhookMessageKind.InstagramComment, comment.IgAccountId,
+                Text: comment.Text, MediaId: comment.MediaId, CommenterId: comment.FromId, Username: comment.Username);
+            // Not tied to the request token: once Meta's payload is read, recording it must not be cancelled by a dropped connection.
+            if (await _inbox.AcceptAsync(message, CancellationToken.None) == InboxResult.QueueFull)
             {
-                await _engine.HandleInstagramCommentAsync(comment.IgAccountId, comment.CommentId, comment.FromId, comment.Username,
-                    comment.Text, comment.MediaId, ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to process Instagram comment {CommentId}", comment.CommentId);
-                await _issues.ReportAsync(IssueCodes.InstagramCommentFailed, null, $"IG account {comment.IgAccountId}, comment {comment.CommentId}", ex, ct);
+                _logger.LogError("Webhook queue is full; asking Meta to retry Instagram comment {CommentId}", comment.CommentId);
+                accepted = false;
             }
         }
 
-        // Meta retries (and eventually disables the subscription) on anything but a fast 200.
-        return Ok();
+        return accepted ? Ok() : StatusCode(StatusCodes.Status503ServiceUnavailable);
     }
 
     private ContentResult Page(string message, bool ok) => Content(
