@@ -48,7 +48,9 @@
   "commands.047": "This Month",
   "commands.048": "Custom Dates",
   "commands.049": "📏 Agar unit piece nahi, to naam ke baad likhein (jaise \"{0}\"). Aap ke business ke units: {1}",
-  "commands.050": "🔎 Yeh product is tarah save hoga:\n• Naam: {0}\n• Rang: {1}\n• Price: {2}\n• Stock: {3}\n\nSahi hai to ✅ Save dabayein ya \"yes\" likhein. Galat hai to ❌ Cancel dabayein aur sahi tafseel dobara likhein.",
+  "commands.050": "🔎 Yeh product is tarah save hoga:\n{0}\n\nSahi hai to ✅ Save dabayein ya \"yes\" likhein. Galat hai to ❌ Cancel dabayein aur sahi tafseel dobara likhein.",
   "commands.051": "ℹ️ Product save nahi hua. Sahi tafseel dobara likhein.",
-  "commands.052": "🔎 Yeh products is tarah save honge:\n{0}\n\nSahi hai to ✅ Save dabayein ya \"yes\" likhein. Galat hai to ❌ Cancel dabayein aur sahi tafseel dobara likhein."
+  "commands.052": "🔎 Yeh products is tarah save honge:\n{0}\n\nSahi hai to ✅ Save dabayein ya \"yes\" likhein. Galat hai to ❌ Cancel dabayein aur sahi tafseel dobara likhein.",
+  "commands.053": "📄 Abhi koi product save nahi hua. Jin products ke variants (size / rang) Excel file mein hain, woh file bhejein — har row mein ek variant, columns: Naam, Size, Rang, Price, Cost, Stock, Category. Main file import kar dunga aur summary dikhaunga; save YES ke baad hoga.",
+  "commands.054": "📄 Variants Excel file mein hain — file bhejein: har row mein ek variant (Naam, Size, Rang, Price, Cost, Stock, Category). Upar wala product ✅ Save dabayein ya \"yes\" likhein; variants file se import honge."
 }

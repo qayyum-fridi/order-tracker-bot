@@ -676,6 +676,8 @@ public static class CommandParser
     // The menu tells sellers to write "naya product: Kurti - 1800": the prefix is dropped and the rest read as a product line (a colon is required, so "naya product hai" sentences are left alone).
     private static readonly Regex TrailingRemark = new(@"\s*[(（]\s*(?:confirm(?:ed)?|yes|ok|okay|haan|han|done)\s*[)）]\s*$", Opts);
     private static readonly Regex NewProductPrefix = new(@"^(?:naya|nayi|new)\s+products?\s*:\s*(?<r>.+)$", Opts);
+    // "category is Summer Wear aur ...": the category a seller gives for the product waiting for YES. Captured text ends before "aur" / punctuation.
+    internal static readonly Regex ProductCategory = new(@"(?:^|[\s,.;])(?:category|categorie|catagory|کیٹ[یی]گری|کیٹ[یی]گر[یی])\s*(?:is|hai|:|=|ہے)?\s*(?<c>[^,.;]{2,40}?)(?=\s+(?:aur|and|plus|jo|jis)\b|\s*[,.;]|\s*$)", Opts);
     private static readonly Regex AddProduct = new(@"^add\s+product:\s*(.+?)\s*-\s*(\d+(?:\.\d+)?)$", Opts);
     private static readonly Regex EditProduct = new(@"^edit\s+product:\s*(.+?)\s*-\s*(\d+(?:\.\d+)?)$", Opts);
     private static readonly Regex MarkAllPendingShipped = new(@"^mark\s+all\s+pending\s+as\s+shipped$", Opts);
