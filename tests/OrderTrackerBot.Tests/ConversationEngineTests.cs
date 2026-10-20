@@ -702,6 +702,19 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task NewOrderGuide_ends_with_a_full_order_example()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "new order", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Misaal (is tarah likhein):") &&
+            m.Contains("Zainab, 2 Lawn Kurti XL, 1 Kurti, 03219876543, address: House 42 Street 5 DHA Phase 6 Lahore, delivery 250"));
+    }
+
+    [Fact]
     public async Task ProductPreview_ShowsCostAndCategory_AndLeavesOutWhatWasNotGiven()
     {
         using var db = _dbFactory.CreateContext();
