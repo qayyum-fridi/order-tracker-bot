@@ -107,6 +107,8 @@ public partial class ConversationEngine
         await TrySendShortcutBarAsync(fromPhoneNumber, ct);
     }
 
+    private static readonly TimeSpan DraftExpiry = TimeSpan.FromMinutes(20);
+
     private async Task HandleIncomingCoreAsync(string fromPhoneNumber, string rawMessage, CancellationToken ct)
     {
         // A typed backslash-n (copied from code or a template) is meant as a line break.
@@ -218,6 +220,19 @@ public partial class ConversationEngine
         {
             await PersistAsync(session, ctx, ct);
             return;
+        }
+
+        // An order draft left waiting for a long time is dropped: a phone or name sent hours later must not be taken as its answer.
+        if (session.State is ConversationState.AwaitingOrderConfirmation or ConversationState.AwaitingOrderMissingFields
+                or ConversationState.AwaitingOrderGroupingChoice or ConversationState.AwaitingMultiOrderConfirmation
+            && ctx.PendingOrder is not null && DateTime.UtcNow - session.UpdatedAt > DraftExpiry)
+        {
+            ctx.PendingOrder = null;
+            ctx.QueuedOrders = null;
+            ctx.PendingMissingField = null;
+            ctx.PendingNewProductName = null;
+            SetState(session, ConversationState.Idle);
+            await ReplyAsync(seller, MessageTemplates.Get("order-flow.draft-expired"), ct);
         }
 
         // A draft state with no draft behind it (left by an earlier turn) would answer every message as if an order were waiting.
