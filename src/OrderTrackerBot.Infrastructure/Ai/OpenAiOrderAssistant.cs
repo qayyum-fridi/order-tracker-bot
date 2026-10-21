@@ -258,6 +258,8 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "gives ONE compact typed order, whatever the bot is waiting for: \"Hamira, 10 Lawn Suit, 2800 each\" (customer, quantity, product, price, then phone / address only if said). " +
             "Never copy, translate or transliterate the whole transcript into the rewrite; leave out filler and apologies. If the seller said the phone is not available now / will be given later, end the order with \", phone baad mein\"; a phone that was not mentioned at all is simply left out. " +
             "A rewrite is a short typed message, never a paragraph. " +
+            "(9) SEVERAL customers in one note (\"Ayesha ko do Kurti, Bilal ko ek Dupatta, Sara ka ek lawn suit\"): write ONE message with one line per customer, \"Ayesha, 2 Kurti\\nBilal, 1 Dupatta\\nSara, 1 Lawn Suit\" " +
+            "(add each customer's phone / address on its own line only if said for that customer); never merge customers into one order. " +
             "(8) When the bot has just said that a product of the seller's order is NOT in the catalog and asks whether to add it, and the seller then talks about that product " +
             "(\"chadar daal dein, sale price 10000, cost taqreeban 8500, stock 50\"), write ONE product line for it: \"Chadar - 10000, cost 8500, stock 50\" (only the parts said; " +
             "an approximate number is written as that number). That line is the answer; do not write a sentence. " +
@@ -297,7 +299,8 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "each option is EXACTLY the message the bot should receive when tapped, written as the typed command or reply (\"mark 13 delivered\", \"orders last week\", \"Hassan Ali\", \"create discount\"), " +
             "at most 40 characters. Use options [] for an open question (a price, a name nobody has said).",
             new JsonObject { ["transcript"] = transcript }.ToJsonString(),
-            0.1, "voice interpretation", cancellationToken, jsonMode: true, model: _options.VoiceModel);
+            0.1, "voice interpretation", cancellationToken, jsonMode: true,
+            model: !string.IsNullOrWhiteSpace(_options.VoiceFastModel) && transcript.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= _options.VoiceFastMaxWords ? _options.VoiceFastModel : _options.VoiceModel);
         if (json is null) return null;
 
         try

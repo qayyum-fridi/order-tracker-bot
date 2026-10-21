@@ -37,9 +37,12 @@ public partial class ConversationEngine
         }
 
         if (_features.VoiceAck) await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("media.ack"), ct);
+        var voiceClock = System.Diagnostics.Stopwatch.StartNew();
         var media = _media is null ? null : await _media.DownloadAsync(mediaId, ct);
+        var downloadMs = voiceClock.ElapsedMilliseconds;
         var vocabulary = media is null ? null : await BuildVoiceVocabularyAsync(seller, ct);
         var text = media is null ? null : await _transcriber.TranscribeAsync(media.Value.Bytes, media.Value.MimeType, vocabulary, ct);
+        var transcribedMs = voiceClock.ElapsedMilliseconds;
         if (text is null)
         {
             if (_issues is not null)
@@ -82,6 +85,8 @@ public partial class ConversationEngine
             await _db.SaveChangesAsync(ct);
             return;
         }
+        _logger?.LogInformation("Voice note: download {DownloadMs} ms, up to transcript {TranscribedMs} ms, understood {TotalMs} ms (audio {Bytes} bytes, transcript {Words} words, decision {Kind})",
+            downloadMs, transcribedMs, voiceClock.ElapsedMilliseconds, media?.Bytes.Length ?? 0, text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length, decision.Kind);
         IReadOnlyList<string> steps = decision.Steps;
 
         // City / business type / handle are one answer ("Lahore, Clothing, @x"); separate steps would leave the first one to

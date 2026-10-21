@@ -150,6 +150,13 @@ public partial class ConversationEngine
         var drafts = new[] { analysis.Order }.Concat(analysis.AdditionalOrders)
             .Select(d => BuildPendingOrder(d, catalog, fromScreenshot)).ToList();
 
+        // "2 pack Lawn Suit" for a product sold per piece: say so instead of saving a quantity in a unit the product is not sold in (nothing is converted).
+        if (sourceText is not null && UnitMismatchIn(sourceText, drafts) is var (mismatchName, ownUnit, saidUnit))
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("order-flow.unitmismatch", mismatchName, ownUnit, saidUnit), ct);
+            return;
+        }
+
         // "…, number abhi nahi hai / phone baad mein": a single order is saved without a phone instead of asking for one.
         if (drafts.Count == 1 && string.IsNullOrWhiteSpace(drafts[0].Phone) && sourceText is not null && PhoneNotYetInOrder.IsMatch(sourceText)) drafts[0].PhoneLater = true;
 
@@ -729,6 +736,20 @@ public partial class ConversationEngine
         static string Norm(string x) => string.Join(' ', x.Trim().ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries)).TrimEnd('s');
         var (x, y) = (Norm(a), Norm(b));
         return x == y || x.Contains(y) || y.Contains(x);
+    }
+
+    private static (string Name, string Own, string Said)? UnitMismatchIn(string text, IEnumerable<PendingOrderData> drafts)
+    {
+        foreach (var item in drafts.SelectMany(d => d.Items).Where(i => i.ProductId is not null))
+        {
+            var name = System.Text.RegularExpressions.Regex.Escape(item.ProductName.Trim());
+            var m = System.Text.RegularExpressions.Regex.Match(text, $@"(?<!\d)\d{{1,3}}\s*(?<u>[^\W\d_]+)\s+{name}\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (!m.Success) m = System.Text.RegularExpressions.Regex.Match(text, $@"\b{name}\s+\d{{1,3}}\s*(?<u>[^\W\d_]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (!m.Success || CommandParser.NormalizeUnit(m.Groups["u"].Value) is not { } said) continue;
+            var own = CommandParser.NormalizeUnit(item.UnitType ?? "") ?? (item.UnitType ?? "piece").Trim().ToLowerInvariant();
+            if (own != said) return (item.ProductName, own, said);
+        }
+        return null;
     }
 
     private static readonly System.Text.RegularExpressions.Regex PhoneNotYetInOrder = new(
