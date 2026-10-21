@@ -255,7 +255,7 @@ public sealed partial class ConversationEngine
             if (own == "" ) own = "piece";
             if (own != unit)
             {
-                await ReplyAsync(seller, MessageTemplates.Get("order-flow.unit-mismatch", entry.Product.Name, own, unit), ct);
+                await ReplyAsync(seller, MessageTemplates.Get("order-flow.unitmismatch", entry.Product.Name, own, unit), ct);
                 return true;
             }
             sale.Add(new WalkInItem(entry.Product.Name, qty, null));
@@ -275,7 +275,7 @@ public sealed partial class ConversationEngine
         if (bad is null) return false;
         var name = bad.Groups["n"].Value.Trim();
         if (FindCatalogEntry(await LoadCatalogAsync(seller, ct), name) is not { } entry) return false;
-        await ReplyAsync(seller, MessageTemplates.Get("order-flow.negative-qty", bad.Value.Trim(), entry.Product.Name), ct);
+        await ReplyAsync(seller, MessageTemplates.Get("order-flow.negativeqty", bad.Value.Trim(), entry.Product.Name), ct);
         return true;
     }
 }

@@ -739,6 +739,47 @@ public class ConversationEngineTests : IDisposable
         Assert.DoesNotContain(_sentMessages, m => m.Contains("Order confirm karne ke liye YES"));
     }
 
+    [Theory]
+    [InlineData("Kurti 1800, Dupatta 600, Lawn Suit 3500")]
+    [InlineData("Kurti 3000, Lawn Suit 4000")]
+    [InlineData("Lipstick Matte Red - 950")]
+    [InlineData("Kurti 1,800")]
+    [InlineData("Kurti 1800 per kg x2")]
+    public void A_list_of_names_and_prices_is_not_a_phone_number(string message) =>
+        Assert.True(CommandParser.LooksLikeProductPriceList(message));
+
+    [Theory]
+    [InlineData("03001234567")]
+    [InlineData("Ayesha 03001234567")]
+    [InlineData("Ayesha, 2 suit, 03001234567")]
+    [InlineData("cancel")]
+    public void A_phone_number_or_an_order_line_is_not_a_product_price_list(string message) =>
+        Assert.False(CommandParser.LooksLikeProductPriceList(message));
+
+    [Fact]
+    public async Task A_product_list_sent_where_a_phone_is_expected_is_not_rejected_as_a_bad_phone()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var session = await db.Sessions.FirstAsync();
+        session.State = ConversationState.AwaitingOrderMissingFields;
+        session.ContextJson = new SessionContextData
+        {
+            PendingMissingField = "Phone",
+            PendingOrder = new PendingOrderData
+            {
+                CustomerName = "Ayesha",
+                Items = new List<PendingOrderItemData> { new() { ProductName = "Polo Shirt", UnitPrice = 500 } }
+            }
+        }.ToJson();
+        await db.SaveChangesAsync();
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Kurti 1800, Dupatta 600, Lawn Suit 3500", default);
+
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("Phone number sahi nahi lagta"));
+    }
+
     [Fact]
     public async Task OrdersMenu_and_the_order_start_reply_both_show_the_full_order_example()
     {
