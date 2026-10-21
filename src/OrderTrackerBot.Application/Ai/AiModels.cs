@@ -134,6 +134,12 @@ public interface IAiOrderAssistant
     Task<string?> GenerateInsightAsync(string factsSummary, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// The bot asked the seller a question (<paramref name="situation"/>) and the reply is not a clean answer: what is it? Returns "answer" (it answers the
+    /// question), "new_order" (a fresh order / items, not an answer), "cancel" (drop the current order) or "other"; null when AI is unavailable (callers keep the old behaviour).
+    /// </summary>
+    Task<string?> ClassifyMidFlowReplyAsync(string situation, string message, CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
+
+    /// <summary>
     /// Translates bot messages from Roman Urdu into <paramref name="targetLanguage"/> (a <c>Lang</c> constant), one result per input in the
     /// same order. Null when AI is unavailable or the result is unusable — callers send the original text instead.
     /// </summary>

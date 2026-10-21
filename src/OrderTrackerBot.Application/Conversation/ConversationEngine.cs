@@ -247,6 +247,12 @@ public partial class ConversationEngine
             return;
         }
 
+        if (await TryRouteMidFlowReplyAsync(seller, session, ctx, message, ct))
+        {
+            await PersistAsync(session, ctx, ct);
+            return;
+        }
+
         switch (session.State)
         {
             case ConversationState.AwaitingOrderConfirmation:

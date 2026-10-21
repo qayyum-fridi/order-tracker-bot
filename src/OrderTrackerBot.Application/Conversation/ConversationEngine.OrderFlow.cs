@@ -1295,4 +1295,36 @@ public partial class ConversationEngine
             ? MessageTemplates.Get("order-flow.038", feedback.CustomerName)
             : MessageTemplates.Get("order-flow.039", order.Id, order.Customer?.Name), ct);
     }
+
+    /// <summary>
+    /// The draft asks for a phone or a name and the reply is not a plain one: the AI (told the question) says whether it is the answer, a new order, a cancel or something else,
+    /// so the seller's own words are understood instead of matched against a word list. Money-changing steps are not touched here: a new order still goes through the usual confirm.
+    /// With no AI, or when it says "answer" / "other", the reply is handled as before.
+    /// </summary>
+    private async Task<bool> TryRouteMidFlowReplyAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
+    {
+        if (session.State != ConversationState.AwaitingOrderMissingFields || ctx.PendingOrder is null) return false;
+        if (ctx.PendingMissingField is not ("Phone" or "CustomerName")) return false;
+
+        var text = message.Trim();
+        var plainAnswer = ctx.PendingMissingField == "Phone"
+            ? IsPlausiblePhone(text)
+            : text.Length <= 40 && !text.Any(char.IsDigit) && !text.Contains('\n') && text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= 3;
+        if (plainAnswer || CommandParser.IsAffirmative(text) || CommandParser.IsNegative(text)) return false;
+
+        var route = await _ai.ClassifyMidFlowReplyAsync(DescribeVoiceSituation(seller, ctx), message, ct);
+        if (route is not ("new_order" or "cancel")) return false;
+
+        ctx.PendingOrder = null;
+        ctx.QueuedOrders = null;
+        ctx.PendingMissingField = null;
+        SetState(session, ConversationState.Idle);
+        if (route == "cancel")
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("order-flow.015"), ct);
+            return true;
+        }
+        await HandleFreeformMessageAsync(seller, session, ctx, message, ct);
+        return true;
+    }
 }

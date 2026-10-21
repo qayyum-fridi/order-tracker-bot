@@ -159,6 +159,29 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         }
     }
 
+    public async Task<string?> ClassifyMidFlowReplyAsync(string situation, string message, CancellationToken cancellationToken = default)
+    {
+        var json = await CompleteTextAsync(
+            "A WhatsApp order-tracking bot for a small shop owner (the seller) just asked the seller a question. The seller's reply may be in Roman Urdu, Urdu script or English. " +
+            "Decide what the reply is. Return ONLY JSON {\"route\": \"answer\"|\"new_order\"|\"cancel\"|\"other\"}. " +
+            "answer = it answers the bot's question (e.g. a phone number or a customer name when that is what was asked). " +
+            "new_order = it is a new order or a list of items for some customer, not an answer to the question. " +
+            "cancel = the seller wants to stop / drop / forget the order in progress (any wording, e.g. \"chhor do\", \"rehne do\", \"yeh nahi chahiye\", \"cancel kardein\"). " +
+            "other = anything else (a different request or a question). When unsure between answer and another route, choose answer.",
+            $"Bot's question / situation: {situation}\nSeller's reply: {message}", 0, "mid-flow reply routing", cancellationToken, jsonMode: true);
+        if (json is null) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var route = doc.RootElement.TryGetProperty("route", out var r) && r.ValueKind == JsonValueKind.String ? r.GetString() : null;
+            return route is "answer" or "new_order" or "cancel" or "other" ? route : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     public Task<string?> GenerateInsightAsync(string factsSummary, CancellationToken cancellationToken = default) =>
         CompleteTextAsync("One short Roman Urdu sentence of business insight/suggestion for a small seller, based on the facts given. No preamble.",
             factsSummary, 0.4, "insight generation", cancellationToken);
