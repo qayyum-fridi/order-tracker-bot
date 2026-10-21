@@ -42,7 +42,7 @@ release:     CI (build + tests) -> deploy
 ```
 Why not automatic across sellers: one seller's wrong choice would teach everyone, a seller's private text would leak into other sellers' prompts, and an attacker could poison the bot. A human reads, generalises and tests first.
 
-## Level 3 — semantic prototype (built, `Features:SemanticLearning`)
+## Level 3 — semantic prototype (built, `Features:SemanticLearning`, **off by default**: set it to `true`, or env `Features__SemanticLearning=true`, to try it)
 ```
 the seller wrote S'; rules, exact learned and lexical-similar all missed
    ├─ seller taught something (≥ 1 phrase confirmed twice, command not risky), S' is short (≤ 10 words, < 3 digits)
