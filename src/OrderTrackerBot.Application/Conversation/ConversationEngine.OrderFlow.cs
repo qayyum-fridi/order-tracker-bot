@@ -1296,35 +1296,51 @@ public partial class ConversationEngine
             : MessageTemplates.Get("order-flow.039", order.Id, order.Customer?.Name), ct);
     }
 
+    // Choice / confirmation states: a stray message should be understood, not matched against a word list. Left out: setup / guide, the reset and payment-subscription
+    // confirmations (a wrong guess there costs more than a repeated question), the voice confirmation (own handler at the top) and the free-text modes (discount details,
+    // business info, payment method, support reply edit, order edit, receipt design), whose answers can be anything and which already let a real command leave.
+    private static readonly HashSet<ConversationState> AiRoutedStates = new()
+    {
+        ConversationState.AwaitingOrderConfirmation, ConversationState.AwaitingOrderMissingFields, ConversationState.AwaitingOrderGroupingChoice,
+        ConversationState.AwaitingMultiOrderConfirmation, ConversationState.AwaitingClarificationChoice, ConversationState.AwaitingCancelConfirmation,
+        ConversationState.AwaitingBulkStatusConfirmation, ConversationState.AwaitingDuplicateOrderConfirmation, ConversationState.AwaitingCodCollectedConfirmation,
+        ConversationState.AwaitingRuntimeFilterChoice, ConversationState.AwaitingCustomDateRange, ConversationState.AwaitingBroadcastChannelChoice,
+        ConversationState.AwaitingBroadcastAudienceChoice, ConversationState.AwaitingReceiptOrderChoice, ConversationState.AwaitingDeleteCustomerConfirmation, ConversationState.AwaitingLoyaltyDiscountConfirmation,
+        ConversationState.AwaitingSupportReplyConfirmation, ConversationState.AwaitingSupportQueryPick,
+        ConversationState.AwaitingImportConfirmation
+    };
+
     /// <summary>
-    /// The draft asks for a phone or a name and the reply is not a plain one: the AI (told the question) says whether it is the answer, a new order, a cancel or something else,
-    /// so the seller's own words are understood instead of matched against a word list. Money-changing steps are not touched here: a new order still goes through the usual confirm.
-    /// With no AI, or when it says "answer" / "other", the reply is handled as before.
+    /// The bot waits for an answer (any of <see cref="AiRoutedStates"/>) and the reply is not an obvious one (yes / no / a number / a phone / one or two words): the AI, told what the
+    /// bot asked, says whether the reply answers it, is a new request (an order, a command, a question) or means "stop". Anything that is not an answer leaves the question and the
+    /// message is handled as a fresh one, so nobody is trapped by a question or has their message swallowed. Money-changing steps still end in the usual YES; with no AI, or when it
+    /// says "answer", the reply is handled exactly as before.
     /// </summary>
     private async Task<bool> TryRouteMidFlowReplyAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
-        if (session.State != ConversationState.AwaitingOrderMissingFields || ctx.PendingOrder is null) return false;
-        if (ctx.PendingMissingField is not ("Phone" or "CustomerName")) return false;
+        if (!AiRoutedStates.Contains(session.State)) return false;
+        if (session.State == ConversationState.AwaitingOrderMissingFields && (ctx.PendingOrder is null
+            || ctx.PendingMissingField is not ("Phone" or "CustomerName"))) return false;
 
         var text = message.Trim();
-        var plainAnswer = ctx.PendingMissingField == "Phone"
-            ? IsPlausiblePhone(text)
-            : text.Length <= 40 && !text.Any(char.IsDigit) && !text.Contains('\n') && text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= 3;
-        if (plainAnswer || CommandParser.IsAffirmative(text) || CommandParser.IsNegative(text)) return false;
+        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+        var obvious = IsPlausiblePhone(text) || CommandParser.IsAffirmative(text) || CommandParser.IsNegative(text) || CommandParser.IsAcknowledgement(text)
+            || CancelWords.Contains(text) || (text.Length <= 3 && text.All(char.IsDigit))
+            || (words <= 2 && !text.Any(char.IsDigit) && !text.Contains('\n'))
+            || Array.IndexOf(ConfirmButtonLabels, text) >= 0;
+        if (obvious) return false;
 
         var route = await _ai.ClassifyMidFlowReplyAsync(DescribeVoiceSituation(seller, ctx), message, ct);
-        if (route is not ("new_order" or "cancel")) return false;
+        if (route is not ("new_order" or "cancel" or "other")) return false;
 
-        ctx.PendingOrder = null;
-        ctx.QueuedOrders = null;
-        ctx.PendingMissingField = null;
+        ResetFlowContext(ctx);
         SetState(session, ConversationState.Idle);
         if (route == "cancel")
         {
             await ReplyAsync(seller, MessageTemplates.Get("order-flow.015"), ct);
             return true;
         }
-        await HandleFreeformMessageAsync(seller, session, ctx, message, ct);
+        await HandleIdleAsync(seller, session, ctx, message, ct);
         return true;
     }
 }
