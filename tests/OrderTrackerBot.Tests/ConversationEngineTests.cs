@@ -745,6 +745,10 @@ public class ConversationEngineTests : IDisposable
     [InlineData("Lipstick Matte Red - 950")]
     [InlineData("Kurti 1,800")]
     [InlineData("Kurti 1800 per kg x2")]
+    [InlineData("🧕 Kurti 2 ✨, 🎀 Dupatta 1")]
+    [InlineData("​Kurti 2, Dupatta 1")]
+    [InlineData("Kurti 2, Dupatta 1,,, Shawl 1,")]
+    [InlineData("`Kurti 2 ; Dupatta 1\nShawl 1 & Chadar 1")]
     public void A_list_of_names_and_prices_is_not_a_phone_number(string message) =>
         Assert.True(CommandParser.LooksLikeProductPriceList(message));
 
