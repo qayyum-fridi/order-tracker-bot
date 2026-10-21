@@ -53,6 +53,7 @@ services:
       Instagram__PublicBaseUrl: "${PUBLIC_BASE_URL:-}"
       Instagram__VerifyToken: "${INSTAGRAM_VERIFY_TOKEN:-}"
       Admin__ApiKey: "${ADMIN_API_KEY:-}"
+      Features__SemanticLearning: "${FEATURES_SEMANTIC_LEARNING:-false}" # prototype: match a new sentence to taught phrases by meaning (embeddings); set true in .env to try
     volumes:
       - order-tracker-db-data:/data
     networks:
