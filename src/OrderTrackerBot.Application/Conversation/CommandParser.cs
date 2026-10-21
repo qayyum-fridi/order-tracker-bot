@@ -682,8 +682,11 @@ public static class CommandParser
 
     internal static bool LooksLikeProductPriceList(string message)
     {
-        // A comma inside a number ("1,800") is not a separator between items.
-        var parts = System.Text.RegularExpressions.Regex.Split(message, @",(?!\d{3}(?!\d))|[;\n]")
+        // Invisible marks, emoji and backticks are decoration, not part of a name. A comma inside a number ("1,800") is not a separator.
+        var plain = string.Concat(TextHygiene.StripInvisible(message).EnumerateRunes()
+            .Where(r => r.Value != '`' && System.Text.Rune.GetUnicodeCategory(r) is not (System.Globalization.UnicodeCategory.OtherSymbol or System.Globalization.UnicodeCategory.ModifierSymbol or System.Globalization.UnicodeCategory.Format))
+            .Select(r => r.ToString()));
+        var parts = System.Text.RegularExpressions.Regex.Split(plain, @",(?!\d{3}(?!\d))|[;&\n]")
             .Select(p => p.Trim()).Where(p => p.Length > 0).ToList();
         return parts.Count > 0 && parts.All(p => ProductPriceItem.IsMatch(p));
     }
