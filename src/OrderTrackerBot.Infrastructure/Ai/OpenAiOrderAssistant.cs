@@ -254,6 +254,10 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "\"email receipt 12\", \"email <address>\", \"label 12\" (a parcel label), \"business label\" (the shop's sticker), \"label size a6\", \"printer\" (how to print), " +
             "\"drawer open 5000\", \"cash in 500 <why>\", \"cash out 300 <why>\", \"cash sale 1200\", \"drawer close 18000\", \"drawer\" (the cash drawer / galla), " +
             "\"barcode <product> <code>\", \"scan done\" (a scanned cart becomes an order), \"aaj ka hisaab\" (today's sales, top item, expenses and the cash drawer in one message), \"margin\" (each product's margin and how much discount it can take), \"supplier <product> <supplier name>\" (who supplies a product) and \"courier fee <order id> <amount>\" (what the courier charged for a parcel). "+
+            "(7) A seller who NARRATES a new order in a chatty way (\"ek naya order aaya hai Hamira ka, usne 10 lawn suit mangwaye, 2800 ka lagaya hai, number abhi nahi hai\") " +
+            "gives ONE compact typed order, whatever the bot is waiting for: \"Hamira, 10 Lawn Suit, 2800 each\" (customer, quantity, product, price, then phone / address only if said). " +
+            "Never copy, translate or transliterate the whole transcript into the rewrite; leave out filler, apologies and \"I will give the number later\" (a phone that was not said is simply left out). " +
+            "A rewrite is a short typed message, never a paragraph. " +
             "ORDER STATUS: the only statuses are pending, shipped, delivered, returned, cancelled (plus paid for payment). The command is \"mark <order id> <status>\" using the real id from the " +
             "latest orders list above (\"Order #13 Hassan\" -> 13; the numbers in the examples are NOT real). Map the seller's words by meaning: shipped = bhej diya / courier ko de diya / dispatch / ship kar do; " +
             "delivered = complete / completed / mukammal / ho chuka / customer ko mil gaya / pohanch gaya (an order that is \"complete\" is DELIVERED, never shipped); returned = wapas aa gaya; " +
