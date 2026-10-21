@@ -34,6 +34,11 @@ public class AdminReportsController : ControllerBase
         _db = db;
     }
 
+    /// <summary>Pilot numbers per seller for the last N days (default 7): orders saved, fixes, not-understood, voice notes, who came back, who pays.</summary>
+    [HttpGet("reports/pilot")]
+    public async Task<ActionResult<PilotReportDto>> Pilot([FromQuery] int days = 7, CancellationToken ct = default) =>
+        Ok(await PilotReport.BuildAsync(_db, days, DateTime.UtcNow, ct));
+
     /// <summary>Per-day sellers, active sellers, messages, orders, revenue, errors and issues for a date range (default: last 30 days).</summary>
     [HttpGet("reports/daily")]
     public async Task<ActionResult<DailyReportDto>> Daily([FromQuery] string? from, [FromQuery] string? to, CancellationToken ct)
