@@ -159,6 +159,28 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         }
     }
 
+    public async Task<bool?> ConfirmSamePhraseAsync(string taughtPhrase, string newPhrase, CancellationToken cancellationToken = default)
+    {
+        var json = await CompleteTextAsync(
+            "Two messages sent to a WhatsApp shop-assistant bot by the same seller, in Roman Urdu, Urdu script or English (spelling and word forms vary: dikhao / dikha do, sale / sales, aaj / aj). " +
+            "Do they ask for exactly the SAME thing (same request, same subject, same period)? Different subjects, customers, products, periods or amounts mean NO. " +
+            "Return ONLY JSON {\"same\": true|false}. When unsure, answer false.",
+            $"Taught message: {taughtPhrase}\nNew message: {newPhrase}", 0, "phrase similarity", cancellationToken, jsonMode: true);
+        if (json is null) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("same", out var same)) return null;
+            if (same.ValueKind == JsonValueKind.True) return true;
+            if (same.ValueKind == JsonValueKind.False) return false;
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     public async Task<bool?> ConfirmCommandMatchAsync(string message, string commandKind, CancellationToken cancellationToken = default)
     {
         var meaning = commandKind switch

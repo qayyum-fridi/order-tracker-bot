@@ -84,6 +84,8 @@ public sealed class SessionContextData
     public string? ClarifiedText { get; set; }
     /// <summary>Phrases this seller taught (normalised sentence -> command text), see ConversationEngine.Learning.cs.</summary>
     public Dictionary<string, string>? LearnedPhrases { get; set; }
+    /// <summary>How many times the seller confirmed each learned phrase; a phrase is used only from the second confirmation (a stray tap teaches nothing).</summary>
+    public Dictionary<string, int>? LearnedVotes { get; set; }
     public string? PendingNewProductName { get; set; }
     /// <summary>Products scanned with a barcode scanner and not yet turned into an order (product id -> pieces); "scan done" makes the order draft.</summary>
     public Dictionary<int, int>? ScanCart { get; set; }

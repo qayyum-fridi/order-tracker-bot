@@ -448,6 +448,15 @@ public partial class ConversationEngine
             await ExecuteCommandAsync(seller, session, ctx, learnedCommand, ct);
             return;
         }
+        // Not the exact sentence but a close one ("aaj ki sales dikha do" after "aaj ki sale dikhao"): the AI says whether it is the same request.
+        if (command is null && SimilarLearnedPhrase(ctx, message) is { } similar
+            && await _ai.ConfirmSamePhraseAsync(similar.Phrase, message, ct) == true
+            && CommandParser.TryParse(similar.Command) is { } similarCommand && !ActionRisk.RiskyCommands.Contains(similarCommand.Kind))
+        {
+            _logger?.LogInformation("Learned phrase used (similar): {Kind}", similarCommand.Kind);
+            await ExecuteCommandAsync(seller, session, ctx, similarCommand, ct);
+            return;
+        }
         if (command is not null)
         {
             // A loose rule (keywords in any order) may have matched a sentence that is really something else, e.g. an order: ask the AI before running it.
