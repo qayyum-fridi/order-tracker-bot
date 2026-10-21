@@ -856,13 +856,13 @@ public partial class ConversationEngine
             case "Phone":
                 // "Ayesha 0300 1111111, Bilal 0312 2222222": each phone goes to the order of the customer named just before it.
                 var waitingOrders = new[] { pending }.Concat(ctx.QueuedOrders ?? new List<PendingOrderData>()).Where(o => string.IsNullOrWhiteSpace(o.Phone) && !o.PaidInFull).ToList();
-                var named = System.Text.RegularExpressions.Regex.Matches(message.Replace("\n", ", "), @"(?<n>\p{L}[\p{L}. ]*?)\s*[:,\-]?\s*(?<p>\+?\d[\d \-]{8,16}\d)")
+                var namedPhones = System.Text.RegularExpressions.Regex.Matches(message.Replace("\n", ", "), @"(?<n>\p{L}[\p{L}. ]*?)\s*[:,\-]?\s*(?<p>\+?\d[\d \-]{8,16}\d)")
                     .Select(m => (Name: m.Groups["n"].Value.Trim(' ', ',', '.'), Phone: JoinSpacedPhones(m.Groups["p"].Value).Replace("-", "")))
                     .Where(x => IsPlausiblePhone(x.Phone)).ToList();
-                if (named.Count >= 2 && named.Count <= waitingOrders.Count
-                    && named.All(x => waitingOrders.Any(o => string.Equals(o.CustomerName?.Trim(), x.Name, StringComparison.OrdinalIgnoreCase))))
+                if (namedPhones.Count >= 2 && namedPhones.Count <= waitingOrders.Count
+                    && namedPhones.All(x => waitingOrders.Any(o => string.Equals(o.CustomerName?.Trim(), x.Name, StringComparison.OrdinalIgnoreCase))))
                 {
-                    foreach (var x in named)
+                    foreach (var x in namedPhones)
                         waitingOrders.First(o => string.Equals(o.CustomerName?.Trim(), x.Name, StringComparison.OrdinalIgnoreCase)).Phone = x.Phone;
                     ctx.PendingMissingField = null;
                     await ContinueResolvingDraftAsync(seller, session, ctx, ct);
