@@ -86,7 +86,7 @@ public partial class ConversationEngine
                 return;
             }
             // Mid-flow: a YES would be read as the answer to the bot's own question, so only show what was understood; typing it is the way out.
-            await _sender.SendTextMessageAsync(fromPhoneNumber, $"{suggestion}\n\n{MessageTemplates.Get("media.003")}", ct);
+            await _sender.SendTextMessageAsync(fromPhoneNumber, $"{suggestion}\n\n{MessageTemplates.Get("media.009")}", ct);
             await _db.SaveChangesAsync(ct);
             return;
         }
