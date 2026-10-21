@@ -1,6 +1,6 @@
 # How a message is handled (text and voice) — the algorithm
 
-Written from the code on `main` (after PR #92, `8962a5c`). File names are given so every step can be checked. Anything marked **(not verified)** was not read line by line.
+Written from the code on `main` (after PR #98, `6e4b5e4`). File names are given so every step can be checked. Anything marked **(not verified)** was not read line by line.
 
 ## 0. Overview
 
@@ -54,8 +54,12 @@ Checked **in this order**; the first rule that handles the message ends the turn
 3. `TryHandleItemsOnlyAsync` (plain code, no AI): `negative quantity` ("Kurti -2") refused; `2 pack, 1 dozen` units checked against the product's unit; `2x Kurti, 1 x Dupatta` made into a draft.
 4. A bare amount while one new product waits for its price.
 5. A scanned barcode.
-6. **`CommandParser.TryParse`** → `ExecuteCommandAsync` (about 150 commands: orders today, mark 3 shipped, receipt 12, stock, expense, profit, insights …). No AI.
-7. Otherwise **`HandleFreeformMessageAsync`** → the AI order reader.
+6. **`CommandParser.TryParse`** → the rules (about 150 commands: orders today, mark 3 shipped, receipt 12, stock, expense, profit, insights …). No AI. If the rules find nothing:
+   - **Learned phrase (exact)**: a sentence this seller taught (picked the same option twice) → run that command (never a risky one).
+   - **Learned phrase (close)**: a taught phrase with ≥ 2 shared content words and half of all words shared → one small AI call "same request?" → yes: run it.
+   - **Semantic (prototype, `Features:SemanticLearning`, OFF by default)**: embeddings find a taught phrase with the same MEANING (cosine ≥ 0.78) → the same AI "same request?" → yes: run it.
+7. If a LOOSE rule matched (`Insight`, `FuzzyStatusUpdate`, `CustomerOrderLookup`, `ProductReport`, `CustomerSearch`, `HowTo`) and the message has **3+ words**: one small AI call "does the message really ask for this?"; `false` hands the message to the AI order reader instead of running the rule. Exact commands are never second-guessed. (Log: `RuleCheck`, `RuleConfirmed`, `RuleShort`, `NotUnderstood path=rule-overruled-…`.)
+8. Otherwise → the **AI order reader** (`HandleFreeformMessageAsync`, below).
 
 ### Free-form order (AI) — `HandleFreeformMessageAsync` → `HandleAnalysisAsync`
 1. Load the catalog. One OpenAI call (`gpt-4o-mini`, strict JSON schema, seller name and catalog at the END of the prompt so the long fixed part can be cached): intent + orders + products + clarification options.
@@ -122,6 +126,9 @@ Runs only when the bot is waiting for an answer, after the draft escape (step 13
 - No AI (no key / failure) or `answer` ⇒ exactly the old behaviour. The router never runs a money-changing step: Save still needs YES.
 - Deterministic helpers that run before it: "cancel"/leave phrases and real commands (`TryLeaveOrderDraftAsync`), "skip" / "phone abhi nahi hai, baad mein dunga" (`PhoneLaterWords`), a new order sent as the phone/name answer (letters + digits or commas), phones matched to customers by name.
 
+## 4b. Learning (per seller) — `ConversationEngine.Learning.cs`
+When the AI order reader asks "kya aap yeh kehna chahte hain?" the sentence is remembered (`ClarifiedText`). If the seller then **picks an option** (or types the command), `LearnPhrase(sentence -> command)` stores it for THIS seller: not if the rules already understand the sentence, never a risky command, 100 phrases max. A phrase is **used only after the same choice twice** (`LearnedVotes`), so a stray tap teaches nothing. Used in the Idle step 6 above. Details and the three levels: `docs/learning-loop.md`.
+
 ## 5. State handlers (what each waits for)
 Draft: confirmation (yes/edit/cancel/delivery/advance), missing field (phone, name, product choice, new product price, price choice), grouping choice, multi-order confirmation. Choices and confirmations: clarification, cancel, bulk status, duplicate order, COD collected, filter, custom date, broadcast channel/audience, receipt order, delete customer, loyalty, support reply/pick, import. Free text modes: discount details, business info, payment method, support reply edit, order edit, receipt design. Not covered by the router: setup/guide, reset account and subscription payment. Each handler decides for itself what to do with a reply it does not recognise (some re-ask, some treat it as "no" and **swallow** the message) — the main source of "stuck" chats.
 
@@ -152,6 +159,9 @@ Stuck chats: draft expiry (20 min), cancel / new order / "skip" at the phone que
 Orders: items-only text in code (`2x Kurti, 1 x Dupatta`), unit check (`2 pack` vs a per-piece product) typed and AI path, negative quantity refused, price guard unchanged, an unknown product given with details is added and the order carries on, order saved without a phone.
 Voice: rules (6)–(10) above, numbers from recent chat count as heard, `Voice note … ms` log.
 Ops: `NotUnderstood` log, CI workflow, compose variables for a second environment.
+
+## 9b. Since PR #92
+PR #93: loose-rule AI check; PR #94: `RuleConfirmed` / `RuleShort` logs; PR #95: check from 3 words, per-seller learning; PR #96: two identical choices teach a phrase, close sentences confirmed by the AI; PR #97–#98: semantic (embeddings) prototype, off by default, switched with `.env` `FEATURES_SEMANTIC_LEARNING`.
 
 ## 10. Honest limits of this design
 - The brain is a state machine with AI at three doors (order reader, router, voice rewrite). It has no memory of "what the seller meant earlier" except the last 6 messages given to the voice AI and the draft in `SessionContextData`.
