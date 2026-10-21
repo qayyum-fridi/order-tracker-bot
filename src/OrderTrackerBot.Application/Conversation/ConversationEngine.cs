@@ -107,6 +107,13 @@ public partial class ConversationEngine
         await TrySendShortcutBarAsync(fromPhoneNumber, ct);
     }
 
+    /// <summary>One log line for a message the bot did not understand: <c>grep NotUnderstood</c> in the server log lists the real phrasings to teach it.</summary>
+    private void LogNotUnderstood(string path, ConversationState state, string? text)
+    {
+        if (!_features.TurnLog || string.IsNullOrWhiteSpace(text)) return;
+        _logger?.LogInformation("NotUnderstood path={Path} state={State} text={Text}", path, state, text.Length > 300 ? text[..300] : text);
+    }
+
     private static readonly TimeSpan DraftExpiry = TimeSpan.FromMinutes(20);
 
     private async Task HandleIncomingCoreAsync(string fromPhoneNumber, string rawMessage, CancellationToken ct)
@@ -550,6 +557,9 @@ public sealed class FeatureOptions
 
     /// <summary>A short "listening" message the moment a voice note arrives, so a long transcription is not silent. Off = no extra message (unit tests).</summary>
     public bool VoiceAck { get; set; }
+
+    /// <summary>Log every message the bot could NOT understand (path, state and the seller's text) so the owner can see which real phrasings fail. The log holds seller text: keep it off if that is not acceptable. Off = nothing logged (unit tests).</summary>
+    public bool TurnLog { get; set; }
 
     /// <summary>Public link to the illustrated English/Urdu guide, sent with the Guide command. Empty = no link.</summary>
     public string GuideUrl { get; set; } = "";

@@ -143,6 +143,7 @@ public partial class ConversationEngine
             var question = analysis.ClarificationQuestion ?? "Maaf kijiye, mujhe aapki baat samajh nahi aayi 🙏 Kya aap yeh kehna chahte hain:";
             if (analysis.ClarificationOptions.Count == 0 && TryKeywordClarification(sourceText, out var kwQuestion, out var kwOptions))
                 (question, options) = (kwQuestion, kwOptions);
+            LogNotUnderstood("ai-clarify", session.State, sourceText);
             await AskClarificationAsync(seller, session, ctx, question, options, ct);
             return;
         }
@@ -1447,6 +1448,7 @@ public partial class ConversationEngine
             return true;
         }
         if (route is not ("new_order" or "cancel" or "other") || (freeText && route == "other")) return false;
+        LogNotUnderstood("router-" + route, session.State, message);
 
         ResetFlowContext(ctx);
         SetState(session, ConversationState.Idle);

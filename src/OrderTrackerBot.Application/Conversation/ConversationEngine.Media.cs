@@ -69,6 +69,7 @@ public partial class ConversationEngine
         var decision = joined.All(c => char.IsDigit(c) || c == '+') && IsPlausiblePhone(joined)
             ? TurnDecision.Execute(new[] { joined })
             : await InterpretVoiceAsync(seller, text, ct);
+        if (decision.Kind != DecisionKind.Execute) LogNotUnderstood("voice-" + decision.Kind.ToString().ToLowerInvariant(), seller.Session!.State, text);
         // The rewrite was not trusted (a number it used was not heard): show what it understood and let the seller say YES, instead of a dead end.
         if (decision.Kind != DecisionKind.Execute && decision.Steps.Count > 0)
         {
