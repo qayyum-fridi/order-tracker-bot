@@ -151,7 +151,7 @@ public partial class ConversationEngine
             .Select(d => BuildPendingOrder(d, catalog, fromScreenshot)).ToList();
 
         // "…, number abhi nahi hai / phone baad mein": a single order is saved without a phone instead of asking for one.
-        if (drafts.Count == 1 && string.IsNullOrWhiteSpace(drafts[0].Phone) && PhoneNotYetInOrder.IsMatch(message)) drafts[0].PhoneLater = true;
+        if (drafts.Count == 1 && string.IsNullOrWhiteSpace(drafts[0].Phone) && sourceText is not null && PhoneNotYetInOrder.IsMatch(sourceText)) drafts[0].PhoneLater = true;
 
         // Screen 5d-7: after "lead 1 converted", the next single order is the one that lead turned into.
         if (ctx.ConvertingLeadId is { } convertingLeadId && drafts.Count == 1)
