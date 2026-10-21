@@ -159,6 +159,35 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         }
     }
 
+    public async Task<bool?> ConfirmCommandMatchAsync(string message, string commandKind, CancellationToken cancellationToken = default)
+    {
+        var meaning = commandKind switch
+        {
+            "Insight" => "a business-analysis question about the shop's own data (averages, comparisons, stock, customers, returns, expenses…)",
+            "FuzzyStatusUpdate" => "marking one existing order as shipped / delivered / paid / cancelled",
+            "CustomerOrderLookup" => "showing the existing orders of one named customer",
+            "ProductReport" => "a sales report for one named product",
+            "CustomerSearch" => "finding a saved customer",
+            "HowTo" => "asking how to do something with the bot",
+            _ => commandKind
+        };
+        var json = await CompleteTextAsync(
+            "A rule-based parser of a WhatsApp shop-assistant bot guessed that a seller's message means: " + meaning + ". The seller writes Roman Urdu, Urdu script or English. " +
+            "Decide whether the message REALLY asks for that. It does NOT if it is a new order (customer, products, quantities, phone, address), a product/price list, a statement, small talk, or a different request. " +
+            "Return ONLY JSON {\"fits\": true|false}. When unsure, answer true.",
+            $"Message: {message}", 0, "rule match check", cancellationToken, jsonMode: true);
+        if (json is null) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            return doc.RootElement.TryGetProperty("fits", out var f) && f.ValueKind is JsonValueKind.True or JsonValueKind.False ? f.GetBoolean() : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     public async Task<string?> ClassifyMidFlowReplyAsync(string situation, string message, CancellationToken cancellationToken = default)
     {
         var json = await CompleteTextAsync(
