@@ -150,6 +150,9 @@ public partial class ConversationEngine
         var drafts = new[] { analysis.Order }.Concat(analysis.AdditionalOrders)
             .Select(d => BuildPendingOrder(d, catalog, fromScreenshot)).ToList();
 
+        // "…, number abhi nahi hai / phone baad mein": a single order is saved without a phone instead of asking for one.
+        if (drafts.Count == 1 && string.IsNullOrWhiteSpace(drafts[0].Phone) && PhoneNotYetInOrder.IsMatch(message)) drafts[0].PhoneLater = true;
+
         // Screen 5d-7: after "lead 1 converted", the next single order is the one that lead turned into.
         if (ctx.ConvertingLeadId is { } convertingLeadId && drafts.Count == 1)
         {
@@ -195,7 +198,7 @@ public partial class ConversationEngine
     }
 
     private static bool IsDraftComplete(PendingOrderData d) =>
-        !string.IsNullOrWhiteSpace(d.CustomerName) && !string.IsNullOrWhiteSpace(d.Phone) && d.Items.Count > 0 && d.Items.All(i => i.UnitPrice >= 0);
+        !string.IsNullOrWhiteSpace(d.CustomerName) && (!string.IsNullOrWhiteSpace(d.Phone) || d.PhoneLater) && d.Items.Count > 0 && d.Items.All(i => i.UnitPrice >= 0);
 
     private static string ShortItem(PendingOrderItemData i) => $"{i.Quantity}x {i.ProductName}";
 
@@ -719,6 +722,10 @@ public partial class ConversationEngine
         var digits = phone.Count(char.IsDigit);
         return digits is >= 10 and <= 13 && !phone.Any(char.IsLetter);
     }
+
+    private static readonly System.Text.RegularExpressions.Regex PhoneNotYetInOrder = new(
+        @"\b(?:phone|number|nambar|mobile)\b[^.,;\n]{0,25}\b(?:nahi|nahin|nhi|baad|later|abhi)\b|\b(?:baad\s*mein|baad\s*me|later)\b[^.,;\n]{0,25}\b(?:phone|number)\b",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.Compiled);
 
     private static readonly System.Text.RegularExpressions.Regex PhoneLaterWords = new(
         @"^\s*(?:skip|later|baad\s*mein|abhi\s*nahi|(?:phone|number|nambar|no)\b.{0,25}?\b(?:nahi|nahin|nhi|baad|later|skip)|.{0,40}\b(?:baad\s*mein|baad\s*me|bad\s*mein|later)\b.{0,30}(?:update|de\s*dun|dunga|dungi|bata|likh)|bina\s*(?:phone|number)|without\s*(?:phone|number))",
