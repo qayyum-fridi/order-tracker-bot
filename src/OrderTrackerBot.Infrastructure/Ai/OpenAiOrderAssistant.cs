@@ -180,7 +180,10 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         try
         {
             using var doc = JsonDocument.Parse(json);
-            return doc.RootElement.TryGetProperty("fits", out var f) && f.ValueKind is JsonValueKind.True or JsonValueKind.False ? f.GetBoolean() : null;
+            if (!doc.RootElement.TryGetProperty("fits", out var fits)) return null;
+            if (fits.ValueKind == JsonValueKind.True) return true;
+            if (fits.ValueKind == JsonValueKind.False) return false;
+            return null;
         }
         catch (JsonException)
         {
