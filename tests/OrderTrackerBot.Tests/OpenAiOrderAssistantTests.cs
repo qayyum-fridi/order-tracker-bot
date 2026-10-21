@@ -70,3 +70,78 @@ public class OpenAiOrderAssistantTests
         Assert.Null(result.Order!.DeliveryCharge);
     }
 }
+
+public class OpenAiRetryTests
+{
+    private sealed class Sequence(params HttpStatusCode?[] steps) : HttpMessageHandler
+    {
+        public int Calls { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var step = steps[Math.Min(Calls++, steps.Length - 1)];
+            if (step is null) throw new HttpRequestException("connection reset");
+            var body = JsonSerializer.Serialize(new { choices = new[] { new { message = new { content = "{\"same\": true}" } } } });
+            return Task.FromResult(new HttpResponseMessage(step.Value) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") });
+        }
+    }
+
+    private static (OpenAiOrderAssistant, Sequence) Create(params HttpStatusCode?[] steps)
+    {
+        var handler = new Sequence(steps);
+        return (new OpenAiOrderAssistant(new HttpClient(handler), Options.Create(new OpenAiOptions { ApiKey = "k" }),
+            NullLogger<OpenAiOrderAssistant>.Instance, Mock.Of<IIssueReporter>()) { RetryDelay = TimeSpan.Zero }, handler);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    [InlineData(HttpStatusCode.BadGateway)]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    public async Task ServerError_IsRetriedOnce_AndTheSecondAnswerIsUsed(HttpStatusCode first)
+    {
+        var (assistant, handler) = Create(first, HttpStatusCode.OK);
+
+        Assert.True(await assistant.ConfirmSamePhraseAsync("aaj ki sale", "aj ki sale dikhao"));
+        Assert.Equal(2, handler.Calls);
+    }
+
+    [Fact]
+    public async Task DroppedConnection_IsRetriedOnce()
+    {
+        var (assistant, handler) = Create(null, HttpStatusCode.OK);
+
+        Assert.True(await assistant.ConfirmSamePhraseAsync("a", "b"));
+        Assert.Equal(2, handler.Calls);
+    }
+
+    [Fact]
+    public async Task StillFailing_GivesUpAfterTwoTries_AndFallsBack()
+    {
+        var (assistant, handler) = Create(HttpStatusCode.ServiceUnavailable);
+
+        Assert.Null(await assistant.ConfirmSamePhraseAsync("a", "b"));
+        Assert.Equal(2, handler.Calls);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest)]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    public async Task ClientError_IsNotRetried(HttpStatusCode status)
+    {
+        var (assistant, handler) = Create(status, HttpStatusCode.OK);
+
+        Assert.Null(await assistant.ConfirmSamePhraseAsync("a", "b"));
+        Assert.Equal(1, handler.Calls);
+    }
+
+    [Fact]
+    public async Task AnalysisThatFailsTwice_StillReturnsTheUnavailableFallback()
+    {
+        var (assistant, handler) = Create(HttpStatusCode.InternalServerError);
+
+        var result = await assistant.AnalyzeMessageAsync(new AiAnalysisContext { BusinessName = "Shop", Catalog = new List<AiCatalogItem>() }, "kuch bhi");
+
+        Assert.True(result.AiUnavailable);
+        Assert.Equal(2, handler.Calls);
+    }
+}
