@@ -1435,7 +1435,7 @@ public partial class ConversationEngine
         var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
         var obvious = IsPlausiblePhone(text) || CommandParser.IsAffirmative(text) || CommandParser.IsNegative(text) || CommandParser.IsAcknowledgement(text)
             || CancelWords.Contains(text) || (text.Length <= 3 && text.All(char.IsDigit))
-            || (words <= 2 && !text.Any(char.IsDigit) && !text.Contains('\n'))
+            || (words <= 2 && !text.Any(char.IsDigit) && !text.Contains('\n') && ctx.PendingMissingField != "Phone")
             || Array.IndexOf(ConfirmButtonLabels, text) >= 0;
         if (obvious || (freeText && (words < 4 || CommandParser.TryParse(text) is not null))) return false;
 

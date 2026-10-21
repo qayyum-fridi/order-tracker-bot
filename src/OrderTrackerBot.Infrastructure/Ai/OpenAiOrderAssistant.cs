@@ -260,6 +260,9 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "A rewrite is a short typed message, never a paragraph. " +
             "(9) SEVERAL customers in one note (\"Ayesha ko do Kurti, Bilal ko ek Dupatta, Sara ka ek lawn suit\"): write ONE message with one line per customer, \"Ayesha, 2 Kurti\\nBilal, 1 Dupatta\\nSara, 1 Lawn Suit\" " +
             "(add each customer's phone / address on its own line only if said for that customer); never merge customers into one order. " +
+            "(10) SEVERAL separate wishes in one note (\"Hamira ka order likho, aur kal ka hisaab dikhao\") become SEPARATE steps in the order said. " +
+            "A self-correction (\"pehla wala nahi, dusra\", \"Kurti nahi, Lawn Suit\", \"teen nahi, do\") keeps ONLY the corrected version; use the last chat messages to know what \"pehla\" / \"dusra\" / \"wahi\" refers to. " +
+            "\"Cancel the old order and write a new one\" is two steps: the cancel command for that order id (from the latest orders), then the new order. " +
             "(8) When the bot has just said that a product of the seller's order is NOT in the catalog and asks whether to add it, and the seller then talks about that product " +
             "(\"chadar daal dein, sale price 10000, cost taqreeban 8500, stock 50\"), write ONE product line for it: \"Chadar - 10000, cost 8500, stock 50\" (only the parts said; " +
             "an approximate number is written as that number). That line is the answer; do not write a sentence. " +

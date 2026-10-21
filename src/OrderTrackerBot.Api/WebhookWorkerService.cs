@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Conversation;
 using OrderTrackerBot.Infrastructure.WhatsApp;
@@ -64,8 +65,17 @@ public sealed class WebhookWorkerService : BackgroundService
                 return;
             }
 
+            // The message may have saved an order before it was cut off: say which orders exist from the last minutes, so nothing is saved twice.
+            var db = scope.ServiceProvider.GetRequiredService<OrderTrackerBot.Infrastructure.Persistence.AppDbContext>();
+            var since = DateTime.UtcNow.AddMinutes(-10);
+            var recent = await db.Orders.Where(o => o.Seller!.WhatsAppPhoneNumber == message.From && o.CreatedAt >= since)
+                .OrderByDescending(o => o.Id).Take(5).Select(o => o.Id).ToListAsync();
+            var recentLine = recent.Count > 0
+                ? $"\n\nPichle 10 minute mein yeh order save ho chuke hain: {string.Join(", ", recent.Select(id => "#" + id))}. Inhe dobara mat bhejiye."
+                : "\n\nPichle 10 minute mein koi naya order save nahi hua.";
+            var what = message.Kind == WebhookMessageKind.Audio ? "voice note" : "message";
             await scope.ServiceProvider.GetRequiredService<IWhatsAppSender>().SendTextMessageAsync(message.From,
-                "⚠️ Server restart ki wajah se aapka pichla message poora process nahi ho saka — meherbani karke dobara bhej dein. Kuch delete nahi hua.");
+                $"⚠️ Server restart ki wajah se aapka pichla {what} poora process nahi ho saka. Kuch delete nahi hua. Barae meherbani use dobara bhej dein (voice mushkil ho to likh kar bhi bhej sakte hain).{recentLine}");
             await scope.ServiceProvider.GetRequiredService<IIssueReporter>().ReportAsync(
                 IssueCodes.WebhookMessageInterrupted, message.From, $"{message.Kind} message {message.Id}");
         }
