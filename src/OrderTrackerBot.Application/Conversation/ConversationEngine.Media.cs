@@ -36,6 +36,7 @@ public partial class ConversationEngine
             return;
         }
 
+        if (_features.VoiceAck) await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("media.ack"), ct);
         var media = _media is null ? null : await _media.DownloadAsync(mediaId, ct);
         var vocabulary = media is null ? null : await BuildVoiceVocabularyAsync(seller, ct);
         var text = media is null ? null : await _transcriber.TranscribeAsync(media.Value.Bytes, media.Value.MimeType, vocabulary, ct);
