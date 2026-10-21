@@ -70,27 +70,6 @@ public partial class ConversationEngine
             ? TurnDecision.Execute(new[] { joined })
             : await InterpretVoiceAsync(seller, text, ct);
         if (decision.Kind != DecisionKind.Execute) LogNotUnderstood("voice-" + decision.Kind.ToString().ToLowerInvariant(), seller.Session!.State, text);
-        // The rewrite was not trusted (a number it used was not heard): show what it understood and let the seller say YES, instead of a dead end.
-        if (decision.Kind != DecisionKind.Execute && decision.Steps.Count > 0)
-        {
-            var parkSession = seller.Session!;
-            var suggestion = $"{heard}\n➡️ Samjha: {string.Join("  →  ", decision.Steps.Select(s => $"\"{s}\""))}";
-            if (seller.OnboardingComplete && parkSession.State == ConversationState.Idle)
-            {
-                var parkCtx = SessionContextData.FromJson(parkSession.ContextJson);
-                parkCtx.PendingVoiceSteps = decision.Steps.ToList();
-                parkCtx.PendingVoiceParkedAt = DateTime.UtcNow;
-                parkCtx.PendingVoiceLogId = await NewestActionLogIdAsync(seller.Id, ct);
-                SetState(parkSession, ConversationState.AwaitingVoiceConfirmation);
-                await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("media.002", suggestion), ct);
-                await PersistAsync(parkSession, parkCtx, ct);
-                return;
-            }
-            // Mid-flow: a YES would be read as the answer to the bot's own question, so only show what was understood; typing it is the way out.
-            await _sender.SendTextMessageAsync(fromPhoneNumber, $"{suggestion}\n\n{MessageTemplates.Get("media.009")}", ct);
-            await _db.SaveChangesAsync(ct);
-            return;
-        }
         if (decision.Kind == DecisionKind.Clarify)
         {
             // Clear intent but a detail is missing (which order, the new price): ask for it instead of guessing or failing.
@@ -259,7 +238,7 @@ public partial class ConversationEngine
     public static TurnDecision DecideRewrite(string transcript, IReadOnlyList<string> steps, IReadOnlySet<long>? knownNumbers)
     {
         if (WhyUnfaithful(transcript, string.Join("\n", steps), knownNumbers) is null) return TurnDecision.Execute(steps);
-        return StepsAreRisky(steps) ? TurnDecision.RejectWithSteps(RejectedUnfaithful, steps) : TurnDecision.ClarifyWithSteps(UnfaithfulQuestion, steps);
+        return StepsAreRisky(steps) ? TurnDecision.Reject(RejectedUnfaithful) : TurnDecision.Clarify(UnfaithfulQuestion);
     }
 
     private static bool StepsAreRisky(IEnumerable<string> steps) => steps.Any(ActionRisk.IsRiskyStep);

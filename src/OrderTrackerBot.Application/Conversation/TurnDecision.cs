@@ -5,7 +5,7 @@ namespace OrderTrackerBot.Application.Conversation;
 public enum DecisionKind { Execute, Clarify, Reject }
 
 /// <summary>
-/// The outcome of the safety gate. Steps are run only for <see cref="DecisionKind.Execute"/> (the other two may carry them as a suggestion for a YES); Message is the question or reply for the other two.
+/// The outcome of the safety gate. Steps are only set for <see cref="DecisionKind.Execute"/>; Message is the question or reply for the other two.
 /// </summary>
 public sealed record TurnDecision(DecisionKind Kind, IReadOnlyList<string> Steps, string? Message = null, IReadOnlyList<string>? Options = null)
 {
@@ -15,12 +15,6 @@ public sealed record TurnDecision(DecisionKind Kind, IReadOnlyList<string> Steps
         new(DecisionKind.Clarify, Array.Empty<string>(), question, options ?? Array.Empty<string>());
 
     public static TurnDecision Reject(string reply) => new(DecisionKind.Reject, Array.Empty<string>(), reply);
-
-    /// <summary>The same two refusals, but carrying what the voice rewrite WOULD have run, so the seller can be shown it and say YES instead of hitting a dead end.</summary>
-    public static TurnDecision ClarifyWithSteps(string question, IReadOnlyList<string> steps) =>
-        new(DecisionKind.Clarify, steps, question, Array.Empty<string>());
-
-    public static TurnDecision RejectWithSteps(string reply, IReadOnlyList<string> steps) => new(DecisionKind.Reject, steps, reply);
 }
 
 /// <summary>
