@@ -457,6 +457,13 @@ public partial class ConversationEngine
         await HandleFreeformMessageAsync(seller, session, ctx, message, ct);
     }
 
+    /// <summary>The text of a loose-rule match that was RUN (confirmed by the AI, unknown, or too short to check), for reviewing false positives. Same switch as <c>NotUnderstood</c>.</summary>
+    private void LogRuleText(string tag, CommandKind kind, bool? fits, string text)
+    {
+        if (!_features.TurnLog) return;
+        _logger?.LogInformation("{Tag} kind={Kind} fits={Fits} text={Text}", tag, kind, fits?.ToString() ?? "n/a", text.Length > 300 ? text[..300] : text);
+    }
+
     // Commands the parser finds by LOOSE rules (keyword combinations, fuzzy names). Exact commands ("orders today", "mark 3 shipped") are never second-guessed.
     private static readonly HashSet<CommandKind> LooseRuleKinds = new()
     {
@@ -465,9 +472,16 @@ public partial class ConversationEngine
 
     private async Task<bool> LooseRuleMatchIsWrongAsync(ParsedCommand command, string message, CancellationToken ct)
     {
-        if (!LooseRuleKinds.Contains(command.Kind) || message.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length < 5) return false;
+        if (!LooseRuleKinds.Contains(command.Kind)) return false;
+        if (message.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length < 5)
+        {
+            // Too short for the AI check: only recorded (with the text, Features:TurnLog) so the owner can see which short phrases the loose rules take.
+            LogRuleText("RuleShort", command.Kind, null, message);
+            return false;
+        }
         var fits = await _ai.ConfirmCommandMatchAsync(message, command.Kind.ToString(), ct);
         _logger?.LogInformation("RuleCheck kind={Kind} fits={Fits}", command.Kind, fits?.ToString() ?? "unknown");
+        if (fits != false) LogRuleText("RuleConfirmed", command.Kind, fits, message);
         return fits == false;
     }
 
