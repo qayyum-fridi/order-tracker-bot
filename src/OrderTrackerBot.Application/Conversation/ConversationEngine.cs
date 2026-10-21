@@ -232,7 +232,7 @@ public partial class ConversationEngine
             ctx.PendingMissingField = null;
             ctx.PendingNewProductName = null;
             SetState(session, ConversationState.Idle);
-            await ReplyAsync(seller, MessageTemplates.Get("order-flow.draft-expired"), ct);
+            await ReplyAsync(seller, MessageTemplates.Get("order-flow.draftexpired"), ct);
         }
 
         // A draft state with no draft behind it (left by an earlier turn) would answer every message as if an order were waiting.

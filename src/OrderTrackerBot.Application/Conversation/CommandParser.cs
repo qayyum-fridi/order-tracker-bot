@@ -677,6 +677,17 @@ public static class CommandParser
     private static readonly Regex TrailingRemark = new(@"\s*[(（]\s*(?:confirm(?:ed)?|yes|ok|okay|haan|han|done)\s*[)）]\s*$", Opts);
     private static readonly Regex NewProductPrefix = new(@"^(?:naya|nayi|new)\s+products?\s*:\s*(?<r>.+)$", Opts);
     // "category is Summer Wear aur ...": the category a seller gives for the product waiting for YES. Captured text ends before "aur" / punctuation.
+    // "Kurti 1800, Dupatta 600, Lawn Suit 3500": a name and a short price per item, nothing else. A phone number or an address never fits this.
+    private static readonly Regex ProductPriceItem = new(@"^\p{L}[\p{L}\p{M}\d .()/&'-]{0,40}?(?:\s+|\s*-\s*)(?:rs\.?\s*)?(?:\d{1,3}(?:,\d{3})+|\d{1,6})(?:\.\d+)?(?:\s*(?:per|/)\s*(?:kg|gram|g|ltr|litre|liter|ml|pack|piece|pc|set|pair|dozen|meter|yard))?(?:\s*x\s*\d{1,4})?$", Opts);
+
+    internal static bool LooksLikeProductPriceList(string message)
+    {
+        // A comma inside a number ("1,800") is not a separator between items.
+        var parts = System.Text.RegularExpressions.Regex.Split(message, @",(?!\d{3}(?!\d))|[;\n]")
+            .Select(p => p.Trim()).Where(p => p.Length > 0).ToList();
+        return parts.Count > 0 && parts.All(p => ProductPriceItem.IsMatch(p));
+    }
+
     internal static readonly Regex ProductCategory = new(@"(?:^|[\s,.;])(?:category|categorie|catagory|کیٹ[یی]گری|کیٹ[یی]گر[یی])\s*(?:is|hai|:|=|ہے)?\s*(?<c>[^,.;]{2,40}?)(?=\s+(?:aur|and|plus|jo|jis)\b|\s*[,.;]|\s*$)", Opts);
     private static readonly Regex AddProduct = new(@"^add\s+product:\s*(.+?)\s*-\s*(\d+(?:\.\d+)?)$", Opts);
     private static readonly Regex EditProduct = new(@"^edit\s+product:\s*(.+?)\s*-\s*(\d+(?:\.\d+)?)$", Opts);

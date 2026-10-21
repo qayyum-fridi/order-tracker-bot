@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using OrderTrackerBot.Application.Abstractions;
+using OrderTrackerBot.Application.Ai;
 using OrderTrackerBot.Application.Conversation;
 using OrderTrackerBot.Infrastructure.Ai;
 using OrderTrackerBot.Infrastructure.Persistence;

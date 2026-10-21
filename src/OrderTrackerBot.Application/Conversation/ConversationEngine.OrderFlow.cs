@@ -355,7 +355,7 @@ public partial class ConversationEngine
             var waiting = ctx.QueuedOrders?.Count ?? 0;
             await ReplyAsync(seller, badPhone is null
                 ? (waiting > 0 && !string.IsNullOrWhiteSpace(pending.CustomerName)
-                    ? MessageTemplates.Get("order-flow.phone-many", pending.CustomerName, waiting)
+                    ? MessageTemplates.Get("order-flow.phonemany", pending.CustomerName, waiting)
                     : MessageTemplates.Get("order-flow.034"))
                 : MessageTemplates.Get("order-flow.035", badPhone, badPhone.Count(char.IsDigit)), ct);
             return;
@@ -734,12 +734,21 @@ public partial class ConversationEngine
             return;
         }
 
+        // A list of products and prices where the phone is asked is not a phone: leave the draft, as a real command does, and handle the list.
+        if (ctx.PendingMissingField == "Phone" && CommandParser.LooksLikeProductPriceList(message.Trim()))
+        {
+            ResetFlowContext(ctx);
+            SetState(session, ConversationState.Idle);
+            await HandleIdleAsync(seller, session, ctx, message, ct);
+            return;
+        }
+
         // "cancel" is offered on the phone / name question, so it must work there; so must a whole new order message sent instead of the answer.
         if (ctx.PendingMissingField is "Phone" or "CustomerName")
         {
             var text = message.Trim();
             var newOrderInstead = ctx.PendingMissingField == "Phone" && !IsPlausiblePhone(text)
-                && System.Text.RegularExpressions.Regex.IsMatch(text, @"\p{L}{3,}");
+                && System.Text.RegularExpressions.Regex.IsMatch(text, @"\p{L}{3,}") && (text.Any(char.IsDigit) || text.Contains(','));
             // A name is a few plain words: digits or several lines mean the seller sent a whole new order ("Sara 0300 1234567 / Kurti 2"), not a name.
             if (ctx.PendingMissingField == "CustomerName" && (text.Any(char.IsDigit) || text.Contains('\n') || text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length > 5))
                 newOrderInstead = true;
