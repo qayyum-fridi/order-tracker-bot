@@ -28,6 +28,8 @@ public sealed class PendingOrderData
     public string? CustomerName { get; set; }
     public List<PendingOrderItemData> Items { get; set; } = new();
     public string? Phone { get; set; }
+    /// <summary>The seller said the phone is not known yet and will be added later ("Hamira ka phone 0300…"): the order is saved without one.</summary>
+    public bool PhoneLater { get; set; }
     public string? Address { get; set; }
     public string? PaymentMethodText { get; set; }
     public string? DiscountCode { get; set; }

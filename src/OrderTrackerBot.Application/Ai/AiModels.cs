@@ -135,7 +135,7 @@ public interface IAiOrderAssistant
 
     /// <summary>
     /// The bot asked the seller a question (<paramref name="situation"/>) and the reply is not a clean answer: what is it? Returns "answer" (it answers the
-    /// question), "new_order" (a fresh order / items, not an answer), "cancel" (drop the current order) or "other"; null when AI is unavailable (callers keep the old behaviour).
+    /// question), "new_order" (a fresh order / items, not an answer), "cancel" (drop the current order), "skip" (the asked phone is not known now and will be given later: save without it) or "other"; null when AI is unavailable (callers keep the old behaviour).
     /// </summary>
     Task<string?> ClassifyMidFlowReplyAsync(string situation, string message, CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
 

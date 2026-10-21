@@ -143,12 +143,23 @@ public partial class ConversationEngine
             var question = analysis.ClarificationQuestion ?? "Maaf kijiye, mujhe aapki baat samajh nahi aayi 🙏 Kya aap yeh kehna chahte hain:";
             if (analysis.ClarificationOptions.Count == 0 && TryKeywordClarification(sourceText, out var kwQuestion, out var kwOptions))
                 (question, options) = (kwQuestion, kwOptions);
+            LogNotUnderstood("ai-clarify", session.State, sourceText);
             await AskClarificationAsync(seller, session, ctx, question, options, ct);
             return;
         }
 
         var drafts = new[] { analysis.Order }.Concat(analysis.AdditionalOrders)
             .Select(d => BuildPendingOrder(d, catalog, fromScreenshot)).ToList();
+
+        // "2 pack Lawn Suit" for a product sold per piece: say so instead of saving a quantity in a unit the product is not sold in (nothing is converted).
+        if (sourceText is not null && UnitMismatchIn(sourceText, drafts) is var (mismatchName, ownUnit, saidUnit))
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("order-flow.unitmismatch", mismatchName, ownUnit, saidUnit), ct);
+            return;
+        }
+
+        // "…, number abhi nahi hai / phone baad mein": a single order is saved without a phone instead of asking for one.
+        if (drafts.Count == 1 && string.IsNullOrWhiteSpace(drafts[0].Phone) && sourceText is not null && PhoneNotYetInOrder.IsMatch(sourceText)) drafts[0].PhoneLater = true;
 
         // Screen 5d-7: after "lead 1 converted", the next single order is the one that lead turned into.
         if (ctx.ConvertingLeadId is { } convertingLeadId && drafts.Count == 1)
@@ -195,7 +206,7 @@ public partial class ConversationEngine
     }
 
     private static bool IsDraftComplete(PendingOrderData d) =>
-        !string.IsNullOrWhiteSpace(d.CustomerName) && !string.IsNullOrWhiteSpace(d.Phone) && d.Items.Count > 0 && d.Items.All(i => i.UnitPrice >= 0);
+        !string.IsNullOrWhiteSpace(d.CustomerName) && (!string.IsNullOrWhiteSpace(d.Phone) || d.PhoneLater) && d.Items.Count > 0 && d.Items.All(i => i.UnitPrice >= 0);
 
     private static string ShortItem(PendingOrderItemData i) => $"{i.Quantity}x {i.ProductName}";
 
@@ -348,7 +359,7 @@ public partial class ConversationEngine
             pending.Phone = null;
         }
 
-        if (string.IsNullOrWhiteSpace(pending.Phone) && !pending.PaidInFull)
+        if (string.IsNullOrWhiteSpace(pending.Phone) && !pending.PaidInFull && !pending.PhoneLater)
         {
             ctx.PendingMissingField = "Phone";
             SetState(session, ConversationState.AwaitingOrderMissingFields);
@@ -658,6 +669,12 @@ public partial class ConversationEngine
             return;
         }
 
+        // Say again WHICH order Save would save: a bare "samajh nahi aaya" with Save / Edit / Cancel leaves the seller guessing what is waiting.
+        if (ctx.PendingOrder is { } waiting)
+        {
+            await SendDraftConfirmationAsync(seller, MessageTemplates.Get("order-flow.056") + "\n\n" + BuildConfirmationText(seller.PreferredLanguage, waiting), ct);
+            return;
+        }
         await SendDraftConfirmationAsync(seller, "Maaf kijiye, yeh samajh nahi aaya.\n" + ConfirmTypedHint, ct);
     }
 
@@ -714,9 +731,65 @@ public partial class ConversationEngine
         return digits is >= 10 and <= 13 && !phone.Any(char.IsLetter);
     }
 
+    /// <summary>"Chadar" and "chadar", "Lawn Suit" and "lawn suits": the same product named twice (case, a trailing s, one name inside the other).</summary>
+    private static bool SameProductName(string a, string b)
+    {
+        static string Norm(string x) => string.Join(' ', x.Trim().ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries)).TrimEnd('s');
+        var (x, y) = (Norm(a), Norm(b));
+        return x == y || x.Contains(y) || y.Contains(x);
+    }
+
+    private static (string Name, string Own, string Said)? UnitMismatchIn(string text, IEnumerable<PendingOrderData> drafts)
+    {
+        foreach (var item in drafts.SelectMany(d => d.Items).Where(i => i.ProductId is not null))
+        {
+            var name = System.Text.RegularExpressions.Regex.Escape(item.ProductName.Trim());
+            var m = System.Text.RegularExpressions.Regex.Match(text, $@"(?<!\d)\d{{1,3}}\s*(?<u>[^\W\d_]+)\s+{name}\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (!m.Success) m = System.Text.RegularExpressions.Regex.Match(text, $@"\b{name}\s+\d{{1,3}}\s*(?<u>[^\W\d_]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (!m.Success || CommandParser.NormalizeUnit(m.Groups["u"].Value) is not { } said) continue;
+            var own = CommandParser.NormalizeUnit(item.UnitType ?? "") ?? (item.UnitType ?? "piece").Trim().ToLowerInvariant();
+            if (own != said) return (item.ProductName, own, said);
+        }
+        return null;
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex PhoneNotYetInOrder = new(
+        @"\b(?:phone|number|nambar|mobile)\b[^.,;\n]{0,25}\b(?:nahi|nahin|nhi|baad|later|abhi)\b|\b(?:baad\s*mein|baad\s*me|later)\b[^.,;\n]{0,25}\b(?:phone|number)\b",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static readonly System.Text.RegularExpressions.Regex PhoneLaterWords = new(
+        @"^\s*(?:skip|later|baad\s*mein|abhi\s*nahi|(?:phone|number|nambar|no)\b.{0,25}?\b(?:nahi|nahin|nhi|baad|later|skip)|.{0,40}\b(?:baad\s*mein|baad\s*me|bad\s*mein|later)\b.{0,30}(?:update|de\s*dun|dunga|dungi|bata|likh)|bina\s*(?:phone|number)|without\s*(?:phone|number))",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.Compiled);
+
     private async Task HandleOrderMissingFieldAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         var pending = ctx.PendingOrder!;
+
+        // "Chadar - 10000, cost 8500, stock 50" sent while the draft waits on "this product is not in the catalog": that IS the answer. The product is added with those details
+        // and the order carries on from where it stopped (it is not dropped and the product line is not treated as a separate message).
+        if (ctx.PendingMissingField is "ProductChoice" or "MappedProductName" or "NewProductPrice" && !string.IsNullOrWhiteSpace(ctx.PendingNewProductName)
+            && CommandParser.TryParseProductLine(message.Trim(), out ProductLine? line) && line is not null
+            && SameProductName(line.Name, ctx.PendingNewProductName!))
+        {
+            var added = new Product
+            {
+                SellerId = seller.Id, Name = ctx.PendingNewProductName!, Price = line.Price,
+                UnitType = string.IsNullOrWhiteSpace(line.UnitType) ? "piece" : line.UnitType, UnitQty = line.UnitQty <= 0 ? 1 : line.UnitQty,
+                CostPrice = line.Extras?.Cost, StockQty = line.Extras?.Stock, Category = line.Extras?.Category,
+                Size = line.Extras?.Size, Color = line.Extras?.Color
+            };
+            _db.Products.Add(added);
+            await _db.SaveChangesAsync(ct);
+            ApplyResolvedProductToPendingItem(pending, ctx.PendingNewProductName!, new CatalogEntry(added, added.Name, Array.Empty<PriceTier>()));
+            var details = new List<string> { Formatters.Money(line.Price) };
+            if (line.Extras?.Cost is { } c) details.Add($"cost {Formatters.Money(c)}");
+            if (line.Extras?.Stock is { } st) details.Add($"stock {st}");
+            await ReplyAsync(seller, MessageTemplates.Get("order-flow.057", added.Name, string.Join(", ", details)), ct);
+            ctx.PendingNewProductName = null;
+            ctx.PendingMissingField = null;
+            await ContinueResolvingDraftAsync(seller, session, ctx, ct);
+            return;
+        }
 
         // A real command (e.g. "Dupatta - 600, cost 300") sent while the draft waits on "which product?" is not an answer: drop the draft and run it,
         // instead of searching the catalog for the command text over and over.
@@ -744,6 +817,15 @@ public partial class ConversationEngine
         }
 
         // "cancel" is offered on the phone / name question, so it must work there; so must a whole new order message sent instead of the answer.
+        // "Phone abhi nahi hai, baad mein update kar dunga" / "skip": save the order without a phone (it is added later with "<naam> ka phone 0300…").
+        if (ctx.PendingMissingField == "Phone" && PhoneLaterWords.IsMatch(message.Trim()) && !System.Text.RegularExpressions.Regex.IsMatch(JoinSpacedPhones(message), @"\d{10}"))
+        {
+            pending.PhoneLater = true;
+            ctx.PendingMissingField = null;
+            await ContinueResolvingDraftAsync(seller, session, ctx, ct);
+            return;
+        }
+
         if (ctx.PendingMissingField is "Phone" or "CustomerName")
         {
             var text = message.Trim();
@@ -1358,7 +1440,15 @@ public partial class ConversationEngine
         if (obvious || (freeText && (words < 4 || CommandParser.TryParse(text) is not null))) return false;
 
         var route = await _ai.ClassifyMidFlowReplyAsync(DescribeVoiceSituation(seller, ctx), message, ct);
+        if (route == "skip" && ctx.PendingMissingField == "Phone" && ctx.PendingOrder is { } noPhone)
+        {
+            noPhone.PhoneLater = true;
+            ctx.PendingMissingField = null;
+            await ContinueResolvingDraftAsync(seller, session, ctx, ct);
+            return true;
+        }
         if (route is not ("new_order" or "cancel" or "other") || (freeText && route == "other")) return false;
+        LogNotUnderstood("router-" + route, session.State, message);
 
         ResetFlowContext(ctx);
         SetState(session, ConversationState.Idle);

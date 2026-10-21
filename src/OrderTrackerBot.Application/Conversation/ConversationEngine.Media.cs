@@ -37,9 +37,12 @@ public partial class ConversationEngine
         }
 
         if (_features.VoiceAck) await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("media.ack"), ct);
+        var voiceClock = System.Diagnostics.Stopwatch.StartNew();
         var media = _media is null ? null : await _media.DownloadAsync(mediaId, ct);
+        var downloadMs = voiceClock.ElapsedMilliseconds;
         var vocabulary = media is null ? null : await BuildVoiceVocabularyAsync(seller, ct);
         var text = media is null ? null : await _transcriber.TranscribeAsync(media.Value.Bytes, media.Value.MimeType, vocabulary, ct);
+        var transcribedMs = voiceClock.ElapsedMilliseconds;
         if (text is null)
         {
             if (_issues is not null)
@@ -66,6 +69,7 @@ public partial class ConversationEngine
         var decision = joined.All(c => char.IsDigit(c) || c == '+') && IsPlausiblePhone(joined)
             ? TurnDecision.Execute(new[] { joined })
             : await InterpretVoiceAsync(seller, text, ct);
+        if (decision.Kind != DecisionKind.Execute) LogNotUnderstood("voice-" + decision.Kind.ToString().ToLowerInvariant(), seller.Session!.State, text);
         if (decision.Kind == DecisionKind.Clarify)
         {
             // Clear intent but a detail is missing (which order, the new price): ask for it instead of guessing or failing.
@@ -82,6 +86,8 @@ public partial class ConversationEngine
             await _db.SaveChangesAsync(ct);
             return;
         }
+        _logger?.LogInformation("Voice note: download {DownloadMs} ms, up to transcript {TranscribedMs} ms, understood {TotalMs} ms (audio {Bytes} bytes, transcript {Words} words, decision {Kind})",
+            downloadMs, transcribedMs, voiceClock.ElapsedMilliseconds, media?.Bytes.Length ?? 0, text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length, decision.Kind);
         IReadOnlyList<string> steps = decision.Steps;
 
         // City / business type / handle are one answer ("Lahore, Clothing, @x"); separate steps would leave the first one to
@@ -182,7 +188,7 @@ public partial class ConversationEngine
                 // Waiting for dates: nothing here is money or an order, and dates legitimately add digits (a day, a year) the seller spoke as words ("yakum", "do hazar chhabees").
                 if (seller.Session!.State == ConversationState.AwaitingCustomDateRange) return TurnDecision.Execute(CorrectMarginQuestion(transcript, steps));
                 // A rewrite that changes what was said is not run, and neither is the raw transcript: the seller is asked again.
-                var known = KnownVoiceNumbers(recent, catalog);
+                var known = KnownVoiceNumbers(recent, catalog, lastMessages.Select(m => m.RawText));
                 // Reason only (never the transcript text): makes refused rewrites visible in the logs.
                 if (WhyUnfaithful(transcript, string.Join("\n", steps), known) is { } why)
                     _logger?.LogWarning("Voice rewrite refused: {Reason} (risky={Risky})", why, StepsAreRisky(steps));
@@ -248,9 +254,16 @@ public partial class ConversationEngine
         "Maaf kijiye, samajh nahi aaya. Barae meherbani dobara bolein, ya likh kar bhejein (jaise \"Kurti - 1800\" ya \"order confirm\").";
 
     /// <summary>Ids, totals and prices the model was shown for this voice note: a rewrite may legitimately use them ("pichla order" -> "edit order 105").</summary>
-    private static IReadOnlySet<long> KnownVoiceNumbers(IEnumerable<Order> recent, IEnumerable<CatalogEntry> catalog)
+    private static IReadOnlySet<long> KnownVoiceNumbers(IEnumerable<Order> recent, IEnumerable<CatalogEntry> catalog, IEnumerable<string>? recentChatTexts = null)
     {
         var known = new HashSet<long>();
+        // The seller's last few messages (and the bot's echo of what it heard) are part of the conversation: "chadar wali product add karo" right after a note that gave
+        // the price, cost and stock may use those numbers without saying them again.
+        foreach (var chatText in recentChatTexts ?? Array.Empty<string>())
+        {
+            foreach (var amount in SpokenNumbers.Amounts(chatText)) known.Add(amount);
+            foreach (var count in SpokenNumbers.SmallCounts(chatText)) known.Add(count);
+        }
         void Add(decimal value) { if (value == decimal.Truncate(value) && value >= 0) known.Add((long)value); }
         foreach (var order in recent)
         {

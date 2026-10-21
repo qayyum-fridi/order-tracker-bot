@@ -163,18 +163,18 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
     {
         var json = await CompleteTextAsync(
             "A WhatsApp order-tracking bot for a small shop owner (the seller) just asked the seller a question. The seller's reply may be in Roman Urdu, Urdu script or English. " +
-            "Decide what the reply is. Return ONLY JSON {\"route\": \"answer\"|\"new_order\"|\"cancel\"|\"other\"}. " +
+            "Decide what the reply is. Return ONLY JSON {\"route\": \"answer\"|\"new_order\"|\"cancel\"|\"skip\"|\"other\"}. " +
             "answer = it answers the bot's question (e.g. a phone number or a customer name when that is what was asked). " +
             "new_order = it is a new order or a list of items for some customer, not an answer to the question. " +
             "cancel = the seller wants to stop / drop / forget the order in progress (any wording, e.g. \"chhor do\", \"rehne do\", \"yeh nahi chahiye\", \"cancel kardein\"). " +
-            "other = anything else (a different request or a question). When unsure between answer and another route, choose answer.",
+            "skip = the seller was asked for a phone number and says they do not have it now / will add it later (\"abhi number nahi hai, baad mein de dunga\"): the order should be saved without it. other = anything else (a different request or a question). When unsure between answer and another route, choose answer.",
             $"Bot's question / situation: {situation}\nSeller's reply: {message}", 0, "mid-flow reply routing", cancellationToken, jsonMode: true);
         if (json is null) return null;
         try
         {
             using var doc = JsonDocument.Parse(json);
             var route = doc.RootElement.TryGetProperty("route", out var r) && r.ValueKind == JsonValueKind.String ? r.GetString() : null;
-            return route is "answer" or "new_order" or "cancel" or "other" ? route : null;
+            return route is "answer" or "new_order" or "cancel" or "skip" or "other" ? route : null;
         }
         catch (JsonException)
         {
@@ -254,6 +254,15 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "\"email receipt 12\", \"email <address>\", \"label 12\" (a parcel label), \"business label\" (the shop's sticker), \"label size a6\", \"printer\" (how to print), " +
             "\"drawer open 5000\", \"cash in 500 <why>\", \"cash out 300 <why>\", \"cash sale 1200\", \"drawer close 18000\", \"drawer\" (the cash drawer / galla), " +
             "\"barcode <product> <code>\", \"scan done\" (a scanned cart becomes an order), \"aaj ka hisaab\" (today's sales, top item, expenses and the cash drawer in one message), \"margin\" (each product's margin and how much discount it can take), \"supplier <product> <supplier name>\" (who supplies a product) and \"courier fee <order id> <amount>\" (what the courier charged for a parcel). "+
+            "(7) A seller who NARRATES a new order in a chatty way (\"ek naya order aaya hai Hamira ka, usne 10 lawn suit mangwaye, 2800 ka lagaya hai, number abhi nahi hai\") " +
+            "gives ONE compact typed order, whatever the bot is waiting for: \"Hamira, 10 Lawn Suit, 2800 each\" (customer, quantity, product, price, then phone / address only if said). " +
+            "Never copy, translate or transliterate the whole transcript into the rewrite; leave out filler and apologies. If the seller said the phone is not available now / will be given later, end the order with \", phone baad mein\"; a phone that was not mentioned at all is simply left out. " +
+            "A rewrite is a short typed message, never a paragraph. " +
+            "(9) SEVERAL customers in one note (\"Ayesha ko do Kurti, Bilal ko ek Dupatta, Sara ka ek lawn suit\"): write ONE message with one line per customer, \"Ayesha, 2 Kurti\\nBilal, 1 Dupatta\\nSara, 1 Lawn Suit\" " +
+            "(add each customer's phone / address on its own line only if said for that customer); never merge customers into one order. " +
+            "(8) When the bot has just said that a product of the seller's order is NOT in the catalog and asks whether to add it, and the seller then talks about that product " +
+            "(\"chadar daal dein, sale price 10000, cost taqreeban 8500, stock 50\"), write ONE product line for it: \"Chadar - 10000, cost 8500, stock 50\" (only the parts said; " +
+            "an approximate number is written as that number). That line is the answer; do not write a sentence. " +
             "ORDER STATUS: the only statuses are pending, shipped, delivered, returned, cancelled (plus paid for payment). The command is \"mark <order id> <status>\" using the real id from the " +
             "latest orders list above (\"Order #13 Hassan\" -> 13; the numbers in the examples are NOT real). Map the seller's words by meaning: shipped = bhej diya / courier ko de diya / dispatch / ship kar do; " +
             "delivered = complete / completed / mukammal / ho chuka / customer ko mil gaya / pohanch gaya (an order that is \"complete\" is DELIVERED, never shipped); returned = wapas aa gaya; " +
@@ -290,7 +299,8 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "each option is EXACTLY the message the bot should receive when tapped, written as the typed command or reply (\"mark 13 delivered\", \"orders last week\", \"Hassan Ali\", \"create discount\"), " +
             "at most 40 characters. Use options [] for an open question (a price, a name nobody has said).",
             new JsonObject { ["transcript"] = transcript }.ToJsonString(),
-            0.1, "voice interpretation", cancellationToken, jsonMode: true, model: _options.VoiceModel);
+            0.1, "voice interpretation", cancellationToken, jsonMode: true,
+            model: !string.IsNullOrWhiteSpace(_options.VoiceFastModel) && transcript.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= _options.VoiceFastMaxWords ? _options.VoiceFastModel : _options.VoiceModel);
         if (json is null) return null;
 
         try
