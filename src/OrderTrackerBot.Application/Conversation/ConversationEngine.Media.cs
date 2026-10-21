@@ -69,6 +69,27 @@ public partial class ConversationEngine
         var decision = joined.All(c => char.IsDigit(c) || c == '+') && IsPlausiblePhone(joined)
             ? TurnDecision.Execute(new[] { joined })
             : await InterpretVoiceAsync(seller, text, ct);
+        // The rewrite was not trusted (a number it used was not heard): show what it understood and let the seller say YES, instead of a dead end.
+        if (decision.Kind != DecisionKind.Execute && decision.Steps.Count > 0)
+        {
+            var parkSession = seller.Session!;
+            var suggestion = $"{heard}\n➡️ Samjha: {string.Join("  →  ", decision.Steps.Select(s => $"\"{s}\""))}";
+            if (seller.OnboardingComplete && parkSession.State == ConversationState.Idle)
+            {
+                var parkCtx = SessionContextData.FromJson(parkSession.ContextJson);
+                parkCtx.PendingVoiceSteps = decision.Steps.ToList();
+                parkCtx.PendingVoiceParkedAt = DateTime.UtcNow;
+                parkCtx.PendingVoiceLogId = await NewestActionLogIdAsync(seller.Id, ct);
+                SetState(parkSession, ConversationState.AwaitingVoiceConfirmation);
+                await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("media.002", suggestion), ct);
+                await PersistAsync(parkSession, parkCtx, ct);
+                return;
+            }
+            // Mid-flow: a YES would be read as the answer to the bot's own question, so only show what was understood; typing it is the way out.
+            await _sender.SendTextMessageAsync(fromPhoneNumber, $"{suggestion}\n\n{MessageTemplates.Get("media.003")}", ct);
+            await _db.SaveChangesAsync(ct);
+            return;
+        }
         if (decision.Kind == DecisionKind.Clarify)
         {
             // Clear intent but a detail is missing (which order, the new price): ask for it instead of guessing or failing.
@@ -187,7 +208,7 @@ public partial class ConversationEngine
                 // Waiting for dates: nothing here is money or an order, and dates legitimately add digits (a day, a year) the seller spoke as words ("yakum", "do hazar chhabees").
                 if (seller.Session!.State == ConversationState.AwaitingCustomDateRange) return TurnDecision.Execute(CorrectMarginQuestion(transcript, steps));
                 // A rewrite that changes what was said is not run, and neither is the raw transcript: the seller is asked again.
-                var known = KnownVoiceNumbers(recent, catalog);
+                var known = KnownVoiceNumbers(recent, catalog, lastMessages.Select(m => m.RawText));
                 // Reason only (never the transcript text): makes refused rewrites visible in the logs.
                 if (WhyUnfaithful(transcript, string.Join("\n", steps), known) is { } why)
                     _logger?.LogWarning("Voice rewrite refused: {Reason} (risky={Risky})", why, StepsAreRisky(steps));
@@ -237,7 +258,7 @@ public partial class ConversationEngine
     public static TurnDecision DecideRewrite(string transcript, IReadOnlyList<string> steps, IReadOnlySet<long>? knownNumbers)
     {
         if (WhyUnfaithful(transcript, string.Join("\n", steps), knownNumbers) is null) return TurnDecision.Execute(steps);
-        return StepsAreRisky(steps) ? TurnDecision.Reject(RejectedUnfaithful) : TurnDecision.Clarify(UnfaithfulQuestion);
+        return StepsAreRisky(steps) ? TurnDecision.RejectWithSteps(RejectedUnfaithful, steps) : TurnDecision.ClarifyWithSteps(UnfaithfulQuestion, steps);
     }
 
     private static bool StepsAreRisky(IEnumerable<string> steps) => steps.Any(ActionRisk.IsRiskyStep);
@@ -253,9 +274,16 @@ public partial class ConversationEngine
         "Maaf kijiye, samajh nahi aaya. Barae meherbani dobara bolein, ya likh kar bhejein (jaise \"Kurti - 1800\" ya \"order confirm\").";
 
     /// <summary>Ids, totals and prices the model was shown for this voice note: a rewrite may legitimately use them ("pichla order" -> "edit order 105").</summary>
-    private static IReadOnlySet<long> KnownVoiceNumbers(IEnumerable<Order> recent, IEnumerable<CatalogEntry> catalog)
+    private static IReadOnlySet<long> KnownVoiceNumbers(IEnumerable<Order> recent, IEnumerable<CatalogEntry> catalog, IEnumerable<string>? recentChatTexts = null)
     {
         var known = new HashSet<long>();
+        // The seller's last few messages (and the bot's echo of what it heard) are part of the conversation: "chadar wali product add karo" right after a note that gave
+        // the price, cost and stock may use those numbers without saying them again.
+        foreach (var chatText in recentChatTexts ?? Array.Empty<string>())
+        {
+            foreach (var amount in SpokenNumbers.Amounts(chatText)) known.Add(amount);
+            foreach (var count in SpokenNumbers.SmallCounts(chatText)) known.Add(count);
+        }
         void Add(decimal value) { if (value == decimal.Truncate(value) && value >= 0) known.Add((long)value); }
         foreach (var order in recent)
         {
