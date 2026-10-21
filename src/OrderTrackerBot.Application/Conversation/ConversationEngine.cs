@@ -441,6 +441,13 @@ public partial class ConversationEngine
         if (await TryHandleScannedCodeAsync(seller, ctx, message, ct)) return;
 
         var command = CommandParser.TryParse(message);
+        // A sentence the rules do not know but THIS seller once taught (by picking the right option) is understood without asking again.
+        if (command is null && LearnedCommandFor(ctx, message) is { } learnedCommand)
+        {
+            _logger?.LogInformation("Learned phrase used: {Kind}", learnedCommand.Kind);
+            await ExecuteCommandAsync(seller, session, ctx, learnedCommand, ct);
+            return;
+        }
         if (command is not null)
         {
             // A loose rule (keywords in any order) may have matched a sentence that is really something else, e.g. an order: ask the AI before running it.

@@ -80,6 +80,10 @@ public sealed class SessionContextData
     public DateTime? PendingOrderAskedAt { get; set; }
     public string? PendingMissingField { get; set; }
     public List<string>? ClarificationOptions { get; set; }
+    /// <summary>The sentence the bot just asked "what did you mean?" about; when the seller picks an option it is learned for this seller.</summary>
+    public string? ClarifiedText { get; set; }
+    /// <summary>Phrases this seller taught (normalised sentence -> command text), see ConversationEngine.Learning.cs.</summary>
+    public Dictionary<string, string>? LearnedPhrases { get; set; }
     public string? PendingNewProductName { get; set; }
     /// <summary>Products scanned with a barcode scanner and not yet turned into an order (product id -> pieces); "scan done" makes the order draft.</summary>
     public Dictionary<int, int>? ScanCart { get; set; }
