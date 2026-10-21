@@ -16,10 +16,10 @@ Loose-rule matches (`Insight`, `FuzzyStatusUpdate`, `CustomerOrderLookup`, `Prod
 
 | line | meaning |
 |---|---|
-| `RuleCheck kind=… fits=…` | the AI was asked (5+ words); no text |
+| `RuleCheck kind=… fits=…` | the AI was asked (3+ words); no text |
 | `NotUnderstood path=rule-overruled-<Kind>` | the AI said "no": the rule was NOT run, text included |
 | `RuleConfirmed kind=… fits=True/unknown text=…` | the rule WAS run (AI said yes, or no AI) |
-| `RuleShort kind=… text=…` | fewer than 5 words: the rule was run without an AI check |
+| `RuleShort kind=… text=…` | fewer than 3 words: the rule was run without an AI check |
 
 Collect them on the server:
 
