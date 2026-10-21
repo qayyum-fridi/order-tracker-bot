@@ -37,6 +37,7 @@
   "order-flow.draftexpired": "ℹ️ Pichla adhoora order 20 minute se zyada purana tha, is liye mansookh kar diya gaya. Barae meherbani order dobara bhejein.",
   "order-flow.unitmismatch": "Maaf kijiye, \"{0}\" catalog mein \"{1}\" ke hisaab se hai, \"{2}\" ke hisaab se nahi. Barae meherbani \"{1}\" mein likhein (jaise 2 {0}), ya product ki unit badal dein.",
   "order-flow.negativeqty": "⚠️ Maaf kijiye, \"{0}\" theek nahi hai: quantity minus (-) mein nahi ho sakti. Koi order save nahi hua. Barae meherbani dobara likhein, jaise 2 {1}.",
+  "order-flow.reask-draft": "Maaf kijiye, yeh samajh nahi aaya. Yeh order abhi save hona baaki hai:",
   "order-flow.035": "⚠️ Phone number \"{0}\" poora nahi lagta ({1} digits). Barae meherbani sahi number bhejein, jaise 03001234567.",
   "order-flow.036": "✅ Order saved (#{0}).",
   "order-flow.037": "✅ {0} orders saved ({1}).",

@@ -658,6 +658,12 @@ public partial class ConversationEngine
             return;
         }
 
+        // Say again WHICH order Save would save: a bare "samajh nahi aaya" with Save / Edit / Cancel leaves the seller guessing what is waiting.
+        if (ctx.PendingOrder is { } waiting)
+        {
+            await SendDraftConfirmationAsync(seller, MessageTemplates.Get("order-flow.reask-draft") + "\n\n" + BuildConfirmationText(seller.PreferredLanguage, waiting), ct);
+            return;
+        }
         await SendDraftConfirmationAsync(seller, "Maaf kijiye, yeh samajh nahi aaya.\n" + ConfirmTypedHint, ct);
     }
 
