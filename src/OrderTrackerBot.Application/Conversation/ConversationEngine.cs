@@ -441,6 +441,13 @@ public partial class ConversationEngine
         if (await TryHandleScannedCodeAsync(seller, ctx, message, ct)) return;
 
         var command = CommandParser.TryParse(message);
+        // A sentence the rules do not know but THIS seller once taught (by picking the right option) is understood without asking again.
+        if (command is null && LearnedCommandFor(ctx, message) is { } learnedCommand)
+        {
+            _logger?.LogInformation("Learned phrase used: {Kind}", learnedCommand.Kind);
+            await ExecuteCommandAsync(seller, session, ctx, learnedCommand, ct);
+            return;
+        }
         if (command is not null)
         {
             // A loose rule (keywords in any order) may have matched a sentence that is really something else, e.g. an order: ask the AI before running it.
@@ -465,6 +472,9 @@ public partial class ConversationEngine
     }
 
     // Commands the parser finds by LOOSE rules (keyword combinations, fuzzy names). Exact commands ("orders today", "mark 3 shipped") are never second-guessed.
+    /// <summary>A loose-rule match on a message of at least this many words is checked by the AI first (was 5; 3 so short ambiguous phrases like "customer status bhejo" are covered).</summary>
+    private const int LooseRuleMinWords = 3;
+
     private static readonly HashSet<CommandKind> LooseRuleKinds = new()
     {
         CommandKind.Insight, CommandKind.FuzzyStatusUpdate, CommandKind.CustomerOrderLookup, CommandKind.ProductReport, CommandKind.CustomerSearch, CommandKind.HowTo
@@ -473,9 +483,9 @@ public partial class ConversationEngine
     private async Task<bool> LooseRuleMatchIsWrongAsync(ParsedCommand command, string message, CancellationToken ct)
     {
         if (!LooseRuleKinds.Contains(command.Kind)) return false;
-        if (message.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length < 5)
+        if (message.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length < LooseRuleMinWords)
         {
-            // Too short for the AI check: only recorded (with the text, Features:TurnLog) so the owner can see which short phrases the loose rules take.
+            // Too short for the AI check (fewer than LooseRuleMinWords words): only recorded (with the text, Features:TurnLog) so the owner can see which short phrases the loose rules take.
             LogRuleText("RuleShort", command.Kind, null, message);
             return false;
         }

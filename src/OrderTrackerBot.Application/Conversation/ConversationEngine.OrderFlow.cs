@@ -144,6 +144,7 @@ public partial class ConversationEngine
             if (analysis.ClarificationOptions.Count == 0 && TryKeywordClarification(sourceText, out var kwQuestion, out var kwOptions))
                 (question, options) = (kwQuestion, kwOptions);
             LogNotUnderstood("ai-clarify", session.State, sourceText);
+            ctx.ClarifiedText = sourceText;
             await AskClarificationAsync(seller, session, ctx, question, options, ct);
             return;
         }
@@ -1293,6 +1294,8 @@ public partial class ConversationEngine
 
         if (CommandParser.TryParse(message) is { } command)
         {
+            LearnPhrase(ctx, ctx.ClarifiedText, message);
+            ctx.ClarifiedText = null;
             ctx.ClarificationOptions = null;
             SetState(session, ConversationState.Idle);
             await ExecuteCommandAsync(seller, session, ctx, command, ct);
@@ -1307,6 +1310,8 @@ public partial class ConversationEngine
             // Keyword-clarification options are typed commands: run the one picked.
             if ((CommandParser.TryParse(chosen) ?? CommandParser.TryParse(ClarificationOptionCommand(chosen) ?? "")) is { } chosenCommand)
             {
+                LearnPhrase(ctx, ctx.ClarifiedText, CommandParser.TryParse(chosen) is not null ? chosen : ClarificationOptionCommand(chosen));
+                ctx.ClarifiedText = null;
                 await ExecuteCommandAsync(seller, session, ctx, chosenCommand, ct);
                 return;
             }
