@@ -145,6 +145,9 @@ public interface IAiOrderAssistant
     /// </summary>
     Task<bool?> ConfirmCommandMatchAsync(string message, string commandKind, CancellationToken cancellationToken = default) => Task.FromResult<bool?>(null);
 
+    /// <summary>A seller once taught that <paramref name="taughtPhrase"/> means a command; they now wrote <paramref name="newPhrase"/>. Do both ask for the same thing? <c>null</c> = unknown / no AI.</summary>
+    Task<bool?> ConfirmSamePhraseAsync(string taughtPhrase, string newPhrase, CancellationToken cancellationToken = default) => Task.FromResult<bool?>(null);
+
     /// <summary>
     /// Translates bot messages from Roman Urdu into <paramref name="targetLanguage"/> (a <c>Lang</c> constant), one result per input in the
     /// same order. Null when AI is unavailable or the result is unusable — callers send the original text instead.

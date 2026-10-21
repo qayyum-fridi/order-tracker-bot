@@ -18,14 +18,17 @@ LearnPhrase(S -> command(O or C)):
    • at most 100 phrases per seller, oldest forgotten first
    • kept in the seller's own session data (no schema change, no migration)
 
-next time the seller says S (exactly, after normalising):
-   HandleIdleCoreAsync: rules say "not a command"  ──► LearnedCommandFor(S) found ──► run it, no question
+the SAME choice must be made twice (a stray tap teaches nothing; a different choice starts the count again)
+
+next time the seller says S' (rules say "not a command"):
+   exact (after normalising) and confirmed twice  ──► run it, no question
+   a CLOSE sentence (≥ 2 shared content words, half shared; filler and a trailing "s" ignored) ──► one small AI call "same request? yes/no" ──► yes: run it
 ```
 Properties:
 - **Safe:** it only repeats a choice this very seller made; a risky command is never learned; exact commands are never overridden (the rules run first).
 - **Private:** one seller's phrases are never used for another seller.
 - **Visible:** `Learned phrase: <Kind> (seller-confirmed)` and `Learned phrase used: <Kind>` in the server log (no text).
-- **Limit:** exact sentence only (after normalising). "customer status bhejo" is learned; "customer ka status bhejo do" is a different sentence and is asked again.
+- **Limit:** needs two identical choices before it is used; a close sentence costs one small AI call, an unrelated one costs nothing. Voice notes: the rewrite already turns speech into typed text before this step, so spelling variants of the transcript matter less.
 
 ## Level 2 — across sellers, human in the loop (process, uses the logs that exist)
 
