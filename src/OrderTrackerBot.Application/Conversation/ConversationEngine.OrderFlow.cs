@@ -1450,6 +1450,12 @@ public partial class ConversationEngine
         if (route is not ("new_order" or "cancel" or "other") || (freeText && route == "other")) return false;
         LogNotUnderstood("router-" + route, session.State, message);
 
+        // A side question or command in the middle of an order ("Ayesha ka phone kya hai?", "aaj ka hisaab") PAUSES the order: it is answered, then the order carries on.
+        var pausedDraft = route == "other" && session.State is ConversationState.AwaitingOrderConfirmation or ConversationState.AwaitingOrderMissingFields
+            && ctx.PendingOrder is not null
+            ? (Draft: ctx.PendingOrder, Queued: ctx.QueuedOrders, State: session.State, Missing: ctx.PendingMissingField, NewName: ctx.PendingNewProductName)
+            : default((PendingOrderData? Draft, List<PendingOrderData>? Queued, ConversationState State, string? Missing, string? NewName));
+
         ResetFlowContext(ctx);
         SetState(session, ConversationState.Idle);
         if (route == "cancel")
@@ -1458,6 +1464,18 @@ public partial class ConversationEngine
             return true;
         }
         await HandleIdleAsync(seller, session, ctx, message, ct);
+
+        // Nothing new was started by the side message: bring the paused order back and ask its next question again.
+        if (pausedDraft.Draft is not null && session.State == ConversationState.Idle && ctx.PendingOrder is null)
+        {
+            ctx.PendingOrder = pausedDraft.Draft;
+            ctx.QueuedOrders = pausedDraft.Queued;
+            ctx.PendingMissingField = pausedDraft.Missing;
+            ctx.PendingNewProductName = pausedDraft.NewName;
+            SetState(session, pausedDraft.State);
+            await ReplyAsync(seller, MessageTemplates.Get("order-flow.058", pausedDraft.Draft.CustomerName ?? ""), ct);
+            await ContinueResolvingDraftAsync(seller, session, ctx, ct);
+        }
         return true;
     }
 }
