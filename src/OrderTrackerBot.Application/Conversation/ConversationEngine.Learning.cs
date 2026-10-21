@@ -82,4 +82,41 @@ public partial class ConversationEngine
         }
         return best is null ? null : (best.Value.Phrase, best.Value.Command);
     }
+
+    private const double SemanticMinScore = 0.78;
+    private const int SemanticMaxPhrases = 40;
+
+    internal static double Cosine(float[] a, float[] b)
+    {
+        double dot = 0, na = 0, nb = 0;
+        var n = Math.Min(a.Length, b.Length);
+        for (var i = 0; i < n; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
+        return na == 0 || nb == 0 ? 0 : dot / (Math.Sqrt(na) * Math.Sqrt(nb));
+    }
+
+    /// <summary>
+    /// Level 3 (prototype, Features:SemanticLearning): the taught phrase (confirmed twice, command not risky) whose MEANING is closest to the new sentence, found with embeddings
+    /// ("kal ka dhanda kitna hua" ~ "aaj ki sale dikhao"). Only a candidate: the AI still has to say both ask for the same thing. One embeddings call per sentence, only for
+    /// sellers who taught something and only for short text sentences (no orders: no digits, at most 10 words).
+    /// </summary>
+    private async Task<(string Phrase, string Command, double Score)?> SemanticLearnedCandidateAsync(SessionContextData ctx, string message, CancellationToken ct)
+    {
+        if (!_features.SemanticLearning || ctx.LearnedPhrases is not { Count: > 0 } learned) return null;
+        if (message.Count(char.IsDigit) >= 3 || message.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length > 10) return null;
+        var usable = learned.Where(kv => (ctx.LearnedVotes?.GetValueOrDefault(kv.Key) ?? 0) >= VotesToUse
+                && CommandParser.TryParse(kv.Value) is { } c && !ActionRisk.RiskyCommands.Contains(c.Kind))
+            .TakeLast(SemanticMaxPhrases).ToList();
+        if (usable.Count == 0) return null;
+
+        var vectors = await _ai.EmbedAsync(new[] { message }.Concat(usable.Select(u => u.Key)).ToList(), ct);
+        if (vectors is null || vectors.Count != usable.Count + 1) return null;
+        (string Phrase, string Command, double Score)? best = null;
+        for (var i = 0; i < usable.Count; i++)
+        {
+            var score = Cosine(vectors[0], vectors[i + 1]);
+            if (score >= SemanticMinScore && (best is null || score > best.Value.Score)) best = (usable[i].Key, usable[i].Value, score);
+        }
+        _logger?.LogInformation("SemanticCandidate best={Score}", best is null ? "none" : best.Value.Score.ToString("0.00"));
+        return best;
+    }
 }

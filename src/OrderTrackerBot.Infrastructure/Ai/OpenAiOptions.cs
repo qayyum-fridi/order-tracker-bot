@@ -10,6 +10,8 @@ public class OpenAiOptions
     public string Model { get; set; } = "gpt-4o-mini";
     /// <summary>Stronger model for understanding a voice transcript in context (Urdu meaning, not sounds); one call per voice note.</summary>
     public string VoiceModel { get; set; } = "gpt-4o";
+    /// <summary>Embedding model for matching a new sentence to taught phrases by meaning (Features:SemanticLearning).</summary>
+    public string EmbeddingModel { get; set; } = "text-embedding-3-small";
     /// <summary>Faster model for SHORT voice transcripts (a yes / no / number / simple command, up to <see cref="VoiceFastMaxWords"/> words); empty = always <see cref="VoiceModel"/>.</summary>
     public string VoiceFastModel { get; set; } = "gpt-4o-mini";
     public int VoiceFastMaxWords { get; set; } = 8;

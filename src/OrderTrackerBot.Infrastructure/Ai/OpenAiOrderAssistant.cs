@@ -159,6 +159,34 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         }
     }
 
+    public async Task<IReadOnlyList<float[]>?> EmbedAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default)
+    {
+        if (texts.Count == 0 || string.IsNullOrWhiteSpace(_options.ApiKey)) return null;
+        try
+        {
+            var body = new JsonObject
+            {
+                ["model"] = _options.EmbeddingModel,
+                ["input"] = new JsonArray(texts.Select(t => (JsonNode?)JsonValue.Create(t.Length > 500 ? t[..500] : t)).ToArray())
+            };
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"{_options.BaseUrl.TrimEnd('/')}/embeddings") { Content = JsonContent.Create(body) };
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.ApiKey);
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            var payload = await response.Content.ReadFromJsonAsync<JsonObject>(cancellationToken: cancellationToken);
+            if (payload?["data"] is not JsonArray data || data.Count != texts.Count) return null;
+            var vectors = data.Select(d => d?["embedding"] is JsonArray v ? v.Select(x => (float)(x?.GetValue<double>() ?? 0)).ToArray() : Array.Empty<float>()).ToList();
+            _logger.LogInformation("OpenAI embeddings ({Count} texts) took {Ms} ms", texts.Count, clock.ElapsedMilliseconds);
+            return vectors.Any(v => v.Length == 0) ? null : vectors;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "OpenAI embeddings failed — semantic match skipped.");
+            return null;
+        }
+    }
+
     public async Task<bool?> ConfirmSamePhraseAsync(string taughtPhrase, string newPhrase, CancellationToken cancellationToken = default)
     {
         var json = await CompleteTextAsync(
