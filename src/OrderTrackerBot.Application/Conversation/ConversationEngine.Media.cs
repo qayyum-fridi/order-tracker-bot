@@ -504,6 +504,14 @@ public partial class ConversationEngine
             return;
         }
 
+        // A picture sent with a QUESTION ("yeh color milega?", "kapra kaun sa hai?") is a question, not an order: no draft is made and any draft in progress stays.
+        if (IsQuestionCaption(caption))
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("media.009"), ct);
+            await PersistAsync(session, ctx, ct);
+            return;
+        }
+
         // A screenshot starts fresh: any half-finished draft/prompt is dropped.
         ResetFlowContext(ctx);
         SetState(session, ConversationState.Idle);
@@ -600,4 +608,12 @@ public partial class ConversationEngine
         ctx.ClarificationOptions = null;
         ClearReceipt(ctx);
     }
+
+    private static readonly Regex QuestionCaption = new(
+        @"\?|؟|^\s*(?:kya|kia|kaun|konsa|kaunsa|kitna|kitne|kab|kahan|is\s+ka|iska|yeh\s+kya|ye\s+kya|available|mil\s+jaye|مل\s*جائے|کیا|کون|کتنا)\b",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    /// <summary>A caption that asks something and does not say "order": the picture is a question about a product.</summary>
+    private static bool IsQuestionCaption(string? caption) =>
+        !string.IsNullOrWhiteSpace(caption) && QuestionCaption.IsMatch(caption) && !Regex.IsMatch(caption, @"\border\b|آرڈر", RegexOptions.IgnoreCase);
 }
