@@ -69,10 +69,10 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             : string.Join("\n", context.Catalog.Select(c => $"- {c.Name}: Rs.{c.Price}"));
 
         var systemPrompt =
-            $"You are the order-parsing engine behind a WhatsApp bot used by a small business seller named '{context.BusinessName}'. " +
+            "You are the order-parsing engine behind a WhatsApp bot used by a small business seller (named at the end). " +
             "The seller (never the end customer) sends you freeform messages or screenshots in Roman Urdu, Urdu script, and/or English, often mixed. " +
             "Classify the intent and, for orders, extract structured fields. Never invent data that is not in the message. Match product names loosely " +
-            "(typos, informal names, missing words) against this seller's catalog:\n" + catalogText + "\n\n" +
+            "(typos, informal names, missing words) against this seller's catalog (listed at the end). " +
             "intent values: new_order (a customer order to record), status_update (an order was shipped/delivered etc.), customer_feedback " +
             "(the seller relays how a buyer felt about their order, e.g. \"ayesha bahut khush thi order se\" — fill feedback), off_topic (small talk " +
             "or chatter unrelated to the business, e.g. \"bohat thak gayi hoon aaj\"), support_query (the seller forwards a question a buyer " +
@@ -110,6 +110,9 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
                 "that price on every pending product; separate prices (\"chadar 800, dupatte 1200\") = each price on its own product; a product with no price said stays price null. " +
                 "Only treat the message as something else if it clearly is (an order, a command, a different product).";
 
+        // The per-seller part goes last so OpenAI's prompt cache can reuse the long identical prefix across sellers and messages.
+        systemPrompt += $"\n\nSeller business name: '{context.BusinessName}'.\nSeller catalog:\n" + catalogText;
+
         var requestBody = new JsonObject
         {
             ["model"] = _options.Model,
@@ -130,12 +133,14 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             };
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.ApiKey);
 
+            var clock = System.Diagnostics.Stopwatch.StartNew();
             var response = await _httpClient.SendAsync(request, cancellationToken);
             response.EnsureSuccessStatusCode();
 
             var payload = await response.Content.ReadFromJsonAsync<JsonObject>(cancellationToken: cancellationToken);
             var content = payload?["choices"]?[0]?["message"]?["content"]?.GetValue<string>();
             if (content is null) throw new InvalidOperationException("Empty OpenAI response");
+            _logger.LogInformation("OpenAI order analysis took {Ms} ms", clock.ElapsedMilliseconds);
 
             return ParseAnalysis(content);
         }
@@ -361,9 +366,11 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             };
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.ApiKey);
 
+            var clock = System.Diagnostics.Stopwatch.StartNew();
             var response = await _httpClient.SendAsync(request, cancellationToken);
             response.EnsureSuccessStatusCode();
             var payload = await response.Content.ReadFromJsonAsync<JsonObject>(cancellationToken: cancellationToken);
+            _logger.LogInformation("OpenAI {Purpose} took {Ms} ms", purpose, clock.ElapsedMilliseconds);
             var text = payload?["choices"]?[0]?["message"]?["content"]?.GetValue<string>()?.Trim();
             return string.IsNullOrWhiteSpace(text) ? null : text;
         }

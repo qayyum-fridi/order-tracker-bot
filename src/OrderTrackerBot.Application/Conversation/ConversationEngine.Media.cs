@@ -60,7 +60,11 @@ public partial class ConversationEngine
             return;
         }
 
-        var decision = await InterpretVoiceAsync(seller, text, ct);
+        // A transcript that is only a phone number needs no rewrite (a second, slow model call): it is the answer as typed.
+        var joined = JoinSpacedPhones(text.Trim().Trim('.', '!', '?', '،', '۔', ' '));
+        var decision = joined.All(c => char.IsDigit(c) || c == '+') && IsPlausiblePhone(joined)
+            ? TurnDecision.Execute(new[] { joined })
+            : await InterpretVoiceAsync(seller, text, ct);
         if (decision.Kind == DecisionKind.Clarify)
         {
             // Clear intent but a detail is missing (which order, the new price): ask for it instead of guessing or failing.
@@ -140,15 +144,19 @@ public partial class ConversationEngine
         var catalog = await LoadCatalogAsync(seller, ct);
         var recent = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
             .Where(o => o.SellerId == seller.Id).OrderByDescending(o => o.Id).Take(5).ToListAsync(ct);
-        var customers = await _db.Customers.Include(c => c.Orders)
-            .Where(c => c.SellerId == seller.Id && c.DeletedAt == null).ToListAsync(ct);
-        var knownCustomers = customers
-            .OrderByDescending(c => c.Orders.Select(o => o.Id).DefaultIfEmpty(0).Max()).ThenByDescending(c => c.Id).Take(40)
+        // Only the 40 customers with the latest orders are sent to the model: pick them in SQL instead of loading every customer and order.
+        var knownCustomers = (await _db.Customers.Include(c => c.Orders)
+            .Where(c => c.SellerId == seller.Id && c.DeletedAt == null)
+            .OrderByDescending(c => c.Orders.Max(o => (int?)o.Id)).ThenByDescending(c => c.Id).Take(40).ToListAsync(ct))
             .Select(DescribeCustomerForVoice).ToList();
         var lastMessages = await _db.MessageLogs.Where(m => m.Phone == seller.WhatsAppPhoneNumber)
             .OrderByDescending(m => m.Id).Take(6).ToListAsync(ct);
         var exchanges = lastMessages.AsEnumerable().Reverse()
             .Select(m => $"{(m.Direction == "outbound" ? "Bot" : "Seller")}: {(m.RawText.Length > 300 ? m.RawText[..300] : m.RawText)}").ToList();
+
+        // A spoken "cancel" while an order draft waits is a cancel, whatever the model would make of it ("kis order ko cancel karna hai?").
+        if (ctx.PendingOrder is not null && OpensWithLeavePhrase(transcript.Trim().Trim('.', '!', '?', '،', '۔', ' ')))
+            return TurnDecision.Execute(new[] { "cancel" });
 
         var result = await _ai.InterpretVoiceAsync(new AiVoiceContext
         {
@@ -279,6 +287,9 @@ public partial class ConversationEngine
     public static string? WhyUnfaithful(string transcript, string? rewritten, IReadOnlySet<long>? knownNumbers = null)
     {
         if (string.IsNullOrWhiteSpace(rewritten)) return "empty rewrite";
+        // A phone dictated in groups ("0312 4891 718") may come back as one run ("03124891718"): compare both sides joined.
+        transcript = JoinSpacedPhones(transcript);
+        rewritten = JoinSpacedPhones(rewritten);
         if (rewritten.Length > Math.Max(200, transcript.Length * 3)) return "rewrite too long";
         // Amounts the seller took back ("410 nahi, 420") or refused ("paanch hazaar mat karna") need not survive the rewrite, and must not be set.
         var retracted = SpokenNumbers.RetractedAmounts(transcript);
@@ -380,6 +391,12 @@ public partial class ConversationEngine
     }
 
     // Runs of 3+ digits as whole numbers: "3,500" and "3500" match, while "5300" does not match "3500" (a digit count would accept both).
+    private static readonly Regex SpacedDigitGroups = new(@"\d(?:[ \-]?\d)*", RegexOptions.Compiled);
+
+    /// <summary>Joins digit groups separated by single spaces or hyphens when together they make a 10-13 digit phone number; anything else is left alone.</summary>
+    private static string JoinSpacedPhones(string text) =>
+        SpacedDigitGroups.Replace(text, m => m.Value.Count(char.IsDigit) is >= 10 and <= 13 ? m.Value.Replace(" ", "").Replace("-", "") : m.Value);
+
     private static HashSet<string> DigitRuns(string text) =>
         Regex.Matches(Regex.Replace(text, @"(?<=\d)[,-](?=\d)", ""), @"\d{3,}").Select(m => m.Value).ToHashSet();
 

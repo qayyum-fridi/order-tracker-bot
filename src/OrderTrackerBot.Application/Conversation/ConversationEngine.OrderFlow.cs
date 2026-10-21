@@ -352,8 +352,11 @@ public partial class ConversationEngine
         {
             ctx.PendingMissingField = "Phone";
             SetState(session, ConversationState.AwaitingOrderMissingFields);
+            var waiting = ctx.QueuedOrders?.Count ?? 0;
             await ReplyAsync(seller, badPhone is null
-                ? MessageTemplates.Get("order-flow.034")
+                ? (waiting > 0 && !string.IsNullOrWhiteSpace(pending.CustomerName)
+                    ? MessageTemplates.Get("order-flow.phone-many", pending.CustomerName, waiting)
+                    : MessageTemplates.Get("order-flow.034"))
                 : MessageTemplates.Get("order-flow.035", badPhone, badPhone.Count(char.IsDigit)), ct);
             return;
         }
@@ -731,6 +734,30 @@ public partial class ConversationEngine
             return;
         }
 
+        // "cancel" is offered on the phone / name question, so it must work there; so must a whole new order message sent instead of the answer.
+        if (ctx.PendingMissingField is "Phone" or "CustomerName")
+        {
+            var text = message.Trim();
+            var newOrderInstead = ctx.PendingMissingField == "Phone" && !IsPlausiblePhone(text)
+                && System.Text.RegularExpressions.Regex.IsMatch(text, @"\p{L}{3,}");
+            // A name is a few plain words: digits or several lines mean the seller sent a whole new order ("Sara 0300 1234567 / Kurti 2"), not a name.
+            if (ctx.PendingMissingField == "CustomerName" && (text.Any(char.IsDigit) || text.Contains('\n') || text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length > 5))
+                newOrderInstead = true;
+            if (OpensWithLeavePhrase(text) || CancelWords.Contains(text) || newOrderInstead)
+            {
+                ctx.PendingOrder = null;
+                ctx.PendingMissingField = null;
+                SetState(session, ConversationState.Idle);
+                if (newOrderInstead)
+                {
+                    await HandleFreeformMessageAsync(seller, session, ctx, message, ct);
+                    return;
+                }
+                await ReplyAsync(seller, MessageTemplates.Get("order-flow.015"), ct);
+                return;
+            }
+        }
+
         switch (ctx.PendingMissingField)
         {
             case "ProductChoice":
@@ -813,6 +840,16 @@ public partial class ConversationEngine
                 return;
 
             case "Phone":
+                // Several customers in one message: "first one X, second Y" fills this order and the queued ones in the same order.
+                var phones = System.Text.RegularExpressions.Regex.Matches(JoinSpacedPhones(message), @"(?<!\d)\d{10,13}(?!\d)").Select(m => m.Value).ToList();
+                var needPhone = new[] { pending }.Concat(ctx.QueuedOrders ?? new List<PendingOrderData>()).Where(o => string.IsNullOrWhiteSpace(o.Phone) && !o.PaidInFull).ToList();
+                if (phones.Count >= 2 && phones.Count <= needPhone.Count)
+                {
+                    for (var i = 0; i < phones.Count; i++) needPhone[i].Phone = phones[i];
+                    ctx.PendingMissingField = null;
+                    await ContinueResolvingDraftAsync(seller, session, ctx, ct);
+                    return;
+                }
                 if (!IsPlausiblePhone(message))
                 {
                     await ReplyAsync(seller, MessageTemplates.Get("order-flow.023"), ct);

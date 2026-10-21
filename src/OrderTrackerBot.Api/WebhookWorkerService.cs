@@ -97,10 +97,15 @@ public sealed class WebhookWorkerService : BackgroundService
         var ct = timeout.Token;
         using var scope = _scopes.CreateScope();
         var engine = scope.ServiceProvider.GetRequiredService<ConversationEngine>();
+        var clock = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             var gate = scope.ServiceProvider.GetRequiredService<WebhookMessageGate>();
             await gate.RunOnceAsync(work.From, work.MessageId, () => work.Handle(engine, ct), ct);
+            if (clock.ElapsedMilliseconds > 3000)
+                _logger.LogWarning("Slow WhatsApp message from {From}: handled in {Ms} ms", work.From, clock.ElapsedMilliseconds);
+            else
+                _logger.LogInformation("WhatsApp message from {From} handled in {Ms} ms", work.From, clock.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {

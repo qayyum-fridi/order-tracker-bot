@@ -14,6 +14,7 @@ namespace OrderTrackerBot.Application.Conversation;
 /// </summary>
 internal sealed class TranslatingSender : IWhatsAppSender
 {
+    private static readonly TimeSpan TranslationBudget = TimeSpan.FromSeconds(5);
     private const int MaxCachedTranslations = 5000;
     private const int MaxButtonLabel = 20, MaxRowOrSectionTitle = 24, MaxFlowCta = 30;
     // WhatsApp refuses an interactive (buttons / list / flow) body over 1024 characters; a translation is often longer than the Roman Urdu it came from.
@@ -143,9 +144,12 @@ internal sealed class TranslatingSender : IWhatsAppSender
         IReadOnlyList<string>? translated = null;
         try
         {
-            translated = await _ai.TranslateAsync(pending.Select(i => texts[i]).ToList(), language, cancellationToken);
+            // A slow translation must not hold the reply back: after the budget the original (Roman Urdu) text is sent.
+            using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            budget.CancelAfter(TranslationBudget);
+            translated = await _ai.TranslateAsync(pending.Select(i => texts[i]).ToList(), language, budget.Token);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             // Translation is a nicety: never lose the message because of it.
         }

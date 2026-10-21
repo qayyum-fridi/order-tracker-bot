@@ -107,9 +107,12 @@ public partial class ConversationEngine
         await TrySendShortcutBarAsync(fromPhoneNumber, ct);
     }
 
+    private static readonly TimeSpan DraftExpiry = TimeSpan.FromMinutes(20);
+
     private async Task HandleIncomingCoreAsync(string fromPhoneNumber, string rawMessage, CancellationToken ct)
     {
-        var message = TextHygiene.StripInvisible(rawMessage ?? string.Empty).Trim();
+        // A typed backslash-n (copied from code or a template) is meant as a line break.
+        var message = TextHygiene.StripInvisible(rawMessage ?? string.Empty).Replace("\\n", "\n").Trim();
         if (message.Length == 0) return;
 
         _db.MessageLogs.Add(new MessageLog { Phone = fromPhoneNumber, Direction = "inbound", RawText = message });
@@ -217,6 +220,19 @@ public partial class ConversationEngine
         {
             await PersistAsync(session, ctx, ct);
             return;
+        }
+
+        // An order draft left waiting for a long time is dropped: a phone or name sent hours later must not be taken as its answer.
+        if (session.State is ConversationState.AwaitingOrderConfirmation or ConversationState.AwaitingOrderMissingFields
+                or ConversationState.AwaitingOrderGroupingChoice or ConversationState.AwaitingMultiOrderConfirmation
+            && ctx.PendingOrder is not null && DateTime.UtcNow - session.UpdatedAt > DraftExpiry)
+        {
+            ctx.PendingOrder = null;
+            ctx.QueuedOrders = null;
+            ctx.PendingMissingField = null;
+            ctx.PendingNewProductName = null;
+            SetState(session, ConversationState.Idle);
+            await ReplyAsync(seller, MessageTemplates.Get("order-flow.draft-expired"), ct);
         }
 
         // A draft state with no draft behind it (left by an earlier turn) would answer every message as if an order were waiting.
@@ -397,6 +413,7 @@ public partial class ConversationEngine
         }
 
         if (await TryHandleOrderForCustomerItemsAsync(seller, session, ctx, message, ct)) return;
+        if (await TryHandleItemsOnlyAsync(seller, session, ctx, message, ct)) return;
 
         // Waiting for the price of ONE new product and the seller sends just an amount ("9000", "Rs. 9,000"): that is its price. Plain code, no AI guess.
         if (ctx.PendingPriceProducts is { Count: 1 } waiting && BareAmount.Match(message.Trim()) is { Success: true } bare
