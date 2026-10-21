@@ -723,6 +723,14 @@ public partial class ConversationEngine
         return digits is >= 10 and <= 13 && !phone.Any(char.IsLetter);
     }
 
+    /// <summary>"Chadar" and "chadar", "Lawn Suit" and "lawn suits": the same product named twice (case, a trailing s, one name inside the other).</summary>
+    private static bool SameProductName(string a, string b)
+    {
+        static string Norm(string x) => string.Join(' ', x.Trim().ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries)).TrimEnd('s');
+        var (x, y) = (Norm(a), Norm(b));
+        return x == y || x.Contains(y) || y.Contains(x);
+    }
+
     private static readonly System.Text.RegularExpressions.Regex PhoneNotYetInOrder = new(
         @"\b(?:phone|number|nambar|mobile)\b[^.,;\n]{0,25}\b(?:nahi|nahin|nhi|baad|later|abhi)\b|\b(?:baad\s*mein|baad\s*me|later)\b[^.,;\n]{0,25}\b(?:phone|number)\b",
         System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.Compiled);
@@ -734,6 +742,32 @@ public partial class ConversationEngine
     private async Task HandleOrderMissingFieldAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         var pending = ctx.PendingOrder!;
+
+        // "Chadar - 10000, cost 8500, stock 50" sent while the draft waits on "this product is not in the catalog": that IS the answer. The product is added with those details
+        // and the order carries on from where it stopped (it is not dropped and the product line is not treated as a separate message).
+        if (ctx.PendingMissingField is "ProductChoice" or "MappedProductName" or "NewProductPrice" && !string.IsNullOrWhiteSpace(ctx.PendingNewProductName)
+            && CommandParser.TryParseProductLine(message.Trim(), out ProductLine? line) && line is not null
+            && SameProductName(line.Name, ctx.PendingNewProductName!))
+        {
+            var added = new Product
+            {
+                SellerId = seller.Id, Name = ctx.PendingNewProductName!, Price = line.Price,
+                UnitType = string.IsNullOrWhiteSpace(line.UnitType) ? "piece" : line.UnitType, UnitQty = line.UnitQty <= 0 ? 1 : line.UnitQty,
+                CostPrice = line.Extras?.Cost, StockQty = line.Extras?.Stock, Category = line.Extras?.Category,
+                Size = line.Extras?.Size, Color = line.Extras?.Color
+            };
+            _db.Products.Add(added);
+            await _db.SaveChangesAsync(ct);
+            ApplyResolvedProductToPendingItem(pending, ctx.PendingNewProductName!, new CatalogEntry(added, added.Name, Array.Empty<PriceTier>()));
+            var details = new List<string> { Formatters.Money(line.Price) };
+            if (line.Extras?.Cost is { } c) details.Add($"cost {Formatters.Money(c)}");
+            if (line.Extras?.Stock is { } st) details.Add($"stock {st}");
+            await ReplyAsync(seller, MessageTemplates.Get("order-flow.057", added.Name, string.Join(", ", details)), ct);
+            ctx.PendingNewProductName = null;
+            ctx.PendingMissingField = null;
+            await ContinueResolvingDraftAsync(seller, session, ctx, ct);
+            return;
+        }
 
         // A real command (e.g. "Dupatta - 600, cost 300") sent while the draft waits on "which product?" is not an answer: drop the draft and run it,
         // instead of searching the catalog for the command text over and over.

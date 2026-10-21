@@ -258,6 +258,9 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "gives ONE compact typed order, whatever the bot is waiting for: \"Hamira, 10 Lawn Suit, 2800 each\" (customer, quantity, product, price, then phone / address only if said). " +
             "Never copy, translate or transliterate the whole transcript into the rewrite; leave out filler and apologies. If the seller said the phone is not available now / will be given later, end the order with \", phone baad mein\"; a phone that was not mentioned at all is simply left out. " +
             "A rewrite is a short typed message, never a paragraph. " +
+            "(8) When the bot has just said that a product of the seller's order is NOT in the catalog and asks whether to add it, and the seller then talks about that product " +
+            "(\"chadar daal dein, sale price 10000, cost taqreeban 8500, stock 50\"), write ONE product line for it: \"Chadar - 10000, cost 8500, stock 50\" (only the parts said; " +
+            "an approximate number is written as that number). That line is the answer; do not write a sentence. " +
             "ORDER STATUS: the only statuses are pending, shipped, delivered, returned, cancelled (plus paid for payment). The command is \"mark <order id> <status>\" using the real id from the " +
             "latest orders list above (\"Order #13 Hassan\" -> 13; the numbers in the examples are NOT real). Map the seller's words by meaning: shipped = bhej diya / courier ko de diya / dispatch / ship kar do; " +
             "delivered = complete / completed / mukammal / ho chuka / customer ko mil gaya / pohanch gaya (an order that is \"complete\" is DELIVERED, never shipped); returned = wapas aa gaya; " +
