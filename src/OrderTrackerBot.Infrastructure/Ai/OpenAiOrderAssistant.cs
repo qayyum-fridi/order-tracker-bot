@@ -404,6 +404,18 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         }
     }
 
+    // The model sometimes offers its own intent names as taps ("new_order"); the seller must see words, and a typed command still works.
+    internal static string FriendlyOption(string option) => option.Trim().ToLowerInvariant() switch
+    {
+        "new_order" => "Naya order",
+        "status_update" => "Order ka status",
+        "add_products" => "Naya product",
+        "create_discount" => "Naya discount",
+        "customer_feedback" => "Customer feedback",
+        "support_query" => "Customer ka sawal",
+        _ => option
+    };
+
     internal static AiMessageAnalysis ParseAnalysis(string json)
     {
         using var doc = JsonDocument.Parse(json);
@@ -464,7 +476,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             IsOrderAttempt = root.TryGetProperty("is_order_attempt", out var isOrder) && isOrder.GetBoolean(),
             IsAmbiguousItemGrouping = root.TryGetProperty("is_ambiguous_item_grouping", out var ambEl) && ambEl.GetBoolean(),
             ClarificationQuestion = GetNullableString(root, "clarification_question"),
-            ClarificationOptions = options,
+            ClarificationOptions = options.Select(FriendlyOption).ToList(),
             Order = orders.FirstOrDefault(),
             AdditionalOrders = orders.Skip(1).ToList(),
             Feedback = feedback,

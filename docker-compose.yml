@@ -4,14 +4,14 @@ services:
       context: .
       args:
         GIT_SHA: ${GIT_SHA:-unknown} # export GIT_SHA=$(git rev-parse HEAD) before docker compose up --build
-    container_name: order-tracker-api
+    container_name: ${APP_NAME:-order-tracker-api}
     restart: unless-stopped
     # Keeps the bot from starving the client dashboard on the shared 1.6 GB VPS. Raise if `docker stats` shows OOM restarts.
     mem_limit: 512m
     ports:
-      - "127.0.0.1:8091:8080" # bind to localhost only — nginx on the host proxies to it
+      - "127.0.0.1:${HOST_PORT:-8091}:8080" # bind to localhost only — nginx on the host proxies to it
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Production}"
       Database__Provider: Sqlite
       ConnectionStrings__Default: "Data Source=/data/ordertrackerbot.db"
       WhatsApp__PhoneNumberId: "${WHATSAPP_PHONE_NUMBER_ID}"
@@ -59,8 +59,8 @@ services:
       - order-tracker-net
 
 volumes:
-  order-tracker-db-data:
+  order-tracker-db-data: # no explicit name: compose prefixes it with the project (-p), so a dev project gets its own volume
 
 networks:
   order-tracker-net:
-    name: order-tracker-net
+    name: ${NETWORK_NAME:-order-tracker-net}
