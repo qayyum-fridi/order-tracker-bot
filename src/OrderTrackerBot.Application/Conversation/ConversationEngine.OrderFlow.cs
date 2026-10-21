@@ -749,6 +749,11 @@ public partial class ConversationEngine
             var text = message.Trim();
             var newOrderInstead = ctx.PendingMissingField == "Phone" && !IsPlausiblePhone(text)
                 && System.Text.RegularExpressions.Regex.IsMatch(text, @"\p{L}{3,}") && (text.Any(char.IsDigit) || text.Contains(','));
+            // "Ayesha 0300…, Bilal 0312…" names the waiting customers: those are phones, not a new order.
+            if (newOrderInstead && System.Text.RegularExpressions.Regex.IsMatch(JoinSpacedPhones(text), @"\d{10}")
+                && new[] { ctx.PendingOrder! }.Concat(ctx.QueuedOrders ?? new List<PendingOrderData>())
+                    .Any(o => !string.IsNullOrWhiteSpace(o.CustomerName) && text.Contains(o.CustomerName.Trim(), StringComparison.OrdinalIgnoreCase)))
+                newOrderInstead = false;
             // A name is a few plain words: digits or several lines mean the seller sent a whole new order ("Sara 0300 1234567 / Kurti 2"), not a name.
             if (ctx.PendingMissingField == "CustomerName" && (text.Any(char.IsDigit) || text.Contains('\n') || text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length > 5))
                 newOrderInstead = true;
@@ -849,6 +854,20 @@ public partial class ConversationEngine
                 return;
 
             case "Phone":
+                // "Ayesha 0300 1111111, Bilal 0312 2222222": each phone goes to the order of the customer named just before it.
+                var waitingOrders = new[] { pending }.Concat(ctx.QueuedOrders ?? new List<PendingOrderData>()).Where(o => string.IsNullOrWhiteSpace(o.Phone) && !o.PaidInFull).ToList();
+                var namedPhones = System.Text.RegularExpressions.Regex.Matches(message.Replace("\n", ", "), @"(?<n>\p{L}[\p{L}. ]*?)\s*[:,\-]?\s*(?<p>\+?\d[\d \-]{8,16}\d)")
+                    .Select(m => (Name: m.Groups["n"].Value.Trim(' ', ',', '.'), Phone: JoinSpacedPhones(m.Groups["p"].Value).Replace("-", "")))
+                    .Where(x => IsPlausiblePhone(x.Phone)).ToList();
+                if (namedPhones.Count >= 2 && namedPhones.Count <= waitingOrders.Count
+                    && namedPhones.All(x => waitingOrders.Any(o => string.Equals(o.CustomerName?.Trim(), x.Name, StringComparison.OrdinalIgnoreCase))))
+                {
+                    foreach (var x in namedPhones)
+                        waitingOrders.First(o => string.Equals(o.CustomerName?.Trim(), x.Name, StringComparison.OrdinalIgnoreCase)).Phone = x.Phone;
+                    ctx.PendingMissingField = null;
+                    await ContinueResolvingDraftAsync(seller, session, ctx, ct);
+                    return;
+                }
                 // Several customers in one message: "first one X, second Y" fills this order and the queued ones in the same order.
                 var phones = System.Text.RegularExpressions.Regex.Matches(JoinSpacedPhones(message), @"(?<!\d)\d{10,13}(?!\d)").Select(m => m.Value).ToList();
                 var needPhone = new[] { pending }.Concat(ctx.QueuedOrders ?? new List<PendingOrderData>()).Where(o => string.IsNullOrWhiteSpace(o.Phone) && !o.PaidInFull).ToList();
@@ -1294,5 +1313,61 @@ public partial class ConversationEngine
         await ReplyAsync(seller, order is null
             ? MessageTemplates.Get("order-flow.038", feedback.CustomerName)
             : MessageTemplates.Get("order-flow.039", order.Id, order.Customer?.Name), ct);
+    }
+
+    // Choice / confirmation states: a stray message should be understood, not matched against a word list. Left out: setup / guide, the reset and payment-subscription
+    // confirmations (a wrong guess there costs more than a repeated question), the voice confirmation (own handler at the top) and the free-text modes (discount details,
+    // business info, payment method, support reply edit, order edit, receipt design), whose answers can be anything and which already let a real command leave.
+    private static readonly HashSet<ConversationState> AiRoutedStates = new()
+    {
+        ConversationState.AwaitingOrderConfirmation, ConversationState.AwaitingOrderMissingFields, ConversationState.AwaitingOrderGroupingChoice,
+        ConversationState.AwaitingMultiOrderConfirmation, ConversationState.AwaitingClarificationChoice, ConversationState.AwaitingCancelConfirmation,
+        ConversationState.AwaitingBulkStatusConfirmation, ConversationState.AwaitingDuplicateOrderConfirmation, ConversationState.AwaitingCodCollectedConfirmation,
+        ConversationState.AwaitingRuntimeFilterChoice, ConversationState.AwaitingCustomDateRange, ConversationState.AwaitingBroadcastChannelChoice,
+        ConversationState.AwaitingBroadcastAudienceChoice, ConversationState.AwaitingReceiptOrderChoice, ConversationState.AwaitingDeleteCustomerConfirmation, ConversationState.AwaitingLoyaltyDiscountConfirmation,
+        ConversationState.AwaitingSupportReplyConfirmation, ConversationState.AwaitingSupportQueryPick,
+        ConversationState.AwaitingImportConfirmation
+    };
+
+    // Free-text modes: the answer can be anything, so the AI is only asked about a long reply, and only a clear "new order" / "cancel" leaves the mode ("other" stays).
+    private static readonly HashSet<ConversationState> AiRoutedFreeTextStates = new()
+    {
+        ConversationState.AwaitingDiscountDetails, ConversationState.AwaitingBusinessInfo, ConversationState.AwaitingSupportReplyEdit,
+        ConversationState.AwaitingPaymentMethodInput, ConversationState.AwaitingOrderEdit, ConversationState.AwaitingReceiptDesign
+    };
+
+    /// <summary>
+    /// The bot waits for an answer (any of <see cref="AiRoutedStates"/>) and the reply is not an obvious one (yes / no / a number / a phone / one or two words): the AI, told what the
+    /// bot asked, says whether the reply answers it, is a new request (an order, a command, a question) or means "stop". Anything that is not an answer leaves the question and the
+    /// message is handled as a fresh one, so nobody is trapped by a question or has their message swallowed. Money-changing steps still end in the usual YES; with no AI, or when it
+    /// says "answer", the reply is handled exactly as before.
+    /// </summary>
+    private async Task<bool> TryRouteMidFlowReplyAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
+    {
+        var freeText = AiRoutedFreeTextStates.Contains(session.State);
+        if (!freeText && !AiRoutedStates.Contains(session.State)) return false;
+        if (session.State == ConversationState.AwaitingOrderMissingFields && (ctx.PendingOrder is null
+            || ctx.PendingMissingField is not ("Phone" or "CustomerName"))) return false;
+
+        var text = message.Trim();
+        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+        var obvious = IsPlausiblePhone(text) || CommandParser.IsAffirmative(text) || CommandParser.IsNegative(text) || CommandParser.IsAcknowledgement(text)
+            || CancelWords.Contains(text) || (text.Length <= 3 && text.All(char.IsDigit))
+            || (words <= 2 && !text.Any(char.IsDigit) && !text.Contains('\n'))
+            || Array.IndexOf(ConfirmButtonLabels, text) >= 0;
+        if (obvious || (freeText && (words < 4 || CommandParser.TryParse(text) is not null))) return false;
+
+        var route = await _ai.ClassifyMidFlowReplyAsync(DescribeVoiceSituation(seller, ctx), message, ct);
+        if (route is not ("new_order" or "cancel" or "other") || (freeText && route == "other")) return false;
+
+        ResetFlowContext(ctx);
+        SetState(session, ConversationState.Idle);
+        if (route == "cancel")
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("order-flow.015"), ct);
+            return true;
+        }
+        await HandleIdleAsync(seller, session, ctx, message, ct);
+        return true;
     }
 }

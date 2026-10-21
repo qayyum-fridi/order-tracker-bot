@@ -18,3 +18,8 @@ obj/
 .DS_Store
 
 *.stackdump
+
+# local dev database snapshots
+*.db.bak*
+*.db-wal
+*.db-shm

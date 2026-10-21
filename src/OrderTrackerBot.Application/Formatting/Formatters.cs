@@ -144,13 +144,13 @@ public static class Formatters
     public static string ReturningGreeting(string language, string? businessName, int pending, int unpaid) =>
         Lang.Normalize(language) switch
         {
-            Lang.UrduScript => $"سلام {businessName}! 👋 واپس آنے پر خوشی ہوئی۔\n\n" +
+            Lang.UrduScript => $"سلام {businessName}! 👋\n\n" +
                                $"Quick stats: {pending} pending orders, {unpaid} unpaid۔\n" +
                                "\"menu\" لکھیں options کے لیے، یا سیدھا order بھیج دیں۔",
-            Lang.English => $"Welcome back, {businessName}! 👋\n\n" +
+            Lang.English => $"Hello, {businessName}! 👋\n\n" +
                             $"Quick stats: {pending} pending orders, {unpaid} unpaid.\n" +
                             "Type \"menu\" for options, or forward an order directly.",
-            _ => $"Salam {businessName}! 👋 Wapas aane par khushi hui.\n\n" +
+            _ => $"Salam {businessName}! 👋\n\n" +
                  $"Quick stats: {pending} pending orders, {unpaid} unpaid.\n" +
                  "Type \"menu\" for options, ya seedha order bhej dein."
         };
