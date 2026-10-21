@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -127,15 +128,8 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
 
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, $"{_options.BaseUrl.TrimEnd('/')}/chat/completions")
-            {
-                Content = JsonContent.Create(requestBody)
-            };
-            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.ApiKey);
-
             var clock = System.Diagnostics.Stopwatch.StartNew();
-            var response = await _httpClient.SendAsync(request, cancellationToken);
-            response.EnsureSuccessStatusCode();
+            using var response = await SendWithRetryAsync("chat/completions", requestBody, cancellationToken);
 
             var payload = await response.Content.ReadFromJsonAsync<JsonObject>(cancellationToken: cancellationToken);
             var content = payload?["choices"]?[0]?["message"]?["content"]?.GetValue<string>();
@@ -169,11 +163,8 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
                 ["model"] = _options.EmbeddingModel,
                 ["input"] = new JsonArray(texts.Select(t => (JsonNode?)JsonValue.Create(t.Length > 500 ? t[..500] : t)).ToArray())
             };
-            using var request = new HttpRequestMessage(HttpMethod.Post, $"{_options.BaseUrl.TrimEnd('/')}/embeddings") { Content = JsonContent.Create(body) };
-            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.ApiKey);
             var clock = System.Diagnostics.Stopwatch.StartNew();
-            var response = await _httpClient.SendAsync(request, cancellationToken);
-            response.EnsureSuccessStatusCode();
+            using var response = await SendWithRetryAsync("embeddings", body, cancellationToken);
             var payload = await response.Content.ReadFromJsonAsync<JsonObject>(cancellationToken: cancellationToken);
             if (payload?["data"] is not JsonArray data || data.Count != texts.Count) return null;
             var vectors = data.Select(d => d?["embedding"] is JsonArray v ? v.Select(x => (float)(x?.GetValue<double>() ?? 0)).ToArray() : Array.Empty<float>()).ToList();
@@ -458,6 +449,44 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         }
     }
 
+    /// <summary>
+    /// POSTs a JSON body and returns a successful response. A dropped connection, 429 or 5xx is tried once more after a short pause
+    /// (the seller is waiting, so only one retry); other 4xx and cancellations fail at once.
+    /// </summary>
+    private async Task<HttpResponseMessage> SendWithRetryAsync(string path, JsonObject body, CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Post, $"{_options.BaseUrl.TrimEnd('/')}/{path}")
+                {
+                    Content = JsonContent.Create(body)
+                };
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.ApiKey);
+                var response = await _httpClient.SendAsync(request, cancellationToken);
+                if (response.IsSuccessStatusCode) return response;
+
+                var status = response.StatusCode;
+                var retryable = status == (HttpStatusCode)429 || (int)status >= 500;
+                if (!retryable || attempt >= 2)
+                {
+                    try { response.EnsureSuccessStatusCode(); }
+                    finally { response.Dispose(); }
+                }
+                response.Dispose();
+                _logger.LogWarning("OpenAI {Path} answered {Status} — retrying once.", path, (int)status);
+            }
+            catch (HttpRequestException ex) when (attempt < 2 && ex.StatusCode is null)
+            {
+                _logger.LogWarning(ex, "OpenAI {Path} connection failed — retrying once.", path);
+            }
+            await Task.Delay(RetryDelay, cancellationToken);
+        }
+    }
+
+    internal TimeSpan RetryDelay { get; set; } = TimeSpan.FromMilliseconds(400);
+
     /// <summary>A plain single-turn completion; null when AI is unavailable or fails (every caller has a non-AI fallback).</summary>
     private async Task<string?> CompleteTextAsync(string systemPrompt, string userText, double temperature, string purpose,
         CancellationToken cancellationToken, bool jsonMode = false, string? model = null)
@@ -478,15 +507,8 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             };
             if (jsonMode) requestBody["response_format"] = new JsonObject { ["type"] = "json_object" };
 
-            using var request = new HttpRequestMessage(HttpMethod.Post, $"{_options.BaseUrl.TrimEnd('/')}/chat/completions")
-            {
-                Content = JsonContent.Create(requestBody)
-            };
-            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.ApiKey);
-
             var clock = System.Diagnostics.Stopwatch.StartNew();
-            var response = await _httpClient.SendAsync(request, cancellationToken);
-            response.EnsureSuccessStatusCode();
+            using var response = await SendWithRetryAsync("chat/completions", requestBody, cancellationToken);
             var payload = await response.Content.ReadFromJsonAsync<JsonObject>(cancellationToken: cancellationToken);
             _logger.LogInformation("OpenAI {Purpose} took {Ms} ms", purpose, clock.ElapsedMilliseconds);
             var text = payload?["choices"]?[0]?["message"]?["content"]?.GetValue<string>()?.Trim();
