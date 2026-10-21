@@ -457,6 +457,15 @@ public partial class ConversationEngine
             await ExecuteCommandAsync(seller, session, ctx, similarCommand, ct);
             return;
         }
+        // Level 3 prototype: no shared words at all, but the same MEANING as something this seller taught.
+        if (command is null && await SemanticLearnedCandidateAsync(ctx, message, ct) is { } semantic
+            && await _ai.ConfirmSamePhraseAsync(semantic.Phrase, message, ct) == true
+            && CommandParser.TryParse(semantic.Command) is { } semanticCommand && !ActionRisk.RiskyCommands.Contains(semanticCommand.Kind))
+        {
+            _logger?.LogInformation("Learned phrase used (semantic): {Kind} score {Score:0.00}", semanticCommand.Kind, semantic.Score);
+            await ExecuteCommandAsync(seller, session, ctx, semanticCommand, ct);
+            return;
+        }
         if (command is not null)
         {
             // A loose rule (keywords in any order) may have matched a sentence that is really something else, e.g. an order: ask the AI before running it.
@@ -615,6 +624,9 @@ public sealed class FeatureOptions
 
     /// <summary>Log every message the bot could NOT understand (path, state and the seller's text) so the owner can see which real phrasings fail. The log holds seller text: keep it off if that is not acceptable. Off = nothing logged (unit tests).</summary>
     public bool TurnLog { get; set; }
+
+    /// <summary>Prototype: a sentence that means the same as a taught phrase (found with embeddings, confirmed by the AI) runs the taught command. Off = nothing changes (unit tests).</summary>
+    public bool SemanticLearning { get; set; }
 
     /// <summary>Public link to the illustrated English/Urdu guide, sent with the Guide command. Empty = no link.</summary>
     public string GuideUrl { get; set; } = "";

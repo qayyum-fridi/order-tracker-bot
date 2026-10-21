@@ -42,7 +42,18 @@ release:     CI (build + tests) -> deploy
 ```
 Why not automatic across sellers: one seller's wrong choice would teach everyone, a seller's private text would leak into other sellers' prompts, and an attacker could poison the bot. A human reads, generalises and tests first.
 
-## Level 3 — designed, NOT built
+## Level 3 — semantic prototype (built, `Features:SemanticLearning`)
+```
+the seller wrote S'; rules, exact learned and lexical-similar all missed
+   ├─ seller taught something (≥ 1 phrase confirmed twice, command not risky), S' is short (≤ 10 words, < 3 digits)
+   ├─ ONE embeddings call for [S', taught phrases ...]  (text-embedding-3-small, OpenAi:EmbeddingModel)
+   ├─ cosine similarity; best ≥ 0.78 is a CANDIDATE ("SemanticCandidate best=0.83" in the log)
+   ├─ the AI answers "same request? yes/no" (ConfirmSamePhraseAsync)
+   └─ yes ─► run the taught command ("Learned phrase used (semantic): <Kind> score 0.83")
+```
+Not automatic execution on similarity alone: the AI must agree, and risky commands are excluded. Costs one embeddings call (and one small AI call on a candidate) only for sellers who taught something. Measure with the `SemanticCandidate` and `Learned phrase used (semantic)` lines. Off with `Features:SemanticLearning=false`. Prototype limits: taught phrases are re-embedded on every call (max 40), the 0.78 threshold is a guess, and Roman Urdu embeddings quality is unmeasured.
+
+## Level 3 — designed further, NOT built
 
 1. **Alias memory:** when the seller answers "yeh kisi existing product ka doosra naam hai" for an unknown product, remember `chadar -> Dupatta` for that seller and tell the order reader (`Dupatta [also called: chadar]`) so it matches by itself next time. Needs the order prompt to return the main name only.
 2. **Few-shot memory:** keep the last N seller-confirmed pairs (sentence -> what it meant) and put the 5 most similar into the AI prompt for that seller. Needs an embedding or keyword similarity step and a per-seller store (new table, SQL Server migration).
