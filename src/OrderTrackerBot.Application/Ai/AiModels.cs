@@ -140,6 +140,12 @@ public interface IAiOrderAssistant
     Task<string?> ClassifyMidFlowReplyAsync(string situation, string message, CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
 
     /// <summary>
+    /// A loose rule guessed that the message is the bot command <paramref name="commandKind"/>: does it really ask for that? <c>false</c> = it is something else
+    /// (typically a new order or another request), so the AI order reader should handle it; <c>null</c> = unknown / no AI (keep the rule's answer).
+    /// </summary>
+    Task<bool?> ConfirmCommandMatchAsync(string message, string commandKind, CancellationToken cancellationToken = default) => Task.FromResult<bool?>(null);
+
+    /// <summary>
     /// Translates bot messages from Roman Urdu into <paramref name="targetLanguage"/> (a <c>Lang</c> constant), one result per input in the
     /// same order. Null when AI is unavailable or the result is unusable — callers send the original text instead.
     /// </summary>

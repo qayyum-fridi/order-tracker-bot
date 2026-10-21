@@ -443,11 +443,32 @@ public partial class ConversationEngine
         var command = CommandParser.TryParse(message);
         if (command is not null)
         {
+            // A loose rule (keywords in any order) may have matched a sentence that is really something else, e.g. an order: ask the AI before running it.
+            if (await LooseRuleMatchIsWrongAsync(command, message, ct))
+            {
+                LogNotUnderstood("rule-overruled-" + command.Kind, session.State, message);
+                await HandleFreeformMessageAsync(seller, session, ctx, message, ct);
+                return;
+            }
             await ExecuteCommandAsync(seller, session, ctx, command, ct);
             return;
         }
 
         await HandleFreeformMessageAsync(seller, session, ctx, message, ct);
+    }
+
+    // Commands the parser finds by LOOSE rules (keyword combinations, fuzzy names). Exact commands ("orders today", "mark 3 shipped") are never second-guessed.
+    private static readonly HashSet<CommandKind> LooseRuleKinds = new()
+    {
+        CommandKind.Insight, CommandKind.FuzzyStatusUpdate, CommandKind.CustomerOrderLookup, CommandKind.ProductReport, CommandKind.CustomerSearch, CommandKind.HowTo
+    };
+
+    private async Task<bool> LooseRuleMatchIsWrongAsync(ParsedCommand command, string message, CancellationToken ct)
+    {
+        if (!LooseRuleKinds.Contains(command.Kind) || message.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length < 5) return false;
+        var fits = await _ai.ConfirmCommandMatchAsync(message, command.Kind.ToString(), ct);
+        _logger?.LogInformation("RuleCheck kind={Kind} fits={Fits}", command.Kind, fits?.ToString() ?? "unknown");
+        return fits == false;
     }
 
     private async Task PersistAsync(ConversationSession session, SessionContextData ctx, CancellationToken ct)
