@@ -348,7 +348,7 @@ public partial class ConversationEngine
             pending.Phone = null;
         }
 
-        if (string.IsNullOrWhiteSpace(pending.Phone) && !pending.PaidInFull)
+        if (string.IsNullOrWhiteSpace(pending.Phone) && !pending.PaidInFull && !pending.PhoneLater)
         {
             ctx.PendingMissingField = "Phone";
             SetState(session, ConversationState.AwaitingOrderMissingFields);
@@ -720,6 +720,10 @@ public partial class ConversationEngine
         return digits is >= 10 and <= 13 && !phone.Any(char.IsLetter);
     }
 
+    private static readonly System.Text.RegularExpressions.Regex PhoneLaterWords = new(
+        @"^\s*(?:skip|later|baad\s*mein|abhi\s*nahi|(?:phone|number|nambar|no)\b.{0,25}?\b(?:nahi|nahin|nhi|baad|later|skip)|.{0,40}\b(?:baad\s*mein|baad\s*me|bad\s*mein|later)\b.{0,30}(?:update|de\s*dun|dunga|dungi|bata|likh)|bina\s*(?:phone|number)|without\s*(?:phone|number))",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.Compiled);
+
     private async Task HandleOrderMissingFieldAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         var pending = ctx.PendingOrder!;
@@ -750,6 +754,15 @@ public partial class ConversationEngine
         }
 
         // "cancel" is offered on the phone / name question, so it must work there; so must a whole new order message sent instead of the answer.
+        // "Phone abhi nahi hai, baad mein update kar dunga" / "skip": save the order without a phone (it is added later with "<naam> ka phone 0300…").
+        if (ctx.PendingMissingField == "Phone" && PhoneLaterWords.IsMatch(message.Trim()) && !System.Text.RegularExpressions.Regex.IsMatch(JoinSpacedPhones(message), @"\d{10}"))
+        {
+            pending.PhoneLater = true;
+            ctx.PendingMissingField = null;
+            await ContinueResolvingDraftAsync(seller, session, ctx, ct);
+            return;
+        }
+
         if (ctx.PendingMissingField is "Phone" or "CustomerName")
         {
             var text = message.Trim();
@@ -1364,6 +1377,13 @@ public partial class ConversationEngine
         if (obvious || (freeText && (words < 4 || CommandParser.TryParse(text) is not null))) return false;
 
         var route = await _ai.ClassifyMidFlowReplyAsync(DescribeVoiceSituation(seller, ctx), message, ct);
+        if (route == "skip" && ctx.PendingMissingField == "Phone" && ctx.PendingOrder is { } noPhone)
+        {
+            noPhone.PhoneLater = true;
+            ctx.PendingMissingField = null;
+            await ContinueResolvingDraftAsync(seller, session, ctx, ct);
+            return true;
+        }
         if (route is not ("new_order" or "cancel" or "other") || (freeText && route == "other")) return false;
 
         ResetFlowContext(ctx);

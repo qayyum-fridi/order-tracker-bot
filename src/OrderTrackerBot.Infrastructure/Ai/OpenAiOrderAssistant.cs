@@ -163,18 +163,18 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
     {
         var json = await CompleteTextAsync(
             "A WhatsApp order-tracking bot for a small shop owner (the seller) just asked the seller a question. The seller's reply may be in Roman Urdu, Urdu script or English. " +
-            "Decide what the reply is. Return ONLY JSON {\"route\": \"answer\"|\"new_order\"|\"cancel\"|\"other\"}. " +
+            "Decide what the reply is. Return ONLY JSON {\"route\": \"answer\"|\"new_order\"|\"cancel\"|\"skip\"|\"other\"}. " +
             "answer = it answers the bot's question (e.g. a phone number or a customer name when that is what was asked). " +
             "new_order = it is a new order or a list of items for some customer, not an answer to the question. " +
             "cancel = the seller wants to stop / drop / forget the order in progress (any wording, e.g. \"chhor do\", \"rehne do\", \"yeh nahi chahiye\", \"cancel kardein\"). " +
-            "other = anything else (a different request or a question). When unsure between answer and another route, choose answer.",
+            "skip = the seller was asked for a phone number and says they do not have it now / will add it later (\"abhi number nahi hai, baad mein de dunga\"): the order should be saved without it. other = anything else (a different request or a question). When unsure between answer and another route, choose answer.",
             $"Bot's question / situation: {situation}\nSeller's reply: {message}", 0, "mid-flow reply routing", cancellationToken, jsonMode: true);
         if (json is null) return null;
         try
         {
             using var doc = JsonDocument.Parse(json);
             var route = doc.RootElement.TryGetProperty("route", out var r) && r.ValueKind == JsonValueKind.String ? r.GetString() : null;
-            return route is "answer" or "new_order" or "cancel" or "other" ? route : null;
+            return route is "answer" or "new_order" or "cancel" or "skip" or "other" ? route : null;
         }
         catch (JsonException)
         {
