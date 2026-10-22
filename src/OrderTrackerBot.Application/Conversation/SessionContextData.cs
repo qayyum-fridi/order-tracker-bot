@@ -172,6 +172,9 @@ public sealed class SessionContextData
     public DateTime? PendingVoiceContinueAt { get; set; }
     /// <summary>WhatsApp ids of the latest voice notes that were handled (newest last). A reply to one of them is not run again.</summary>
     public List<string>? ProcessedVoiceNoteIds { get; set; }
+    /// <summary>Action log ids (exclusive start, inclusive end) made by the last voice note, for "undo note".</summary>
+    public int LastVoiceNoteStartLogId { get; set; }
+    public int LastVoiceNoteEndLogId { get; set; }
     public string? SelectedPlan { get; set; }
     /// <summary>Support query whose drafted reply is awaiting YES/EDIT.</summary>
     public int? SupportQueryId { get; set; }

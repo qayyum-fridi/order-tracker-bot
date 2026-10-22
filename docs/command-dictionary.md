@@ -33,6 +33,7 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 | Delivery charge | `delivery 200` (default) · `free delivery` | `order 12 delivery 300` |
 | Order note | `note 12 gift wrap` | `note 12 off` |
 | Undo the last action | `undo` | |
+| Undo everything the last voice note did | `undo note` | |
 
 ## Receipts, labels, printing
 

@@ -463,6 +463,9 @@ public partial class ConversationEngine
             case CommandKind.Undo:
                 await HandleUndoAsync(seller, ct);
                 return;
+            case CommandKind.UndoNote:
+                await HandleUndoNoteAsync(seller, ct);
+                return;
             case CommandKind.PaymentLink:
                 await HandlePaymentLinkAsync(seller,
                     new ParsedCommand { Kind = CommandKind.PaymentLink, Number = cmd.Number is { } n ? ResolveListNumber(ctx, n).OrderId : null }, ct);

@@ -32,6 +32,7 @@ public enum CommandKind
     MarkAllPendingShipped,
     CancelOrder,
     Undo,
+    UndoNote,
     PaymentLink,
     AddPaymentMethod,
     UnpaidOrders,
@@ -742,6 +743,7 @@ public static class CommandParser
     private static readonly Regex FlatOff = new(@"^(?<code>[A-Za-z][A-Za-z0-9_-]{1,29})\s*,\s*(?:rs\.?\s*)?(?<n>\d+)\s*(?:rs\.?|rupay|rupees)?\s*off$", Opts);
     private static readonly Regex CancelOrder = new(@"^cancel\s+(?:order\s+)?#?(\d+)$", Opts);
     private static readonly Regex Undo = new(@"^undo$", Opts);
+    private static readonly Regex UndoNote = new(@"^(?:undo\s+note|note\s+undo)$", Opts);
     private static readonly Regex PaymentLink = new(@"^payment\s+link(?:\s+(\d+))?$", Opts);
     private static readonly Regex AddPaymentMethod = new(@"^add\s+payment:\s*(jazzcash|easypaisa|bank|safepay)\s*(?:,\s*(.+))?$", Opts);
     private static readonly Regex UnpaidOrders = new(@"^(?:unpaid\s+orders?|pending\s+payments?|payment\s+due\s+list)$", Opts);
@@ -1442,6 +1444,7 @@ public static class CommandParser
         if ((m = CancelOrder.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.CancelOrder, Number = int.Parse(m.Groups[1].Value) };
 
+        if (UndoNote.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.UndoNote };
         if (Undo.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Undo };
 
         if ((m = PaymentLink.Match(message)).Success)
