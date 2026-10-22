@@ -1121,6 +1121,7 @@ public class MockupFeatureTests : IDisposable
         var voice = VoiceEngine(db, "آرڈر منسوخ کر دو");
         _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiVoiceInterpretation { Steps = { "cancel order" }, Spans = { "آرڈر منسوخ" } });
+        AiReturns(new AiMessageAnalysis { Intent = "unclear" });
         _sent.Clear();
 
         await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.urdu");
