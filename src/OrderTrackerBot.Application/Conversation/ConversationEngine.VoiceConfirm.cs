@@ -90,7 +90,12 @@ public partial class ConversationEngine
         ctx.PendingVoiceContinue = null;
         ctx.PendingVoiceContinueAt = null;
         await PersistAsync(session, ctx, ct);
-        if (stale) return;
+        if (stale)
+        {
+            await _sender.SendTextMessageAsync(fromPhoneNumber,
+                MessageTemplates.Get("voice-confirm.010", string.Join("  →  ", rest.Select(s => $"\"{s}\""))), ct);
+            return;
+        }
         await RunVoiceStepsAsync(fromPhoneNumber, rest, ct);
     }
 
