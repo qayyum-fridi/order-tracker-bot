@@ -1,5 +1,6 @@
 {
   "voice-confirm.001": "⚠️ Order edit shuru nahi ho saka (order nahi mila?) — baqi steps nahi chalaye. Order number ke saath dobara try karein.",
   "voice-confirm.002": "⚠️ Yeh purani baat thi, is dauran order badal chuka hai. Kuch nahi chalaya — dobara bolein ya likh kar bhejein.",
-  "voice-confirm.003": "👍 Theek hai, kuch nahi badla."
+  "voice-confirm.003": "👍 Theek hai, kuch nahi badla.",
+  "voice-confirm.004": "⚠️ Voice note ke baqi orders chhod diye gaye, kyunki order ka draft abhi khula tha. Baqi orders dobara bhejein."
 }

@@ -39,6 +39,21 @@ public partial class ConversationEngine
     /// Runs the voice steps that waited for an order draft, once the seller's answer to that draft has returned the session to Idle.
     /// Only when the message just handled was answering a draft, so an unrelated later message never replays them.
     /// </summary>
+    /// <summary>
+    /// The open order draft was put on hold by an unrelated message, so the voice steps waiting for it are dropped; the seller is told to resend them.
+    /// </summary>
+    private async Task DropParkedVoiceStepsAsync(string fromPhoneNumber, CancellationToken ct)
+    {
+        var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
+        var session = seller.Session!;
+        var ctx = SessionContextData.FromJson(session.ContextJson);
+        if (ctx.PendingVoiceContinue is not { Count: > 0 }) return;
+
+        ctx.PendingVoiceContinue = null;
+        await PersistAsync(session, ctx, ct);
+        await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("voice-confirm.004"), ct);
+    }
+
     private async Task ResumeVoiceContinueAsync(string fromPhoneNumber, bool answeredDraft, CancellationToken ct)
     {
         if (!answeredDraft) return;
