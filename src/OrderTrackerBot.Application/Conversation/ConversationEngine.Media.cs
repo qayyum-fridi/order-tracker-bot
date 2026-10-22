@@ -280,7 +280,16 @@ public partial class ConversationEngine
     {
         var spoken = SpeechWords(span);
         if (spoken.Trim().Length == 0) return null;
-        if (!SpeechWords(transcript).Contains(spoken)) return ("span is not in the transcript", "voice-confirm.008");
+        if (!SpeechWords(transcript).Contains(spoken))
+        {
+            // The span is spelled differently ("pachis" for "pachees") but every amount of the step was said: the step may run.
+            // Without an amount there is nothing to confirm the step against, so it is still dropped.
+            var stepAmounts = SpokenNumbers.Amounts(step);
+            var said = SpokenNumbers.Amounts(transcript);
+            return stepAmounts.Count > 0 && stepAmounts.All(a => said.Contains(a) || known.Contains(a))
+                ? null
+                : ("span is not in the transcript", "voice-confirm.008");
+        }
         var spanAmounts = SpokenNumbers.Amounts(span);
         return SpokenNumbers.Amounts(step).Any(a => !spanAmounts.Contains(a) && !known.Contains(a))
             ? ("amount is not in the step's own words", "voice-confirm.007")
