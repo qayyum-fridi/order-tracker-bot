@@ -166,6 +166,8 @@ public sealed class SessionContextData
     public string? ResetGenerationId { get; set; }
     /// <summary>Newest action-log id for the seller when the steps were parked. Any change since then (a new order, edit, undo...) makes the YES stale.</summary>
     public int PendingVoiceLogId { get; set; }
+    /// <summary>Voice steps after an order draft; they run once that draft is saved, edited or cancelled (one draft at a time).</summary>
+    public List<string>? PendingVoiceContinue { get; set; }
     public string? SelectedPlan { get; set; }
     /// <summary>Support query whose drafted reply is awaiting YES/EDIT.</summary>
     public int? SupportQueryId { get; set; }

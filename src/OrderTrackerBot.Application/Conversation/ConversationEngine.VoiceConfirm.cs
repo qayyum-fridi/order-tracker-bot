@@ -32,6 +32,26 @@ public partial class ConversationEngine
         return false;
     }
 
+    private static bool IsOrderDraftState(ConversationState state) =>
+        state is ConversationState.AwaitingOrderConfirmation or ConversationState.AwaitingOrderMissingFields;
+
+    /// <summary>
+    /// Runs the voice steps that waited for an order draft, once the seller's answer to that draft has returned the session to Idle.
+    /// Only when the message just handled was answering a draft, so an unrelated later message never replays them.
+    /// </summary>
+    private async Task ResumeVoiceContinueAsync(string fromPhoneNumber, bool answeredDraft, CancellationToken ct)
+    {
+        if (!answeredDraft) return;
+        var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
+        var session = seller.Session!;
+        var ctx = SessionContextData.FromJson(session.ContextJson);
+        if (ctx.PendingVoiceContinue is not { Count: > 0 } rest || session.State != ConversationState.Idle) return;
+
+        ctx.PendingVoiceContinue = null;
+        await PersistAsync(session, ctx, ct);
+        await RunVoiceStepsAsync(fromPhoneNumber, rest, ct);
+    }
+
     /// <summary>A parked YES is valid for this long; after that the seller must say the instruction again.</summary>
     private static readonly TimeSpan VoiceConfirmWindow = TimeSpan.FromMinutes(10);
 
@@ -44,7 +64,19 @@ public partial class ConversationEngine
         for (var i = 0; i < steps.Count; i++)
         {
             await HandleIncomingMessageAsync(fromPhoneNumber, steps[i], ct);
-            if (i == steps.Count - 1 || CommandParser.TryParse(steps[i])?.Kind != CommandKind.EditOrder) continue;
+            if (i == steps.Count - 1) return;
+
+            // An order draft is answered by the seller (Save / Edit / Cancel) before the next order is started: the rest waits here.
+            var session = (await LoadOrCreateSellerAsync(fromPhoneNumber, ct)).Session!;
+            if (IsOrderDraftState(session.State))
+            {
+                var ctx = SessionContextData.FromJson(session.ContextJson);
+                ctx.PendingVoiceContinue = steps.Skip(i + 1).ToList();
+                await PersistAsync(session, ctx, ct);
+                return;
+            }
+
+            if (CommandParser.TryParse(steps[i])?.Kind != CommandKind.EditOrder) continue;
 
             var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
             if (seller.Session!.State == ConversationState.AwaitingOrderEdit) continue;

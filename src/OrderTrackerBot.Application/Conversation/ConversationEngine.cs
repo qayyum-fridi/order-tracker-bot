@@ -103,7 +103,9 @@ public partial class ConversationEngine
         _turnCtx = null;
         _stockWarnings.Clear();
         if (await TryHandleVoiceConfirmationAsync(fromPhoneNumber, rawMessage, ct)) return;
+        var answeredDraft = IsOrderDraftState((await LoadOrCreateSellerAsync(fromPhoneNumber, ct)).Session!.State);
         await HandleIncomingCoreAsync(fromPhoneNumber, rawMessage, ct);
+        await ResumeVoiceContinueAsync(fromPhoneNumber, answeredDraft, ct);
         await FlushStockWarningsAsync(fromPhoneNumber, ct);
         await TrySendShortcutBarAsync(fromPhoneNumber, ct);
     }
