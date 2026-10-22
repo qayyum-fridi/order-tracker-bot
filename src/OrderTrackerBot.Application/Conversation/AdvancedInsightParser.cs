@@ -86,6 +86,9 @@ internal static class AdvancedInsightParser
     private static readonly Regex Damaged = W(@"kharab|gum|lost|damage\w*|خراب|گم");
     private static readonly Regex StockOrCatalog = W(@"stock|catalog|maal|suit|سوٹ|کیٹلاگ|اسٹاک|مال");
     private static readonly Regex Sensitive = W(@"drop|kam\s+ho|sensitiv\w*|asar|ڈراپ|اثر");
+    private static readonly Regex CashWord = W(@"cash|paisa|paise|raqam|wasooli|پیسہ|پیسے|رقم|کیش|نقد");
+    private static readonly Regex ForecastWord = W(@"forecast|projection|predict\w*|andaza|andaaza|اندازہ");
+    private static readonly Regex FutureWord = W(@"agle|aglay|next|aane\s+wale|آنے\s+والے|اگلے");
     private static readonly Regex CashSales = W(@"cash\s+sales?|cash\s+flow|نقد\s+سیلز|کیش\s+فلو");
     private static readonly Regex CodeWord = W(@"code|coupon|کوڈ");
     private static readonly Regex Cannibal = W(@"cannibal\w*|veisay|waisay|ویسے|سستے\s+میں|سستے\s+ریٹ");
@@ -176,6 +179,7 @@ internal static class AdvancedInsightParser
         if ((Return.IsMatch(text)) && Damaged.IsMatch(text) && StockOrCatalog.IsMatch(text)) return Topic("rtostock");
         if (DeliveryCharge.IsMatch(text) && FromTo.IsMatch(text) && Sensitive.IsMatch(text) && FromTo.Match(text) is { Success: true } chg
             && decimal.TryParse(chg.Groups["b"].Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var newCharge)) return Topic("chargeeffect", newCharge);
+        if (CashWord.IsMatch(text) && (ForecastWord.IsMatch(text) || (FutureWord.IsMatch(text) && DaysNumber.IsMatch(text))) && !Supplier.IsMatch(text)) return Topic("cashforecast", Math.Clamp(Days(text, 30), 1, 365));
         if (Expense.IsMatch(text) && CashSales.IsMatch(text)) return Topic("cashflow");
         if (Drawer.IsMatch(text) && Regex.IsMatch(text, @"band|close|بند", Opts) && Supplier.IsMatch(text) && Regex.IsMatch(text, @"bank|بینک|jama|جمع", Opts)) return Topic("cashplan", MoneyAmount(text) ?? (FirstNumber(text) is >= 100 and var amt ? amt : null));
         if (CodeWord.IsMatch(text) && (Discount.IsMatch(text) || Regex.IsMatch(text, @"\b[A-Z]{2,}\d{1,3}\b", RegexOptions.None)) && (Cannibal.IsMatch(text) || Regex.IsMatch(text, @"munafa|منافع|profit|barha|بڑھا", Opts)) && (Sale.IsMatch(text) || Cannibal.IsMatch(text))) return Topic("promoroi");

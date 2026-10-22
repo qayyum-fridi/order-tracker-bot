@@ -92,6 +92,18 @@ public class ClientController(ClientQueries queries) : ControllerBase
         return Ok(await queries.AnalysisAsync(SellerId, range, ct));
     }
 
+    /// <summary>Expected cash for the next N days (default 30, 1-365), from the last 30 days' pace. Same numbers as the bot's "cash forecast".</summary>
+    [HttpGet("cash-forecast")]
+    public async Task<ActionResult<CashForecastDto>> CashForecast(
+        [FromQuery] int days, [FromServices] OrderTrackerBot.Application.Abstractions.IAppDbContext db, CancellationToken ct)
+    {
+        if (days == 0) days = 30;
+        if (days is < 1 or > CashForecaster.MaxDays) return BadRequest(new { error = $"Days must be between 1 and {CashForecaster.MaxDays}." });
+        var f = await CashForecaster.ComputeAsync(db, SellerId, days, DateTime.UtcNow, ct);
+        return Ok(new CashForecastDto(f.Days, f.HistoryDays, f.DailyIn, f.DailyOut, f.ExpectedIn, f.ExpectedOut, f.Net, f.Receivables, f.HasHistory,
+            f.Steps.Select(s => new CashForecastStepDto(s.ToDay, s.In, s.Out, s.Cumulative)).ToList()));
+    }
+
     /// <summary>A report as a table, the same numbers as the CSV download. Group (day, week or month) applies to the sales report.</summary>
     [HttpGet("reports/{id}")]
     public async Task<ActionResult<ReportTableDto>> Report(
