@@ -57,6 +57,16 @@ public class AdminReportsController : ControllerBase
     public async Task<ActionResult<UnplacedReportDto>> Unplaced([FromQuery] int days = 7, CancellationToken ct = default) =>
         Ok(await UnplacedReport.BuildAsync(_db, Math.Clamp(days, 1, 90), DateTime.UtcNow, ct));
 
+    /// <summary>CSV of voice notes (heard / understood / bot reply, empty verdict columns) for a person to mark; default last 7 days.</summary>
+    [HttpGet("reports/voice-review")]
+    public async Task<IActionResult> VoiceReview([FromQuery] int days = 7, CancellationToken ct = default)
+    {
+        var csv = await VoiceReviewCsv.BuildAsync(_db, days, DateTime.UtcNow, ct);
+        // UTF-8 with a BOM so Excel shows Urdu script correctly.
+        var bytes = new System.Text.UTF8Encoding(true).GetPreamble().Concat(System.Text.Encoding.UTF8.GetBytes(csv)).ToArray();
+        return File(bytes, "text/csv; charset=utf-8", "voice-review.csv");
+    }
+
     /// <summary>Per-day sellers, active sellers, messages, orders, revenue, errors and issues for a date range (default: last 30 days).</summary>
     [HttpGet("reports/daily")]
     public async Task<ActionResult<DailyReportDto>> Daily([FromQuery] string? from, [FromQuery] string? to, CancellationToken ct)
