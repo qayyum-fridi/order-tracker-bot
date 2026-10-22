@@ -1072,7 +1072,7 @@ public class MockupFeatureTests : IDisposable
         var engine = await OnboardAsync(db);
         var voice = VoiceEngine(db, "lawn suit 2500 rupay");
         _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "orders today" }, Actions = { "command" }, Spans = { "pachis sau rupay" } });
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "Lawn Suit - 2500" }, Spans = { "pachis sau rupay" } });
         _sent.Clear();
 
         await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.span");
