@@ -73,8 +73,8 @@ public partial class ConversationEngine
         if (decision.Kind != DecisionKind.Execute) LogNotUnderstood("voice-" + decision.Kind.ToString().ToLowerInvariant(), seller.Session!.State, text);
         // Steps the AI made up or that do not match the words spoken are not run; the seller is told which ones, so nothing vanishes silently.
         // Shown on every reply path (clarify, refuse and run), not only the run path.
-        foreach (var dropped in _droppedVoiceSteps)
-            heard += $"\n{MessageTemplates.Get("voice-confirm.006", dropped)}";
+        foreach (var (step, template) in _droppedVoiceSteps)
+            heard += $"\n{MessageTemplates.Get(template, step)}";
         if (decision.Kind == DecisionKind.Clarify)
         {
             // Clear intent but a detail is missing (which order, the new price): ask for it instead of guessing or failing.
@@ -219,7 +219,7 @@ public partial class ConversationEngine
     }
 
     /// <summary>Steps removed by <see cref="KeepSpokenSteps"/> for the current voice note; shown to the seller with the echo.</summary>
-    private readonly List<string> _droppedVoiceSteps = new();
+    private readonly List<(string Step, string Template)> _droppedVoiceSteps = new();
 
     /// <summary>
     /// Keeps the steps whose span is really in the transcript and whose amounts were said inside that span (or are known to the seller's data).
@@ -241,10 +241,10 @@ public partial class ConversationEngine
                 _logger?.LogInformation("Voice step skipped: duplicate of an earlier step");
                 continue;
             }
-            if (SpanProblem(transcript, result.Steps[i], span, known) is { } reason)
+            if (SpanProblem(transcript, result.Steps[i], span, known) is { } problem)
             {
-                _logger?.LogWarning("Voice step dropped: {Reason}", reason);
-                _droppedVoiceSteps.Add(result.Steps[i]);
+                _logger?.LogWarning("Voice step dropped: {Reason}", problem.Reason);
+                _droppedVoiceSteps.Add((result.Steps[i], problem.Template));
                 continue;
             }
             steps.Add(result.Steps[i]);
@@ -255,13 +255,15 @@ public partial class ConversationEngine
     }
 
     /// <summary>Why a step with a span must not run; null when it is fine or has no span (the whole-note check applies then).</summary>
-    private static string? SpanProblem(string transcript, string step, string span, IReadOnlySet<long> known)
+    private static (string Reason, string Template)? SpanProblem(string transcript, string step, string span, IReadOnlySet<long> known)
     {
         var spoken = SpeechWords(span);
         if (spoken.Trim().Length == 0) return null;
-        if (!SpeechWords(transcript).Contains(spoken)) return "span is not in the transcript";
+        if (!SpeechWords(transcript).Contains(spoken)) return ("span is not in the transcript", "voice-confirm.008");
         var spanAmounts = SpokenNumbers.Amounts(span);
-        return SpokenNumbers.Amounts(step).Any(a => !spanAmounts.Contains(a) && !known.Contains(a)) ? "amount is not in the step's own words" : null;
+        return SpokenNumbers.Amounts(step).Any(a => !spanAmounts.Contains(a) && !known.Contains(a))
+            ? ("amount is not in the step's own words", "voice-confirm.007")
+            : null;
     }
 
     /// <summary>Lower-case words separated by single spaces, padded on both sides, so a span can be matched as whole words.</summary>
