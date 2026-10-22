@@ -35,5 +35,7 @@
   "insights6.034": "Pichle 60 din mein koi order nahi, is liye rujhan nahi nikal sakta.",
   "insights6.035": "📊 Mehnge ya sasta maal? (qeemat {0} ya zyada = mehnga)\n\nPehle 30 din: mehnge maal ka hissa {1} sale ({2} piece), sasta {3} piece\nPichle 30 din: mehnge maal ka hissa {4} sale ({5} piece), sasta {6} piece\n→ {7}\n{8}{9}\n\"Mehnga\" ka paimana catalog ki beech wali qeemat hai.",
   "insights6.036": "Abhi catalog aur orders dono khali hain, is liye audit ke liye kuch nahi. Pehle products likhein aur orders save karein.",
-  "insights6.037": "🔍 Business audit\n\n{0}\n\n⚠️ wali line par neeche ka button dabayein. Har sawal ki tafseel ke liye us ka naam likhein, jaise: \"price review\", \"overstocked products\"."
+  "insights6.037": "🔍 Business audit\n\n{0}\n\n⚠️ wali line par neeche ka button dabayein. Har sawal ki tafseel ke liye us ka naam likhein, jaise: \"price review\", \"overstocked products\".",
+  "insights6.038": "💵 Agle {0} din ka cash andaza\n\nPichle {1} din ki raftaar:\n• Roz ki wasooli (paid orders): {2}\n• Roz ka kharcha (expense + wages): {3}\n\nAgle {0} din mein:\n• Wasooli ~{4}\n• Kharcha ~{5}\n• Net cash ~{6} {7}\n{8}\n{9}{10}\nYeh aap ki pichli raftaar par andaza hai, pakki gintee nahi. Maal ki khareed sirf wahi ginti hai jo aap ne expense likhi ho.",
+  "insights6.039": "ℹ️ Cash andaze ke liye abhi paid orders ya kharche darj nahi. Orders ko paid mark karein aur kharche likhein, jaise: \"expense 500 packaging\"."
 }

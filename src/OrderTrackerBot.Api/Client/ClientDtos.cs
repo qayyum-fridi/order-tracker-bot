@@ -95,3 +95,10 @@ public sealed record LossDto(int Id, int? ProductId, string ProductName, int Qua
 public sealed record MoneyListDto<T>(IReadOnlyList<T> Items, decimal Total);
 
 public sealed record ProductStockDto(int Id, string Name, int? StockQty);
+
+/// <summary>Cash expected over the next Days days from the last HistoryDays days' pace (paid orders minus expenses and wages). Steps are weekly; a guide, not a promise.</summary>
+public sealed record CashForecastDto(
+    int Days, int HistoryDays, decimal DailyIn, decimal DailyOut, decimal ExpectedIn, decimal ExpectedOut, decimal Net,
+    decimal Receivables, bool HasHistory, IReadOnlyList<CashForecastStepDto> Steps);
+
+public sealed record CashForecastStepDto(int ToDay, decimal In, decimal Out, decimal Cumulative);
