@@ -170,6 +170,8 @@ public sealed class SessionContextData
     public List<string>? PendingVoiceContinue { get; set; }
     /// <summary>When <see cref="PendingVoiceContinue"/> was parked (UTC). Steps left this long are stale and are not replayed.</summary>
     public DateTime? PendingVoiceContinueAt { get; set; }
+    /// <summary>WhatsApp ids of the latest voice notes that were handled (newest last). A reply to one of them is not run again.</summary>
+    public List<string>? ProcessedVoiceNoteIds { get; set; }
     public string? SelectedPlan { get; set; }
     /// <summary>Support query whose drafted reply is awaiting YES/EDIT.</summary>
     public int? SupportQueryId { get; set; }

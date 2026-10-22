@@ -1066,6 +1066,24 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task VoiceNote_ReplyToAHandledNote_IsNotRunAgain()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var voice = VoiceEngine(db, "orders aaj dikhao");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "orders today" }, Actions = { "command" } });
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.first");
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.second", "wamid.first");
+
+        Assert.Contains(_sent, m => m.Contains("pehle wale voice note ke jawab"));
+        Assert.DoesNotContain(_sent, m => m.Contains("Maine suna"));
+        _ai.Verify(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task VoiceNote_RepeatedStepFromTheSameWords_IsSavedOnce()
     {
         using var db = _dbFactory.CreateContext();

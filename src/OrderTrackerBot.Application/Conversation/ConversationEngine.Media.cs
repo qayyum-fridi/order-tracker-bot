@@ -20,7 +20,7 @@ public partial class ConversationEngine
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>Voice note: transcribe, echo what was heard so the seller can catch mistakes, then handle it exactly like typed text.</summary>
-    public async Task HandleAudioMessageAsync(string fromPhoneNumber, string mediaId, CancellationToken ct = default)
+    public async Task HandleAudioMessageAsync(string fromPhoneNumber, string mediaId, string? messageId = null, string? replyToId = null, CancellationToken ct = default)
     {
         if (_transcriber is not { IsConfigured: true })
         {
@@ -29,6 +29,14 @@ public partial class ConversationEngine
         }
 
         var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
+        // A voice note sent as a reply to an earlier voice note is usually a correction of it: the earlier note's orders already exist,
+        // so nothing runs until the seller undoes them. This is said, not guessed.
+        if (replyToId is not null && SessionContextData.FromJson(seller.Session!.ContextJson).ProcessedVoiceNoteIds?.Contains(replyToId) == true)
+        {
+            await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("voice-confirm.009"), ct);
+            await _db.SaveChangesAsync(ct);
+            return;
+        }
         if (!TryTakeUsage(seller, fromPhoneNumber, MediaKind.Voice, out var voiceDecision, out var voiceWait))
         {
             await _sender.SendTextMessageAsync(fromPhoneNumber, UsageLimitText(seller, MediaKind.Voice, voiceDecision, voiceWait), ct);
@@ -54,6 +62,7 @@ public partial class ConversationEngine
             return;
         }
 
+        if (messageId is not null) await RememberVoiceNoteAsync(seller, messageId, ct);
         var heard = $"🎤 Maine suna: \"{text}\"";
         // Variants (sizes / colours) that the seller says are in a sheet: the voice rewrite keeps only the product, so the variants
         // would be lost. Nothing is saved; the seller sends the file and the import handles the rows.
@@ -134,6 +143,18 @@ public partial class ConversationEngine
         }
         await _sender.SendTextMessageAsync(fromPhoneNumber, $"{heard}\n\n{MessageTemplates.Get("voice-confirm.005")}", ct);
         await _db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Keeps the id of the last 20 voice notes handled, so a later reply to one of them is recognised.</summary>
+    private async Task RememberVoiceNoteAsync(Seller seller, string messageId, CancellationToken ct)
+    {
+        var session = seller.Session!;
+        var ctx = SessionContextData.FromJson(session.ContextJson);
+        var ids = ctx.ProcessedVoiceNoteIds ?? new List<string>();
+        ids.Remove(messageId);
+        ids.Add(messageId);
+        ctx.ProcessedVoiceNoteIds = ids.TakeLast(20).ToList();
+        await PersistAsync(session, ctx, ct);
     }
 
     /// <summary>Words that really mean "I am finished / skip this" in the transcript (Roman Urdu, English or Urdu script).</summary>

@@ -61,7 +61,7 @@ public class WhatsAppWebhookController : ControllerBase
         foreach (var (from, mediaId, caption, id) in payload.ExtractImageMessages())
             messages.Add(new WebhookMessage(IdOrNew(id), WebhookMessageKind.Image, from, MediaId: mediaId, Caption: caption));
         foreach (var (from, mediaId, id) in payload.ExtractAudioMessages())
-            messages.Add(new WebhookMessage(IdOrNew(id), WebhookMessageKind.Audio, from, MediaId: mediaId));
+            messages.Add(new WebhookMessage(IdOrNew(id), WebhookMessageKind.Audio, from, MediaId: mediaId, ReplyToId: id is null ? null : payload.ReplyToIdOf(id)));
         foreach (var (from, mediaId, fileName, mimeType, id) in payload.ExtractDocumentMessages())
             messages.Add(new WebhookMessage(IdOrNew(id), WebhookMessageKind.Document, from, MediaId: mediaId, FileName: fileName, MimeType: mimeType));
         foreach (var (from, json, id) in payload.ExtractFlowSubmissions())
