@@ -10,26 +10,49 @@ namespace OrderTrackerBot.Application.Conversation;
 public partial class ConversationEngine
 {
     /// <summary>
-    /// True when the steps include a risky command, or edits inside "edit order" mode (price/qty/remove/phone/...). Only for a finished
-    /// seller who is idle: mid-flow answers ("yes", "1") and an edit session the seller opened themselves run straight away.
+    /// Splits the note into steps that run now and steps that change money or an order and wait for a YES. An edit chain ("edit order N",
+    /// its edit lines, "done") waits as one piece. Only for a finished seller who is idle: mid-flow answers ("yes", "1") and an edit session
+    /// the seller opened themselves run straight away.
     /// </summary>
-    private static bool ShouldConfirmVoiceSteps(Seller seller, IReadOnlyList<string> steps)
+    private static (List<string> Safe, List<string> Risky) SplitVoiceSteps(Seller seller, IReadOnlyList<string> steps)
     {
-        if (!seller.OnboardingComplete || seller.Session!.State != ConversationState.Idle) return false;
+        var safe = new List<string>();
+        var risky = new List<string>();
+        if (!seller.OnboardingComplete || seller.Session!.State != ConversationState.Idle)
+        {
+            safe.AddRange(steps);
+            return (safe, risky);
+        }
 
         var inEdit = false;
         foreach (var step in steps)
         {
             var command = CommandParser.TryParse(step);
-            if (command?.Kind == CommandKind.EditOrder) { inEdit = true; continue; }
-            if (inEdit)
+            if (command?.Kind == CommandKind.EditOrder) { inEdit = true; risky.Add(step); continue; }
+            if (inEdit && CommandParser.TryParseOrderEdit(step, out var change))
             {
-                if (CommandParser.TryParseOrderEdit(step, out var change) && change.Kind != "done") return true;
+                risky.Add(step);
+                inEdit = change.Kind != "done";
                 continue;
             }
-            if (command is not null && ActionRisk.RiskyCommands.Contains(command.Kind)) return true;
+            // Leaving edit mode: a later risky command is judged on its own, not hidden inside the edit chain.
+            inEdit = false;
+            (command is not null && ActionRisk.RiskyCommands.Contains(command.Kind) ? risky : safe).Add(step);
         }
-        return false;
+        return (safe, risky);
+    }
+
+    /// <summary>Parks steps until the seller answers YES or NO; the echo of what was heard is shown with the question.</summary>
+    private async Task ParkVoiceStepsAsync(string fromPhoneNumber, Seller seller, IReadOnlyList<string> steps, string heard, CancellationToken ct)
+    {
+        var session = seller.Session!;
+        var ctx = SessionContextData.FromJson(session.ContextJson);
+        ctx.PendingVoiceSteps = steps.ToList();
+        ctx.PendingVoiceParkedAt = DateTime.UtcNow;
+        ctx.PendingVoiceLogId = await NewestActionLogIdAsync(seller.Id, ct);
+        SetState(session, ConversationState.AwaitingVoiceConfirmation);
+        await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("media.002", heard), ct);
+        await PersistAsync(session, ctx, ct);
     }
 
     private static bool IsOrderDraftState(ConversationState state) =>

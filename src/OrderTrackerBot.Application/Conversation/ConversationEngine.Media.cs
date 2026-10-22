@@ -106,21 +106,29 @@ public partial class ConversationEngine
             heard += $"\n➡️ Samjha: {string.Join("  →  ", steps.Select(s => $"\"{s}\""))}";
 
         // Money-changing or hard-to-reverse actions (price edit, cancel, status change...) wait for a YES before anything runs.
-        if (ShouldConfirmVoiceSteps(seller, steps))
+        var (safe, risky) = SplitVoiceSteps(seller, steps);
+        if (risky.Count == 0)
         {
-            var session = seller.Session!;
-            var ctx = SessionContextData.FromJson(session.ContextJson);
-            ctx.PendingVoiceSteps = steps.ToList();
-            ctx.PendingVoiceParkedAt = DateTime.UtcNow;
-            ctx.PendingVoiceLogId = await NewestActionLogIdAsync(seller.Id, ct);
-            SetState(session, ConversationState.AwaitingVoiceConfirmation);
-            await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("media.002", heard), ct);
-            await PersistAsync(session, ctx, ct);
+            await _sender.SendTextMessageAsync(fromPhoneNumber, heard, ct);
+            await RunVoiceStepsAsync(fromPhoneNumber, steps, ct);
+            return;
+        }
+        if (safe.Count == 0)
+        {
+            await ParkVoiceStepsAsync(fromPhoneNumber, seller, risky, heard, ct);
             return;
         }
 
-        await _sender.SendTextMessageAsync(fromPhoneNumber, heard, ct);
-        await RunVoiceStepsAsync(fromPhoneNumber, steps, ct);
+        // Mixed note: the safe steps run first. The risky ones wait for a YES only when the session is idle again; an open order draft keeps its state.
+        await RunVoiceStepsAsync(fromPhoneNumber, safe, ct);
+        var after = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
+        if (after.Session!.State == ConversationState.Idle)
+        {
+            await ParkVoiceStepsAsync(fromPhoneNumber, after, risky, heard, ct);
+            return;
+        }
+        await _sender.SendTextMessageAsync(fromPhoneNumber, $"{heard}\n\n{MessageTemplates.Get("voice-confirm.005")}", ct);
+        await _db.SaveChangesAsync(ct);
     }
 
     /// <summary>Words that really mean "I am finished / skip this" in the transcript (Roman Urdu, English or Urdu script).</summary>
