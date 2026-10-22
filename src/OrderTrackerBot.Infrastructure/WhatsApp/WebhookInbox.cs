@@ -18,7 +18,7 @@ public sealed record WebhookMessage(
     string Id, WebhookMessageKind Kind, string From,
     string? Text = null, string? MediaId = null, string? Caption = null, string? FileName = null,
     string? MimeType = null, string? Json = null, string? Type = null, long? SentAt = null,
-    string? CommenterId = null, string? Username = null)
+    string? CommenterId = null, string? Username = null, string? ReplyToId = null)
 {
     public string Serialize() => JsonSerializer.Serialize(this);
 
@@ -35,7 +35,7 @@ public sealed record WebhookMessage(
         WebhookMessageKind.Image => new WebhookWork(From, Id, IssueCodes.ScreenshotFailed, null, true,
             (engine, ct) => engine.HandleImageMessageAsync(From, MediaId!, Caption, ct)),
         WebhookMessageKind.Audio => new WebhookWork(From, Id, IssueCodes.VoiceNoteFailed, null, true,
-            (engine, ct) => engine.HandleAudioMessageAsync(From, MediaId!, ct)),
+            (engine, ct) => engine.HandleAudioMessageAsync(From, MediaId!, Id, ReplyToId, ct)),
         WebhookMessageKind.Document => new WebhookWork(From, Id, IssueCodes.UnsupportedMediaReplyFailed, "media type: document", true,
             (engine, ct) => engine.HandleDocumentMessageAsync(From, MediaId!, FileName, MimeType, ct)),
         WebhookMessageKind.Flow => new WebhookWork(From, Id, IssueCodes.FlowSubmissionFailed, null, true,

@@ -1,5 +1,11 @@
 {
   "voice-confirm.001": "⚠️ Order edit shuru nahi ho saka (order nahi mila?) — baqi steps nahi chalaye. Order number ke saath dobara try karein.",
   "voice-confirm.002": "⚠️ Yeh purani baat thi, is dauran order badal chuka hai. Kuch nahi chalaya — dobara bolein ya likh kar bhejein.",
-  "voice-confirm.003": "👍 Theek hai, kuch nahi badla."
+  "voice-confirm.003": "👍 Theek hai, kuch nahi badla.",
+  "voice-confirm.004": "⚠️ Order ka draft abhi khula hai, is liye yeh baqi steps abhi nahi chale: {0}. Draft Save ya Cancel karein to yeh chalenge.",
+  "voice-confirm.005": "⚠️ Paise ya order badalne wale baqi steps abhi nahi chalaye, kyunki order ka draft khula hai. Unhe YES ke saath dobara bhejein.",
+  "voice-confirm.006": "⚠️ Yeh baat samajh nahi aayi, is liye nahi chalaayi gayi: \"{0}\"",
+  "voice-confirm.007": "⚠️ Rakam awaaz mein saaf nahi suni gayi, is liye yeh baat nahi chalaayi gayi: \"{0}\". Rakam ke saath likh kar bhejein.",
+  "voice-confirm.008": "⚠️ Yeh baat awaaz mein saaf nahi thi, is liye nahi chalaayi gayi: \"{0}\". Chhota sa jumla likh kar bhejein.",
+  "voice-confirm.009": "⚠️ Yeh voice note pehle wale voice note ke jawab mein bheja gaya hai. Pehle wale note ke order dobara nahi banaye gaye. Agar yeh tabdeeli hai to pehle \"undo\" likhein (sirf aakhri kaam wapas hota hai), phir naya note bhejein."
 }

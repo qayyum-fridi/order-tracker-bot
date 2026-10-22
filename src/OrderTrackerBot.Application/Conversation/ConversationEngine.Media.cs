@@ -20,7 +20,7 @@ public partial class ConversationEngine
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>Voice note: transcribe, echo what was heard so the seller can catch mistakes, then handle it exactly like typed text.</summary>
-    public async Task HandleAudioMessageAsync(string fromPhoneNumber, string mediaId, CancellationToken ct = default)
+    public async Task HandleAudioMessageAsync(string fromPhoneNumber, string mediaId, string? messageId = null, string? replyToId = null, CancellationToken ct = default)
     {
         if (_transcriber is not { IsConfigured: true })
         {
@@ -29,6 +29,14 @@ public partial class ConversationEngine
         }
 
         var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
+        // A voice note sent as a reply to an earlier voice note is usually a correction of it: the earlier note's orders already exist,
+        // so nothing runs until the seller undoes them. This is said, not guessed.
+        if (replyToId is not null && SessionContextData.FromJson(seller.Session!.ContextJson).ProcessedVoiceNoteIds?.Contains(replyToId) == true)
+        {
+            await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("voice-confirm.009"), ct);
+            await _db.SaveChangesAsync(ct);
+            return;
+        }
         if (!TryTakeUsage(seller, fromPhoneNumber, MediaKind.Voice, out var voiceDecision, out var voiceWait))
         {
             await _sender.SendTextMessageAsync(fromPhoneNumber, UsageLimitText(seller, MediaKind.Voice, voiceDecision, voiceWait), ct);
@@ -54,6 +62,7 @@ public partial class ConversationEngine
             return;
         }
 
+        if (messageId is not null) await RememberVoiceNoteAsync(seller, messageId, ct);
         var heard = $"🎤 Maine suna: \"{text}\"";
         // Variants (sizes / colours) that the seller says are in a sheet: the voice rewrite keeps only the product, so the variants
         // would be lost. Nothing is saved; the seller sends the file and the import handles the rows.
@@ -66,10 +75,15 @@ public partial class ConversationEngine
 
         // A transcript that is only a phone number needs no rewrite (a second, slow model call): it is the answer as typed.
         var joined = JoinSpacedPhones(text.Trim().Trim('.', '!', '?', '،', '۔', ' '));
+        _droppedVoiceSteps.Clear();
         var decision = joined.All(c => char.IsDigit(c) || c == '+') && IsPlausiblePhone(joined)
             ? TurnDecision.Execute(new[] { joined })
             : await InterpretVoiceAsync(seller, text, ct);
         if (decision.Kind != DecisionKind.Execute) LogNotUnderstood("voice-" + decision.Kind.ToString().ToLowerInvariant(), seller.Session!.State, text);
+        // Steps the AI made up or that do not match the words spoken are not run; the seller is told which ones, so nothing vanishes silently.
+        // Shown on every reply path (clarify, refuse and run), not only the run path.
+        foreach (var (step, template) in _droppedVoiceSteps)
+            heard += $"\n{MessageTemplates.Get(template, step)}";
         if (decision.Kind == DecisionKind.Clarify)
         {
             // Clear intent but a detail is missing (which order, the new price): ask for it instead of guessing or failing.
@@ -106,21 +120,41 @@ public partial class ConversationEngine
             heard += $"\n➡️ Samjha: {string.Join("  →  ", steps.Select(s => $"\"{s}\""))}";
 
         // Money-changing or hard-to-reverse actions (price edit, cancel, status change...) wait for a YES before anything runs.
-        if (ShouldConfirmVoiceSteps(seller, steps))
+        var (safe, risky) = SplitVoiceSteps(seller, steps);
+        if (risky.Count == 0)
         {
-            var session = seller.Session!;
-            var ctx = SessionContextData.FromJson(session.ContextJson);
-            ctx.PendingVoiceSteps = steps.ToList();
-            ctx.PendingVoiceParkedAt = DateTime.UtcNow;
-            ctx.PendingVoiceLogId = await NewestActionLogIdAsync(seller.Id, ct);
-            SetState(session, ConversationState.AwaitingVoiceConfirmation);
-            await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("media.002", heard), ct);
-            await PersistAsync(session, ctx, ct);
+            await _sender.SendTextMessageAsync(fromPhoneNumber, heard, ct);
+            await RunVoiceStepsAsync(fromPhoneNumber, steps, ct);
+            return;
+        }
+        if (safe.Count == 0)
+        {
+            await ParkVoiceStepsAsync(fromPhoneNumber, seller, risky, heard, ct);
             return;
         }
 
-        await _sender.SendTextMessageAsync(fromPhoneNumber, heard, ct);
-        await RunVoiceStepsAsync(fromPhoneNumber, steps, ct);
+        // Mixed note: the safe steps run first. The risky ones wait for a YES only when the session is idle again; an open order draft keeps its state.
+        await RunVoiceStepsAsync(fromPhoneNumber, safe, ct);
+        var after = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
+        if (after.Session!.State == ConversationState.Idle)
+        {
+            await ParkVoiceStepsAsync(fromPhoneNumber, after, risky, heard, ct);
+            return;
+        }
+        await _sender.SendTextMessageAsync(fromPhoneNumber, $"{heard}\n\n{MessageTemplates.Get("voice-confirm.005")}", ct);
+        await _db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Keeps the id of the last 20 voice notes handled, so a later reply to one of them is recognised.</summary>
+    private async Task RememberVoiceNoteAsync(Seller seller, string messageId, CancellationToken ct)
+    {
+        var session = seller.Session!;
+        var ctx = SessionContextData.FromJson(session.ContextJson);
+        var ids = ctx.ProcessedVoiceNoteIds ?? new List<string>();
+        ids.Remove(messageId);
+        ids.Add(messageId);
+        ctx.ProcessedVoiceNoteIds = ids.TakeLast(20).ToList();
+        await PersistAsync(session, ctx, ct);
     }
 
     /// <summary>Words that really mean "I am finished / skip this" in the transcript (Roman Urdu, English or Urdu script).</summary>
@@ -179,6 +213,9 @@ public partial class ConversationEngine
         if (result?.Question is { } question && result.Steps.Count == 0) return TurnDecision.Clarify(question, result.Options);
         if (result is { Steps.Count: > 0 })
         {
+            // A step must come from the words actually spoken (its span) and carry only amounts said in those words; anything else is dropped.
+            var known = KnownVoiceNumbers(recent, catalog, lastMessages.Select(m => m.RawText));
+            result = KeepSpokenSteps(transcript, result, known);
             // The model may only pick actions that make sense right now; anything else it made up is dropped (and the transcript is used if nothing is left).
             var steps = result.Actions.Count == result.Steps.Count
                 ? ValidateVoiceSteps(seller.Session!.State, seller, result.Steps, result.Actions)
@@ -188,7 +225,6 @@ public partial class ConversationEngine
                 // Waiting for dates: nothing here is money or an order, and dates legitimately add digits (a day, a year) the seller spoke as words ("yakum", "do hazar chhabees").
                 if (seller.Session!.State == ConversationState.AwaitingCustomDateRange) return TurnDecision.Execute(CorrectMarginQuestion(transcript, steps));
                 // A rewrite that changes what was said is not run, and neither is the raw transcript: the seller is asked again.
-                var known = KnownVoiceNumbers(recent, catalog, lastMessages.Select(m => m.RawText));
                 // Reason only (never the transcript text): makes refused rewrites visible in the logs.
                 if (WhyUnfaithful(transcript, string.Join("\n", steps), known) is { } why)
                     _logger?.LogWarning("Voice rewrite refused: {Reason} (risky={Risky})", why, StepsAreRisky(steps));
@@ -202,6 +238,58 @@ public partial class ConversationEngine
             return TurnDecision.Execute(new[] { transcript });
         return TurnDecision.Clarify(ParserFailureQuestion);
     }
+
+    /// <summary>Steps removed by <see cref="KeepSpokenSteps"/> for the current voice note; shown to the seller with the echo.</summary>
+    private readonly List<(string Step, string Template)> _droppedVoiceSteps = new();
+
+    /// <summary>
+    /// Keeps the steps whose span is really in the transcript and whose amounts were said inside that span (or are known to the seller's data).
+    /// Steps without a span keep the whole-note check. A dropped step is logged with its reason only, never with the transcript text.
+    /// </summary>
+    private AiVoiceInterpretation KeepSpokenSteps(string transcript, AiVoiceInterpretation result, IReadOnlySet<long> known)
+    {
+        var keepActions = result.Actions.Count == result.Steps.Count;
+        var steps = new List<string>();
+        var actions = new List<string>();
+        var spans = new List<string>();
+        var seen = new HashSet<(string Text, string Span)>();
+        for (var i = 0; i < result.Steps.Count; i++)
+        {
+            var span = i < result.Spans.Count ? result.Spans[i] : "";
+            // The same words from the same spoken part twice (a model retry) would save the same order twice: keep the first only.
+            if (span.Trim().Length > 0 && !seen.Add((result.Steps[i], span)))
+            {
+                _logger?.LogInformation("Voice step skipped: duplicate of an earlier step");
+                continue;
+            }
+            if (SpanProblem(transcript, result.Steps[i], span, known) is { } problem)
+            {
+                _logger?.LogWarning("Voice step dropped: {Reason}", problem.Reason);
+                _droppedVoiceSteps.Add((result.Steps[i], problem.Template));
+                continue;
+            }
+            steps.Add(result.Steps[i]);
+            if (keepActions) actions.Add(result.Actions[i]);
+            spans.Add(span);
+        }
+        return new AiVoiceInterpretation { Steps = steps, Actions = actions, Spans = spans, Question = result.Question, Options = result.Options };
+    }
+
+    /// <summary>Why a step with a span must not run; null when it is fine or has no span (the whole-note check applies then).</summary>
+    private static (string Reason, string Template)? SpanProblem(string transcript, string step, string span, IReadOnlySet<long> known)
+    {
+        var spoken = SpeechWords(span);
+        if (spoken.Trim().Length == 0) return null;
+        if (!SpeechWords(transcript).Contains(spoken)) return ("span is not in the transcript", "voice-confirm.008");
+        var spanAmounts = SpokenNumbers.Amounts(span);
+        return SpokenNumbers.Amounts(step).Any(a => !spanAmounts.Contains(a) && !known.Contains(a))
+            ? ("amount is not in the step's own words", "voice-confirm.007")
+            : null;
+    }
+
+    /// <summary>Lower-case words separated by single spaces, padded on both sides, so a span can be matched as whole words.</summary>
+    private static string SpeechWords(string text) =>
+        " " + System.Text.RegularExpressions.Regex.Replace(text.ToLowerInvariant(), @"[^\p{L}\p{N}]+", " ").Trim() + " ";
 
     /// <summary>
     /// A voice rewrite must not turn an analysis question into the "create a discount code" how-to. When the seller talked about margin / profit and did not say anything

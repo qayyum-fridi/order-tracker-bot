@@ -166,6 +166,12 @@ public sealed class SessionContextData
     public string? ResetGenerationId { get; set; }
     /// <summary>Newest action-log id for the seller when the steps were parked. Any change since then (a new order, edit, undo...) makes the YES stale.</summary>
     public int PendingVoiceLogId { get; set; }
+    /// <summary>Voice steps after an order draft; they run once that draft is saved, edited or cancelled (one draft at a time).</summary>
+    public List<string>? PendingVoiceContinue { get; set; }
+    /// <summary>When <see cref="PendingVoiceContinue"/> was parked (UTC). Steps left this long are stale and are not replayed.</summary>
+    public DateTime? PendingVoiceContinueAt { get; set; }
+    /// <summary>WhatsApp ids of the latest voice notes that were handled (newest last). A reply to one of them is not run again.</summary>
+    public List<string>? ProcessedVoiceNoteIds { get; set; }
     public string? SelectedPlan { get; set; }
     /// <summary>Support query whose drafted reply is awaiting YES/EDIT.</summary>
     public int? SupportQueryId { get; set; }

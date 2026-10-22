@@ -1460,6 +1460,7 @@ public partial class ConversationEngine
             && ctx.PendingOrder is not null
             ? (Draft: ctx.PendingOrder, Queued: ctx.QueuedOrders, State: session.State, Missing: ctx.PendingMissingField, NewName: ctx.PendingNewProductName)
             : default((PendingOrderData? Draft, List<PendingOrderData>? Queued, ConversationState State, string? Missing, string? NewName));
+        _draftPutOnHold = pausedDraft.Draft is not null;
 
         ResetFlowContext(ctx);
         SetState(session, ConversationState.Idle);

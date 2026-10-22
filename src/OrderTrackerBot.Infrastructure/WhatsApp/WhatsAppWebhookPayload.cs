@@ -36,6 +36,13 @@ public class WhatsAppWebhookPayload
         [JsonPropertyName("image")] public InboundMedia? Image { get; set; }
         [JsonPropertyName("audio")] public InboundMedia? Audio { get; set; }
         [JsonPropertyName("document")] public InboundMedia? Document { get; set; }
+        /// <summary>Set when the seller replied to (quoted) an earlier message: that message's id.</summary>
+        [JsonPropertyName("context")] public InboundContext? Context { get; set; }
+    }
+
+    public class InboundContext
+    {
+        [JsonPropertyName("id")] public string? Id { get; set; }
     }
 
     public class InboundMedia
@@ -134,6 +141,16 @@ public class WhatsAppWebhookPayload
             if (message.Type == "audio" && message.From is not null && message.Audio?.Id is not null)
                 yield return (message.From, message.Audio.Id, message.Id);
         }
+    }
+
+    /// <summary>The id of the earlier message this message replies to (WhatsApp "Reply"), or null.</summary>
+    public string? ReplyToIdOf(string messageId)
+    {
+        foreach (var entry in Entries)
+        foreach (var change in entry.Changes)
+        foreach (var message in change.Value?.Messages ?? Enumerable.Empty<InboundMessage>())
+            if (message.Id == messageId) return message.Context?.Id;
+        return null;
     }
 
     /// <summary>Files (an .xlsx to import customers/products from an old system).</summary>

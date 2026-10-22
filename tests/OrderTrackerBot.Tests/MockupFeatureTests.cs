@@ -1048,6 +1048,82 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task VoiceNote_StepWhoseSpanIsNotInTheTranscript_IsDropped_NotRun()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await SaveSaraKurtiOrderAsync(engine, db);
+        var voice = VoiceEngine(db, "sara ka order cancel kar do");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "cancel 1" }, Actions = { "command" }, Spans = { "cancel teen sau" } });
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        Assert.Equal(1, await db.Orders.CountAsync(o => o.Status == OrderStatus.Pending));
+        Assert.NotEqual(ConversationState.AwaitingVoiceConfirmation, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sent, m => m.Contains("samajh nahi aaya"));
+    }
+
+    [Fact]
+    public async Task VoiceNote_ReplyToAHandledNote_IsNotRunAgain()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var voice = VoiceEngine(db, "orders aaj dikhao");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "orders today" }, Actions = { "command" } });
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.first");
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.second", "wamid.first");
+
+        Assert.Contains(_sent, m => m.Contains("pehle wale voice note ke jawab"));
+        Assert.DoesNotContain(_sent, m => m.Contains("Maine suna"));
+        _ai.Verify(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task VoiceNote_RepeatedStepFromTheSameWords_IsSavedOnce()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await SaveSaraKurtiOrderAsync(engine, db);
+        var voice = VoiceEngine(db, "sara ka order cancel kar do");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation
+            {
+                Steps = { "cancel 1", "cancel 1" },
+                Actions = { "command", "command" },
+                Spans = { "cancel", "cancel" }
+            });
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        var session = await db.Sessions.FirstAsync();
+        Assert.Equal(new[] { "cancel 1" }, SessionContextData.FromJson(session.ContextJson).PendingVoiceSteps);
+    }
+
+    [Fact]
+    public async Task VoiceNote_MixedSteps_RunSafeNow_AndParkOnlyRiskyForYes()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await SaveSaraKurtiOrderAsync(engine, db);
+        var voice = VoiceEngine(db, "orders aaj dikhao aur sara ka order cancel kar do");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "orders today", "cancel 1" }, Actions = { "command", "command" } });
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        var session = await db.Sessions.FirstAsync();
+        Assert.Equal(ConversationState.AwaitingVoiceConfirmation, session.State);
+        Assert.Equal(new[] { "cancel 1" }, SessionContextData.FromJson(session.ContextJson).PendingVoiceSteps);
+        Assert.Equal(1, await db.Orders.CountAsync(o => o.Status == OrderStatus.Pending));
+    }
+
+    [Fact]
     public async Task VoiceNote_ChangesWhatOneCustomerWasCharged_UsingRecentOrdersAsContext()
     {
         using var db = _dbFactory.CreateContext();
