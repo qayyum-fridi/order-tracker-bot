@@ -193,17 +193,14 @@ public partial class ConversationEngine
             return;
         }
 
-        var methods = await _db.PaymentMethods.Where(p => p.SellerId == seller.Id).ToListAsync(ct);
+        // Safepay is saved as a merchant ID only; no hosted checkout exists yet, so it is never
+        // shown to the buyer as a payment number. Only JazzCash / Easypaisa / Bank are listed.
+        var methods = (await _db.PaymentMethods.Where(p => p.SellerId == seller.Id).ToListAsync(ct))
+            .Where(m => m.Type != SellerPaymentMethodType.Safepay)
+            .ToList();
         if (methods.Count == 0)
         {
             await ReplyAsync(seller, MessageTemplates.Get("commands2.014"), ct);
-            return;
-        }
-
-        if (methods.Any(m => m.Type == SellerPaymentMethodType.Safepay))
-        {
-            await ReplyAsync(seller,
-                MessageTemplates.Get("commands2.015", Formatters.Money(order.Total), order.Id), ct);
             return;
         }
 

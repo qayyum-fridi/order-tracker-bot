@@ -1461,6 +1461,36 @@ public class MockupFeatureTests : IDisposable
         Assert.Contains(_sent, m => m.Contains("2 orders saved"));
     }
 
+    [Theory]
+    [InlineData("stock ka total value")]
+    [InlineData("stock value")]
+    public async Task StockValue_IsAnsweredFromStockTimesCost(string text)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        db.Products.Add(new Product { SellerId = db.Sellers.First().Id, Name = "Test Kurti", Price = 3600, CostPrice = 2500, StockQty = 4, IsActive = true });
+        await db.SaveChangesAsync();
+        _sent.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, text, default);
+
+        // 4 pieces x Rs.2,500 cost = Rs.10,000; a plain report must not need the AI.
+        Assert.Contains(_sent, m => m.Contains("10,000"));
+        _ai.Verify(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task EditOrder_ForMissingOrderNumber_SaysItIsNotFound()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        _sent.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "edit order 1", default);
+
+        Assert.Contains(_sent, m => m.Contains(OrderTrackerBot.Application.Templates.MessageTemplates.Get("commands.028", 1)));
+    }
+
     [Fact]
     public async Task OffTopic_GetsGracefulRedirect_AndFeedbackIsLoggedAgainstOrder()
     {

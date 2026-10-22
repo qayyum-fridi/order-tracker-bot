@@ -32,9 +32,10 @@ public partial class ConversationEngine
         if (e?.Color is { } color) rows.Add($"• Rang: {color}");
         if (e?.Stock is { } stock) rows.Add($"• Stock: {stock}");
         // Other "name: value" details, such as "supplier: Shah Alam", are shown too so the seller can see they were kept.
+        // "vendor" is the stored name for "supplier" (CommandParser folds the words), so show the word the seller typed.
         if (e?.Attributes is { } attributes)
             foreach (var (key, value) in attributes.Where(a => a.Key.Length > 0))
-                rows.Add($"• {char.ToUpperInvariant(key[0]) + key[1..]}: {value}");
+                rows.Add($"• {(key == "vendor" ? "Supplier" : char.ToUpperInvariant(key[0]) + key[1..])}: {value}");
         return rows;
     }
 

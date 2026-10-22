@@ -87,6 +87,8 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "describing it — \"naya discount banain\", \"ye ek naya discount hai jo product ke liye hoga\": not an order, not off_topic; set is_order_attempt=false), unclear. " +
             "For new_order put one entry per customer in orders (two different customers in one message = two entries). Quantity is the number " +
             "of catalog units; for weight-sold items like \"15kg kaju\" use the number of kg (15). " +
+            "A customer's name can be followed by a quantity and an item: in \"Ayesha 2 suit, 03001234567, advance 500\" customer_name is Ayesha, " +
+            "the item is \"suit\" with quantity 2, phone is 03001234567 and advance is 500. The customer name is never part of the product name. " +
             "Fill an item's unit_price only when the seller wrote the price of ONE unit of that item (\"Lawn Suit 3500\", \"Kurti 2 x 1800\"); a line total (\"2 Kurti 3600 total\"), " +
             "a delivery charge, an advance or a phone number is never a unit_price; null when no per-item price was written. " +
             "Required order fields are customer_name and phone; if either is missing, still return the order with what you found and list the " +

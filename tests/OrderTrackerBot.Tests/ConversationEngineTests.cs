@@ -839,8 +839,8 @@ public class ConversationEngineTests : IDisposable
 
         await engine.HandleIncomingMessageAsync(Phone, "Lawn Suit - 3500, supplier: Shah Alam", default);
 
-        // Onboarding already seeds a "Lawn Suit" at Rs.3,500, so the preview must say it is in the catalog and show the supplier (stored as "vendor").
-        Assert.Contains(_sentMessages, m => m.Contains("Catalog mein pehle se hai") && m.Contains("Vendor: Shah Alam"));
+        // Onboarding already seeds a "Lawn Suit" at Rs.3,500, so the preview must say it is in the catalog and show the supplier (stored as "vendor", shown as the word typed).
+        Assert.Contains(_sentMessages, m => m.Contains("Catalog mein pehle se hai") && m.Contains("Supplier: Shah Alam"));
     }
 
     [Theory]
