@@ -1499,6 +1499,26 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task BulkShipped_DoesNotRevive_CancelledOrder()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(Order("Ayesha", "Lawn Suit", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Ayesha 1 lawn suit", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Ayesha 1 lawn suit", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        (await db.Orders.FirstAsync(o => o.Id == 1)).Status = OrderStatus.Cancelled;
+        await db.SaveChangesAsync();
+
+        await engine.HandleIncomingMessageAsync(Phone, "mark 1 2 shipped", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        var cancelled = await db.Orders.FirstAsync(o => o.Id == 1);
+        Assert.Equal(OrderStatus.Cancelled, cancelled.Status);
+    }
+
+    [Fact]
     public async Task EditOrder_ForMissingOrderNumber_SaysItIsNotFound()
     {
         using var db = _dbFactory.CreateContext();

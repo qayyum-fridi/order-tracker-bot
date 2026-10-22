@@ -85,13 +85,18 @@ public partial class ConversationEngine
         }
 
         var orders = await _db.Orders.Where(o => ids.Contains(o.Id) && o.SellerId == seller.Id).ToListAsync(ct);
-        foreach (var order in orders)
+        // Cancelled and returned orders are not shipped again (that would revive them without restoring their stock).
+        var changed = 0;
+        foreach (var order in orders.Where(o => o.Status is not (OrderStatus.Cancelled or OrderStatus.Returned)))
         {
+            var stockBefore = StockFootprint(order);
             order.Status = OrderStatus.Shipped;
             order.ShippedAt = DateTime.UtcNow;
+            await ApplyStockChangeAsync(seller, stockBefore, StockFootprint(order), ct);
+            changed++;
         }
 
-        await ReplyAsync(seller, MessageTemplates.Get("commands2.006", orders.Count), ct);
+        await ReplyAsync(seller, MessageTemplates.Get("commands2.006", changed), ct);
     }
 
     private async Task HandleUndoAsync(Seller seller, CancellationToken ct)
