@@ -1480,6 +1480,25 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task PaidOrder_EditedAboveWhatWasPaid_BecomesUnpaidWithBalance()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(Order("Ayesha", "Lawn Suit", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Ayesha 1 lawn suit", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        await engine.HandleIncomingMessageAsync(Phone, "mark 1 paid", default);
+
+        await engine.HandleIncomingMessageAsync(Phone, "edit order 1", default);
+        await engine.HandleIncomingMessageAsync(Phone, "1 = 3", default);
+        await engine.HandleIncomingMessageAsync(Phone, "done", default);
+
+        var order = await db.Orders.SingleAsync();
+        Assert.Equal(PaymentStatus.Unpaid, order.PaymentStatus);
+        Assert.True(OrderTrackerBot.Application.Formatting.OrderMoney.Balance(order) > 0);
+    }
+
+    [Fact]
     public async Task EditOrder_ForMissingOrderNumber_SaysItIsNotFound()
     {
         using var db = _dbFactory.CreateContext();

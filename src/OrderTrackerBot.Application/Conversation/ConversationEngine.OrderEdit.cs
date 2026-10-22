@@ -139,9 +139,13 @@ public partial class ConversationEngine
             ctx.EditSnapshotLogged = true;
         }
 
+        var wasPaid = order.PaymentStatus == PaymentStatus.Paid;
         await RecalculateOrderTotalsAsync(seller, order, ct);
+        // A paid order whose total rose above what was received is no longer fully paid: the difference becomes the balance.
+        // Legacy paid orders with AmountPaid 0 stay Paid, because their history already says fully paid.
+        if (wasPaid && order.AmountPaid > 0 && order.AmountPaid < order.Total) order.PaymentStatus = PaymentStatus.Unpaid;
         await ApplyStockChangeAsync(seller, stockBefore, StockFootprint(order), ct);
-        var paidWarning = order.PaymentStatus == PaymentStatus.Paid && order.Total != previousTotal
+        var paidWarning = wasPaid && order.Total != previousTotal
             ? MessageTemplates.Get("order-edit.018", Formatters.Money(previousTotal))
             : "";
         await ReplyAsync(seller, MessageTemplates.Get("order-edit.005", result, paidWarning, OrderEditSummary(order)), ct);
