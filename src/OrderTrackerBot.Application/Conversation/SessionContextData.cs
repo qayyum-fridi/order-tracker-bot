@@ -175,6 +175,9 @@ public sealed class SessionContextData
     /// <summary>Action log ids (exclusive start, inclusive end) made by the last voice note, for "undo note".</summary>
     public int LastVoiceNoteStartLogId { get; set; }
     public int LastVoiceNoteEndLogId { get; set; }
+    /// <summary>SHA-256 of the audio of the last voice note that made actions, and of the latest notes that did (newest last).</summary>
+    public string? LastVoiceNoteHash { get; set; }
+    public List<string>? ProcessedVoiceHashes { get; set; }
     public string? SelectedPlan { get; set; }
     /// <summary>Support query whose drafted reply is awaiting YES/EDIT.</summary>
     public int? SupportQueryId { get; set; }
