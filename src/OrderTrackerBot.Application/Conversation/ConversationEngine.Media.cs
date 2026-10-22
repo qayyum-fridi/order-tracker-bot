@@ -304,7 +304,9 @@ public partial class ConversationEngine
     /// </summary>
     private static bool CommandWordsSaid(string transcript, string step)
     {
-        if (!DigitRuns(step).All(DigitRuns(transcript).Contains)) return false;
+        // Any number counts here, short order ids too ("cancel 1"); DigitRuns only looks at 3+ digit amounts.
+        static HashSet<string> Numbers(string text) => Regex.Matches(text, @"\d+").Select(m => m.Value).ToHashSet();
+        if (!Numbers(step).All(Numbers(transcript).Contains)) return false;
         var said = SpeechWords(transcript).Split(' ', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
         var words = SpeechWords(step).Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(w => w.Length >= 3 && !w.All(char.IsDigit)).ToList();
         return words.Count == 0 || words.Count(said.Contains) * 2 >= words.Count;
