@@ -50,7 +50,7 @@ public partial class ConversationEngine
     private readonly IMerchantEmailSender? _email;
     private readonly MessageLoggingSender _turn;
     private Seller? _turnSeller;
-    /// <summary>Set when this turn put an open order draft on hold to answer a side question (see HandleIdleCoreAsync / route "other").</summary>
+    /// <summary>Set when this turn put an open order draft on hold to answer a side question (see route "other" in ConversationEngine.OrderFlow.cs).</summary>
     private bool _draftPutOnHold;
     private SessionContextData? _turnCtx;
 
@@ -108,7 +108,7 @@ public partial class ConversationEngine
         var answeredDraft = IsOrderDraftState((await LoadOrCreateSellerAsync(fromPhoneNumber, ct)).Session!.State);
         _draftPutOnHold = false;
         await HandleIncomingCoreAsync(fromPhoneNumber, rawMessage, ct);
-        if (_draftPutOnHold) await DropParkedVoiceStepsAsync(fromPhoneNumber, ct);
+        if (_draftPutOnHold) await HoldParkedVoiceStepsAsync(fromPhoneNumber, ct);
         await ResumeVoiceContinueAsync(fromPhoneNumber, answeredDraft, ct);
         await FlushStockWarningsAsync(fromPhoneNumber, ct);
         await TrySendShortcutBarAsync(fromPhoneNumber, ct);

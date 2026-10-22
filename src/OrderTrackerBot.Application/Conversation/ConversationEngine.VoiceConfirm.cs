@@ -63,19 +63,18 @@ public partial class ConversationEngine
     /// Only when the message just handled was answering a draft, so an unrelated later message never replays them.
     /// </summary>
     /// <summary>
-    /// The open order draft was put on hold by an unrelated message, so the voice steps waiting for it are dropped; the seller is told to resend them.
+    /// The open order draft was put on hold by an unrelated message. The voice steps waiting for it stay parked: they run when the draft is
+    /// answered (or expire), and the seller is shown what is waiting.
     /// </summary>
-    private async Task DropParkedVoiceStepsAsync(string fromPhoneNumber, CancellationToken ct)
+    private async Task HoldParkedVoiceStepsAsync(string fromPhoneNumber, CancellationToken ct)
     {
         var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
         var session = seller.Session!;
         var ctx = SessionContextData.FromJson(session.ContextJson);
-        if (ctx.PendingVoiceContinue is not { Count: > 0 }) return;
+        if (ctx.PendingVoiceContinue is not { Count: > 0 } waiting) return;
 
-        ctx.PendingVoiceContinue = null;
-        ctx.PendingVoiceContinueAt = null;
-        await PersistAsync(session, ctx, ct);
-        await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("voice-confirm.004"), ct);
+        await _sender.SendTextMessageAsync(fromPhoneNumber,
+            MessageTemplates.Get("voice-confirm.004", string.Join("  →  ", waiting.Select(s => $"\"{s}\""))), ct);
     }
 
     private async Task ResumeVoiceContinueAsync(string fromPhoneNumber, bool answeredDraft, CancellationToken ct)

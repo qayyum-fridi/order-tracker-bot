@@ -71,6 +71,10 @@ public partial class ConversationEngine
             ? TurnDecision.Execute(new[] { joined })
             : await InterpretVoiceAsync(seller, text, ct);
         if (decision.Kind != DecisionKind.Execute) LogNotUnderstood("voice-" + decision.Kind.ToString().ToLowerInvariant(), seller.Session!.State, text);
+        // Steps the AI made up or that do not match the words spoken are not run; the seller is told which ones, so nothing vanishes silently.
+        // Shown on every reply path (clarify, refuse and run), not only the run path.
+        foreach (var dropped in _droppedVoiceSteps)
+            heard += $"\n{MessageTemplates.Get("voice-confirm.006", dropped)}";
         if (decision.Kind == DecisionKind.Clarify)
         {
             // Clear intent but a detail is missing (which order, the new price): ask for it instead of guessing or failing.
@@ -105,9 +109,6 @@ public partial class ConversationEngine
 
         if (steps.Count != 1 || !string.Equals(steps[0], text, StringComparison.OrdinalIgnoreCase))
             heard += $"\n➡️ Samjha: {string.Join("  →  ", steps.Select(s => $"\"{s}\""))}";
-        // Steps the AI made up or that do not match the words spoken are not run; the seller is told which ones, so nothing vanishes silently.
-        foreach (var dropped in _droppedVoiceSteps)
-            heard += $"\n{MessageTemplates.Get("voice-confirm.006", dropped)}";
 
         // Money-changing or hard-to-reverse actions (price edit, cancel, status change...) wait for a YES before anything runs.
         var (safe, risky) = SplitVoiceSteps(seller, steps);
