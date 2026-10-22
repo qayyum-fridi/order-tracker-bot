@@ -665,6 +665,23 @@ public class CommandParserTests
     }
 
     [Theory]
+    [InlineData("delivery -5000")]
+    [InlineData("delivery - 200")]
+    [InlineData("delivery: -200")]
+    public void RefusesNegativeDeliveryAmount(string message)
+    {
+        Assert.False(CommandParser.TryParseDeliveryAmount(message, out _));
+    }
+
+    [Theory]
+    [InlineData("Sara 1 suit, delivery -5000, 03001234567")]
+    [InlineData("Sara 1 suit, -300 delivery, 03001234567")]
+    public void NeverReadsNegativeDeliveryInOrderTextAsPositive(string message)
+    {
+        Assert.False(CommandParser.TryFindDeliveryInOrderText(message, out _));
+    }
+
+    [Theory]
     [InlineData("Sara, 1 kurti, 03001234567")]
     [InlineData("Sara 1 kurti, delivery 15 tareekh ko, 03001234567")]
     [InlineData("Sara 1 kurti, delivery date 20 oct")]
