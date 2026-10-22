@@ -285,15 +285,29 @@ public partial class ConversationEngine
             // The span is spelled differently ("pachis" for "pachees") but every amount of the step was said: the step may run.
             // Without an amount there is nothing to confirm the step against, so it is still dropped.
             var stepAmounts = SpokenNumbers.Amounts(step);
-            var said = SpokenNumbers.Amounts(transcript);
-            return stepAmounts.Count > 0 && stepAmounts.All(a => said.Contains(a) || known.Contains(a))
-                ? null
-                : ("span is not in the transcript", "voice-confirm.008");
+            if (stepAmounts.Count > 0)
+                return stepAmounts.All(a => SpokenNumbers.Amounts(transcript).Contains(a) || known.Contains(a))
+                    ? null
+                    : ("span is not in the transcript", "voice-confirm.008");
+            // No amount (a plain command such as "cancel order" or "status check"): its words and numbers must have been said.
+            return CommandWordsSaid(transcript, step) ? null : ("span is not in the transcript", "voice-confirm.008");
         }
         var spanAmounts = SpokenNumbers.Amounts(span);
         return SpokenNumbers.Amounts(step).Any(a => !spanAmounts.Contains(a) && !known.Contains(a))
             ? ("amount is not in the step's own words", "voice-confirm.007")
             : null;
+    }
+
+    /// <summary>
+    /// A step without an amount is kept when its numbers (order ids, counts) were said and most of its words were said too.
+    /// A number the seller did not say ("cancel 1" when nothing was numbered) still fails.
+    /// </summary>
+    private static bool CommandWordsSaid(string transcript, string step)
+    {
+        if (!DigitRuns(step).All(DigitRuns(transcript).Contains)) return false;
+        var said = SpeechWords(transcript).Split(' ', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
+        var words = SpeechWords(step).Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(w => w.Length >= 3 && !w.All(char.IsDigit)).ToList();
+        return words.Count == 0 || words.Count(said.Contains) * 2 >= words.Count;
     }
 
     /// <summary>Lower-case words separated by single spaces, padded on both sides, so a span can be matched as whole words.</summary>

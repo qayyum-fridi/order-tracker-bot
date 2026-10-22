@@ -1081,6 +1081,21 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task VoiceNote_AmountlessCommand_WithSpellingDifferentSpan_IsKept()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var voice = VoiceEngine(db, "yaar purana order cancel kar do");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "cancel order" }, Spans = { "purana order cancl" } });
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.amountless");
+
+        Assert.DoesNotContain(_sent, m => m.Contains("awaaz mein saaf nahi thi"));
+    }
+
+    [Fact]
     public async Task VoiceNote_ReplyToAHandledNote_IsNotRunAgain()
     {
         using var db = _dbFactory.CreateContext();
