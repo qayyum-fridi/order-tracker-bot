@@ -371,7 +371,9 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "yes / no = the seller agrees / refuses (text empty); choose = picks a numbered option (text is only the number); edit_step = one edit line while changing an order " +
             "(price 1 = 1500, qty 2 = 3, remove 1, delivery 250...); done = the seller says they are finished (text empty); skip = the seller says skip (text empty); help = kya karun / guide. " +
             $"ALLOWED ACTIONS right now: {allowedActions}. If the seller's words need an action that is not allowed, use reply with their words — never pick another action to make it fit. " +
-            "Return ONLY JSON: {\"steps\": [{\"action\": \"reply\", \"text\": \"...\"}], \"question\": null, \"options\": []}; steps run one after another as separate typed messages " +
+            "SPAN: every step also has \"span\": the exact words of the transcript that the step was made from, copied as they were spoken (\"\" only when the step comes from the chat context alone, e.g. yes / no / done). " +
+            "Never write a span that is not in the transcript, and keep every amount of the step inside its span (words such as \"do\" or \"teen\" count, digits too). " +
+            "Return ONLY JSON: {\"steps\": [{\"action\": \"reply\", \"text\": \"...\", \"span\": \"...\"}], \"question\": null, \"options\": []}; steps run one after another as separate typed messages " +
             "(normally just one; at most 4); question is a string only when asking. WHENEVER you are unsure what the seller means, or a detail has a few possible values " +
             "(which of two customers, which order, which status, which period, which of several commands), ask a short question AND fill options with up to 5 answers the seller can TAP: " +
             "each option is EXACTLY the message the bot should receive when tapped, written as the typed command or reply (\"mark 13 delivered\", \"orders last week\", \"Hassan Ali\", \"create discount\"), " +
@@ -386,6 +388,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             using var doc = JsonDocument.Parse(json);
             var steps = new List<string>();
             var actions = new List<string>();
+            var spans = new List<string>();
             if (doc.RootElement.TryGetProperty("steps", out var stepsEl) && stepsEl.ValueKind == JsonValueKind.Array)
                 foreach (var stepEl in stepsEl.EnumerateArray().Take(4))
                 {
@@ -397,6 +400,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
                     if (text.Length == 0 && action is not ("yes" or "no" or "done" or "skip")) continue;
                     steps.Add(text);
                     if (action is not null) actions.Add(action);
+                    spans.Add(stepEl.ValueKind == JsonValueKind.Object ? GetNullableString(stepEl, "span")?.Trim() ?? "" : "");
                 }
             if (actions.Count != 0 && actions.Count != steps.Count) actions.Clear();
             var question = GetNullableString(doc.RootElement, "question")?.Trim();
@@ -408,7 +412,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
                     var option = optionEl.ValueKind == JsonValueKind.String ? optionEl.GetString()?.Trim() : null;
                     if (!string.IsNullOrWhiteSpace(option) && option.Length <= 60 && !options.Contains(option, StringComparer.OrdinalIgnoreCase)) options.Add(option);
                 }
-            return steps.Count == 0 && question is null ? null : new AiVoiceInterpretation { Steps = steps, Actions = actions, Question = question, Options = options };
+            return steps.Count == 0 && question is null ? null : new AiVoiceInterpretation { Steps = steps, Actions = actions, Spans = spans, Question = question, Options = options };
         }
         catch (JsonException ex)
         {

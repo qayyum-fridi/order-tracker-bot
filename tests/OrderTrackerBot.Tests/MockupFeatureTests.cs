@@ -1048,6 +1048,24 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task VoiceNote_StepWhoseSpanIsNotInTheTranscript_IsDropped_NotRun()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await SaveSaraKurtiOrderAsync(engine, db);
+        var voice = VoiceEngine(db, "sara ka order cancel kar do");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "cancel 1" }, Actions = { "command" }, Spans = { "cancel teen sau" } });
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        Assert.Equal(1, await db.Orders.CountAsync(o => o.Status == OrderStatus.Pending));
+        Assert.NotEqual(ConversationState.AwaitingVoiceConfirmation, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sent, m => m.Contains("samajh nahi aaya"));
+    }
+
+    [Fact]
     public async Task VoiceNote_MixedSteps_RunSafeNow_AndParkOnlyRiskyForYes()
     {
         using var db = _dbFactory.CreateContext();

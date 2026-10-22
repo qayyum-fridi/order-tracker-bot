@@ -187,6 +187,9 @@ public partial class ConversationEngine
         if (result?.Question is { } question && result.Steps.Count == 0) return TurnDecision.Clarify(question, result.Options);
         if (result is { Steps.Count: > 0 })
         {
+            // A step must come from the words actually spoken (its span) and carry only amounts said in those words; anything else is dropped.
+            var known = KnownVoiceNumbers(recent, catalog, lastMessages.Select(m => m.RawText));
+            result = KeepSpokenSteps(transcript, result, known);
             // The model may only pick actions that make sense right now; anything else it made up is dropped (and the transcript is used if nothing is left).
             var steps = result.Actions.Count == result.Steps.Count
                 ? ValidateVoiceSteps(seller.Session!.State, seller, result.Steps, result.Actions)
@@ -196,7 +199,6 @@ public partial class ConversationEngine
                 // Waiting for dates: nothing here is money or an order, and dates legitimately add digits (a day, a year) the seller spoke as words ("yakum", "do hazar chhabees").
                 if (seller.Session!.State == ConversationState.AwaitingCustomDateRange) return TurnDecision.Execute(CorrectMarginQuestion(transcript, steps));
                 // A rewrite that changes what was said is not run, and neither is the raw transcript: the seller is asked again.
-                var known = KnownVoiceNumbers(recent, catalog, lastMessages.Select(m => m.RawText));
                 // Reason only (never the transcript text): makes refused rewrites visible in the logs.
                 if (WhyUnfaithful(transcript, string.Join("\n", steps), known) is { } why)
                     _logger?.LogWarning("Voice rewrite refused: {Reason} (risky={Risky})", why, StepsAreRisky(steps));
@@ -210,6 +212,45 @@ public partial class ConversationEngine
             return TurnDecision.Execute(new[] { transcript });
         return TurnDecision.Clarify(ParserFailureQuestion);
     }
+
+    /// <summary>
+    /// Keeps the steps whose span is really in the transcript and whose amounts were said inside that span (or are known to the seller's data).
+    /// Steps without a span keep the whole-note check. A dropped step is logged with its reason only, never with the transcript text.
+    /// </summary>
+    private AiVoiceInterpretation KeepSpokenSteps(string transcript, AiVoiceInterpretation result, IReadOnlySet<long> known)
+    {
+        var keepActions = result.Actions.Count == result.Steps.Count;
+        var steps = new List<string>();
+        var actions = new List<string>();
+        var spans = new List<string>();
+        for (var i = 0; i < result.Steps.Count; i++)
+        {
+            var span = i < result.Spans.Count ? result.Spans[i] : "";
+            if (SpanProblem(transcript, result.Steps[i], span, known) is { } reason)
+            {
+                _logger?.LogWarning("Voice step dropped: {Reason}", reason);
+                continue;
+            }
+            steps.Add(result.Steps[i]);
+            if (keepActions) actions.Add(result.Actions[i]);
+            spans.Add(span);
+        }
+        return new AiVoiceInterpretation { Steps = steps, Actions = actions, Spans = spans, Question = result.Question, Options = result.Options };
+    }
+
+    /// <summary>Why a step with a span must not run; null when it is fine or has no span (the whole-note check applies then).</summary>
+    private static string? SpanProblem(string transcript, string step, string span, IReadOnlySet<long> known)
+    {
+        var spoken = SpeechWords(span);
+        if (spoken.Trim().Length == 0) return null;
+        if (!SpeechWords(transcript).Contains(spoken)) return "span is not in the transcript";
+        var spanAmounts = SpokenNumbers.Amounts(span);
+        return SpokenNumbers.Amounts(step).Any(a => !spanAmounts.Contains(a) && !known.Contains(a)) ? "amount is not in the step's own words" : null;
+    }
+
+    /// <summary>Lower-case words separated by single spaces, padded on both sides, so a span can be matched as whole words.</summary>
+    private static string SpeechWords(string text) =>
+        " " + System.Text.RegularExpressions.Regex.Replace(text.ToLowerInvariant(), @"[^\p{L}\p{N}]+", " ").Trim() + " ";
 
     /// <summary>
     /// A voice rewrite must not turn an analysis question into the "create a discount code" how-to. When the seller talked about margin / profit and did not say anything

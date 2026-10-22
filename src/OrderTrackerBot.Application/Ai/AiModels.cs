@@ -174,6 +174,9 @@ public sealed class AiVoiceInterpretation
     /// <summary>The kind of each step (reply | command | yes | no | choose | edit_step | done | skip | help), same length as <see cref="Steps"/>;
     /// empty when the model gave plain strings. The engine drops any step whose action is not valid in the bot's current state.</summary>
     public List<string> Actions { get; init; } = new();
+    /// <summary>The words of the transcript each step came from ("" when a step comes from the chat context only), same length as <see cref="Steps"/>;
+    /// empty when the model gave no spans. A step with a span is checked against the transcript before it runs.</summary>
+    public List<string> Spans { get; init; } = new();
     public string? Question { get; init; }
     /// <summary>When <see cref="Question"/> has a few known answers (which customer, which order, which status, which period): each is the exact text the bot
     /// receives when the seller taps it. Shown as buttons / a list so the seller can tap instead of speaking again.</summary>
