@@ -66,6 +66,7 @@ public partial class ConversationEngine
 
         // A transcript that is only a phone number needs no rewrite (a second, slow model call): it is the answer as typed.
         var joined = JoinSpacedPhones(text.Trim().Trim('.', '!', '?', '،', '۔', ' '));
+        _droppedVoiceSteps.Clear();
         var decision = joined.All(c => char.IsDigit(c) || c == '+') && IsPlausiblePhone(joined)
             ? TurnDecision.Execute(new[] { joined })
             : await InterpretVoiceAsync(seller, text, ct);
@@ -104,6 +105,9 @@ public partial class ConversationEngine
 
         if (steps.Count != 1 || !string.Equals(steps[0], text, StringComparison.OrdinalIgnoreCase))
             heard += $"\n➡️ Samjha: {string.Join("  →  ", steps.Select(s => $"\"{s}\""))}";
+        // Steps the AI made up or that do not match the words spoken are not run; the seller is told which ones, so nothing vanishes silently.
+        foreach (var dropped in _droppedVoiceSteps)
+            heard += $"\n{MessageTemplates.Get("voice-confirm.006", dropped)}";
 
         // Money-changing or hard-to-reverse actions (price edit, cancel, status change...) wait for a YES before anything runs.
         var (safe, risky) = SplitVoiceSteps(seller, steps);
@@ -213,6 +217,9 @@ public partial class ConversationEngine
         return TurnDecision.Clarify(ParserFailureQuestion);
     }
 
+    /// <summary>Steps removed by <see cref="KeepSpokenSteps"/> for the current voice note; shown to the seller with the echo.</summary>
+    private readonly List<string> _droppedVoiceSteps = new();
+
     /// <summary>
     /// Keeps the steps whose span is really in the transcript and whose amounts were said inside that span (or are known to the seller's data).
     /// Steps without a span keep the whole-note check. A dropped step is logged with its reason only, never with the transcript text.
@@ -229,6 +236,7 @@ public partial class ConversationEngine
             if (SpanProblem(transcript, result.Steps[i], span, known) is { } reason)
             {
                 _logger?.LogWarning("Voice step dropped: {Reason}", reason);
+                _droppedVoiceSteps.Add(result.Steps[i]);
                 continue;
             }
             steps.Add(result.Steps[i]);
