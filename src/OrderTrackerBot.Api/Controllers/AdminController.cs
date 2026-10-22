@@ -20,6 +20,8 @@ namespace OrderTrackerBot.Api.Controllers;
 public class AdminController : ControllerBase
 {
     private const int MaxPageSize = 100;
+    /// <summary>Highest page that keeps (page - 1) * pageSize inside an int: a larger page overflows and turns into a negative offset.</summary>
+    private const int MaxPage = int.MaxValue / MaxPageSize;
 
     private readonly AppDbContext _db;
     private readonly ILogger<AdminController> _logger;
@@ -84,7 +86,7 @@ public class AdminController : ControllerBase
         [FromQuery] string? from = null, [FromQuery] string? to = null, CancellationToken ct = default)
     {
         if (!AdminDateRange.TryResolveOptional(from, to, out var range, out var error)) return BadRequest(new { error });
-        page = Math.Max(1, page);
+        page = Math.Clamp(page, 1, MaxPage);
         pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
 
         IQueryable<Seller> query = _db.Sellers.AsNoTracking();
@@ -234,7 +236,7 @@ public class AdminController : ControllerBase
         [FromQuery] string? from = null, [FromQuery] string? to = null, CancellationToken ct = default)
     {
         if (!AdminDateRange.TryResolveOptional(from, to, out var range, out var error)) return BadRequest(new { error });
-        page = Math.Max(1, page);
+        page = Math.Clamp(page, 1, MaxPage);
         pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
 
         IQueryable<Order> query = _db.Orders.AsNoTracking();

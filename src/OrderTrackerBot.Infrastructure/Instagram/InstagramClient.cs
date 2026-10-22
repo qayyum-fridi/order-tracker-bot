@@ -46,24 +46,31 @@ public static class InstagramWebhookPayload
         try { root = JsonNode.Parse(json); }
         catch (System.Text.Json.JsonException) { return comments; }
 
-        if (root?["object"]?.GetValue<string>() is not "instagram") return comments;
-        foreach (var entry in root["entry"] as JsonArray ?? new JsonArray())
+        if (Str(root, "object") is not "instagram") return comments;
+        foreach (var entry in Member(root, "entry") as JsonArray ?? new JsonArray())
         {
-            var accountId = InstagramClient.JsonId(entry?["id"]);
+            var accountId = InstagramClient.JsonId(Member(entry, "id"));
             if (accountId is null) continue;
-            foreach (var change in entry!["changes"] as JsonArray ?? new JsonArray())
+            foreach (var change in Member(entry, "changes") as JsonArray ?? new JsonArray())
             {
-                if (change?["field"]?.GetValue<string>() is not ("comments" or "live_comments")) continue;
-                var value = change["value"];
-                var commentId = InstagramClient.JsonId(value?["id"]);
-                var text = value?["text"]?.GetValue<string>();
+                if (Str(change, "field") is not ("comments" or "live_comments")) continue;
+                var value = Member(change, "value");
+                var commentId = InstagramClient.JsonId(Member(value, "id"));
+                var text = Str(value, "text");
                 if (commentId is null || string.IsNullOrWhiteSpace(text)) continue;
-                comments.Add(new InstagramComment(accountId, commentId, InstagramClient.JsonId(value!["from"]?["id"]),
-                    value["from"]?["username"]?.GetValue<string>(), text, InstagramClient.JsonId(value["media"]?["id"])));
+                var from = Member(value, "from");
+                comments.Add(new InstagramComment(accountId, commentId, InstagramClient.JsonId(Member(from, "id")),
+                    Str(from, "username"), text, InstagramClient.JsonId(Member(Member(value, "media"), "id"))));
             }
         }
         return comments;
     }
+
+    /// <summary>A field of a JSON object, or null when the node is not an object: a malformed payload must not throw.</summary>
+    private static JsonNode? Member(JsonNode? node, string name) => node is JsonObject o ? o[name] : null;
+
+    /// <summary>A string field, or null when it is missing or not a string.</summary>
+    private static string? Str(JsonNode? node, string name) => Member(node, name) is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
 }
 
 /// <summary>Result of a completed OAuth connect: the IG professional account and the token to act on its comments with.</summary>
