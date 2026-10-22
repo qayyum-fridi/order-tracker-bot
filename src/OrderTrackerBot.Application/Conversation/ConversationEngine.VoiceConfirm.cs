@@ -73,6 +73,7 @@ public partial class ConversationEngine
         if (ctx.PendingVoiceContinue is not { Count: > 0 }) return;
 
         ctx.PendingVoiceContinue = null;
+        ctx.PendingVoiceContinueAt = null;
         await PersistAsync(session, ctx, ct);
         await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("voice-confirm.004"), ct);
     }
@@ -85,8 +86,12 @@ public partial class ConversationEngine
         var ctx = SessionContextData.FromJson(session.ContextJson);
         if (ctx.PendingVoiceContinue is not { Count: > 0 } rest || session.State != ConversationState.Idle) return;
 
+        // Steps parked long ago belong to an old note: a draft answered much later must not replay them.
+        var stale = ctx.PendingVoiceContinueAt is null || DateTime.UtcNow - ctx.PendingVoiceContinueAt.Value > VoiceConfirmWindow;
         ctx.PendingVoiceContinue = null;
+        ctx.PendingVoiceContinueAt = null;
         await PersistAsync(session, ctx, ct);
+        if (stale) return;
         await RunVoiceStepsAsync(fromPhoneNumber, rest, ct);
     }
 
@@ -110,6 +115,7 @@ public partial class ConversationEngine
             {
                 var ctx = SessionContextData.FromJson(session.ContextJson);
                 ctx.PendingVoiceContinue = steps.Skip(i + 1).ToList();
+                ctx.PendingVoiceContinueAt = DateTime.UtcNow;
                 await PersistAsync(session, ctx, ct);
                 return;
             }

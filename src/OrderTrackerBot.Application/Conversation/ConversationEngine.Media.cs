@@ -230,9 +230,16 @@ public partial class ConversationEngine
         var steps = new List<string>();
         var actions = new List<string>();
         var spans = new List<string>();
+        var seen = new HashSet<(string Text, string Span)>();
         for (var i = 0; i < result.Steps.Count; i++)
         {
             var span = i < result.Spans.Count ? result.Spans[i] : "";
+            // The same words from the same spoken part twice (a model retry) would save the same order twice: keep the first only.
+            if (span.Trim().Length > 0 && !seen.Add((result.Steps[i], span)))
+            {
+                _logger?.LogInformation("Voice step skipped: duplicate of an earlier step");
+                continue;
+            }
             if (SpanProblem(transcript, result.Steps[i], span, known) is { } reason)
             {
                 _logger?.LogWarning("Voice step dropped: {Reason}", reason);

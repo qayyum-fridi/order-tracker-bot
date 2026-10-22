@@ -168,6 +168,8 @@ public sealed class SessionContextData
     public int PendingVoiceLogId { get; set; }
     /// <summary>Voice steps after an order draft; they run once that draft is saved, edited or cancelled (one draft at a time).</summary>
     public List<string>? PendingVoiceContinue { get; set; }
+    /// <summary>When <see cref="PendingVoiceContinue"/> was parked (UTC). Steps left this long are stale and are not replayed.</summary>
+    public DateTime? PendingVoiceContinueAt { get; set; }
     public string? SelectedPlan { get; set; }
     /// <summary>Support query whose drafted reply is awaiting YES/EDIT.</summary>
     public int? SupportQueryId { get; set; }

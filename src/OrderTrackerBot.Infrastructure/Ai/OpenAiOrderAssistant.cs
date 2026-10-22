@@ -374,7 +374,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "SPAN: every step also has \"span\": the exact words of the transcript that the step was made from, copied as they were spoken (\"\" only when the step comes from the chat context alone, e.g. yes / no / done). " +
             "Never write a span that is not in the transcript, and keep every amount of the step inside its span (words such as \"do\" or \"teen\" count, digits too). " +
             "Return ONLY JSON: {\"steps\": [{\"action\": \"reply\", \"text\": \"...\", \"span\": \"...\"}], \"question\": null, \"options\": []}; steps run one after another as separate typed messages " +
-            "(normally just one; at most 4); question is a string only when asking. WHENEVER you are unsure what the seller means, or a detail has a few possible values " +
+            "(normally just one; at most 8, one per separate wish in the note); question is a string only when asking. WHENEVER you are unsure what the seller means, or a detail has a few possible values " +
             "(which of two customers, which order, which status, which period, which of several commands), ask a short question AND fill options with up to 5 answers the seller can TAP: " +
             "each option is EXACTLY the message the bot should receive when tapped, written as the typed command or reply (\"mark 13 delivered\", \"orders last week\", \"Hassan Ali\", \"create discount\"), " +
             "at most 40 characters. Use options [] for an open question (a price, a name nobody has said).",
@@ -390,7 +390,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             var actions = new List<string>();
             var spans = new List<string>();
             if (doc.RootElement.TryGetProperty("steps", out var stepsEl) && stepsEl.ValueKind == JsonValueKind.Array)
-                foreach (var stepEl in stepsEl.EnumerateArray().Take(4))
+                foreach (var stepEl in stepsEl.EnumerateArray().Take(8))
                 {
                     // {"action": "...", "text": "..."}; a bare string is accepted too (no action then, so the engine cannot check it).
                     var action = stepEl.ValueKind == JsonValueKind.Object ? GetNullableString(stepEl, "action")?.Trim().ToLowerInvariant() ?? "" : null;

@@ -1066,6 +1066,27 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task VoiceNote_RepeatedStepFromTheSameWords_IsSavedOnce()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await SaveSaraKurtiOrderAsync(engine, db);
+        var voice = VoiceEngine(db, "sara ka order cancel kar do");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation
+            {
+                Steps = { "cancel 1", "cancel 1" },
+                Actions = { "command", "command" },
+                Spans = { "cancel", "cancel" }
+            });
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        var session = await db.Sessions.FirstAsync();
+        Assert.Equal(new[] { "cancel 1" }, SessionContextData.FromJson(session.ContextJson).PendingVoiceSteps);
+    }
+
+    [Fact]
     public async Task VoiceNote_MixedSteps_RunSafeNow_AndParkOnlyRiskyForYes()
     {
         using var db = _dbFactory.CreateContext();
