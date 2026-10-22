@@ -1097,6 +1097,24 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task UndoNote_UndoesEverythingTheLastVoiceNoteDid()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var voice = VoiceEngine(db, "500 packaging ka kharcha likh do");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "expense 500 packaging" }, Spans = { "500 packaging" } });
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.expense");
+        Assert.Equal(1, await db.Expenses.CountAsync());
+
+        await engine.HandleIncomingMessageAsync(Phone, "undo note", default);
+        await engine.HandleIncomingMessageAsync(Phone, "undo note", default);
+
+        Assert.Equal(0, await db.Expenses.CountAsync());
+        Assert.Contains(_sent, m => m.Contains("kaam wapas ho gaye"));
+    }
+
+    [Fact]
     public async Task VoiceNote_ReplyToAHandledNote_IsNotRunAgain()
     {
         using var db = _dbFactory.CreateContext();

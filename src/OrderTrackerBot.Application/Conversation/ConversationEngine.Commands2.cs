@@ -99,9 +99,34 @@ public partial class ConversationEngine
         await ReplyAsync(seller, MessageTemplates.Get("commands2.006", changed), ct);
     }
 
-    private async Task HandleUndoAsync(Seller seller, CancellationToken ct)
+    /// <summary>Undoes everything the last voice note did, newest first (the range is recorded by HandleAudioMessageAsync).</summary>
+    private async Task HandleUndoNoteAsync(Seller seller, CancellationToken ct)
     {
-        var last = await _db.ActionLogs
+        var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
+        var start = ctx.LastVoiceNoteStartLogId;
+        var end = ctx.LastVoiceNoteEndLogId;
+        var logs = end > start
+            ? await _db.ActionLogs.Where(a => a.SellerId == seller.Id && !a.Undone && a.Id > start && a.Id <= end)
+                .OrderByDescending(a => a.Id).ToListAsync(ct)
+            : new List<ActionLog>();
+        if (logs.Count == 0)
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("voice-undo.001"), ct);
+            return;
+        }
+
+        foreach (var log in logs) await HandleUndoAsync(seller, ct, log);
+
+        // The range is used once: a second "undo note" must not undo the same work again.
+        var latest = SessionContextData.FromJson(seller.Session!.ContextJson);
+        latest.LastVoiceNoteEndLogId = start;
+        await PersistAsync(seller.Session!, latest, ct);
+        await ReplyAsync(seller, MessageTemplates.Get("voice-undo.002", logs.Count), ct);
+    }
+
+    private async Task HandleUndoAsync(Seller seller, CancellationToken ct, ActionLog? target = null)
+    {
+        var last = target ?? await _db.ActionLogs
             .Where(a => a.SellerId == seller.Id && !a.Undone)
             .OrderByDescending(a => a.Id)
             .FirstOrDefaultAsync(ct);

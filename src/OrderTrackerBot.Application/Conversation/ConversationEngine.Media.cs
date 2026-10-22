@@ -22,6 +22,21 @@ public partial class ConversationEngine
     /// <summary>Voice note: transcribe, echo what was heard so the seller can catch mistakes, then handle it exactly like typed text.</summary>
     public async Task HandleAudioMessageAsync(string fromPhoneNumber, string mediaId, string? messageId = null, string? replyToId = null, CancellationToken ct = default)
     {
+        var startLogId = await NewestActionLogIdAsync((await LoadOrCreateSellerAsync(fromPhoneNumber, ct)).Id, ct);
+        await HandleAudioCoreAsync(fromPhoneNumber, mediaId, messageId, replyToId, ct);
+
+        // The actions this note made are remembered for "undo note". A note that made none (a refused reply) keeps the earlier range.
+        var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
+        var endLogId = await NewestActionLogIdAsync(seller.Id, ct);
+        if (endLogId <= startLogId) return;
+        var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
+        ctx.LastVoiceNoteStartLogId = startLogId;
+        ctx.LastVoiceNoteEndLogId = endLogId;
+        await PersistAsync(seller.Session!, ctx, ct);
+    }
+
+    private async Task HandleAudioCoreAsync(string fromPhoneNumber, string mediaId, string? messageId, string? replyToId, CancellationToken ct)
+    {
         if (_transcriber is not { IsConfigured: true })
         {
             await HandleUnsupportedMediaAsync(fromPhoneNumber, "audio", ct);

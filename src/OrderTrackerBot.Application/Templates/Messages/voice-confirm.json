@@ -8,5 +8,7 @@
   "voice-confirm.007": "⚠️ Rakam awaaz mein saaf nahi suni gayi, is liye yeh baat nahi chalaayi gayi: \"{0}\". Rakam ke saath likh kar bhejein.",
   "voice-confirm.008": "⚠️ Yeh baat awaaz mein saaf nahi thi, is liye nahi chalaayi gayi: \"{0}\". Chhota sa jumla likh kar bhejein.",
   "voice-confirm.009": "⚠️ Yeh voice note pehle wale voice note ke jawab mein bheja gaya hai. Pehle wale note ke order dobara nahi banaye gaye. Agar yeh tabdeeli hai to pehle \"undo\" likhein (sirf aakhri kaam wapas hota hai), phir naya note bhejein.",
-  "voice-confirm.010": "⚠️ Pehle wale voice note ke baqi steps purane hone ki wajah se nahi chalaye gaye: {0}. Zaroorat ho to dobara bhejein."
+  "voice-confirm.010": "⚠️ Pehle wale voice note ke baqi steps purane hone ki wajah se nahi chalaye gaye: {0}. Zaroorat ho to dobara bhejein.",
+  "voice-undo.001": "ℹ️ Is voice note ka koi kaam wapas karne ke liye nahi mila.",
+  "voice-undo.002": "✅ Is voice note ke {0} kaam wapas ho gaye."
 }
