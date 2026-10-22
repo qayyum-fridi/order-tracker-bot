@@ -1097,6 +1097,38 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task VoiceNote_SameRecordingSentAgain_IsNotRunTwice()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var voice = VoiceEngine(db, "500 packaging ka kharcha");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "expense 500 packaging" }, Spans = { "500 packaging" } });
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.first");
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.again");
+
+        Assert.Equal(1, await db.Expenses.CountAsync());
+        Assert.Contains(_sent, m => m.Contains("dobara nahi chalaya gaya"));
+    }
+
+    [Fact]
+    public async Task VoiceNote_UrduCommandWords_MatchTheEnglishStep()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var voice = VoiceEngine(db, "آرڈر منسوخ کر دو");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "cancel order" }, Spans = { "آرڈر منسوخ" } });
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.urdu");
+
+        Assert.DoesNotContain(_sent, m => m.Contains("awaaz mein saaf nahi thi"));
+    }
+
+    [Fact]
     public async Task UndoNote_UndoesEverythingTheLastVoiceNoteDid()
     {
         using var db = _dbFactory.CreateContext();

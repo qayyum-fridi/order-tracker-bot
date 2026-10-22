@@ -10,5 +10,6 @@
   "voice-confirm.009": "⚠️ Yeh voice note pehle wale voice note ke jawab mein bheja gaya hai. Pehle wale note ke order dobara nahi banaye gaye. Agar yeh tabdeeli hai to pehle \"undo\" likhein (sirf aakhri kaam wapas hota hai), phir naya note bhejein.",
   "voice-confirm.010": "⚠️ Pehle wale voice note ke baqi steps purane hone ki wajah se nahi chalaye gaye: {0}. Zaroorat ho to dobara bhejein.",
   "voice-undo.001": "ℹ️ Is voice note ka koi kaam wapas karne ke liye nahi mila.",
-  "voice-undo.002": "✅ Is voice note ke {0} kaam wapas ho gaye."
+  "voice-undo.002": "✅ Is voice note ke {0} kaam wapas ho gaye.",
+  "voice-undo.003": "⚠️ Yeh wahi voice note hai jo pehle chal chuka hai, is liye dobara nahi chalaya gaya. Dobara chalane ke liye pehle \"undo note\" likhein, ya naya note bhejein."
 }

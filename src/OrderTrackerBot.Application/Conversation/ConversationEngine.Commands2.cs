@@ -120,6 +120,7 @@ public partial class ConversationEngine
         // The range is used once: a second "undo note" must not undo the same work again.
         var latest = SessionContextData.FromJson(seller.Session!.ContextJson);
         latest.LastVoiceNoteEndLogId = start;
+        if (latest.LastVoiceNoteHash is { } undoneHash) latest.ProcessedVoiceHashes?.Remove(undoneHash);
         await PersistAsync(seller.Session!, latest, ct);
         await ReplyAsync(seller, MessageTemplates.Get("voice-undo.002", logs.Count), ct);
     }

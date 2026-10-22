@@ -23,6 +23,7 @@ public partial class ConversationEngine
     public async Task HandleAudioMessageAsync(string fromPhoneNumber, string mediaId, string? messageId = null, string? replyToId = null, CancellationToken ct = default)
     {
         var startLogId = await NewestActionLogIdAsync((await LoadOrCreateSellerAsync(fromPhoneNumber, ct)).Id, ct);
+        _lastAudioHash = null;
         await HandleAudioCoreAsync(fromPhoneNumber, mediaId, messageId, replyToId, ct);
 
         // The actions this note made are remembered for "undo note". A note that made none (a refused reply) keeps the earlier range.
@@ -32,8 +33,19 @@ public partial class ConversationEngine
         var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
         ctx.LastVoiceNoteStartLogId = startLogId;
         ctx.LastVoiceNoteEndLogId = endLogId;
+        ctx.LastVoiceNoteHash = _lastAudioHash;
+        if (_lastAudioHash is { } hash)
+        {
+            var hashes = ctx.ProcessedVoiceHashes ?? new List<string>();
+            hashes.Remove(hash);
+            hashes.Add(hash);
+            ctx.ProcessedVoiceHashes = hashes.TakeLast(20).ToList();
+        }
         await PersistAsync(seller.Session!, ctx, ct);
     }
+
+    /// <summary>SHA-256 of the audio being handled now (set by HandleAudioCoreAsync), recorded only when the note made actions.</summary>
+    private string? _lastAudioHash;
 
     private async Task HandleAudioCoreAsync(string fromPhoneNumber, string mediaId, string? messageId, string? replyToId, CancellationToken ct)
     {
@@ -63,6 +75,13 @@ public partial class ConversationEngine
         var voiceClock = System.Diagnostics.Stopwatch.StartNew();
         var media = _media is null ? null : await _media.DownloadAsync(mediaId, ct);
         var downloadMs = voiceClock.ElapsedMilliseconds;
+        _lastAudioHash = media is null ? null : Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(media.Value.Bytes));
+        if (_lastAudioHash is not null && SessionContextData.FromJson(seller.Session!.ContextJson).ProcessedVoiceHashes?.Contains(_lastAudioHash) == true)
+        {
+            await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("voice-undo.003"), ct);
+            await _db.SaveChangesAsync(ct);
+            return;
+        }
         var vocabulary = media is null ? null : await BuildVoiceVocabularyAsync(seller, ct);
         var text = media is null ? null : await _transcriber.TranscribeAsync(media.Value.Bytes, media.Value.MimeType, vocabulary, ct);
         var transcribedMs = voiceClock.ElapsedMilliseconds;
@@ -317,12 +336,19 @@ public partial class ConversationEngine
     /// A step without an amount is kept when its numbers (order ids, counts) were said and most of its words were said too.
     /// A number the seller did not say ("cancel 1" when nothing was numbered) still fails.
     /// </summary>
+    /// <summary>Urdu-script words for the bot's command words, so "آرڈر منسوخ" matches a step written as "cancel order".</summary>
+    private static readonly (string Key, string Value)[] UrduCommandWords =
+    {
+        ("منسوخ", " cancel "), ("کینسل", " cancel "), ("آرڈر", " order "), ("حالت", " status "), ("سٹیٹس", " status "), ("چیک", " check "),
+    };
+
     private static bool CommandWordsSaid(string transcript, string step)
     {
         // Any number counts here, short order ids too ("cancel 1"); DigitRuns only looks at 3+ digit amounts.
         static HashSet<string> Numbers(string text) => Regex.Matches(text, @"\d+").Select(m => m.Value).ToHashSet();
         if (!Numbers(step).All(Numbers(transcript).Contains)) return false;
-        var said = SpeechWords(transcript).Split(' ', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
+        var spoken = UrduCommandWords.Aggregate(transcript, (text, pair) => text.Replace(pair.Key, pair.Value));
+        var said = SpeechWords(spoken).Split(' ', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
         var words = SpeechWords(step).Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(w => w.Length >= 3 && !w.All(char.IsDigit)).ToList();
         return words.Count == 0 || words.Count(said.Contains) * 2 >= words.Count;
     }
