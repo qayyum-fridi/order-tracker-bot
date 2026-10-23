@@ -17,6 +17,7 @@ public class StrategyPolicyTests
     [InlineData(10, 10, 0.71, 0.73)]
     [InlineData(9, 10, 0.58, 0.61)]   // one different answer in ten is not enough
     [InlineData(5, 5, 0.55, 0.58)]
+    [InlineData(6, 6, 0.60, 0.62)]    // six delivery charges changed in a row: the bot asks next time
     public void LowerBound_IsWilsonScore(int good, int total, double low, double high)
     {
         var bound = StrategyPolicy.LowerBound(good, total);

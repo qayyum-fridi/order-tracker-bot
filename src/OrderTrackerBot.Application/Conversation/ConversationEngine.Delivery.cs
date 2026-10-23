@@ -41,6 +41,7 @@ public partial class ConversationEngine
 
         order.Total = OrderTotal(order.Subtotal, order.DiscountAmount, amount);
         order.DeliveryCharge = amount;
+        await RetractEditedAutoAnswersAsync(seller, order, "delivery", amount, ct);
         await ReplyAsync(seller,
             MessageTemplates.Get("delivery.003", order.Id, order.Customer?.Name, (amount > 0 ? Formatters.Money(amount) : "free"), Formatters.Money(order.Total), (fromList ? $"\nℹ️ \"{number}\" aapki last list ka number tha." : "")), ct);
     }

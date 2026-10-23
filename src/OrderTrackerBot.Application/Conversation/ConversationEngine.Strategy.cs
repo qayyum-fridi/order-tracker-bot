@@ -84,4 +84,61 @@ public partial class ConversationEngine
         row.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
         await _db.SaveChangesAsync(ct);
     }
+
+    private const string DeliveryContext = "delivery_text";
+
+    /// <summary>The written delivery charge is asked about once it has been changed in at least this share of decisions (lower bound of the Wilson score).</summary>
+    private const double DeliveryAskMinLowerBound = 0.6;
+
+    /// <summary>True when the seller has changed the written delivery charge often enough that the bot should ask instead of applying it.</summary>
+    private async Task<bool> DeliveryAskNeededAsync(Seller seller, CancellationToken ct)
+    {
+        if (!_features.StrategyLearning) return false;
+        var rows = await _db.StrategyStats.Where(s => s.SellerId == seller.Id && s.Context == DeliveryContext).ToListAsync(ct);
+        var total = rows.FirstOrDefault(r => r.Arm == AnyArm)?.Picked ?? 0;
+        var changed = rows.FirstOrDefault(r => r.Arm == "written")?.Overridden ?? 0;
+        return StrategyPolicy.LowerBound(changed, total) >= DeliveryAskMinLowerBound;
+    }
+
+    /// <summary>Counts one delivery decision. Kept = the written charge was used; otherwise the seller's default was chosen and the written charge counts as changed.</summary>
+    private async Task RecordDeliveryDecisionAsync(Seller seller, bool keptWritten, CancellationToken ct)
+    {
+        await BumpStrategyAsync(seller, DeliveryContext, AnyArm, picked: 1, overridden: 0, ct);
+        if (keptWritten)
+        {
+            await BumpStrategyAsync(seller, DeliveryContext, "written", picked: 1, overridden: 0, ct);
+            return;
+        }
+        await BumpStrategyAsync(seller, DeliveryContext, "default", picked: 1, overridden: 0, ct);
+        await RetractTextDeliveryAsync(seller, ct);
+    }
+
+    /// <summary>A correction: the seller changed the delivery charge the bot wrote in the message.</summary>
+    private Task RetractTextDeliveryAsync(Seller seller, CancellationToken ct) =>
+        BumpStrategyAsync(seller, DeliveryContext, "written", picked: 0, overridden: 1, ct);
+
+    private void RememberTextDeliveryUse(SessionContextData ctx, PendingOrderData pending, Order order)
+    {
+        if (!_features.StrategyLearning || pending.TextDeliveryCharge is not { } charge) return;
+        ctx.TextDeliveryUse = new TextDeliveryUse(order.Id, charge);
+    }
+
+    /// <summary>
+    /// A price or delivery change on a saved order corrects the auto-applied answer that set it, when it is that same order.
+    /// The change is applied to the order by the caller; this only counts it.
+    /// </summary>
+    private async Task RetractEditedAutoAnswersAsync(Seller seller, Order order, string kind, decimal? amount, CancellationToken ct)
+    {
+        if (!_features.StrategyLearning || _turnCtx is not { } ctx) return;
+        if (kind == "price" && ctx.AutoPriceUse is { } price && price.OrderId == order.Id)
+        {
+            await RetractPriceAnswerAsync(seller, price.Arm, ct);
+            ctx.AutoPriceUse = null;
+        }
+        if (kind == "delivery" && ctx.TextDeliveryUse is { } delivery && delivery.OrderId == order.Id && amount != delivery.Charge)
+        {
+            await RetractTextDeliveryAsync(seller, ct);
+            ctx.TextDeliveryUse = null;
+        }
+    }
 }

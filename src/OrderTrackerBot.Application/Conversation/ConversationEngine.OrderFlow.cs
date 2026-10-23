@@ -77,7 +77,10 @@ public partial class ConversationEngine
         }
         // The seller's own words beat the model: "delivery 300" in a single order is that order's delivery charge.
         if (analysis.Order is { } single && analysis.AdditionalOrders.Count == 0 && CommandParser.TryFindDeliveryInOrderText(message, out var delivery))
+        {
             single.DeliveryCharge = delivery;
+            single.DeliveryWrittenInText = true;
+        }
         if (analysis.Order is { } one && analysis.AdditionalOrders.Count == 0 && CommandParser.TryFindAdvanceInOrderText(message, out var advance))
             one.AdvancePaid = advance;
         await HandleAnalysisAsync(seller, session, ctx, analysis, catalog, fromScreenshot: false, ct, message);
@@ -237,6 +240,7 @@ public partial class ConversationEngine
             DiscountCode = draft.DiscountCode,
             OrderSource = draft.OrderSource,
             DeliveryCharge = draft.DeliveryCharge,
+            TextDeliveryCharge = draft.DeliveryWrittenInText ? draft.DeliveryCharge : null,
             AdvancePaid = draft.AdvancePaid,
             FromScreenshot = fromScreenshot
         };
@@ -371,6 +375,26 @@ public partial class ConversationEngine
                     new("Catalog update karein", "3")
                 }, ct);
             return;
+        }
+
+        // A delivery charge written in the message is applied as before, unless the seller has often changed it (ConversationEngine.Strategy.cs): then they are asked.
+        if (pending.TextDeliveryCharge is { } writtenDelivery && !pending.DeliveryDecided)
+        {
+            if (await DeliveryAskNeededAsync(seller, ct))
+            {
+                ctx.PendingMissingField = "DeliveryChoice";
+                SetState(session, ConversationState.AwaitingOrderMissingFields);
+                await SendChoicesAsync(seller.WhatsAppPhoneNumber,
+                    MessageTemplates.Get("order-flow.059", Formatters.Money(writtenDelivery), Formatters.Money(seller.DefaultDeliveryCharge)),
+                    new List<ChoiceOption>
+                    {
+                        new($"Delivery {Formatters.Money(writtenDelivery)}", "1"),
+                        new($"Default {Formatters.Money(seller.DefaultDeliveryCharge)}", "2")
+                    }, ct);
+                return;
+            }
+            pending.DeliveryDecided = true;
+            await RecordDeliveryDecisionAsync(seller, keptWritten: true, ct);
         }
 
         if (string.IsNullOrWhiteSpace(pending.CustomerName))
@@ -672,6 +696,7 @@ public partial class ConversationEngine
             }
             var order = await SaveOrderFromDraftAsync(seller, pending, ct);
             RememberAutoPriceUse(ctx, pending, order);
+            RememberTextDeliveryUse(ctx, pending, order);
             await ReplyAsync(seller, SavedText(seller, order, pending), ct);
             await SendOrderActionButtonsAsync(seller, order, ct);
             await AfterOrderSavedAsync(seller, session, ctx, order, ct);
@@ -688,6 +713,11 @@ public partial class ConversationEngine
         if (CommandParser.TryParseDeliveryAmount(message, out var delivery) && ctx.PendingOrder is { } draft)
         {
             draft.DeliveryCharge = delivery;
+            if (draft.TextDeliveryCharge is { } writtenCharge && delivery != writtenCharge)
+            {
+                draft.TextDeliveryCharge = null;
+                await RetractTextDeliveryAsync(seller, ct);
+            }
             draft.Total = OrderTotal(draft.Subtotal, draft.DiscountAmount, delivery);
             await SendDraftConfirmationAsync(seller, BuildConfirmationText(seller.PreferredLanguage, draft), ct);
             return;
@@ -1002,6 +1032,27 @@ public partial class ConversationEngine
                 ctx.PendingMissingField = null;
                 await ContinueResolvingDraftAsync(seller, session, ctx, ct);
                 return;
+
+            case "DeliveryChoice":
+            {
+                var answer = message.Trim().TrimEnd('.');
+                if (pending.TextDeliveryCharge is null) { ctx.PendingMissingField = null; await ContinueResolvingDraftAsync(seller, session, ctx, ct); return; }
+                if (answer is not ("1" or "2"))
+                {
+                    await ReplyAsync(seller, MessageTemplates.Get("order-flow.060"), ct);
+                    return;
+                }
+                pending.DeliveryDecided = true;
+                if (answer == "2")
+                {
+                    pending.DeliveryCharge = seller.DefaultDeliveryCharge;
+                    pending.TextDeliveryCharge = null; // no longer the written charge: a later change is not a correction of it
+                }
+                await RecordDeliveryDecisionAsync(seller, keptWritten: answer == "1", ct);
+                ctx.PendingMissingField = null;
+                await ContinueResolvingDraftAsync(seller, session, ctx, ct);
+                return;
+            }
 
             case "PriceChoice":
             {

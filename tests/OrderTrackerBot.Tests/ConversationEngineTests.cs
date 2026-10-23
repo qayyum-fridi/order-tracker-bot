@@ -2634,6 +2634,51 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task PriceStrategy_PriceChangedAfterSave_IsAskedAgain()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateStrategyEngine(db);
+        CollectSentBodies();
+        await PlaceCatalogAnsweredOrdersAsync(engine, AnswersUntilAuto);
+        await PlaceOrderAsync(engine, AnswersUntilAuto + 1, null);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        var orderId = (await db.Orders.OrderByDescending(o => o.Id).FirstAsync()).Id;
+        await engine.HandleIncomingMessageAsync(Phone, $"edit order {orderId}", default);
+        await engine.HandleIncomingMessageAsync(Phone, "price 1 = 1600", default);
+        await engine.HandleIncomingMessageAsync(Phone, "done", default);
+
+        _sentMessages.Clear();
+        await PlaceOrderAsync(engine, AnswersUntilAuto + 2, null);
+        Assert.Contains(_sentMessages, m => m.Contains("Qeemat mein farq"));
+    }
+
+    [Fact]
+    public async Task DeliveryStrategy_OftenChangedInTheDraft_IsAskedNextTime()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateStrategyEngine(db);
+        CollectSentBodies();
+        for (var n = 1; n <= 6; n++)
+        {
+            StatedPriceOrder(null, $"Buyer {n}", $"03001{n:D6}");
+            await engine.HandleIncomingMessageAsync(Phone, $"Buyer {n} ne kurti li, delivery 200, Gulberg Lahore", default);
+            await engine.HandleIncomingMessageAsync(Phone, "delivery 350", default);
+            await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        }
+
+        StatedPriceOrder(null, "Buyer 7", "03001000007");
+        _sentMessages.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "Buyer 7 ne kurti li, delivery 200, Gulberg Lahore", default);
+        Assert.Contains(_sentMessages, m => m.Contains("Delivery charge kaunsa"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "1", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        Assert.Equal(2000, (int)(await db.Orders.OrderByDescending(o => o.Id).FirstAsync()).Total);
+    }
+
+    [Fact]
     public async Task UnknownProduct_PromptsForPrice_ThenAddsToCatalogAndConfirmsOrder()
     {
         using var db = _dbFactory.CreateContext();
