@@ -90,7 +90,20 @@ public partial class ConversationEngine
         var discardPending = ctx.EditDiscardPending;
         ctx.EditDiscardPending = false;
 
-        if (!CommandParser.TryParseOrderEdit(message, out var change))
+        // A shared customer change waiting for "haan": a yes applies it; a refusal keeps the record as it is; anything else is read as usual.
+        var waitingCustomerChange = ctx.EditPendingCustomerChange;
+        ctx.EditPendingCustomerChange = null;
+        OrderEditInstruction? confirmedCustomerChange = null;
+        if (waitingCustomerChange is not null && CommandParser.IsAffirmative(message.Trim())) confirmedCustomerChange = waitingCustomerChange;
+        else if (waitingCustomerChange is not null && (EditRefusal.IsMatch(message.Trim()) || EditDiscardWords.IsMatch(message.Trim())))
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("order-edit.022"), ct);
+            return;
+        }
+
+        OrderEditInstruction change;
+        if (confirmedCustomerChange is not null) change = confirmedCustomerChange;
+        else if (!CommandParser.TryParseOrderEdit(message, out change))
         {
             // Acknowledgements, refusals and cancels are read before anything else: they must never fall into the help text or leave edit mode by accident.
             if (await TryHandleEditModeWordsAsync(seller, session, ctx, order, message, discardPending, ct)) return;
@@ -116,6 +129,16 @@ public partial class ConversationEngine
         if (IsDispatched(order) && change.Kind is ("qty" or "price" or "remove" or "add" or "delivery"))
         {
             await ReplyAsync(seller, DispatchedLockText(order), ct);
+            return;
+        }
+
+        // Phone, address and name live on the customer record, which every order of that buyer shows. Ask before changing it for all of them.
+        if (confirmedCustomerChange is null && change.Kind is "phone" or "address" or "name"
+            && await _db.Orders.CountAsync(o => o.SellerId == seller.Id && o.CustomerId == order.CustomerId && o.Id != order.Id, ct) is var others and > 0)
+        {
+            ctx.EditPendingCustomerChange = change;
+            var field = change.Kind switch { "phone" => "phone", "address" => "address", _ => "naam" };
+            await ReplyAsync(seller, MessageTemplates.Get("order-edit.021", order.Customer?.Name ?? "", field, others), ct);
             return;
         }
 
@@ -153,6 +176,7 @@ public partial class ConversationEngine
 
     private static void EndOrderEdit(ConversationSession session, SessionContextData ctx)
     {
+        ctx.EditPendingCustomerChange = null;
         ctx.EditOrderId = null;
         ctx.EditSnapshotLogged = false;
         ctx.EditDiscardPending = false;

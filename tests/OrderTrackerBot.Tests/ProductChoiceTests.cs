@@ -250,6 +250,72 @@ public class ProductChoiceTests : IDisposable
     }
 
     [Fact]
+    public async Task TwoUnknownProductsInOneOrder_WalkThroughAddingEach_AndBothAreSaved()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis
+            {
+                Intent = "new_order", IsOrderAttempt = true,
+                Order = new AiOrderDraft
+                {
+                    CustomerName = "Yusrah", Phone = "03457278990",
+                    Items = { new AiOrderItemDraft { ProductName = "Lawn", Quantity = 2 }, new AiOrderItemDraft { ProductName = "Shawl", Quantity = 1 } }
+                }
+            });
+
+        await engine.HandleIncomingMessageAsync(Phone, "Yusrah 03457278990 2 lawn, 1 shawl order place karo", default);
+        Assert.Contains(_sent, m => m.Contains("Lawn") && m.Contains("aapke catalog mein nahi mila"));
+        _sent.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "1", default);                // add "Lawn" as a new product
+        await engine.HandleIncomingMessageAsync(Phone, "1500", default);             // its price
+        Assert.Contains(_sent, m => m.Contains("Shawl") && m.Contains("aapke catalog mein nahi mila"));
+        _sent.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "1", default);                // add "Shawl" as a new product
+        await engine.HandleIncomingMessageAsync(Phone, "900", default);
+        Assert.Contains(_sent, m => m.Contains("Confirm order") && m.Contains("Lawn") && m.Contains("Shawl"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        var order = await db.Orders.Include(o => o.Items).SingleAsync();
+        Assert.Equal(2, order.Items.Count);
+        Assert.Contains(order.Items, i => i.ProductNameSnapshot == "Lawn" && i.Quantity == 2 && i.UnitPrice == 1500m);
+        Assert.Contains(order.Items, i => i.ProductNameSnapshot == "Shawl" && i.Quantity == 1 && i.UnitPrice == 900m);
+    }
+
+    [Fact]
+    public async Task AnUnknownProductMappedToAnExistingOne_ThenAnotherAdded_BothLinesAreSaved()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis
+            {
+                Intent = "new_order", IsOrderAttempt = true,
+                Order = new AiOrderDraft
+                {
+                    CustomerName = "Yusrah", Phone = "03457278990",
+                    Items = { new AiOrderItemDraft { ProductName = "Lawn", Quantity = 2 }, new AiOrderItemDraft { ProductName = "Shawl", Quantity = 1 } }
+                }
+            });
+
+        await engine.HandleIncomingMessageAsync(Phone, "Yusrah 03457278990 2 lawn, 1 shawl order place karo", default);
+        await engine.HandleIncomingMessageAsync(Phone, "2 Kurti", default);            // "Lawn" is the catalog's Kurti
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "1", default);                  // "Shawl" is a new product
+        await engine.HandleIncomingMessageAsync(Phone, "900", default);
+        Assert.Contains(_sent, m => m.Contains("Confirm order") && m.Contains("Kurti") && m.Contains("Shawl"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        var order = await db.Orders.Include(o => o.Items).SingleAsync();
+        var kurti = await db.Products.SingleAsync(p => p.Name == "Kurti");
+        Assert.Contains(order.Items, i => i.ProductId == kurti.Id && i.Quantity == 2 && i.UnitPrice == 1800m);
+        Assert.Contains(order.Items, i => i.ProductNameSnapshot == "Shawl" && i.Quantity == 1 && i.UnitPrice == 900m);
+    }
+
+    [Fact]
     public async Task ChhoroCancelsTheDraft()
     {
         using var db = _dbFactory.CreateContext();

@@ -162,6 +162,11 @@ public partial class ConversationEngine
         var drafts = new[] { analysis.Order }.Concat(analysis.AdditionalOrders)
             .Select(d => BuildPendingOrder(d, catalog, fromScreenshot)).ToList();
 
+        // A screenshot sent while the phone was offline is the order of its send time, not of the later "yes" that saves it.
+        var shotAt = RecordTimeUtc();
+        if (fromScreenshot && shotAt < DateTime.UtcNow.AddMinutes(-1))
+            foreach (var d in drafts) d.SoldAt ??= shotAt;
+
         // "2 pack Lawn Suit" for a product sold per piece: say so instead of saving a quantity in a unit the product is not sold in (nothing is converted).
         if (sourceText is not null && UnitMismatchIn(sourceText, drafts) is var (mismatchName, ownUnit, saidUnit))
         {

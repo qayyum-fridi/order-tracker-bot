@@ -1240,9 +1240,11 @@ public partial class ConversationEngine
         var stockBefore = StockFootprint(order);
         order.Status = newStatus;
         await ApplyStockChangeAsync(seller, stockBefore, StockFootprint(order), ct);
-        order.ShippedAt = newStatus == OrderStatus.Shipped ? DateTime.UtcNow : order.ShippedAt;
-        order.DeliveredAt = newStatus == OrderStatus.Delivered ? DateTime.UtcNow : order.DeliveredAt;
-        order.ReturnedAt = newStatus == OrderStatus.Returned ? DateTime.UtcNow : order.ReturnedAt;
+        // A status sent while the phone was offline is dated when it was sent.
+        var changedAt = RecordTimeUtc();
+        order.ShippedAt = newStatus == OrderStatus.Shipped ? changedAt : order.ShippedAt;
+        order.DeliveredAt = newStatus == OrderStatus.Delivered ? changedAt : order.DeliveredAt;
+        order.ReturnedAt = newStatus == OrderStatus.Returned ? changedAt : order.ReturnedAt;
 
         _db.ActionLogs.Add(new ActionLog
         {
@@ -1285,7 +1287,7 @@ public partial class ConversationEngine
         var collected = OrderMoney.Balance(order);
         LogPaymentChange(seller, order);
         order.PaymentStatus = PaymentStatus.Paid;
-        order.PaidAt = DateTime.UtcNow;
+        order.PaidAt = RecordTimeUtc();
         order.AmountPaid = order.Total;
         return collected;
     }

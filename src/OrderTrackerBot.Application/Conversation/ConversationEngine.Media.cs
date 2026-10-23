@@ -632,8 +632,9 @@ public partial class ConversationEngine
         return core;
     }
 
-    public async Task HandleImageMessageAsync(string fromPhoneNumber, string mediaId, string? caption, CancellationToken ct = default)
+    public async Task HandleImageMessageAsync(string fromPhoneNumber, string mediaId, string? caption, CancellationToken ct = default, DateTime? sentAtUtc = null)
     {
+        _sentAtUtc = sentAtUtc;
         _db.MessageLogs.Add(new MessageLog { Phone = fromPhoneNumber, Direction = "inbound", RawText = $"[image {mediaId}] {caption}" });
         var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
         var session = seller.Session!;

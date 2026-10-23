@@ -190,7 +190,10 @@ public partial class ConversationEngine
         }
 
         var before = await SummariseCashAsync(seller, open, now, ct);
-        _db.CashMovements.Add(new CashMovement { SellerId = seller.Id, SessionId = open.Id, Kind = kind, Amount = amount, Note = cmd.Text2, CreatedAt = now });
+        // A cash entry sent while the phone was offline keeps its send time, but never before the drawer opened (it would fall outside this shift).
+        var movementAt = RecordTimeUtc();
+        if (movementAt < open.OpenedAt) movementAt = open.OpenedAt;
+        _db.CashMovements.Add(new CashMovement { SellerId = seller.Id, SessionId = open.Id, Kind = kind, Amount = amount, Note = cmd.Text2, CreatedAt = movementAt });
         await _db.SaveChangesAsync(ct);
         var summary = await SummariseCashAsync(seller, open, now, ct);
         var label = kind switch { CashMovementKind.Out => MessageTemplates.Get("cash-drawer.020"), CashMovementKind.Sale => MessageTemplates.Get("cash-drawer.021"), _ => MessageTemplates.Get("cash-drawer.022") };

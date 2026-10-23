@@ -157,6 +157,8 @@ public sealed class SessionContextData
     public bool EditDiscardPending { get; set; }
     /// <summary>The newest "order edited" undo entry before this edit started: a newer one belongs to this edit and is the only one "chhoro" may undo.</summary>
     public int EditBaselineLogId { get; set; }
+    /// <summary>A phone, address or name edit that would change a customer record shared with other orders: it waits for "haan" (the next message).</summary>
+    public OrderEditInstruction? EditPendingCustomerChange { get; set; }
     public decimal? LoyaltyDiscountPercent { get; set; }
     /// <summary>Typed steps read from a voice note that are waiting for YES (risky actions), in the order they will run.</summary>
     public List<string>? PendingVoiceSteps { get; set; }
