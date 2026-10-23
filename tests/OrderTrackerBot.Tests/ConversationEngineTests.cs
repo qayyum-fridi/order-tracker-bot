@@ -1452,8 +1452,9 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "catalog", default);
         await engine.HandleIncomingMessageAsync(Phone, "naya order", default);
 
-        Assert.Contains(_sentMessages, m => m.StartsWith("UR:"));
-        Assert.StartsWith("UR:", listBody);
+        // Replies in these flows come from hand-written Urdu templates, so the translator is not called for them.
+        Assert.DoesNotContain(_sentMessages, m => m.StartsWith("UR:"));
+        Assert.Contains("نیا آرڈر", listBody);
         Assert.All(listSections!.SelectMany(s => s.Rows), r => Assert.NotNull(CommandParser.TryParse(r.Id)));
     }
 
@@ -1875,7 +1876,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "export all", default);
 
         var (_, bytes, _) = Assert.Single(files);
-        Assert.Equal(new[] { "Orders", "Order Items", "Customers", "Catalog", "Discounts", "Loyalty Rules", "Guide" },
+        Assert.Equal(new[] { "Orders", "Order Items", "Customers", "Catalog", "Discounts", "Loyalty Rules", "Expenses", "Guide" },
             MiniExcelLibs.MiniExcel.GetSheetNames(new MemoryStream(bytes)).ToArray());
         var customers = MiniExcelLibs.MiniExcel.Query(new MemoryStream(bytes), useHeaderRow: true, sheetName: "Customers").Cast<IDictionary<string, object>>().ToList();
         Assert.DoesNotContain(customers, c => (string)c["Name"] == "Deleted Dan");

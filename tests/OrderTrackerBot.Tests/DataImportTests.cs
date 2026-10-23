@@ -263,7 +263,8 @@ public class DataImportTests : IDisposable
         Assert.Equal("kg", sugar.UnitType);
         Assert.Equal(1, await db.Products.CountAsync(p => p.Name == "Lawn Suit"));
         Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
-        Assert.Contains(_texts, t => t.Contains("Import ho gaya") && t.Contains("2 customers") && t.Contains("2 products"));
+        // "Odd Unit" has a unit word we do not list ("furlong"): units are free text, so it is saved too.
+        Assert.Contains(_texts, t => t.Contains("Import ho gaya") && t.Contains("2 customers") && t.Contains("3 products"));
 
         await engine.HandleIncomingMessageAsync(Phone, "undo", default);
 
