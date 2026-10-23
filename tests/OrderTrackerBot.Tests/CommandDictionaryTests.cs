@@ -225,6 +225,13 @@ public class CommandDictionaryTests
     [InlineData("courier fee 12 250", CommandKind.OrderCourierFee)]
     [InlineData("order 12 courier fee 250", CommandKind.OrderCourierFee)]
     [InlineData("courier fee report", CommandKind.Insight)]
+    [InlineData("profit per product", CommandKind.Insight)]
+    [InlineData("margin last month", CommandKind.Margin)]
+    [InlineData("margin 7 days", CommandKind.Margin)]
+    [InlineData("enquiry Kurti blue", CommandKind.BuyerEnquiry)]
+    [InlineData("buyer ne pucha Lawn Suit", CommandKind.BuyerEnquiry)]
+    [InlineData("enquiries", CommandKind.EnquiryReport)]
+    [InlineData("enquiries last month", CommandKind.EnquiryReport)]
     public void DocumentedPhrase_ParsesToItsCommand(string phrase, CommandKind expected) =>
         Assert.Equal(expected, CommandParser.TryParse(phrase)?.Kind);
 

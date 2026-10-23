@@ -170,6 +170,8 @@ public class Customer
     public string? Phone { get; set; }
     public string? Address { get; set; }
     public string? City { get; set; }
+    /// <summary>The buyer's own email, for "email receipt 12 to buyer". Saved with "Sara ka email sara@mail.com".</summary>
+    public string? Email { get; set; }
     public string? PreferredContact { get; set; }
     public string? Notes { get; set; }
     /// <summary>Which price group (A, B or C) this buyer pays; null = regular price.</summary>

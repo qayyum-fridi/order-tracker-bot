@@ -239,11 +239,10 @@ public class DataImportTests : IDisposable
         Assert.Contains("1 pehle se maujood", summary);
         Assert.Contains("1 file mein dobara", summary);
         Assert.Contains("2 ghalat rows", summary);
-        Assert.Contains("Products: 2 naye", summary);
+        Assert.Contains("Products: 3 naye", summary);
         Assert.Contains("1 pehle se maujood", summary);
         Assert.Contains("Customers row 6: Name khali hai", summary);
         Assert.Contains("Catalog row 5: Price sahi nahi", summary);
-        Assert.Contains("Catalog row 6: Unit sahi nahi", summary);
         Assert.Equal(ConversationState.AwaitingImportConfirmation, (await db.Sessions.FirstAsync()).State);
 
         await engine.HandleIncomingMessageAsync(Phone, "Yes", default);

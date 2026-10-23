@@ -15,5 +15,6 @@
     "Apni dukaan ki qism chunne ke liye \"industry\" likhein: phir examples aap ki dukaan ke mutabiq honge."
   ],
   "dataFocus": "cost price aur stock",
+  "menuTip": "Har product ke saath cost likhein: profit aur margin sahi aate hain. \"industry\" likh kar dukaan ki qism chunein.",
   "units": ["piece", "kg", "gram", "liter", "pack", "dozen"]
 }

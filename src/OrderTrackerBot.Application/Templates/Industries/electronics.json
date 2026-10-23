@@ -15,5 +15,6 @@
     "Warranty ya serial ke liye \"note 12 serial 12345 warranty 1 saal\" likhein."
   ],
   "dataFocus": "cost price, stock aur barcode",
+  "menuTip": "Model aur watt naam mein likhein, aur har cheez ka barcode jod kar counter par scan karein.",
   "units": ["piece", "set", "pair", "box"]
 }

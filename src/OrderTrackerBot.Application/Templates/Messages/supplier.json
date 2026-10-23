@@ -12,5 +12,6 @@
   "supplier.011": "{0} par pehle se koi supplier nahi tha.",
   "supplier.012": "✅ {0} se supplier \"{1}\" hata diya.",
   "supplier.013": "• {0}: {1} parcels · fee {2} · customers se {3} → {4}",
-  "supplier.014": "Jaise likhein: \"supplier Lawn Suit Shah Alam\" ya \"supplier Shah Alam: Lawn Suit, Kurti\" ya \"Lawn Suit ka supplier Shah Alam\"."
+  "supplier.014": "Jaise likhein: \"supplier Lawn Suit Shah Alam\" ya \"supplier Shah Alam: Lawn Suit, Kurti\" ya \"Lawn Suit ka supplier Shah Alam\".",
+  "supplier.015": "↩️ Reverted — {0} product ka supplier purani haalat par wapas kar diya."
 }

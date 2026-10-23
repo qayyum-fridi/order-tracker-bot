@@ -20,8 +20,9 @@ public partial class ConversationEngine
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>Voice note: transcribe, echo what was heard so the seller can catch mistakes, then handle it exactly like typed text.</summary>
-    public async Task HandleAudioMessageAsync(string fromPhoneNumber, string mediaId, string? messageId = null, string? replyToId = null, CancellationToken ct = default)
+    public async Task HandleAudioMessageAsync(string fromPhoneNumber, string mediaId, string? messageId = null, string? replyToId = null, CancellationToken ct = default, DateTime? sentAtUtc = null)
     {
+        _sentAtUtc = sentAtUtc;
         var startLogId = await NewestActionLogIdAsync((await LoadOrCreateSellerAsync(fromPhoneNumber, ct)).Id, ct);
         _lastAudioHash = null;
         await HandleAudioCoreAsync(fromPhoneNumber, mediaId, messageId, replyToId, ct);
@@ -159,7 +160,7 @@ public partial class ConversationEngine
         if (risky.Count == 0)
         {
             await _sender.SendTextMessageAsync(fromPhoneNumber, heard, ct);
-            await RunVoiceStepsAsync(fromPhoneNumber, steps, ct);
+            await RunVoiceStepsAsync(fromPhoneNumber, steps, _sentAtUtc, ct);
             return;
         }
         if (safe.Count == 0)
@@ -169,7 +170,7 @@ public partial class ConversationEngine
         }
 
         // Mixed note: the safe steps run first. The risky ones wait for a YES only when the session is idle again; an open order draft keeps its state.
-        await RunVoiceStepsAsync(fromPhoneNumber, safe, ct);
+        await RunVoiceStepsAsync(fromPhoneNumber, safe, _sentAtUtc, ct);
         var after = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
         if (after.Session!.State == ConversationState.Idle)
         {
@@ -273,8 +274,8 @@ public partial class ConversationEngine
                 return DecideRewrite(transcript, CorrectMarginQuestion(transcript, steps), known);
             }
         }
-        // The AI was unavailable: the transcript goes to the deterministic engine, as before.
-        if (result is null) return TurnDecision.Execute(new[] { transcript });
+        // The AI was unavailable: the transcript goes to the deterministic engine, as before, unless it has an amount word the engine cannot read.
+        if (result is null) return UnknownAmountDecision(transcript, Array.Empty<string>()) ?? TurnDecision.Execute(new[] { transcript });
         // The AI answered without a usable step: the transcript runs only when it reads as a plain command or answer.
         if (CommandParser.TryParse(transcript) is not null || CommandParser.IsAffirmative(transcript) || CommandParser.IsNegative(transcript))
             return TurnDecision.Execute(new[] { transcript });
@@ -399,8 +400,18 @@ public partial class ConversationEngine
     /// </summary>
     public static TurnDecision DecideRewrite(string transcript, IReadOnlyList<string> steps, IReadOnlySet<long>? knownNumbers)
     {
+        // An amount said with a number word we do not know ("ikhattar hazar") cannot be checked, and the rewrite may have dropped it: nothing runs.
+        if (UnknownAmountDecision(transcript, steps) is { } unknownDecision) return unknownDecision;
         if (WhyUnfaithful(transcript, string.Join("\n", steps), knownNumbers) is null) return TurnDecision.Execute(steps);
         return StepsAreRisky(steps) ? TurnDecision.Reject(RejectedUnfaithful) : TurnDecision.Clarify(UnfaithfulQuestion);
+    }
+
+    /// <summary>The reply for a note with an amount word the bot cannot read; null when every amount word is known.</summary>
+    private static TurnDecision? UnknownAmountDecision(string transcript, IReadOnlyList<string> steps)
+    {
+        if (SpokenNumbers.UnknownAmountWords(transcript) is not { Count: > 0 } unknown) return null;
+        var question = MessageTemplates.Get("voice-confirm.011", unknown[0]);
+        return StepsAreRisky(steps) ? TurnDecision.Reject(question) : TurnDecision.Clarify(question);
     }
 
     private static bool StepsAreRisky(IEnumerable<string> steps) => steps.Any(ActionRisk.IsRiskyStep);

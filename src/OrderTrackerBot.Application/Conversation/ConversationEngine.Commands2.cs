@@ -185,6 +185,12 @@ public partial class ConversationEngine
             case ActionType.ExpenseAdded:
                 await UndoExpenseAsync(seller, last, ct);
                 return;
+            case ActionType.ExpenseChanged:
+                await UndoExpenseChangeAsync(seller, last, ct);
+                return;
+            case ActionType.SupplierChanged:
+                await UndoSupplierChangeAsync(seller, last, ct);
+                return;
             case ActionType.LossLogged:
                 await UndoLossAsync(seller, last, ct);
                 return;

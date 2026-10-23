@@ -15,5 +15,6 @@
     "Supplier ke hisab se maal dekhne ke liye \"supplier Wall Paint Ali Traders\" likhein."
   ],
   "dataFocus": "stock, cost price aur supplier",
+  "menuTip": "Size aur unit naam mein likhein, aur udhaar ka balance \"unpaid orders\" se dekhein.",
   "units": ["kg", "bag", "ft", "meter", "roll", "bundle", "box", "piece"]
 }

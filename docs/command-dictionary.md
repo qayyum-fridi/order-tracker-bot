@@ -44,7 +44,7 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 | Paper size | `receipt size 80mm` (`58mm` · `A5` · `A4`) |
 | Header / contact / footer | `receipt header [line]` · `receipt contact [line]` · `receipt footer [up to 4 lines]` — `off` clears |
 | All receipt settings | `receipt settings` |
-| Email | `email ali@shop.com` · `email receipt 12` |
+| Email | `email ali@shop.com` · `email receipt 12` · `email receipt 12 to buyer` (saved buyer email) · `email export orders 30 days` · `email summary` (each with `to x@mail.com` for another address) |
 | Parcel / shop label | `label 12` · `print label` · `order label` (asks which label) · `business label` · `label size a6` |
 | Logo / banner | `logo` · `banner` (then send the picture) |
 | Printer help | `printer` |
@@ -70,11 +70,13 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 |---|---|
 | Today's account | `aaj ka hisaab` · `today's summary` · `hisaab` · `hisaab kitab` · `daily report` · `daily summary` · `today report` · `aaj ka account` · `آج کا حساب` (sales, top item, expenses, drawer cash) |
 | Other days | `kal ka hisaab` · `weekly summary` |
-| Profit | `profit` · `profit today` · `munafa` |
+| Profit | `profit` · `profit today` · `munafa` · `profit per product` (ranked by profit; `product wise profit`) |
 | Sales split by category | `sales by category` · `category wise sales` · `sales by category this week` (default: last 30 days) |
 | One product's sales, this month against last | `Polo Shirt ka report` |
 | Margin / how much discount a product can take | `margin` · `margin list` · `profit margin` · `discount room` |
-| Expenses | `expense 500 packaging` · `kharcha 800 petrol` · `expenses` · `monthly net` |
+| Margin actually made in a period (sales that happened) | `margin last month` · `margin 7 days` · `profit margin this week` |
+| Buyer questions (the bot cannot see buyers' chats: write down what was asked) | `enquiry Kurti blue` · `buyer ne pucha Lawn Suit` · `enquiries` (asked vs sold per product) · `enquiries last month` |
+| Expenses | `expense 500 packaging` · `kharcha 800 petrol` · `expenses` · `monthly net` · `expense edit 12 800 packaging` · `expense delete 12` (the number is the #12 that `expenses` shows) |
 | Supplier of a product | `supplier Lawn Suit Shah Alam` · `supplier Lawn Suit: Shah Alam` · `supplier Shah Alam: Lawn Suit, Kurti` (several at once) · `Lawn Suit ka supplier Shah Alam` · `supplier remove Lawn Suit` · `suppliers` (sale and profit per supplier) |
 | What the courier charged for a parcel | `courier fee 12 250` · `order 12 courier fee 250` · `courier fee report` (fees against the delivery charged to buyers) |
 | Payment link / methods | `payment link` · `add payment: jazzcash, 03001234567` |
@@ -178,7 +180,7 @@ Every phrase below is pinned in `StrategicInsightParserTests` (Urdu script and R
 |---|---|
 | List / detail / search | `customer list` (or `customers` · `show customers` · `all customers` · `saare customers`) · `customer 1` · `search customer: Sara` · `search customer Sara` · `customer search Sara` |
 | Order search | `search order Sara` · `find order Sara` · `order search 1203` (order number, customer name or phone, product name, or a product's design code / SKU; newest 10) |
-| Correct details | `Sara ka phone 03001234567` · `Sara ka address ...` |
+| Correct details | `Sara ka phone 03001234567` · `Sara ka address ...` · `Sara ka email sara@mail.com` |
 | Customer price group (A / B / C; `none` = regular price) | `Sara ka group B` · `Sara ka group none` |
 | Delete / restore | `delete customer Sara` · `restore customer Sara` |
 | Support / Instagram | `support queries` · `comment leads` · `connect instagram` |
@@ -194,7 +196,7 @@ Every phrase below is pinned in `StrategicInsightParserTests` (Urdu script and R
 | Menu / guide / language | `help` (or `commands` · `how to use` · `madad chahiye`) · `menu` · `guide` · `change language` |
 | Business info / plan | `update business info` · `subscribe` |
 | Bottom buttons | `shortcut off` (`shortcut on`) |
-| Data | `export` · `export orders 30 days` · `import` |
+| Data | `export` · `export orders 30 days` · `export expenses` · `import` |
 | Which build is running | `version` |
 | Sign in to the client dashboard (a code comes here) | `login` (`dashboard login`) |
 | End every dashboard session (if a login was not you) | `dashboard logout` (`logout all`, `sign out`) |

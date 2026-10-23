@@ -1,4 +1,5 @@
 using System.Globalization;
+using OrderTrackerBot.Application.Time;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
 using OrderTrackerBot.Application.Templates;
@@ -66,7 +67,7 @@ public static class Formatters
 
     public static string DaysAgo(DateTime utc)
     {
-        var days = (DateTime.UtcNow.Date - utc.Date).Days;
+        var days = (SellerClock.LocalToday(null, DateTime.UtcNow) - SellerClock.LocalToday(null, utc)).Days;
         return days switch { <= 0 => "today", 1 => "yesterday", _ => MessageTemplates.Get("fmt-formatters.001", days) };
     }
 

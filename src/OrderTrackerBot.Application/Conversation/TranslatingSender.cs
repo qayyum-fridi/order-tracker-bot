@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Ai;
 using OrderTrackerBot.Application.Formatting;
+using OrderTrackerBot.Application.Templates;
 using OrderTrackerBot.Domain.Entities;
 
 namespace OrderTrackerBot.Application.Conversation;
@@ -136,7 +137,9 @@ internal sealed class TranslatingSender : IWhatsAppSender
         for (var i = 0; i < texts.Count; i++)
         {
             if (string.IsNullOrWhiteSpace(texts[i]) || IsAlreadyInLanguage(texts[i], language)) continue;
-            if (Cache.TryGetValue(CacheKey(language, texts[i]), out var cached)) result[i] = cached;
+            // Hand-written wording first (Templates/Translations): the AI only sees text no template matches.
+            if (MessageTranslations.TryTranslate(texts[i], language, out var written)) result[i] = written;
+            else if (Cache.TryGetValue(CacheKey(language, texts[i]), out var cached)) result[i] = cached;
             else pending.Add(i);
         }
         if (pending.Count == 0) return result;

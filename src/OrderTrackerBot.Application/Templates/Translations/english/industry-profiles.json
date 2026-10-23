@@ -1,0 +1,72 @@
+{
+  "beauty": {
+    "title": "Cosmetics / Jewellery",
+    "menuTip": "Write the shade or size in the name, and link a barcode with \"barcode <product> <code>\" for the scanner.",
+    "dataFocus": "cost price, stock and category",
+    "tips": [
+      "Write the shade / size / colour in the product name (\"Lipstick Matte Red\"): each shade keeps its own stock.",
+      "If you have a barcode scanner, link the code with \"barcode Lipstick Matte Red 8964000123\".",
+      "For a gift wrap or a similar note, write \"note 12 gift wrap\": it is printed on the receipt."
+    ]
+  },
+  "clothing": {
+    "title": "Clothing / Lawn / Boutique",
+    "menuTip": "Write the size and colour with the product name, then check stock with \"stock\".",
+    "dataFocus": "cost price, category (lawn / stitched / bridal) and stock",
+    "tips": [
+      "Write the design number in the product name, e.g. \"Design 1203 - 3500\": say that same name in the order.",
+      "For size and colour write: \"Kurti - 1800, size M, color blue\".",
+      "Before Eid or the lawn season, ask: \"which product is about to run out\"."
+    ]
+  },
+  "electronics": {
+    "title": "Electronics / Mobile",
+    "menuTip": "Write the model and wattage in the name, and scan a barcode at the counter for every item.",
+    "dataFocus": "cost price, stock and barcode",
+    "tips": [
+      "Write the model / wattage / variant in the name so the wrong item is not sold.",
+      "Link a barcode to every item (\"barcode Earbuds Pro 8964000999\"), then sell by scanning at the counter.",
+      "For warranty or serial numbers, write \"note 12 serial 12345 warranty 1 year\"."
+    ]
+  },
+  "food": {
+    "title": "Food / Bakery",
+    "menuTip": "Write the advance as \"order 12 advance 1000\" and add the delivery charge in the order.",
+    "dataFocus": "advance payment, delivery charge and cost price",
+    "tips": [
+      "For orders taken in advance, write the advance: \"order 12 advance 1000\", or \"…, advance 1000\" in the order.",
+      "Write the delivery charge in the order (\"…, delivery 300\"), or set the default with \"delivery 300\".",
+      "For a customer's special request (\"photo cake, name Ali\"), write \"note 12 <text>\"."
+    ]
+  },
+  "general": {
+    "title": "General shop",
+    "menuTip": "Write the cost with every product: profit and margin come out right. Type \"industry\" to choose your kind of shop.",
+    "dataFocus": "cost price and stock",
+    "tips": [
+      "Write the cost with every product, e.g. \"Water Bottle - 500, cost 350\": this keeps profit right.",
+      "When an order arrives, be sure to write \"mark 3 shipped\" / \"mark 3 delivered\".",
+      "To choose your kind of shop, type \"industry\": the examples will then match your shop."
+    ]
+  },
+  "grocery": {
+    "title": "Grocery / Kiryana",
+    "menuTip": "Write the pack weight in the name, and keep stock: the bot warns you when it runs low.",
+    "dataFocus": "stock, pack size and cost price",
+    "tips": [
+      "Write the weight or pack with the name: \"Sugar 5 kg - 500\": a 5 kg pack is one product.",
+      "Always write the stock (\"stock Sugar 5 kg 40\"): the bot tells you when it is low.",
+      "When stock is 3 or less, the bot sends a warning on its own."
+    ]
+  },
+  "hardware": {
+    "title": "Hardware / Building",
+    "menuTip": "Write the size and unit in the name, and see the credit balance with \"unpaid orders\".",
+    "dataFocus": "stock, cost price and supplier",
+    "tips": [
+      "Write the size / unit in the name (\"PVC Pipe 1 inch\"): one item in different sizes is a different product.",
+      "For credit or money owed, write \"order 12 advance 5000\": the remaining balance shows in \"unpaid orders\".",
+      "To see goods by supplier, write \"supplier Wall Paint Ali Traders\"."
+    ]
+  }
+}

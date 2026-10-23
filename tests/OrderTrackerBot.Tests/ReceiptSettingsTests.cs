@@ -43,6 +43,30 @@ public class ReceiptSettingsParserTests
         Assert.Equal(CommandKind.Receipt, CommandParser.TryParse(text)?.Kind);
 
     [Fact]
+    public void EmailExportSummaryAndBuyerEmail_ParseTheirAddressAndPeriod()
+    {
+        var export = CommandParser.TryParse("email export orders 30 days to boss@mail.com")!;
+        Assert.Equal(CommandKind.EmailExport, export.Kind);
+        Assert.Equal("boss@mail.com", export.Text2);
+        Assert.NotNull(export.Export);
+
+        var bare = CommandParser.TryParse("email export")!;
+        Assert.Equal(CommandKind.EmailExport, bare.Kind);
+        Assert.Null(bare.Text2);
+
+        var summary = CommandParser.TryParse("email summary")!;
+        Assert.Equal(CommandKind.EmailSummary, summary.Kind);
+        Assert.Null(summary.Text2);
+
+        var update = CommandParser.TryParse("Sara ka email Sara.Khan@Mail.com")!;
+        Assert.Equal(CommandKind.CustomerUpdate, update.Kind);
+        Assert.Equal("email", update.Text2);
+        Assert.Equal("sara.khan@mail.com", update.Text3);
+
+        Assert.Equal("buyer", CommandParser.TryParse("email receipt 12 to buyer")!.Text2);
+    }
+
+    [Fact]
     public void Note_And_EmailReceipt_CarryTheirFields()
     {
         var note = CommandParser.TryParse("note 12 gift wrap")!;
@@ -90,7 +114,7 @@ public class ReceiptPaperSizePdfTests
     [InlineData("58mm")]
     public void Generate_ProducesAPdfForEveryPaperSize_WithNoteAndFooter(string size)
     {
-        var pdf = new ReceiptPdfGenerator().Generate(Sample() with { PaperSize = size, Notes = "Gift wrap please", Footer = "Shukriya! Wapsi 7 din mein." });
+        var pdf = new ReceiptPdfGenerator().Generate(Sample() with { PaperSize = size, Notes = "Gift wrap please", Footer = "Shukriya! Wapsi 7 din mein." }).Bytes;
         Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(pdf, 0, 5));
     }
 
@@ -104,7 +128,7 @@ public class ReceiptPaperSizePdfTests
             PaperSize = size, CustomerName = "عائشہ خان", AmountPaid = 2000, Logo = ReceiptPdfTests.TinyPng,
             SalesTaxRate = 18, SalesTaxAmount = 1208, Ntn = "1234567-8", Strn = "17-00-8888-001-37", ReceiptNumber = 7
         };
-        var pdf = new ReceiptPdfGenerator().Generate(data);
+        var pdf = new ReceiptPdfGenerator().Generate(data).Bytes;
         Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(pdf, 0, 5));
     }
 
@@ -118,7 +142,7 @@ public class ReceiptPaperSizePdfTests
         var pdf = new ReceiptPdfGenerator().Generate(Sample() with
         {
             PaperSize = size, Header = "Gulberg Branch · Est. 2015", Contact = "0300-1234567 · ali@shop.com · Gulberg, Lahore", Logo = ReceiptPdfTests.TinyPng
-        });
+        }).Bytes;
         Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(pdf, 0, 5));
     }
 
@@ -126,7 +150,7 @@ public class ReceiptPaperSizePdfTests
     public void Thermal_ManyItems_StillOnePdf()
     {
         var lines = Enumerable.Range(1, 60).Select(i => new ReceiptLine($"Item {i} with a fairly long product name", i % 3 + 1, 150 + i, (i % 3 + 1) * (150 + i))).ToList();
-        var pdf = new ReceiptPdfGenerator().Generate(Sample() with { PaperSize = "58mm", Lines = lines });
+        var pdf = new ReceiptPdfGenerator().Generate(Sample() with { PaperSize = "58mm", Lines = lines }).Bytes;
         Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(pdf, 0, 5));
     }
 }
@@ -148,7 +172,7 @@ public class ReceiptSettingsEngineTests : IDisposable
             .Callback<string, string, CancellationToken>((_, text, _) => _sent.Add(text)).Returns(Task.CompletedTask);
         _sender.Setup(s => s.SendDocumentAsync(Phone, It.IsAny<byte[]>(), It.IsAny<string>(), "application/pdf", It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        _pdf.Setup(p => p.Generate(It.IsAny<ReceiptData>())).Callback<ReceiptData>(d => _captured = d).Returns(new byte[] { 1, 2, 3 });
+        _pdf.Setup(p => p.Generate(It.IsAny<ReceiptData>())).Callback<ReceiptData>(d => _captured = d).Returns(new ReceiptPdf(new byte[] { 1, 2, 3 }, false));
         // Anything the parser does not recognise reaches the AI; answer "unclear" like the real assistant does when it cannot help.
         _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiMessageAnalysis { Intent = "unclear", AiUnavailable = true });
@@ -340,6 +364,58 @@ public class ReceiptSettingsEngineTests : IDisposable
 
         _email.Verify(e => e.SendAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<byte[]?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
         Assert.Contains(_sent, m => m.Contains("email ali@shop.com"));
+    }
+
+    [Fact]
+    public async Task EmailReceipt_ToBuyer_UsesTheCustomersSavedEmail()
+    {
+        using var db = _dbFactory.CreateContext();
+        var (_, order) = await SeedAsync(db);
+        var engine = Engine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara ka email Sara@Buyer.com", default);
+        await engine.HandleIncomingMessageAsync(Phone, $"email receipt {order.Id} to buyer", default);
+
+        _email.Verify(e => e.SendAsync("sara@buyer.com", It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<byte[]?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task EmailReceipt_ToBuyerWithoutSavedEmail_SaysHowToAddIt()
+    {
+        using var db = _dbFactory.CreateContext();
+        var (_, order) = await SeedAsync(db);
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, $"email receipt {order.Id} to buyer", default);
+
+        _email.Verify(e => e.SendAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<byte[]?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.Contains(_sent, m => m.Contains("Sara ka email") && m.Contains("to buyer"));
+    }
+
+    [Fact]
+    public async Task EmailSummary_SendsTodaysSummaryAsTheBody()
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+        var engine = Engine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "email Ali@Shop.com", default);
+        await engine.HandleIncomingMessageAsync(Phone, "email summary", default);
+
+        _email.Verify(e => e.SendAsync("ali@shop.com", It.Is<string>(s => s.Contains("Aaj ka summary")), It.Is<string>(b => b.Contains("Ayesha Collections")),
+            null, null, null, It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Contains(_sent, m => m.Contains("ali@shop.com") && m.Contains("bhej diya"));
+    }
+
+    [Fact]
+    public async Task Receipt_WhenTheLogoCannotBeDrawn_TellsTheSeller()
+    {
+        _pdf.Setup(p => p.Generate(It.IsAny<ReceiptData>())).Returns(new ReceiptPdf(new byte[] { 1, 2, 3 }, true));
+        using var db = _dbFactory.CreateContext();
+        var (_, order) = await SeedAsync(db);
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, $"receipt {order.Id}", default);
+
+        Assert.Contains(_sent, m => m.Contains("Logo ya banner"));
     }
 
     [Fact]

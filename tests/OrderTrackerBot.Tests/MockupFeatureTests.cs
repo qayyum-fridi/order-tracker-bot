@@ -1854,6 +1854,28 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task ScheduledSummary_OutsideTheWindow_WaitsForTheSellersNextMessage()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        var seller = await db.Sellers.FirstAsync();
+        seller.CreatedAt = DateTime.UtcNow.AddDays(-20);
+        foreach (var log in db.MessageLogs.Where(m => m.Phone == Phone && m.Direction == "inbound")) log.CreatedAt = DateTime.UtcNow.AddDays(-2);
+        await db.SaveChangesAsync();
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object);
+
+        await engine.RunScheduledJobsAsync(DateTime.UtcNow);
+
+        Assert.DoesNotContain(_sent, m => m.Contains("Weekly Summary — Ayesha Collections"));
+        Assert.Single(SessionContextData.FromJson(seller.Session!.ContextJson).PendingNotices!);
+
+        await engine.HandleIncomingMessageAsync(Phone, "hello", default);
+
+        Assert.Contains(_sent, m => m.Contains("jo WhatsApp ki 24 ghante wali window band") && m.Contains("Weekly Summary — Ayesha Collections"));
+        Assert.Null(SessionContextData.FromJson(seller.Session.ContextJson).PendingNotices);
+    }
+
+    [Fact]
     public async Task ScheduledJobs_OneSellersFailure_DoesNotStopTheOthers_AndIsReported()
     {
         using var db = _dbFactory.CreateContext();
@@ -1866,6 +1888,8 @@ public class MockupFeatureTests : IDisposable
             WhatsAppPhoneNumber = otherPhone, BusinessName = "Second Shop", OnboardingComplete = true, CreatedAt = DateTime.UtcNow.AddDays(-20),
             Session = new OrderTrackerBot.Domain.Entities.ConversationSession { State = ConversationState.Idle }
         });
+        // The second shop wrote to the bot recently, so WhatsApp's 24-hour window is open for its weekly summary.
+        db.MessageLogs.Add(new MessageLog { Phone = otherPhone, Direction = "inbound", RawText = "hello" });
         await db.SaveChangesAsync();
         _sender.Setup(s => s.SendTextMessageAsync(Phone, It.Is<string>(t => t.Contains("Weekly Summary")), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("WhatsApp down"));

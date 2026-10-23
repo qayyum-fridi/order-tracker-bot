@@ -138,6 +138,7 @@ public partial class ConversationEngine
                 : MessageTemplates.Get("engine.005"), ct);
             return;
         }
+        await SendPendingNoticesAsync(seller, ct);
         // Every text counts against the seller's hourly text cap and USD budget, before any AI call can be made for it.
         if (!TryTakeUsage(seller, fromPhoneNumber, MediaKind.Text, out var textDecision, out var textWait))
         {

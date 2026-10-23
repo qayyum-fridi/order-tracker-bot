@@ -30,7 +30,7 @@ public partial class ConversationEngine
         }
 
         var branding = await _db.SellerBrandings.AsNoTracking().FirstOrDefaultAsync(b => b.SellerId == seller.Id, ct);
-        var (pdf, numberIsNew) = await RenderReceiptAsync(seller, order, branding, ct);
+        var (pdf, numberIsNew, imageSkipped) = await RenderReceiptAsync(seller, order, branding, ct);
 
         var sent = await _sender.SendDocumentAsync(seller.WhatsAppPhoneNumber, pdf, $"Receipt-{order.Id}.pdf", "application/pdf",
             $"🧾 {(order.SalesTaxRate > 0 ? "Tax invoice" : "Receipt")} No. {order.ReceiptNumber} (Order #{order.Id}) — {order.Customer?.Name}, {Formatters.Money(order.Total)}", ct);
@@ -40,6 +40,7 @@ public partial class ConversationEngine
             await ReplyAsync(seller, MessageTemplates.Get("receipts.001"), ct);
             return;
         }
+        if (imageSkipped) await ReplyAsync(seller, MessageTemplates.Get("receipts.008"), ct);
 
         var suggestBranding = await ShouldSuggestBrandingAsync(seller, branding, ct);
         var chat = ChatLink(order.Customer?.Phone);
@@ -72,7 +73,7 @@ public partial class ConversationEngine
     /// The receipt PDF for one order, in the seller's paper size, with their footer and the order's note. Invoices are serially numbered per seller; the number is
     /// given the first time one is issued and kept on re-sends. <c>NumberIsNew</c> tells the caller to give the number back when the receipt could not be delivered.
     /// </summary>
-    private async Task<(byte[] Pdf, bool NumberIsNew)> RenderReceiptAsync(Seller seller, Order order, SellerBranding? branding, CancellationToken ct, bool preview = false)
+    private async Task<(byte[] Pdf, bool NumberIsNew, bool ImageSkipped)> RenderReceiptAsync(Seller seller, Order order, SellerBranding? branding, CancellationToken ct, bool preview = false)
     {
         var payTo = order.PaymentStatus == PaymentStatus.Paid || order.PaymentMethod == OrderPaymentMethod.Cod
             ? new List<string>()
@@ -84,7 +85,7 @@ public partial class ConversationEngine
         if (numberIsNew)
             order.ReceiptNumber = (await _db.Orders.Where(o => o.SellerId == seller.Id).MaxAsync(o => o.ReceiptNumber, ct) ?? 0) + 1;
 
-        var pdf = _receiptPdf!.Generate(new ReceiptData(
+        var rendered = _receiptPdf!.Generate(new ReceiptData(
             order.Id,
             TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(order.CreatedAt, DateTimeKind.Utc), tz),
             seller.BusinessName ?? "Order Receipt",
@@ -93,15 +94,15 @@ public partial class ConversationEngine
             string.Join(", ", new[] { order.Customer?.Address, order.Customer?.City }.Where(s => !string.IsNullOrWhiteSpace(s))),
             order.Items.Select(i => new ReceiptLine(i.ProductNameSnapshot, i.Quantity, i.UnitPrice, i.LineTotal)).ToList(),
             order.Subtotal, order.DiscountAmount, order.DiscountCode, order.Total,
-            order.PaymentMethod switch { OrderPaymentMethod.Cod => MessageTemplates.Get("receipts.004"), OrderPaymentMethod.Manual => MessageTemplates.Get("receipts.005"), OrderPaymentMethod.Gateway => MessageTemplates.Get("receipts.006"), _ => MessageTemplates.Get("receipts.007") },
-            order.PaymentStatus == PaymentStatus.Paid, Formatters.Status(order.Status),
+            order.PaymentMethod switch { OrderPaymentMethod.Cod => MessageTemplates.Get("pdf.paycod"), OrderPaymentMethod.Manual => MessageTemplates.Get("pdf.paymanual"), OrderPaymentMethod.Gateway => MessageTemplates.Get("pdf.paygateway"), _ => MessageTemplates.Get("pdf.payunspecified") },
+            order.PaymentStatus == PaymentStatus.Paid, $"{Formatters.Status(order.Status)} / {Formatters.Status(Lang.UrduScript, order.Status)}",
             order.TrackingCourier, order.TrackingNumber, payTo, Logo: branding?.Logo, Banner: branding?.Banner, DeliveryCharge: order.DeliveryCharge, AmountPaid: OrderMoney.Received(order),
             ReceiptNumber: order.ReceiptNumber, Ntn: seller.Ntn, Strn: seller.Strn,
             SalesTaxRate: order.SalesTaxRate, SalesTaxAmount: SalesTax.Amount(order),
             PaperSize: NormalizeReceiptSize(seller.ReceiptSize) ?? "A5", Footer: seller.ReceiptFooter, Notes: order.Notes,
             Header: seller.ReceiptHeader, Contact: seller.ReceiptContact,
             Design: ReceiptDesign.FromJson(seller.ReceiptDesignJson)));
-        return (pdf, numberIsNew);
+        return (rendered.Bytes, numberIsNew, rendered.ImageSkipped);
     }
 
     /// <summary>wa.me link from a Pakistani local (03001234567) or international (923001234567) number; null if it isn't one.</summary>

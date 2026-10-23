@@ -31,6 +31,7 @@
   "receipt-settings.030": "Contact likhein, jaise: receipt contact 0300-1234567 · ali@shop.com · Gulberg, Lahore",
   "receipt-settings.031": "📞 Abhi contact: \"{0}\"\nBadalne ke liye: receipt contact <line>  (hatane ke liye: receipt contact off)",
   "receipt-settings.032": "Order #{0} par koi note nahi. Likhein: note {1} gift wrap",
+  "receipt-settings.035": "ℹ️ {0} ka email saved nahi hai. Pehle likhein: \"naam ka email customer@mail.com\", phir \"email receipt {1} to buyer\".",
   "receipt-settings.033": "📝 Order #{0}: {1}",
   "receipt-settings.034": "Tax invoice"
 }

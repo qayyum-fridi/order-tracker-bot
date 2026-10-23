@@ -202,6 +202,45 @@ public class SupplierCourierFeeEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task Supplier_Change_CanBeUndone_AndPutsThePreviousSupplierBack()
+    {
+        await SetupAsync();
+        var lawn = await ProductAsync("Lawn Suit", 3500, "{\"supplier\":\"Shah Alam\",\"fabric\":\"cotton\"}");
+        await AskAsync("Lawn Suit ka supplier Metro");
+
+        var reply = await AskAsync("undo");
+
+        Assert.Contains("purani haalat par wapas", reply);
+        var saved = _db.Products.Single(p => p.Id == lawn.Id).AttributesJson!;
+        Assert.Contains("\"supplier\":\"Shah Alam\"", saved);
+        Assert.Contains("\"fabric\":\"cotton\"", saved);
+    }
+
+    [Fact]
+    public async Task Supplier_Remove_CanBeUndone()
+    {
+        await SetupAsync();
+        var lawn = await ProductAsync("Lawn Suit", 3500, "{\"supplier\":\"Shah Alam\"}");
+        await AskAsync("supplier remove Lawn Suit");
+
+        await AskAsync("undo");
+
+        Assert.Contains("\"supplier\":\"Shah Alam\"", _db.Products.Single(p => p.Id == lawn.Id).AttributesJson!);
+    }
+
+    [Fact]
+    public async Task Supplier_SameSupplierAgain_LogsNothingToUndo()
+    {
+        await SetupAsync();
+        var lawn = await ProductAsync("Lawn Suit", 3500, "{\"supplier\":\"Shah Alam\"}");
+        await AskAsync("supplier Lawn Suit Shah Alam");
+
+        await AskAsync("undo");
+
+        Assert.Contains("\"supplier\":\"Shah Alam\"", _db.Products.Single(p => p.Id == lawn.Id).AttributesJson!);
+    }
+
+    [Fact]
     public async Task Supplier_UnknownProduct_SaysHowToWriteIt()
     {
         await SetupAsync();

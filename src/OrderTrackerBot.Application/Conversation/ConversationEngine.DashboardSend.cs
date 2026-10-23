@@ -49,7 +49,7 @@ public partial class ConversationEngine
         if (order is null) return new DashboardSendResult(false, "order-not-found");
 
         var branding = await _db.SellerBrandings.AsNoTracking().FirstOrDefaultAsync(b => b.SellerId == seller.Id, ct);
-        var (pdf, numberIsNew) = await RenderReceiptAsync(seller, order, branding, ct);
+        var (pdf, numberIsNew, _) = await RenderReceiptAsync(seller, order, branding, ct);
         var sent = await _sender.SendDocumentAsync(seller.WhatsAppPhoneNumber, pdf, $"Receipt-{order.Id}.pdf", "application/pdf",
             $"🧾 {(order.SalesTaxRate > 0 ? "Tax invoice" : "Receipt")} No. {order.ReceiptNumber} (Order #{order.Id}) — {order.Customer?.Name}, {Formatters.Money(order.Total)}", ct);
         if (!sent)

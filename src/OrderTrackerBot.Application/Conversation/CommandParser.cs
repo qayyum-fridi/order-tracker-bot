@@ -25,7 +25,7 @@ public enum CommandKind
     CustomerList,
     CustomerDetail,
     CustomerSearch,
-    // "search order Sara" / "find order Sara" / "order search Kurti": orders by number, customer, product or design code. Text = the words searched for.
+    // "search order Sara" / "find order 12" / "order search Kurti": orders by number, customer, product or design code. Text = the words searched for.
     OrderSearch,
     DetailedForm,
     HowTo,
@@ -82,6 +82,10 @@ public enum CommandKind
     Stock,
     Expense,
     ExpenseList,
+    BuyerEnquiry,
+    EnquiryReport,
+    ExpenseEdit,
+    ExpenseDelete,
     MonthlyNet,
     Loss,
     Wage,
@@ -117,6 +121,8 @@ public enum CommandKind
     OrderNote,
     SetEmail,
     EmailReceipt,
+    EmailExport,
+    EmailSummary,
     PrinterHelp,
     ShippingLabel,
     BusinessLabel,
@@ -174,6 +180,13 @@ public static class CommandParser
     private static readonly Regex VersionCmd = new(@"^(?:bot\s+)?(?:version|build|ورژن)$", Opts);
     private static readonly Regex ClientLoginCmd = new(@"^(?:dashboard\s+)?(?:login|log\s+in|لاگ\s*ان)$", Opts);
     private static readonly Regex ClientLogoutCmd = new(@"^(?:dashboard\s+)?(?:logout|log\s+out|sign\s*out)(?:\s+all)?$", Opts);
+    // "margin last month", "margin 7 days", "profit margin this week": the margin each product made in that period. Text2 = period key.
+    private static readonly Regex MarginPeriodCmd = new(@"^(?:margins?|profit\s+margins?)\s+(?<p>.+)$", Opts);
+    // Buyer questions. The bot never sees a buyer's chat, so the seller writes a question down ("enquiry Kurti blue", "buyer ne pucha Kurti"),
+    // and "enquiries [period]" / "enquiry report" counts how often each product was asked about next to how many were sold.
+    private static readonly Regex EnquiryReportCmd = new(@"^(?:enquiries|enquiry\s+report|inquiries|inquiry\s+report|pooch(?:ain|en)?\s+(?:report|list))(?:\s+(?<p>.+))?$", Opts);
+    private static readonly Regex EnquiryLogCmd = new(@"^(?:(?:buyer|customer|gahak|گاہک)\s+(?:ne\s+)?)?(?:enquiry|inquiry|pooch(?:a|ha|hi)?|puchh?a|پوچھا)\s*[:\-]?\s+(?<t>.{2,200})$", Opts);
+
     private static readonly Regex MarginCmd = new(@"^(?:margins?|margin\s+(?:list|report)|profit\s+margins?|discount\s+(?:room|limit)|munafa\s+per\s+product)$", Opts);
     private static readonly Regex CategorySalesCmd = new(@"^(?:category[\s-]*wise\s+(?:sales?|report)|sales?\s+by\s+category|category\s+(?:sales?|report)|category\s+ki\s+sale|categories\s+sales?)(?:\s+(?<p>.+))?$", Opts);
     private static readonly Regex GuideLater = new(@"^baad\s+mein$", Opts);
@@ -213,7 +226,7 @@ public static class CommandParser
     private static readonly Regex MenuCategory = new(@"^menu\s+(orders|reports|catalog|payments|discounts|customers|settings|shop)$", Opts);
     private static readonly Regex CustomerList = new(@"^(customers?\s+list|my\s+customers|customers|(?:show|all|saare)\s+customers)$", Opts);
     private static readonly Regex CustomerSearch = new(@"^search\s+customers?:\s*(.+)$", Opts);
-    // "search customer Sara", "customer search Sara", "find order Sara": the same searches written without the colon. Checked before the catalog search.
+    // "search customer Sara", "customer search Sara", "find orders 12": the same searches written without the colon. Checked before the catalog search.
     private static readonly Regex CustomerSearchWords = new(@"^(?:(?:search|find|dhoondo|dhundo|talash|ڈھونڈو|تلاش)\s+customers?|customers?\s+(?:search|find|talash))\s*:?\s+(?<q>.{1,60})$", Opts);
     private static readonly Regex OrderSearchWords = new(@"^(?:(?:search|find|dhoondo|dhundo|talash|ڈھونڈو|تلاش)\s+(?:orders?|آرڈر)|(?:orders?|آرڈر)\s+(?:search|find|talash))\s*:?\s+(?<q>.{1,60})$", Opts);
     private static readonly Regex CustomerDetail = new(@"^customer\s+(?!list$|feedback$)(.+)$", Opts);
@@ -278,7 +291,8 @@ public static class CommandParser
 
     // "Sara ka phone 0300..." / "Sara ka address House 5" / "customer Sara city Lahore" / "customer Sara name Sara Khan".
     // Text = who, Text2 = phone|address|city|name, Text3 = the new value. Questions ("Sara ka phone kya hai") are left alone.
-    private const string CustomerField = @"(?<f>phone|number|fone|mobile|address|pata|patta|city|shehar|naam|name|group|price\s*group|فون|نمبر|پتہ|شہر|نام)";
+    private const string CustomerField = @"(?<f>phone|number|fone|mobile|e-?mail|address|pata|patta|city|shehar|naam|name|group|price\s*group|فون|نمبر|پتہ|شہر|نام)";
+    private static readonly Regex CustomerEmailValue = new(@"^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]{2,}$", Opts);
     private static readonly Regex CustomerUpdateOf = new(@"^(?:customer\s+)?(?<name>[^\d,:]{2,40}?)\s+(?:ka|ki|کا|کی)\s+(?:naya\s+|new\s+)?" + CustomerField + @"\s*(?:ab\s+|hai\s+|:|=|-)?\s*(?<v>.+)$", Opts);
     private static readonly Regex CustomerUpdatePrefix = new(@"^customer\s+(?<name>[^\d,:]{2,40}?)\s+" + CustomerField + @"\s*:?\s*(?<v>.+)$", Opts);
     private static readonly Regex QuestionWords = new(@"^(?:kya|kia|kiya|batao|bata|dikhao|kaun|kahan|\?)|\?$", Opts);
@@ -297,6 +311,7 @@ public static class CommandParser
             "address" or "pata" or "patta" or "پتہ" => "address",
             "city" or "shehar" or "شہر" => "city",
             "group" or "pricegroup" => "group",
+            "email" or "e-mail" => "email",
             _ => "name"
         };
         if (field == "phone")
@@ -304,6 +319,11 @@ public static class CommandParser
             var digits = Regex.Replace(value, @"[\s-]", "");
             if (!Regex.IsMatch(digits, @"^\+?\d{7,15}$")) return null;
             value = digits;
+        }
+        else if (field == "email")
+        {
+            value = value.ToLowerInvariant();
+            if (value.Length > 254 || !CustomerEmailValue.IsMatch(value)) return null;
         }
         else if (field == "group")
         {
@@ -478,6 +498,7 @@ public static class CommandParser
         ("customers", new(NotLetter + @"(?:customers?|گاہک|کسٹمرز?)" + NotLetterAfter, Opts)),
         ("catalog", new(NotLetter + @"(?:catalog(?:ue)?|products?|کیٹلاگ)" + NotLetterAfter, Opts)),
         ("discounts", new(NotLetter + @"(?:discounts?|loyalty|coupons?|ڈسکاؤنٹس?)" + NotLetterAfter, Opts)),
+        ("expenses", new(NotLetter + @"(?:expenses?|kharch(?:a|e|ay)?|اخراجات|خرچہ|خرچ)" + NotLetterAfter, Opts)),
     };
     private static readonly Regex ExportAll = new(NotLetter + @"(?:all|everything|sab(?:\s+kuch)?|poora|full|backup|سب)" + NotLetterAfter, Opts);
     private static readonly (string Period, Regex Pattern)[] ExportPeriodWords =
@@ -511,7 +532,10 @@ public static class CommandParser
     private static readonly Regex ExpenseAmountFirst = new(@"^" + ExpenseWord + @"\s*:?\s*" + ExpenseAmount + @"(?:\s+(?<note>.+))?$", Opts);
     private static readonly Regex ExpenseNoteFirst = new(@"^" + ExpenseWord + @"\s*:?\s*(?<note>[^\d].*?)\s+" + ExpenseAmount + @"$", Opts);
     // "expenses", "expenses today|last month|this month" -> list. Text = "today" | "month" | "lastmonth".
-    private static readonly Regex ExpenseListLead = new(@"^(?:expenses?|total\s+expenses|kharche|kharcha|اخراجات)(?:\s+(?<p>today|aaj|آج|this\s+month|month|is\s+mahine|last\s+month|pichle\s+mahine|pichla\s+mah(?:ina)?))?$", Opts);
+    // "expense delete 12", "expense edit 12 800 packaging" (amount and/or note). The number is the id the "expenses" list shows (#12).
+    private static readonly Regex ExpenseDeleteCmd = new(@"^" + ExpenseWord + @"\s+(?:delete|remove|hatao|hata\s+do|mita\s+do)\s+#?(?<id>\d{1,9})$", Opts);
+    private static readonly Regex ExpenseEditCmd = new(@"^" + ExpenseWord + @"\s+(?:edit|update|change|badlo|badlein)\s+#?(?<id>\d{1,9})(?:\s+(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d{1,2})?))?(?:\s+(?<note>[^\d].*))?$", Opts);
+    private static readonly Regex ExpenseListLead =new(@"^(?:expenses?|total\s+expenses|kharche|kharcha|اخراجات)(?:\s+(?<p>today|aaj|آج|this\s+month|month|is\s+mahine|last\s+month|pichle\s+mahine|pichla\s+mah(?:ina)?))?$", Opts);
     // "monthly net", "net", "is mahine ka net", "last month net".
     private static readonly Regex MonthlyNetLead = new(@"^(?:(?:monthly|month|mahana|mahaana)\s+net|net|is\s+mahine\s+ka\s+net|ماہانہ\s+نیٹ)(?:\s+(?<last>last\s+month|pichle\s+mahine|pichla\s+mah(?:ina)?))?$|^(?<last>last\s+month|pichle\s+mahine\s+ka)\s+net$", Opts);
 
@@ -543,6 +567,19 @@ public static class CommandParser
 
     private static bool TryParseMoney(string text, out decimal value) =>
         decimal.TryParse(text.Replace(",", ""), System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out value);
+
+    private static ParsedCommand? TryParseExpenseChange(string message)
+    {
+        var m = ExpenseDeleteCmd.Match(message);
+        if (m.Success && int.TryParse(m.Groups["id"].Value, out var deleteId))
+            return new ParsedCommand { Kind = CommandKind.ExpenseDelete, Number = deleteId };
+
+        m = ExpenseEditCmd.Match(message);
+        if (!m.Success || !int.TryParse(m.Groups["id"].Value, out var editId)) return null;
+        decimal? amount = m.Groups["a"].Success && TryParseMoney(m.Groups["a"].Value, out var value) ? value : null;
+        var note = m.Groups["note"].Success ? m.Groups["note"].Value.Trim() : "";
+        return new ParsedCommand { Kind = CommandKind.ExpenseEdit, Number = editId, Amount = amount, Text = note };
+    }
 
     private static ParsedCommand? TryParseExpense(string message)
     {
@@ -768,8 +805,11 @@ public static class CommandParser
     private static readonly Regex ReceiptContactCmd = new(@"^receipts?\s+contact\s*:?\s*(?<v>[\s\S]*)$", Opts);
     private static readonly Regex OrderNoteCmd = new(@"^(?:note|order\s+note)\s+#?(?<n>\d{1,9})\s*:?\s*(?<t>.*)$", Opts);
     private static readonly Regex SetEmailCmd = new(@"^email\s*:?\s+(?<a>\S+@\S+|off|hata\s*do|hata|remove|delete|clear)$", Opts);
-    private static readonly Regex EmailReceiptCmd = new(@"^email\s+(?:the\s+)?(?:receipt|bill|invoice)(?:\s+#?(?<n>\d{1,9}))?(?:\s+(?:to|ko)\s+(?<a>\S+@\S+))?$", Opts);
-    private static readonly Regex PrinterHelpCmd = new(@"^(?:printer|thermal\s+printer|(?:print|printer)\s+(?:help|guide|setup))$", Opts);
+    private static readonly Regex EmailReceiptCmd = new(@"^email\s+(?:the\s+)?(?:receipt|bill|invoice)(?:\s+#?(?<n>\d{1,9}))?(?:\s+(?:to|ko)\s+(?<a>\S+@\S+|buyer|customer))?$", Opts);
+    // "email export [orders 30 days] [to addr]" / "email summary [to addr]" (ConversationEngine.EmailReports.cs). No address = the seller's own.
+    private static readonly Regex EmailExportCmd = new(@"^email\s+(?:export|excel|xlsx)(?:\s+(?!(?:to|ko)\s)(?<what>.+?))?(?:\s+(?:to|ko)\s+(?<a>\S+@\S+))?$", Opts);
+    private static readonly Regex EmailSummaryCmd = new(@"^email\s+(?:summary|hisaab|hisab|khulasa|خلاصہ)(?:\s+(?:to|ko)\s+(?<a>\S+@\S+))?$", Opts);
+    private static readonly Regex PrinterHelpCmd =new(@"^(?:printer|thermal\s+printer|(?:print|printer)\s+(?:help|guide|setup))$", Opts);
 
     // Courier / gateway payouts (ConversationEngine.Payouts.cs): payout 11700 TCS orders 1 2 3 fee 300 | payout pending | payouts | payout skip 12 | payout undo.
     private static readonly Regex PayoutCmd = new(@"^(?:payouts?|settlements?)(?:\s+(?<rest>.+))?$", Opts);
@@ -1195,6 +1235,15 @@ public static class CommandParser
                 Number = m.Groups["n"].Success ? int.Parse(m.Groups["n"].Value) : null,
                 Text2 = m.Groups["a"].Success ? m.Groups["a"].Value : null
             };
+        if ((m = EmailExportCmd.Match(message)).Success)
+            return new ParsedCommand
+            {
+                Kind = CommandKind.EmailExport,
+                Export = ParseExportRequest(m.Groups["what"].Success ? m.Groups["what"].Value : "all"),
+                Text2 = m.Groups["a"].Success ? m.Groups["a"].Value : null
+            };
+        if ((m = EmailSummaryCmd.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.EmailSummary, Text2 = m.Groups["a"].Success ? m.Groups["a"].Value : null };
         if ((m = SetEmailCmd.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.SetEmail, Text = m.Groups["a"].Value.Trim() };
         if (PrinterHelpCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.PrinterHelp };
@@ -1263,6 +1312,13 @@ public static class CommandParser
             if (ReportPeriods.TryParseKey(periodText, DateTime.UtcNow, out var catPeriod)) return new ParsedCommand { Kind = CommandKind.CategorySales, Text = catPeriod };
         }
         if (MarginCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Margin };
+        if (MarginPeriodCmd.Match(message) is { Success: true } marginPeriod
+            && ReportPeriods.TryParseKey(marginPeriod.Groups["p"].Value, DateTime.UtcNow, out var marginKey))
+            return new ParsedCommand { Kind = CommandKind.Margin, Text2 = marginKey };
+        if (EnquiryReportCmd.Match(message) is { Success: true } enquiryReport)
+            return new ParsedCommand { Kind = CommandKind.EnquiryReport, Text = enquiryReport.Groups["p"].Success ? enquiryReport.Groups["p"].Value.Trim() : null };
+        if (EnquiryLogCmd.Match(message) is { Success: true } enquiryLog)
+            return new ParsedCommand { Kind = CommandKind.BuyerEnquiry, Text = enquiryLog.Groups["t"].Value.Trim() };
         if (IndustryCmd.Match(message) is { Success: true } industry)
             return new ParsedCommand { Kind = CommandKind.Industry, Text = industry.Groups["v"].Success ? industry.Groups["v"].Value.Trim() : null };
         if (SetupCheckCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.SetupCheck };
@@ -1321,6 +1377,8 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.PriceTiers, Text = m.Groups[1].Value.Trim(), Text2 = m.Groups[2].Value.Trim() };
         if (CampaignStatus.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CampaignStatus };
         if (DiscountPerformance.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DiscountPerformance };
+        // Before TryParseExpense: "expense edit 12 800" would otherwise read as an expense note "edit 12" of Rs.800.
+        if (TryParseExpenseChange(message) is { } expenseChange) return expenseChange;
         if (TryParseExpense(message) is { } expense) return expense;
         if (TryParseLossOrWage(message) is { } lossOrWage) return lossOrWage;
         if (StockList.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Stock };

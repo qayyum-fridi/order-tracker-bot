@@ -11,14 +11,6 @@ namespace OrderTrackerBot.Application.Conversation;
 
 public partial class ConversationEngine
 {
-    // Screen 10: the full command list (the 9 core commands are what a seller memorizes; the rest lives under "menu").
-    private static readonly string HelpText =
-        MessageTemplates.Get("commands.041");
-
-    // Screen 10b: categorized menu.
-    private static readonly string MenuText =
-        MessageTemplates.Get("commands.042");
-
     private static readonly MenuRow BackToMenu = new("menu", "⬅️ Main menu");
 
     private static readonly IReadOnlyList<MenuSection> HelpSections = new[]
@@ -67,16 +59,17 @@ public partial class ConversationEngine
 
     // Rows that need typed details (add product, add discount, ...) are "how to" commands that show the exact format.
     // Undo is deliberately not tappable: an accidental tap would silently revert the last action.
-    private static readonly IReadOnlyDictionary<string, (string Title, string Body, MenuRow[] Rows)> MenuCategories =
+    // Each category body is the template menu.<category>, filled from the seller's kind of shop (see MenuArgs in ConversationEngine.Menus.cs).
+    private static readonly IReadOnlyDictionary<string, (string Title, string BodyKey, MenuRow[] Rows)> MenuCategories =
         new Dictionary<string, (string, string, MenuRow[])>
         {
-            ["orders"] = ("📦 Orders", "📦 Orders — yeh likh kar dekhein:\n • Naya order: Zainab, 2 Lawn Kurti XL, 1 Kurti, 03219876543, address: House 42 Street 5 DHA Phase 6 Lahore, delivery 250\n • Dekhein: order 12 · orders today · pending orders\n • Status: mark 12 shipped · mark 12 delivered · mark 12 paid\n • Advance: order 12 advance 500\n • Edit: edit order 12, phir 1 = 3 · remove 2 · done\n • Cancel: cancel 12\n • Receipt: receipt 12", new[]
+            ["orders"] = ("📦 Orders", "menu.orders", new[]
             {
                 new MenuRow("orders today", "Orders today"), new MenuRow("pending orders", "Pending orders"),
                 new MenuRow("unpaid orders", "Unpaid orders"), new MenuRow("cod pending", "COD pending"), new MenuRow("receipt", "Last order receipt (PDF)"), new MenuRow("edit order", "Last order edit"),
                 new MenuRow("new order (detailed)", "New order (form)"), new MenuRow("walkin", "Counter sale (walk-in)"), new MenuRow("label", "Shipping label"), BackToMenu
             }),
-            ["reports"] = ("📊 Reports", "📊 Reports\n Sales aur trends ek tap par.\n • [product] ka report — misaal: \"Lawn Suit ka report\"\n • expense likhein: \"expense 500 packaging\"\n • profit / profit today\n • sales by category [this week] — category ke hisaab se sale\n • margin — kis product par kitna discount de sakte hain\n • business audit — dukaan ki sehat ek nazar mein\n • sawal poochein: \"sab se mehnga product\", \"kaun se customers wapas nahi aaye\"\n • export orders 30 days", new[]
+            ["reports"] = ("📊 Reports", "menu.reports", new[]
             {
                 new MenuRow("today's summary", "Today's summary"), new MenuRow("trending products", "Trending products"),
                 new MenuRow("slow movers", "Slow movers"), new MenuRow("loyal customers", "Loyal customers"),
@@ -84,31 +77,31 @@ public partial class ConversationEngine
                 new MenuRow("discount performance", "Discount performance"),
                 new MenuRow("monthly net", "Monthly net"), new MenuRow("expenses", "Expenses"), BackToMenu
             }),
-            ["catalog"] = ("🛍️ Catalog", "🛍️ Catalog — yeh likh kar dekhein:\n • Naya product: Kurti - 1800, stock 10\n • Detail ke saath: Polo Shirt - 500, cost 300, stock 10, category: Shirts\n • Price badlein: edit product: Kurti - 1900\n • Hatayein: delete product: Kurti\n • Stock: stock Kurti 20 · stock Kurti +10 · stock Kurti off\n • Dekhein: catalog · catalog search chini\n • Barcode: barcode Kurti 8961234567890", new[]
+            ["catalog"] = ("🛍️ Catalog", "menu.catalog", new[]
             {
                 new MenuRow("catalog", "View catalog"), new MenuRow("share catalog", "Share catalog"),
                 new MenuRow("add product", "Add product"), new MenuRow("add product (detailed)", "Add product (form)"),
                 new MenuRow("stock", "Stock list"), new MenuRow("scan cart", "Scanner cart"), BackToMenu
             }),
-            ["payments"] = ("💰 Payments", "💰 Payments\n • mark [order] paid\n • advance payment: order [n] advance 500\n • delivery charges: delivery 200\n • tracking: courier aur tracking number\n • courier payout: payout pending / payout 11700 TCS orders 1 2 3\n • cash drawer: drawer open 5000 / cash in 500", new[]
+            ["payments"] = ("💰 Payments", "menu.payments", new[]
             {
                 new MenuRow("payment link", "Payment link"), new MenuRow("unpaid orders", "Unpaid orders"),
                 new MenuRow("cod pending", "COD pending"), new MenuRow("add payment", "Add payment method"),
                 new MenuRow("payout pending", "Courier payouts"), new MenuRow("drawer", "Cash drawer"), BackToMenu
             }),
-            ["discounts"] = ("🎟️ Discounts", "🎟️ Discounts & Loyalty\n Discount code banayein, ya loyalty rule set karein.", new[]
+            ["discounts"] = ("🎟️ Discounts", "menu.discounts", new[]
             {
                 new MenuRow("discount list", "Discount list"), new MenuRow("add discount", "Add discount"),
                 new MenuRow("create loyalty", "Add loyalty rule"), new MenuRow("loyal customers", "Loyal customers"),
                 new MenuRow("campaign status", "Campaign status"), BackToMenu
             }),
-            ["customers"] = ("👥 Customers", "👥 Customers — yeh likh kar dekhein:\n • Dekhein: customer list · customer 1 · search customer: Sara\n • Phone badlein: Sara ka phone 03001234567\n • Address badlein: Sara ka address Model Town\n • Customer ke orders: Sara ka order\n • Hatayein: delete customer Sara\n • Wapas layein: restore customer Sara", new[]
+            ["customers"] = ("👥 Customers", "menu.customers", new[]
             {
                 new MenuRow("customer list", "Customer list"), new MenuRow("support queries", "Support queries"),
                 new MenuRow("comment leads", "📷 Comment leads"), new MenuRow("connect instagram", "📷 Connect Instagram"),
                 new MenuRow("add customer (detailed)", "Add customer (form)"), BackToMenu
             }),
-            ["shop"] = ("🏪 Counter Sales", "🏪 Counter Sales\n • walkin Kurti 2, Dupatta — dukaan par sale (kal ya bank bhi likh sakte hain)\n • drawer open 5000 · cash in/out 500 · drawer close 12000\n • payout pending — courier se baqaya raqam\n • label 12 · business label · label size 4x6\n • scan cart — scanner se products (barcode Kurti 8961...)\n • printer · receipt size 80mm\n • profit · stock Kurti 20", new[]
+            ["shop"] = ("🏪 Counter Sales", "menu.shop", new[]
             {
                 new MenuRow("walkin", "Counter sale (walk-in)"), new MenuRow("drawer", "Cash drawer"),
                 new MenuRow("payout pending", "Courier payouts"), new MenuRow("label", "Labels"),
@@ -116,7 +109,7 @@ public partial class ConversationEngine
                 new MenuRow("receipt settings", "Receipt settings"), new MenuRow("profit", "Profit"),
                 new MenuRow("stock", "Stock list"), BackToMenu
             }),
-            ["settings"] = ("⚙️ Settings", "⚙️ Settings\n • receipt design — receipt ka rang, title aur layout live tayyar karein\n • receipt size 80mm|58mm|A5|A4 · receipt header/contact/footer [text]\n • email aap@gmail.com — receipt email ke liye\n • printer — printer ki rehnumai\n • shortcut off — neeche ke buttons band karein\n • version — bot ka build version\n • feedback: [aapka paigham] — hamein bot ke baare mein batayein", new[]
+            ["settings"] = ("⚙️ Settings", "menu.settings", new[]
             {
                 new MenuRow("update business info", "Business info"), new MenuRow("add payment", "Payment methods"),
                 new MenuRow("subscribe", "Plan / subscribe"), new MenuRow("logo", "Receipt logo / banner"), new MenuRow("export", "Export (Excel)"),
@@ -126,7 +119,8 @@ public partial class ConversationEngine
 
     private Task HandleMenuCategoryAsync(Seller seller, string category, CancellationToken ct)
     {
-        var (title, body, rows) = MenuCategories[category];
+        var (title, bodyKey, rows) = MenuCategories[category];
+        var body = MessageTemplates.Get(bodyKey, MenuBodyArgs(bodyKey, Industry(seller)));
         // Free sellers never see the plan/subscribe entry; Instagram rows show only while Features:Instagram is on.
         var shown = BillingApplies(seller) ? rows : rows.Where(r => r.Id != "subscribe").ToArray();
         if (!_features.Instagram) shown = shown.Where(r => !InstagramMenuRowIds.Contains(r.Id)).ToArray();
@@ -191,6 +185,18 @@ public partial class ConversationEngine
                 return;
             case CommandKind.ExpenseList:
                 await HandleExpenseListAsync(seller, cmd.Text, ct);
+                return;
+            case CommandKind.BuyerEnquiry:
+                await HandleBuyerEnquiryAsync(seller, cmd.Text ?? "", ct);
+                return;
+            case CommandKind.EnquiryReport:
+                await HandleEnquiryReportAsync(seller, cmd.Text, ct);
+                return;
+            case CommandKind.ExpenseEdit:
+                await HandleExpenseEditAsync(seller, cmd, ct);
+                return;
+            case CommandKind.ExpenseDelete:
+                await HandleExpenseDeleteAsync(seller, cmd, ct);
                 return;
             case CommandKind.Loss:
                 await HandleLossAsync(seller, cmd, ct);
@@ -278,6 +284,12 @@ public partial class ConversationEngine
                 return;
             case CommandKind.EmailReceipt:
                 await HandleEmailReceiptAsync(seller, ctx, cmd, ct);
+                return;
+            case CommandKind.EmailExport:
+                await HandleEmailExportAsync(seller, cmd.Export!, cmd.Text2, ct);
+                return;
+            case CommandKind.EmailSummary:
+                await HandleEmailSummaryAsync(seller, cmd.Text2, ct);
                 return;
             case CommandKind.PrinterHelp:
                 await HandlePrinterHelpAsync(seller, ct);
@@ -375,10 +387,10 @@ public partial class ConversationEngine
                 await HandleGreetingAsync(seller, ct);
                 return;
             case CommandKind.Help:
-                await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, HelpText, "Commands dekhein", HelpSections, ct);
+                await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, HelpTextFor(seller), "Commands dekhein", HelpSections, ct);
                 return;
             case CommandKind.Menu:
-                await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MenuText, "Menu kholein", VisibleSections(MainMenuSections), ct);
+                await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MenuTextFor(seller), "Menu kholein", VisibleSections(MainMenuSections), ct);
                 return;
             case CommandKind.MenuCategory:
                 await HandleMenuCategoryAsync(seller, cmd.Text!, ct);
@@ -409,7 +421,10 @@ public partial class ConversationEngine
                 await HandleCategorySalesAsync(seller, cmd.Text, ct);
                 return;
             case CommandKind.Margin:
-                await HandleMarginAsync(seller, ct, lowestFirst: cmd.Text == "low");
+                if (cmd.Text2 is { } marginPeriod)
+                    await HandleMarginForPeriodAsync(seller, marginPeriod, lowestFirst: cmd.Text == "low", ct);
+                else
+                    await HandleMarginAsync(seller, ct, lowestFirst: cmd.Text == "low");
                 return;
             case CommandKind.Insight:
                 await HandleInsightAsync(seller, ctx, cmd, ct);
@@ -621,6 +636,15 @@ public partial class ConversationEngine
 
     private async Task HandleTodaysSummaryAsync(Seller seller, string? period, CancellationToken ct)
     {
+        var (text, drawerOpen) = await BuildTodaysSummaryAsync(seller, period, ct);
+        await ReplyAsync(seller, text, ct);
+        var today = period is null or "today";
+        if (today) SuggestNext("orders today", drawerOpen ? "drawer" : "expenses today");
+    }
+
+    /// <summary>The summary text (also used by "email summary"); <c>DrawerOpen</c> tells the caller which follow-up button fits.</summary>
+    private async Task<(string Text, bool DrawerOpen)> BuildTodaysSummaryAsync(Seller seller, string? period, CancellationToken ct)
+    {
         var (start, end) = ReportRange(seller, period);
         var label = period switch { null => "Today's", "yesterday" => "Yesterday's", "lastmonth" => MessageTemplates.Get("commands.038"), _ => PeriodLabel(seller, period) };
         var orders = await _db.Orders
@@ -642,9 +666,8 @@ public partial class ConversationEngine
         var today = period is null or "today";
         var (dayExtra, drawerOpen) = today ? await DayAccountLinesAsync(seller, orders, start, end, ct) : ("", false);
 
-        await ReplyAsync(seller,
-            MessageTemplates.Get("commands.010", label, seller.BusinessName, orders.Count, delivered, shipped, pending, (returned > 0 ? $"Returned: {returned}\n" : ""), Formatters.Money(cod), Formatters.Money(prepaid), (period is null ? "today" : label.Replace("'s", "").ToLowerInvariant()), Formatters.Money(totalSales), (salesTax > 0 ? $"Sales tax included: {Formatters.Money(salesTax)}\n" : ""), (withheld > 0 ? $"Tax withheld by courier/gateway: {Formatters.Money(withheld)} → net after withholding {Formatters.Money(totalSales - withheld)}\n" : ""), dayExtra), ct);
-        if (today) SuggestNext("orders today", drawerOpen ? "drawer" : "expenses today");
+        var text = MessageTemplates.Get("commands.010", label, seller.BusinessName, orders.Count, delivered, shipped, pending, (returned > 0 ? $"Returned: {returned}\n" : ""), Formatters.Money(cod), Formatters.Money(prepaid), (period is null ? "today" : label.Replace("'s", "").ToLowerInvariant()), Formatters.Money(totalSales), (salesTax > 0 ? $"Sales tax included: {Formatters.Money(salesTax)}\n" : ""), (withheld > 0 ? $"Tax withheld by courier/gateway: {Formatters.Money(withheld)} → net after withholding {Formatters.Money(totalSales - withheld)}\n" : ""), dayExtra);
+        return (text, drawerOpen);
     }
 
     /// <summary>
@@ -753,10 +776,7 @@ public partial class ConversationEngine
     }
 
     // "new order" typed on its own: show how, instead of sending an empty order to the AI.
-    private static string NewOrderHelpTextFor(Seller seller) => NewOrderHelpTemplate.Replace("{ORDEREX}", Industry(seller).OrderExample);
-
-    private static readonly string NewOrderHelpTemplate =
-        MessageTemplates.Get("commands.043");
+    private static string NewOrderHelpTextFor(Seller seller) => MessageTemplates.Get("commands.043", Industry(seller).OrderExample);
 
     private static readonly IReadOnlyList<MenuSection> NewOrderHelpSections = new[]
     {
