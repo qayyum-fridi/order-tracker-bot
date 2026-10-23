@@ -123,6 +123,10 @@ public sealed class SessionContextData
     public string? CatalogQuery { get; set; }
     /// <summary>How many products a catalog page holds (5-50); 0 = 10. Kept until the seller changes it ("catalog size 25").</summary>
     public int CatalogPageSize { get; set; }
+    /// <summary>The order list the seller last looked at (its command kind and text, e.g. "orders today", "search order sara") and its page; "orders next" re-runs it.</summary>
+    public CommandKind? OrderListKind { get; set; }
+    public string? OrderListText { get; set; }
+    public int OrderListPage { get; set; }
     /// <summary>The seller turned the quick-action buttons off ("shortcut off").</summary>
     public bool ShortcutsOff { get; set; }
     /// <summary>The one-time explanation of the quick-action buttons has been shown.</summary>

@@ -386,7 +386,7 @@ public partial class ConversationEngine
                         or CommandKind.ImportHelp or CommandKind.ImportTemplate or CommandKind.HowTo
                         or CommandKind.CustomerSearch or CommandKind.OrderSearch or CommandKind.CustomerOrderLookup
                         // Read-only lookups: they change nothing, so the seller can check orders or reports during setup.
-                        or CommandKind.OrdersToday or CommandKind.PendingOrders or CommandKind.UnpaidOrders
+                        or CommandKind.OrdersToday or CommandKind.OrderPage or CommandKind.PendingOrders or CommandKind.UnpaidOrders
                         or CommandKind.TodaysSummary or CommandKind.Profit or CommandKind.Margin or CommandKind.WeeklySummary
                         or CommandKind.CustomerList or CommandKind.MenuCategory)
                     {

@@ -98,9 +98,12 @@ public static class Formatters
             : $"{index}. {order.Customer?.Name} - {ItemsSummary(order)} - {Money(order.Total)} - {status}";
     }
 
-    public static string OrdersToday(string language, IReadOnlyList<Order> orders, string? period = null, string? periodLabel = null, bool deliveryDue = false)
+    /// <summary>The orders of one page: <paramref name="firstNumber"/> is the number of the first one in the whole list and <paramref name="total"/> the list's size.</summary>
+    public static string OrdersToday(string language, IReadOnlyList<Order> orders, string? period = null, string? periodLabel = null, bool deliveryDue = false,
+        int firstNumber = 1, int? total = null)
     {
         var lang = Lang.Normalize(language);
+        var count = total ?? orders.Count;
         // Any period beyond today / yesterday / last month (this week, last quarter, 1 May - 15 May, tomorrow...) is labelled by its own name.
         var custom = periodLabel is not null && period is not (null or "yesterday" or "lastmonth");
         if (custom && orders.Count == 0)
@@ -122,23 +125,23 @@ public static class Formatters
             };
 
         var header = custom
-            ? deliveryDue ? $"📅 Delivery due — {periodLabel} ({orders.Count}):"
-                : lang == Lang.UrduScript ? MessageTemplates.Get("fmt-formatters.020", periodLabel, orders.Count) : $"📦 Orders — {periodLabel} ({orders.Count}):"
+            ? deliveryDue ? $"📅 Delivery due — {periodLabel} ({count}):"
+                : lang == Lang.UrduScript ? MessageTemplates.Get("fmt-formatters.020", periodLabel, count) : $"📦 Orders — {periodLabel} ({count}):"
             : (lang, period) switch
         {
-            (Lang.UrduScript, "yesterday") => MessageTemplates.Get("fmt-formatters.014", orders.Count),
-            (Lang.UrduScript, "lastmonth") => MessageTemplates.Get("fmt-formatters.015", orders.Count),
-            (Lang.UrduScript, _) => MessageTemplates.Get("fmt-formatters.016", orders.Count),
-            (_, "yesterday") => $"📦 Yesterday's Orders ({orders.Count}):",
-            (_, "lastmonth") => MessageTemplates.Get("fmt-formatters.017", orders.Count),
-            _ => $"📦 Today's Orders ({orders.Count}):"
+            (Lang.UrduScript, "yesterday") => MessageTemplates.Get("fmt-formatters.014", count),
+            (Lang.UrduScript, "lastmonth") => MessageTemplates.Get("fmt-formatters.015", count),
+            (Lang.UrduScript, _) => MessageTemplates.Get("fmt-formatters.016", count),
+            (_, "yesterday") => $"📦 Yesterday's Orders ({count}):",
+            (_, "lastmonth") => MessageTemplates.Get("fmt-formatters.017", count),
+            _ => $"📦 Today's Orders ({count}):"
         };
         var footer = lang switch
         {
             Lang.UrduScript => MessageTemplates.Get("fmt-formatters.018"),
             _ => MessageTemplates.Get("fmt-formatters.019")
         };
-        var lines = orders.Select((o, i) => OrderLine(language, i + 1, o));
+        var lines = orders.Select((o, i) => OrderLine(language, firstNumber + i, o));
         return $"{header}\n\n{string.Join("\n", lines)}\n\n{footer}";
     }
 

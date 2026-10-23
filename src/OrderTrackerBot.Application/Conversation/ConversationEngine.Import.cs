@@ -548,7 +548,10 @@ public partial class ConversationEngine
     }
 
     /// <summary>Known unit words map to their standard name; any other word is kept as typed (lower-cased), so a row is never failed over its unit.</summary>
-    private static string NormalizeImportUnit(string text) => text.Trim().ToLowerInvariant().TrimEnd('s') switch
+    // The shared alias list is tried first: it knows the plurals that trimming a final "s" gets wrong ("Boxes" is not "boxe").
+    private static string NormalizeImportUnit(string text) => CommandParser.NormalizeUnit(text.Trim()) ?? NormalizeImportUnitWord(text);
+
+    private static string NormalizeImportUnitWord(string text) => text.Trim().ToLowerInvariant().TrimEnd('s') switch
     {
         "piece" or "pc" or "pcs" or "pic" => "piece",
         "kg" or "kilo" or "kilogram" => "kg",

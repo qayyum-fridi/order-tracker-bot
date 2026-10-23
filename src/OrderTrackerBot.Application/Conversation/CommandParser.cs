@@ -10,6 +10,7 @@ public enum CommandKind
     Help,
     Menu,
     OrdersToday,
+    OrderPage,
     PendingOrders,
     TodaysSummary,
     Profit,
@@ -208,6 +209,8 @@ public static class CommandParser
     private static readonly Regex OrdersToday = new(@"^(?:orders?\s+today|show\s+orders?|today'?s\s+orders?|" + Today + OrdersOfPeriod + @")$", Opts);
     private static readonly Regex OrdersYesterday = new(@"^(?:orders?\s+yesterday|yesterday'?s\s+orders?|" + Yesterday + OrdersOfPeriod + @")$", Opts);
     private static readonly Regex OrdersLastMonth = new(@"^(?:orders?\s+last\s+month|last\s+month'?s?\s+orders?|" + LastMonth + OrdersOfPeriod + @")$", Opts);
+    // "orders next", "orders prev", "orders last", "orders page 3", "orders size 25": moves through (or sets the size of) the order list last shown.
+    private static readonly Regex OrderPageCmd = new(@"^(?:orders?|order\s+list)\s+(?<a>next|prev|previous|last|page\s+\d{1,4}|size\s+\d{1,3})$", Opts);
     private static readonly Regex PendingOrders = new(@"^(pending\s+orders?|pending|active\s+orders?|پینڈنگ\s+آرڈرز?)$", Opts);
     private static readonly Regex TodaysSummary = new(@"^(?:today'?s\s+summary|today\s+summary|today\s+(?:report|sales)|hisaa?b\s+kitab|aaj\s+ka\s+account|daily\s+(?:account|report|summary|hisaa?b)|hisaa?b|" + Today + @"\s+" + Of + @"\s+" + SummaryWord + @")$", Opts);
     private static readonly Regex YesterdaysSummary = new(@"^(?:yesterday'?s\s+summary|summary\s+yesterday|" + Yesterday + @"\s+" + Of + @"\s+" + SummaryWord + @")$", Opts);
@@ -902,7 +905,10 @@ public static class CommandParser
         ["pack"] = "pack", ["packs"] = "pack", ["packet"] = "pack", ["pc"] = "piece", ["pcs"] = "piece", ["piece"] = "piece", ["pieces"] = "piece",
         ["set"] = "set", ["sets"] = "set", ["pair"] = "pair", ["pairs"] = "pair", ["ml"] = "ml", ["box"] = "box", ["boxes"] = "box",
         ["bag"] = "bag", ["bags"] = "bag", ["bori"] = "bag", ["carton"] = "carton", ["tola"] = "tola", ["tolas"] = "tola", ["ft"] = "ft", ["feet"] = "ft",
-        ["roll"] = "roll", ["rolls"] = "roll", ["bundle"] = "bundle", ["tray"] = "tray", ["plate"] = "plate"
+        ["roll"] = "roll", ["rolls"] = "roll", ["bundle"] = "bundle", ["tray"] = "tray", ["plate"] = "plate",
+        ["pkt"] = "pack", ["pkts"] = "pack", ["packets"] = "pack", ["dz"] = "dozen", ["dzn"] = "dozen",
+        ["bottle"] = "bottle", ["bottles"] = "bottle", ["pouch"] = "pouch", ["pouches"] = "pouch", ["sachet"] = "sachet", ["sachets"] = "sachet",
+        ["strip"] = "strip", ["strips"] = "strip", ["jar"] = "jar", ["jars"] = "jar", ["tube"] = "tube", ["tubes"] = "tube"
     };
 
     public static string? NormalizeUnit(string raw) => UnitAliases.TryGetValue(raw.Trim(), out var unit) ? unit : null;
@@ -1327,6 +1333,19 @@ public static class CommandParser
         if (ClientLogoutCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ClientLogout };
         if (GuideLater.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.GuideLater };
         if (Menu.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Menu };
+        if (OrderPageCmd.Match(message) is { Success: true } pageM)
+        {
+            var action = pageM.Groups["a"].Value.ToLowerInvariant();
+            var text = action switch
+            {
+                "prev" or "previous" => "prev",
+                "last" => "last",
+                _ when action.StartsWith("page", StringComparison.Ordinal) => "page:" + new string(action.Where(char.IsDigit).ToArray()),
+                _ when action.StartsWith("size", StringComparison.Ordinal) => "size:" + new string(action.Where(char.IsDigit).ToArray()),
+                _ => "next"
+            };
+            return new ParsedCommand { Kind = CommandKind.OrderPage, Text = text };
+        }
         if (OrdersToday.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.OrdersToday };
         if (OrdersYesterday.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.OrdersToday, Text = "yesterday" };
         if (OrdersLastMonth.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.OrdersToday, Text = "lastmonth" };

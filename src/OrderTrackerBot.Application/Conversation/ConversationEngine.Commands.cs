@@ -406,10 +406,13 @@ public partial class ConversationEngine
                 await HandleCustomerSearchAsync(seller, cmd.Text!, ct);
                 return;
             case CommandKind.OrderSearch:
-                await HandleOrderSearchAsync(seller, cmd.Text!, ct);
+                await HandleOrderSearchAsync(seller, ctx, cmd.Text!, ct);
                 return;
             case CommandKind.OrdersToday:
                 await HandleOrdersTodayAsync(seller, ctx, cmd.Text, ct);
+                return;
+            case CommandKind.OrderPage:
+                await HandleOrderPageAsync(seller, session, ctx, cmd.Text!, ct);
                 return;
             case CommandKind.PendingOrders:
                 await HandlePendingOrdersAsync(seller, ctx, ct);
@@ -612,8 +615,13 @@ public partial class ConversationEngine
             : await query.Where(o => o.CreatedAt >= start && o.CreatedAt < end && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
                 .OrderBy(o => o.CreatedAt).ToListAsync(ct);
 
+        // "order 13" names a position in the whole list, so the numbers stay the same on every page.
         ctx.LastListOrderIds = orders.Select(o => o.Id).ToList();
-        await ReplyAsync(seller, Formatters.OrdersToday(seller.PreferredLanguage, orders, period, window is null ? null : PeriodLabel(seller, period), deliveryDue), ct);
+        var paging = OrderPageFor(ctx, CommandKind.OrdersToday, period, orders.Count);
+        var page = orders.Skip(paging.Skip).Take(paging.Take).ToList();
+        await ReplyOrderPageAsync(seller,
+            Formatters.OrdersToday(seller.PreferredLanguage, page, period, window is null ? null : PeriodLabel(seller, period), deliveryDue, paging.Skip + 1, orders.Count),
+            paging, ct);
     }
 
     private async Task HandlePendingOrdersAsync(Seller seller, SessionContextData ctx, CancellationToken ct)
@@ -630,8 +638,9 @@ public partial class ConversationEngine
         }
 
         ctx.LastListOrderIds = orders.Select(o => o.Id).ToList();
-        var lines = orders.Select((o, i) => Formatters.OrderLine(i + 1, o));
-        await ReplyAsync(seller, MessageTemplates.Get("commands.009", orders.Count, string.Join("\n", lines)), ct);
+        var paging = OrderPageFor(ctx, CommandKind.PendingOrders, null, orders.Count);
+        var lines = orders.Skip(paging.Skip).Take(paging.Take).Select((o, i) => Formatters.OrderLine(paging.Skip + i + 1, o));
+        await ReplyOrderPageAsync(seller, MessageTemplates.Get("commands.009", orders.Count, string.Join("\n", lines)), paging, ct);
     }
 
     private async Task HandleTodaysSummaryAsync(Seller seller, string? period, CancellationToken ct)
@@ -1316,8 +1325,10 @@ public partial class ConversationEngine
         }
 
         ctx.LastListOrderIds = orders.Select(o => o.Id).ToList();
-        var lines = orders.Select((o, i) => Formatters.OrderLine(i + 1, o) + (o.AmountPaid > 0 ? $", baqi {Formatters.Money(OrderMoney.Balance(o))}" : ", unpaid"));
-        await ReplyAsync(seller,
-            MessageTemplates.Get("commands.032", orders.Count, string.Join("\n", lines), Formatters.Money(orders.Sum(OrderMoney.Balance))), ct);
+        var paging = OrderPageFor(ctx, CommandKind.UnpaidOrders, null, orders.Count);
+        var lines = orders.Skip(paging.Skip).Take(paging.Take)
+            .Select((o, i) => Formatters.OrderLine(paging.Skip + i + 1, o) + (o.AmountPaid > 0 ? $", baqi {Formatters.Money(OrderMoney.Balance(o))}" : ", unpaid"));
+        await ReplyOrderPageAsync(seller,
+            MessageTemplates.Get("commands.032", orders.Count, string.Join("\n", lines), Formatters.Money(orders.Sum(OrderMoney.Balance))), paging, ct);
     }
 }
