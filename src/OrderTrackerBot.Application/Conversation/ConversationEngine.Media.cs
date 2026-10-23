@@ -123,14 +123,15 @@ public partial class ConversationEngine
             // Clear intent but a detail is missing (which order, the new price): ask for it instead of guessing or failing.
             // When the answers are a few known choices they come as tap buttons, so the seller need not speak again.
             var options = decision.Options ?? Array.Empty<string>();
-            await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n❓ {decision.Message}", options.Select(o => new ChoiceOption(o, o)).ToList(), ct);
+            var choices = options.Any() ? options.Select(o => new ChoiceOption(o, o)).ToList() : VoiceFallbackChoices.ToList();
+            await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n❓ {decision.Message}", choices, ct);
             await _db.SaveChangesAsync(ct);
             return;
         }
         if (decision.Kind == DecisionKind.Reject)
         {
-            // Unsafe to run and not safe to offer as choices: say nothing changed, and wait for the seller to type or speak it again.
-            await _sender.SendTextMessageAsync(fromPhoneNumber, $"{heard}\n\n{decision.Message}", ct);
+            // Unsafe to run and not safe to offer as choices: say nothing changed. The taps are only safe reads (orders, menu), never an approval.
+            await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n{decision.Message}", VoiceFallbackChoices, ct);
             await _db.SaveChangesAsync(ct);
             return;
         }
@@ -178,6 +179,13 @@ public partial class ConversationEngine
         await _sender.SendTextMessageAsync(fromPhoneNumber, $"{heard}\n\n{MessageTemplates.Get("voice-confirm.005")}", ct);
         await _db.SaveChangesAsync(ct);
     }
+
+    /// <summary>Safe read-only taps offered when a voice note is refused or not understood, so the seller has a next step without retyping.</summary>
+    private static readonly ChoiceOption[] VoiceFallbackChoices =
+    {
+        new("orders today", "orders today"),
+        new("menu", "menu"),
+    };
 
     /// <summary>Keeps the id of the last 20 voice notes handled, so a later reply to one of them is recognised.</summary>
     private async Task RememberVoiceNoteAsync(Seller seller, string messageId, CancellationToken ct)
