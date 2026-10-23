@@ -69,6 +69,12 @@ public partial class ConversationEngine
     {
         var catalog = await LoadCatalogAsync(seller, ct);
         var analysis = await _ai.AnalyzeMessageAsync(AiContext(seller, catalog, ctx), message, ct);
+        // "Lawn Suit bech diya Sara ko" is a sale already made, not a new order: say how to record it, instead of a guess.
+        if (analysis.Intent == "unclear" && SaleVerbWords.IsMatch(message))
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("commands.030"), ct);
+            return;
+        }
         // The seller's own words beat the model: "delivery 300" in a single order is that order's delivery charge.
         if (analysis.Order is { } single && analysis.AdditionalOrders.Count == 0 && CommandParser.TryFindDeliveryInOrderText(message, out var delivery))
             single.DeliveryCharge = delivery;
@@ -76,6 +82,10 @@ public partial class ConversationEngine
             one.AdvancePaid = advance;
         await HandleAnalysisAsync(seller, session, ctx, analysis, catalog, fromScreenshot: false, ct, message);
     }
+
+    private static readonly System.Text.RegularExpressions.Regex SaleVerbWords = new(
+        @"\b(?:bech\w*|bika|bikay\w*|bik\s+gaya|sold|becha)\b|بیچ\w*|بکا|بکے|بیچا",
+        System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
     private static readonly System.Text.RegularExpressions.Regex DiscountWords = new(
         @"discount|coupon|promo|voucher|offer|code|sale|رعایت|ڈسکاؤنٹ|ڈسکاونٹ|کوپن|آفر|کوڈ|چھوٹ",

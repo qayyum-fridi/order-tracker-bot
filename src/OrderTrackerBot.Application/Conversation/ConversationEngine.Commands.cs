@@ -557,7 +557,8 @@ public partial class ConversationEngine
     // beyond it) the number is the real order id.
     private static (int OrderId, bool FromList) ResolveListNumber(SessionContextData ctx, int number) =>
         ctx.LastListOrderIds is { Count: > 0 } ids && number >= 1 && number <= ids.Count
-            ? (ids[number - 1], true)
+            // The notice "1 was your list number" only helps when the number really pointed at another order.
+            ? (ids[number - 1], ids[number - 1] != number)
             : (number, false);
 
     /// <summary>The report window for "today" (null) / "yesterday" / "lastmonth" in the seller's local time.</summary>

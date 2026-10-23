@@ -28,6 +28,7 @@
   "commands.027": "✅ {0} price updated: {1} → {2}",
   "commands.028": "Order #{0} nahi mila. Apne orders dekhne ke liye \"orders today\" likhein.",
   "commands.029": "ℹ️ \"{0}\" aapki last list ka number tha (Order #{1}). Naya number ke liye pehle list dobara dekhein.",
+  "commands.030": "🧾 Agar yeh sale ho chuki hai (cash / counter par), likhein: \"walkin Lawn Suit 1\" ya \"counter sale 3500\".\nAgar customer ka order abhi lena hai, phone aur items likh dein: \"Sara ka order: Lawn Suit 1, phone 0300...\"",
   "commands.030": "✅ Order #{0} marked as PAID.",
   "commands.031": "Koi unpaid order nahi hai.",
   "commands.032": "💸 Unpaid Orders ({0}):\n\n{1}\n\nTotal pending: {2}\n\n\"payment link 1\" likh kar link bhej sakte hain.",
