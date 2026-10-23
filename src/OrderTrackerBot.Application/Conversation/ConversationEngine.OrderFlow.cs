@@ -1206,6 +1206,8 @@ public partial class ConversationEngine
         }
 
         await CheckLoyaltyThresholdAsync(seller, session, ctx, order, ct);
+        // The receipt is the next thing most sellers need after a saved order: offer it as a tap.
+        SuggestNext("receipt", "orders today");
         if (session.State == ConversationState.Idle) await MaybeSendSetupNudgeAsync(seller, ctx, ct);
     }
 

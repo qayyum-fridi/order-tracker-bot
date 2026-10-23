@@ -539,6 +539,8 @@ public partial class ConversationEngine
                 await HandleBroadcastRequestAsync(seller, session, ctx, cmd, ct);
                 return;
             default:
+                // Hidden commands: the help list cannot show everything, so offer the two most-used next steps as taps.
+                SuggestNext("receipt", "orders today");
                 await ReplyAsync(seller, MessageTemplates.Get("commands.007"), ct);
                 return;
         }
