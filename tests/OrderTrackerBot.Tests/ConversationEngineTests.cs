@@ -1441,8 +1441,13 @@ public class ConversationEngineTests : IDisposable
         await OnboardSellerAsync(db);
         await SetSellerLanguageAsync(db, Lang.UrduScript);
         var engine = CreateEngine(db);
+        var aiInputs = new List<string>();
         _ai.Setup(a => a.TranslateAsync(It.IsAny<IReadOnlyList<string>>(), Lang.UrduScript, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IReadOnlyList<string> texts, string _, CancellationToken _) => (IReadOnlyList<string>?)texts.Select(t => "UR:" + t).ToList());
+            .ReturnsAsync((IReadOnlyList<string> texts, string _, CancellationToken _) =>
+            {
+                aiInputs.AddRange(texts);
+                return (IReadOnlyList<string>?)texts.Select(t => "UR:" + t).ToList();
+            });
         string? listBody = null;
         IReadOnlyList<MenuSection>? listSections = null;
         _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
@@ -1452,8 +1457,10 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "catalog", default);
         await engine.HandleIncomingMessageAsync(Phone, "naya order", default);
 
-        Assert.Contains(_sentMessages, m => m.StartsWith("UR:"));
-        Assert.StartsWith("UR:", listBody);
+        // A message that matches a template is sent in its hand-written Urdu and never reaches the AI; only unmatched text does.
+        Assert.Contains(_sentMessages, m => m.StartsWith("🛍️ آپ کا کیٹلاگ"));
+        Assert.StartsWith("📦 نیا آرڈر", listBody);
+        Assert.DoesNotContain(aiInputs, t => t.StartsWith("🛍️ آپ کا کیٹلاگ") || t.StartsWith("📦 نیا آرڈر"));
         Assert.All(listSections!.SelectMany(s => s.Rows), r => Assert.NotNull(CommandParser.TryParse(r.Id)));
     }
 
@@ -1875,7 +1882,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "export all", default);
 
         var (_, bytes, _) = Assert.Single(files);
-        Assert.Equal(new[] { "Orders", "Order Items", "Customers", "Catalog", "Discounts", "Loyalty Rules", "Guide" },
+        Assert.Equal(new[] { "Orders", "Order Items", "Customers", "Catalog", "Discounts", "Loyalty Rules", "Expenses", "Guide" },
             MiniExcelLibs.MiniExcel.GetSheetNames(new MemoryStream(bytes)).ToArray());
         var customers = MiniExcelLibs.MiniExcel.Query(new MemoryStream(bytes), useHeaderRow: true, sheetName: "Customers").Cast<IDictionary<string, object>>().ToList();
         Assert.DoesNotContain(customers, c => (string)c["Name"] == "Deleted Dan");

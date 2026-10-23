@@ -168,7 +168,7 @@ public class CommandDictionaryTests
     [InlineData("daily report", CommandKind.TodaysSummary)]
     [InlineData("order 12 details", CommandKind.OrderDetail)]
     [InlineData("order 12 dikhao", CommandKind.OrderDetail)]
-    [InlineData("find order 12", CommandKind.OrderDetail)]
+    [InlineData("find order 12", CommandKind.OrderSearch)]
     [InlineData("naya order banao", CommandKind.NewOrderHelp)]
     [InlineData("order bana do", CommandKind.NewOrderHelp)]
     [InlineData("catalogue", CommandKind.Catalog)]
