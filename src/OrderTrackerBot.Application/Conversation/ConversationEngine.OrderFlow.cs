@@ -262,8 +262,13 @@ public partial class ConversationEngine
     {
         var wanted = name.Trim();
         if (wanted.EndsWith(')') && wanted.Contains(" (sold per ")) wanted = wanted[..wanted.IndexOf(" (sold per ", StringComparison.Ordinal)];
-        return catalog.FirstOrDefault(c => string.Equals(c.Label, wanted, StringComparison.OrdinalIgnoreCase))
+        var byName = catalog.FirstOrDefault(c => string.Equals(c.Label, wanted, StringComparison.OrdinalIgnoreCase))
                ?? catalog.FirstOrDefault(c => string.Equals(c.Product.Name, wanted, StringComparison.OrdinalIgnoreCase));
+        if (byName is not null) return byName;
+        // A design code or SKU typed in the order ("1203 x2", "KRT-001") names its product when exactly one product has it.
+        var lower = wanted.ToLowerInvariant();
+        var coded = catalog.Where(c => HasProductCode(c.Product, lower)).ToList();
+        return coded.Count == 1 ? coded[0] : null;
     }
 
     /// <summary>

@@ -393,6 +393,9 @@ public partial class ConversationEngine
             case CommandKind.CustomerSearch:
                 await HandleCustomerSearchAsync(seller, cmd.Text!, ct);
                 return;
+            case CommandKind.OrderSearch:
+                await HandleOrderSearchAsync(seller, cmd.Text!, ct);
+                return;
             case CommandKind.OrdersToday:
                 await HandleOrdersTodayAsync(seller, ctx, cmd.Text, ct);
                 return;
@@ -1101,8 +1104,11 @@ public partial class ConversationEngine
     {
         var products = await _db.Products.Where(p => p.SellerId == seller.Id && p.IsActive).ToListAsync(ct);
         var wanted = name.Trim().ToLower();
+        // A design code or SKU ("1203", "KRT-001") names its product only when exactly one product has it.
+        var coded = products.Where(p => HasProductCode(p, wanted)).ToList();
         return products.FirstOrDefault(p => Formatters.ProductLabel(p).ToLower() == wanted)
-               ?? products.FirstOrDefault(p => p.Name.ToLower() == wanted);
+               ?? products.FirstOrDefault(p => p.Name.ToLower() == wanted)
+               ?? (coded.Count == 1 ? coded[0] : null);
     }
 
     private static readonly System.Text.RegularExpressions.Regex TierSpec =

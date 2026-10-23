@@ -501,7 +501,7 @@ public partial class ConversationEngine
 
     private static readonly HashSet<CommandKind> LooseRuleKinds = new()
     {
-        CommandKind.Insight, CommandKind.FuzzyStatusUpdate, CommandKind.CustomerOrderLookup, CommandKind.ProductReport, CommandKind.CustomerSearch, CommandKind.HowTo
+        CommandKind.Insight, CommandKind.FuzzyStatusUpdate, CommandKind.CustomerOrderLookup, CommandKind.ProductReport, CommandKind.CustomerSearch, CommandKind.OrderSearch, CommandKind.HowTo
     };
 
     private async Task<bool> LooseRuleMatchIsWrongAsync(ParsedCommand command, string message, CancellationToken ct)

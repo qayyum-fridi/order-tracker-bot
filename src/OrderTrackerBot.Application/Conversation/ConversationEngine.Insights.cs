@@ -106,6 +106,10 @@ public partial class ConversationEngine
         var hits = products.Where(p => p.Name.Trim().Length >= 2 && HasWord(text, p.Name)).ToList();
         hits = hits.Where(h => !hits.Any(o => o.Name.Length > h.Name.Length && o.Name.Contains(h.Name, StringComparison.OrdinalIgnoreCase))).ToList();
 
+        // A design code or SKU typed as a whole word ("1203", "KRT-001") is that product, whatever its name says.
+        var typed = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(t => t.Trim('?', '.', ',', '!', '#', ':', ';', '(', ')', '"', '؟', '،').ToLowerInvariant()).ToHashSet();
+        hits.AddRange(products.Where(p => hits.All(h => h.Id != p.Id) && ProductCodes(p).Any(c => typed.Contains(c))));
+
         // Words not already part of an exact match may still be a misspelt product ("dupatte" for "Dupatta").
         var covered = hits.SelectMany(h => h.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries)).Select(w => w.ToLowerInvariant()).ToHashSet();
         var tokens = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(t => t.Trim('?', '.', ',', '!', '؟', '،')).Where(t => t.Length > 0).ToList();

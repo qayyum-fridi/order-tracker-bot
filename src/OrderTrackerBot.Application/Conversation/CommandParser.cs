@@ -25,6 +25,8 @@ public enum CommandKind
     CustomerList,
     CustomerDetail,
     CustomerSearch,
+    // "search order Sara" / "find order Sara" / "order search Kurti": orders by number, customer, product or design code. Text = the words searched for.
+    OrderSearch,
     DetailedForm,
     HowTo,
     EditProduct,
@@ -211,6 +213,9 @@ public static class CommandParser
     private static readonly Regex MenuCategory = new(@"^menu\s+(orders|reports|catalog|payments|discounts|customers|settings|shop)$", Opts);
     private static readonly Regex CustomerList = new(@"^(customers?\s+list|my\s+customers|customers|(?:show|all|saare)\s+customers)$", Opts);
     private static readonly Regex CustomerSearch = new(@"^search\s+customers?:\s*(.+)$", Opts);
+    // "search customer Sara", "customer search Sara", "find order Sara": the same searches written without the colon. Checked before the catalog search.
+    private static readonly Regex CustomerSearchWords = new(@"^(?:(?:search|find|dhoondo|dhundo|talash|ڈھونڈو|تلاش)\s+customers?|customers?\s+(?:search|find|talash))\s*:?\s+(?<q>.{1,60})$", Opts);
+    private static readonly Regex OrderSearchWords = new(@"^(?:(?:search|find|dhoondo|dhundo|talash|ڈھونڈو|تلاش)\s+(?:orders?|آرڈر)|(?:orders?|آرڈر)\s+(?:search|find|talash))\s*:?\s+(?<q>.{1,60})$", Opts);
     private static readonly Regex CustomerDetail = new(@"^customer\s+(?!list$|feedback$)(.+)$", Opts);
     private static readonly Regex DeleteCustomer = new(@"^(?:delete|remove)\s+customer:?\s*(.+)$", Opts);
     private static readonly Regex RestoreCustomer = new(@"^restore\s+customer:?\s*(.+)$", Opts);
@@ -1282,6 +1287,10 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.Catalog, Text = "size:" + sizeM.Groups["n"].Value };
         if (CatalogPageJump.Match(message) is { Success: true } jump)
             return new ParsedCommand { Kind = CommandKind.Catalog, Text = jump.Groups["pg"].Success ? "page:" + jump.Groups["pg"].Value : "last" };
+        if ((m = OrderSearchWords.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.OrderSearch, Text = m.Groups["q"].Value.Trim() };
+        if ((m = CustomerSearchWords.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.CustomerSearch, Text = m.Groups["q"].Value.Trim() };
         if (CatalogSearch.Match(message) is { Success: true } search
             && (message.TrimStart().StartsWith("catalog", StringComparison.OrdinalIgnoreCase) || message.TrimStart().StartsWith("products", StringComparison.OrdinalIgnoreCase)
                 || (!search.Groups["q"].Value.Contains(':') && !SearchOtherThings.IsMatch(search.Groups["q"].Value))))
