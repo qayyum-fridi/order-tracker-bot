@@ -319,6 +319,31 @@ public static class SpokenNumbers
     /// </summary>
     public static IReadOnlySet<long> DictatedDigitAmounts(string text) => DictatedSpans(Tokens(text)).Select(s => s.Value).ToHashSet();
 
+    // Everyday words that can sit right before "sau/hazar/lakh" without being a number: "mere paas hazar rupay", "ke hazar".
+    private static readonly HashSet<string> NotAmountWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "ke", "ki", "ka", "ko", "se", "mein", "me", "par", "pe", "paas", "wale", "wali", "wala", "sath", "saath", "aur", "ya", "bhi", "tak", "kuch"
+    };
+
+    /// <summary>
+    /// Words said right before a multiplier ("sau", "hazar", "lakh") that are neither a number word nor an everyday particle: "ikhattar hazar"
+    /// when that spelling is not in the list. Such an amount cannot be read, so a rewrite of the note cannot be checked against it.
+    /// Empty when every amount-like word is known.
+    /// </summary>
+    public static IReadOnlyList<string> UnknownAmountWords(string text)
+    {
+        var tokens = Tokens(text);
+        var unknown = new List<string>();
+        for (var i = 1; i < tokens.Count; i++)
+        {
+            if (!Multipliers.ContainsKey(tokens[i])) continue;
+            var word = tokens[i - 1];
+            if (word.Length < 3 || word.Any(char.IsDigit) || IsNumberWord(word) || IsMultiplier(word) || NotAmountWords.Contains(word)) continue;
+            unknown.Add(word);
+        }
+        return unknown;
+    }
+
     /// <summary>Every amount in the text, however it was written (digits, number words, or an id dictated digit by digit).</summary>
     public static IReadOnlySet<long> Amounts(string text)
     {

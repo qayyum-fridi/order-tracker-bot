@@ -49,6 +49,7 @@ public partial class ConversationEngine
         var ctx = SessionContextData.FromJson(session.ContextJson);
         ctx.PendingVoiceSteps = steps.ToList();
         ctx.PendingVoiceParkedAt = DateTime.UtcNow;
+        ctx.PendingVoiceSentAt = _sentAtUtc;
         ctx.PendingVoiceLogId = await NewestActionLogIdAsync(seller.Id, ct);
         SetState(session, ConversationState.AwaitingVoiceConfirmation);
         await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("media.002", heard), ct);
@@ -87,8 +88,10 @@ public partial class ConversationEngine
 
         // Steps parked long ago belong to an old note: a draft answered much later must not replay them.
         var stale = ctx.PendingVoiceContinueAt is null || DateTime.UtcNow - ctx.PendingVoiceContinueAt.Value > VoiceConfirmWindow;
+        var restSentAt = ctx.PendingVoiceContinueSentAt;
         ctx.PendingVoiceContinue = null;
         ctx.PendingVoiceContinueAt = null;
+        ctx.PendingVoiceContinueSentAt = null;
         await PersistAsync(session, ctx, ct);
         if (stale)
         {
@@ -96,7 +99,7 @@ public partial class ConversationEngine
                 MessageTemplates.Get("voice-confirm.010", string.Join("  →  ", rest.Select(s => $"\"{s}\""))), ct);
             return;
         }
-        await RunVoiceStepsAsync(fromPhoneNumber, rest, ct);
+        await RunVoiceStepsAsync(fromPhoneNumber, rest, restSentAt, ct);
     }
 
     /// <summary>A parked YES is valid for this long; after that the seller must say the instruction again.</summary>
@@ -106,11 +109,12 @@ public partial class ConversationEngine
         await _db.ActionLogs.Where(l => l.SellerId == sellerId).MaxAsync(l => (int?)l.Id, ct) ?? 0;
 
     /// <summary>Runs the steps one after another as separate typed messages; stops (and says so) if "edit order" did not open edit mode.</summary>
-    private async Task RunVoiceStepsAsync(string fromPhoneNumber, IReadOnlyList<string> steps, CancellationToken ct)
+    /// <summary>Each step keeps <paramref name="sentAtUtc"/> (the voice note's send time) so the records it makes are stamped with it.</summary>
+    private async Task RunVoiceStepsAsync(string fromPhoneNumber, IReadOnlyList<string> steps, DateTime? sentAtUtc, CancellationToken ct)
     {
         for (var i = 0; i < steps.Count; i++)
         {
-            await HandleIncomingMessageAsync(fromPhoneNumber, steps[i], ct);
+            await HandleIncomingMessageAsync(fromPhoneNumber, steps[i], ct, sentAtUtc);
             if (i == steps.Count - 1) return;
 
             // An order draft is answered by the seller (Save / Edit / Cancel) before the next order is started: the rest waits here.
@@ -120,6 +124,7 @@ public partial class ConversationEngine
                 var ctx = SessionContextData.FromJson(session.ContextJson);
                 ctx.PendingVoiceContinue = steps.Skip(i + 1).ToList();
                 ctx.PendingVoiceContinueAt = DateTime.UtcNow;
+                ctx.PendingVoiceContinueSentAt = sentAtUtc;
                 await PersistAsync(session, ctx, ct);
                 return;
             }
@@ -150,8 +155,10 @@ public partial class ConversationEngine
         var steps = ctx.PendingVoiceSteps;
         var parkedAt = ctx.PendingVoiceParkedAt;
         var parkedLogId = ctx.PendingVoiceLogId;
+        var parkedSentAt = ctx.PendingVoiceSentAt;
         ctx.PendingVoiceSteps = null;
         ctx.PendingVoiceParkedAt = null;
+        ctx.PendingVoiceSentAt = null;
         SetState(session, ConversationState.Idle);
         await PersistAsync(session, ctx, ct);
 
@@ -169,7 +176,7 @@ public partial class ConversationEngine
                 return true;
             }
 
-            await RunVoiceStepsAsync(fromPhoneNumber, steps, ct);
+            await RunVoiceStepsAsync(fromPhoneNumber, steps, parkedSentAt, ct);
             return true;
         }
 

@@ -2,8 +2,5 @@
   "receipts.001": "⚠️ Receipt PDF bhej nahi saka — thori der baad dobara try karein.",
   "receipts.002": "✅ Receipt PDF ready — download ke liye file par tap karein.\nCustomer ko bhejne ke liye is PDF ko Forward karein{0}{1}{2}",
   "receipts.003": "ℹ️ \"{0}\" aapki last list ka number tha (Order #{1}).",
-  "receipts.004": "Cash on delivery",
-  "receipts.005": "Bank / wallet transfer",
-  "receipts.006": "Online payment",
-  "receipts.007": "Not specified"
+  "receipts.008": "⚠️ Logo ya banner is receipt par nahi lag saka (PDF engine woh picture nahi khol paya), isliye receipt bina uske bani hai. Nayi picture \"logo\" ya \"banner\" caption ke saath bhejein."
 }

@@ -15,5 +15,6 @@
     "Customer ki khaas farmaish (\"photo cake, name Ali\") ke liye \"note 12 <likhai>\" likhein."
   ],
   "dataFocus": "advance payment, delivery charge aur cost price",
+  "menuTip": "Advance \"order 12 advance 1000\" se likhein, aur delivery charge order ke saath likhein.",
   "units": ["piece", "kg", "gram", "dozen", "pack", "tray", "plate", "liter", "ml"]
 }

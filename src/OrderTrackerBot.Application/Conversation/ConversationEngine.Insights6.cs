@@ -249,7 +249,7 @@ public partial class ConversationEngine
     /// <summary>Products whose current cost is below what recent orders paid, while the shelf price is unchanged: the margin rose on its own.</summary>
     private async Task InsightCostDropAsync(Seller seller, CancellationToken ct)
     {
-        var since = DateTime.UtcNow.AddDays(-60);
+        var since = SellerClock.DaysAgoUtc(60, DateTime.UtcNow);
         var items = await _db.OrderItems.AsNoTracking()
             .Where(i => i.ProductId != null && i.UnitCost != null && i.Order!.SellerId == seller.Id && i.Order.CreatedAt >= since
                         && i.Order.Status != OrderStatus.Cancelled && i.Order.Status != OrderStatus.Returned)

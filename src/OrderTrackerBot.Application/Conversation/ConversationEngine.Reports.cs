@@ -32,7 +32,7 @@ public partial class ConversationEngine
             return;
         }
 
-        var since30 = DateTime.UtcNow.AddDays(-30);
+        var since30 = SellerClock.DaysAgoUtc(30, DateTime.UtcNow);
         var last30 = items.Where(i => i.CreatedAt >= since30).ToList();
         var lastOrder = items.Max(i => i.CreatedAt);
         var daysAgo = (int)(DateTime.UtcNow - lastOrder).TotalDays;

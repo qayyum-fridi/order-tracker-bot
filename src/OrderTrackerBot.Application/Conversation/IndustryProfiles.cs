@@ -18,6 +18,7 @@ public sealed record IndustryProfile(
     string OrderExample,
     string[] Tips,
     string DataFocus,
+    string MenuTip,
     string[] Units)
 {
     /// <summary>One simple example line ("Kurti - 1800"), for short prompts.</summary>
@@ -98,7 +99,9 @@ public static class IndustryProfiles
                 throw new InvalidOperationException($"Industry template {resource}: key \"{t.Key}\" must equal the file name.");
             if (loaded.Any(x => string.Equals(x.Profile.Key, t.Key, StringComparison.OrdinalIgnoreCase)))
                 throw new InvalidOperationException($"Industry template key \"{t.Key}\" is used by more than one file.");
-            loaded.Add((t.Order, new IndustryProfile(t.Key, t.Title, t.Aliases, t.ProductLines, t.OrderExample, t.Tips, t.DataFocus, t.Units ?? Array.Empty<string>())));
+            if (string.IsNullOrWhiteSpace(t.MenuTip))
+                throw new InvalidOperationException($"Industry template {resource} has no menuTip.");
+            loaded.Add((t.Order, new IndustryProfile(t.Key, t.Title, t.Aliases, t.ProductLines, t.OrderExample, t.Tips, t.DataFocus, t.MenuTip, t.Units ?? Array.Empty<string>())));
         }
         return loaded;
     }
@@ -113,5 +116,6 @@ public static class IndustryProfiles
         string OrderExample,
         string[] Tips,
         string DataFocus,
+        string MenuTip,
         string[]? Units);
 }

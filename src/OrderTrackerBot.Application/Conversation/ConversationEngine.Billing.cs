@@ -153,8 +153,10 @@ public partial class ConversationEngine
         var customers = await _db.Customers.CountAsync(c => c.SellerId == seller.Id && c.DeletedAt == null, ct);
         var daysLeft = Math.Max(1, (int)Math.Ceiling((seller.TrialEndsAt!.Value - DateTime.UtcNow).TotalDays));
 
-        await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
-            MessageTemplates.Get("billing.006", daysLeft, orders.Count, Formatters.Money(orders.Sum(o => o.Total)), customers, PlansText), PlanButtons, ct);
+        var reminder = MessageTemplates.Get("billing.006", daysLeft, orders.Count, Formatters.Money(orders.Sum(o => o.Total)), customers, PlansText);
+        // Buttons are a session message too: outside the 24-hour window the same text waits for the seller's next message, as plain text.
+        if (await WithinServiceWindowAsync(seller, ct)) await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, reminder, PlanButtons, ct);
+        else QueueProactiveNotice(seller, reminder);
         seller.TrialReminderSentAt = DateTime.UtcNow;
     }
 }

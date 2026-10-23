@@ -1,0 +1,10 @@
+{
+  "productprofit.001": "ℹ️ {0} mein koi bikri nahi mili, is liye product ka profit nahi nikal sakte.",
+  "productprofit.002": "ℹ️ {0} mein bikne wale products ki cost price nahi likhi gayi, is liye profit nahi nikal sakte.\nCost likhne ka tareeqa: {1}",
+  "productprofit.003": "📊 Product ke hisab se profit — {0}\n\n{1}{2}",
+  "productprofit.004": "\n\nℹ️ {0} item ki cost nahi likhi thi, is liye woh shamil nahi. Cost likhne ke liye product line mein \"cost 300\" likhein.",
+  "productprofit.005": "{0}. {1} — {2} piece · bikri {3} · munafa {4} · margin {5}%",
+  "productprofit.006": "📊 Margin asal bikri par — {0}\n\n{1}{2}\n\nYeh asal bikri aur cost par mabni hai; delivery shamil nahi.",
+  "productprofit.007": "\n\n📦 Product ke hisab se delivery (shipped se delivered tak):\n{0}",
+  "productprofit.008": "• {0}: average {1} din ({2} orders)"
+}

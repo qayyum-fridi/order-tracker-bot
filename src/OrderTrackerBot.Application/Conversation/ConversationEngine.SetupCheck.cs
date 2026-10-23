@@ -1,3 +1,4 @@
+using OrderTrackerBot.Application.Time;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
@@ -26,11 +27,11 @@ public sealed partial class ConversationEngine
         var noCost = products.Count(p => p.CostPrice is null);
         var noCategory = products.Count(p => string.IsNullOrWhiteSpace(p.Category));
         var noStock = products.Count(p => p.StockQty is null);
-        var staleCutoff = DateTime.UtcNow.AddDays(-StaleOrderDays);
+        var staleCutoff = SellerClock.DaysAgoUtc(StaleOrderDays, DateTime.UtcNow);
         var stale = await _db.Orders.AsNoTracking().CountAsync(o => o.SellerId == seller.Id && o.CreatedAt < staleCutoff
             && (o.Status == OrderStatus.Pending || o.Status == OrderStatus.Shipped), ct);
         var orders = await _db.Orders.AsNoTracking().CountAsync(o => o.SellerId == seller.Id, ct);
-        var monthStart = DateTime.UtcNow.AddDays(-30);
+        var monthStart = SellerClock.DaysAgoUtc(30, DateTime.UtcNow);
         var expenses = await _db.Expenses.AsNoTracking().CountAsync(e => e.SellerId == seller.Id && e.CreatedAt >= monthStart, ct);
 
         var rows = new List<(bool Ok, string Line)>
@@ -119,7 +120,7 @@ public sealed partial class ConversationEngine
         if (noCity.Count > 0)
             issues.Add($"Na city na address ({noCity.Count} customers): {Names(noCity.Select(c => c.Name), noCity.Count)} — shehar-wise reports mein nahi ayenge. Likhein: \"Bilal ki city Lahore\"");
 
-        var since = DateTime.UtcNow.AddDays(-90);
+        var since = SellerClock.DaysAgoUtc(90, DateTime.UtcNow);
         var noCourier = await _db.Orders.AsNoTracking().CountAsync(o => o.SellerId == seller.Id && o.CreatedAt >= since
             && (o.Status == OrderStatus.Shipped || o.Status == OrderStatus.Delivered) && o.OrderSource != "offline" && string.IsNullOrEmpty(o.TrackingCourier), ct);
         if (noCourier > 0)

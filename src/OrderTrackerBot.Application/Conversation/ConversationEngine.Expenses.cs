@@ -41,8 +41,7 @@ public partial class ConversationEngine
         }
 
         var note = string.IsNullOrWhiteSpace(cmd.Text) ? null : cmd.Text.Trim();
-        var category = note is null ? "other" : note.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0].Trim(',', '.', ':', ';').ToLowerInvariant();
-        if (category.Length == 0) category = "other";
+        var category = ExpenseCategoryOf(note);
 
         var expense = new Expense { SellerId = seller.Id, Amount = amount, Category = category, Note = note, CreatedAt = RecordTimeUtc() };
         _db.Expenses.Add(expense);
@@ -59,6 +58,13 @@ public partial class ConversationEngine
             MessageTemplates.Get("expenses.002", Formatters.Money(amount), note ?? category, Formatters.Money(monthTotal)), ct);
     }
 
+    /// <summary>The category is the first word of the note, lower-cased ("packaging 500" = packaging); "other" when there is no note.</summary>
+    private static string ExpenseCategoryOf(string? note)
+    {
+        var category = note is null ? "other" : note.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0].Trim(',', '.', ':', ';').ToLowerInvariant();
+        return category.Length == 0 ? "other" : category;
+    }
+
     private async Task UndoExpenseAsync(Seller seller, ActionLog log, CancellationToken ct)
     {
         using var doc = JsonDocument.Parse(log.PayloadJson);
@@ -67,6 +73,93 @@ public partial class ConversationEngine
         if (expense is null) return;
         _db.Expenses.Remove(expense);
         await ReplyAsync(seller, MessageTemplates.Get("expenses.003", Formatters.Money(expense.Amount), expense.Note ?? expense.Category), ct);
+    }
+
+    /// <summary>
+    /// "expense edit 12 800 packaging": the amount and/or the note of one expense. The note sets the category as a new expense does.
+    /// The old values go into one ActionLog so "undo" puts them back.
+    /// </summary>
+    private async Task HandleExpenseEditAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
+    {
+        var hasNote = !string.IsNullOrWhiteSpace(cmd.Text);
+        if (cmd.Amount is null && !hasNote)
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("expenses.011"), ct);
+            return;
+        }
+        if (cmd.Amount is { } newAmount && (newAmount <= 0 || newAmount > MaxExpenseAmount))
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("expenses.001"), ct);
+            return;
+        }
+
+        var expense = await _db.Expenses.FirstOrDefaultAsync(x => x.Id == cmd.Number && x.SellerId == seller.Id, ct);
+        if (expense is null)
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("expenses.012", cmd.Number), ct);
+            return;
+        }
+
+        _db.ActionLogs.Add(new ActionLog
+        {
+            SellerId = seller.Id, ActionType = ActionType.ExpenseChanged,
+            PayloadJson = JsonSerializer.Serialize(new { ExpenseId = expense.Id, expense.Amount, expense.Category, expense.Note })
+        });
+        if (cmd.Amount is { } amount) expense.Amount = amount;
+        if (hasNote)
+        {
+            expense.Note = cmd.Text.Trim();
+            expense.Category = ExpenseCategoryOf(expense.Note);
+        }
+        await _db.SaveChangesAsync(ct);
+        await ReplyAsync(seller, MessageTemplates.Get("expenses.013", expense.Id, Formatters.Money(expense.Amount), expense.Note ?? expense.Category), ct);
+    }
+
+    /// <summary>"expense delete 12": removes one expense. The whole row goes into the ActionLog, so "undo" writes it back with its date.</summary>
+    private async Task HandleExpenseDeleteAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
+    {
+        var expense = await _db.Expenses.FirstOrDefaultAsync(x => x.Id == cmd.Number && x.SellerId == seller.Id, ct);
+        if (expense is null)
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("expenses.012", cmd.Number), ct);
+            return;
+        }
+
+        _db.ActionLogs.Add(new ActionLog
+        {
+            SellerId = seller.Id, ActionType = ActionType.ExpenseChanged,
+            PayloadJson = JsonSerializer.Serialize(new { ExpenseId = expense.Id, Deleted = true, expense.Amount, expense.Category, expense.Note, expense.CreatedAt })
+        });
+        _db.Expenses.Remove(expense);
+        await _db.SaveChangesAsync(ct);
+        await ReplyAsync(seller, MessageTemplates.Get("expenses.014", expense.Id, Formatters.Money(expense.Amount), expense.Note ?? expense.Category), ct);
+    }
+
+    /// <summary>Undo of an edit (puts the old amount, category and note back) or of a delete (adds the expense again with its old date).</summary>
+    private async Task UndoExpenseChangeAsync(Seller seller, ActionLog log, CancellationToken ct)
+    {
+        using var doc = JsonDocument.Parse(log.PayloadJson);
+        var root = doc.RootElement;
+        var amount = root.GetProperty("Amount").GetDecimal();
+        var category = root.GetProperty("Category").GetString() ?? "other";
+        var note = root.GetProperty("Note").GetString();
+
+        if (root.TryGetProperty("Deleted", out var deleted) && deleted.GetBoolean())
+        {
+            var restored = new Expense { SellerId = seller.Id, Amount = amount, Category = category, Note = note, CreatedAt = root.GetProperty("CreatedAt").GetDateTime() };
+            _db.Expenses.Add(restored);
+            await _db.SaveChangesAsync(ct);
+            await ReplyAsync(seller, MessageTemplates.Get("expenses.015", Formatters.Money(amount), note ?? category), ct);
+            return;
+        }
+
+        var id = root.GetProperty("ExpenseId").GetInt32();
+        var expense = await _db.Expenses.FirstOrDefaultAsync(x => x.Id == id && x.SellerId == seller.Id, ct);
+        if (expense is null) return;
+        expense.Amount = amount;
+        expense.Category = category;
+        expense.Note = note;
+        await ReplyAsync(seller, MessageTemplates.Get("expenses.016", expense.Id, Formatters.Money(amount), note ?? category), ct);
     }
 
     private async Task HandleExpenseListAsync(Seller seller, string? period, CancellationToken ct)
@@ -81,8 +174,9 @@ public partial class ConversationEngine
 
         var tz = SellerClock.Resolve(seller.TimeZoneId);
         const int shown = 15;
+        // The #number is the id that "expense edit" and "expense delete" take.
         var lines = expenses.Take(shown).Select(x =>
-            $"• {TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(x.CreatedAt, DateTimeKind.Utc), tz):dd MMM} — {Formatters.Money(x.Amount)} {x.Note ?? x.Category}");
+            $"• #{x.Id} · {TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(x.CreatedAt, DateTimeKind.Utc), tz):dd MMM} — {Formatters.Money(x.Amount)} {x.Note ?? x.Category}");
         var more = expenses.Count > shown ? $"\n…aur {expenses.Count - shown} purane" : "";
         await ReplyAsync(seller,
             MessageTemplates.Get("expenses.005", label, expenses.Count, string.Join("\n", lines), more, Formatters.Money(expenses.Sum(x => x.Amount))), ct);

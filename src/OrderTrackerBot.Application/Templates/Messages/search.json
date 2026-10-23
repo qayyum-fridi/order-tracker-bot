@@ -1,0 +1,5 @@
+{
+  "search.001": "🔍 \"{0}\" se koi order nahi mila.\nOrder number se dhoondein: search order 12 · Customer se: search customer <naam>",
+  "search.002": "🔎 \"{1}\" ke {0} order mile:\n\n{2}{3}\n\nOrder ki detail ke liye likhein: order <number>",
+  "search.003": "\n\nSirf pehle {0} dikhaye gaye. Naam ya product ka poora naam likh kar talash mehdood karein."
+}

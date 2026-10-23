@@ -432,10 +432,7 @@ public partial class ConversationEngine
                 else problem = $"Cost price sahi nahi (\"{Cell(row, "Cost price")}\")";
             }
             if (problem is null && Cell(row, "Unit").Length > 0)
-            {
-                if (NormalizeImportUnit(Cell(row, "Unit")) is { } parsedUnit) unit = parsedUnit;
-                else problem = $"Unit sahi nahi (\"{Cell(row, "Unit")}\")";
-            }
+                unit = NormalizeImportUnit(Cell(row, "Unit"));
             if (problem is null && Cell(row, "Pack size").Length > 0 && (!TryImportNumber(Cell(row, "Pack size"), out packSize) || packSize <= 0)) problem = $"Pack size sahi nahi (\"{Cell(row, "Pack size")}\")";
             if (problem is null && Cell(row, "Stock").Length > 0)
             {
@@ -550,7 +547,8 @@ public partial class ConversationEngine
         }
     }
 
-    private static string? NormalizeImportUnit(string text) => text.Trim().ToLowerInvariant().TrimEnd('s') switch
+    /// <summary>Known unit words map to their standard name; any other word is kept as typed (lower-cased), so a row is never failed over its unit.</summary>
+    private static string NormalizeImportUnit(string text) => text.Trim().ToLowerInvariant().TrimEnd('s') switch
     {
         "piece" or "pc" or "pcs" or "pic" => "piece",
         "kg" or "kilo" or "kilogram" => "kg",
@@ -572,6 +570,6 @@ public partial class ConversationEngine
         "bundle" => "bundle",
         "tray" => "tray",
         "plate" => "plate",
-        _ => null
+        var other => other
     };
 }

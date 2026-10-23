@@ -1,5 +1,6 @@
 using System.Globalization;
 using OrderTrackerBot.Application.Abstractions;
+using OrderTrackerBot.Application.Templates;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -9,6 +10,7 @@ namespace OrderTrackerBot.Infrastructure.Pdf;
 /// <summary>
 /// A5 order receipt. QuestPDF Community licence (free below US$1M annual revenue — switch the licence if that stops being true).
 /// Fonts: bundled Lato for Latin; Urdu-script names need an Arabic-script font installed on the host (see Dockerfile).
+/// Labels are bilingual (English / Urdu) and come from <c>Templates/Messages/receipt-pdf.json</c>.
 /// </summary>
 public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
 {
@@ -37,6 +39,8 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
 
     private static string Money(decimal amount) => "Rs. " + amount.ToString("#,0.##", CultureInfo.InvariantCulture);
 
+    private static string T(string key, params object?[] args) => MessageTemplates.Get(key, args);
+
     private static string? Id(string label, string? value) => string.IsNullOrWhiteSpace(value) ? null : $"{label} {value}";
 
     public bool CanEmbedImage(byte[] image)
@@ -51,16 +55,16 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
         }
     }
 
-    public byte[] Generate(ReceiptData r)
+    public ReceiptPdf Generate(ReceiptData r)
     {
         try
         {
-            return Render(r);
+            return new ReceiptPdf(Render(r), ImageSkipped: false);
         }
         catch when (r.Logo is not null || r.Banner is not null)
         {
-            // A stored image the PDF engine can't draw must never cost the seller their receipt.
-            return Render(r with { Logo = null, Banner = null });
+            // A stored image the PDF engine can't draw must never cost the seller their receipt; the caller tells the seller it was left out.
+            return new ReceiptPdf(Render(r with { Logo = null, Banner = null }), ImageSkipped: true);
         }
     }
 
@@ -176,13 +180,14 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
                 if (!string.IsNullOrWhiteSpace(r.Contact)) col.Item().AlignCenter().Text(r.Contact).FontSize(size - 1);
                 var taxIds = string.Join(" · ", new[] { Id("NTN", r.Ntn), Id("STRN", r.Strn) }.Where(s => s is not null));
                 if (taxIds.Length > 0) col.Item().AlignCenter().Text(taxIds).FontSize(size - 1);
-                col.Item().AlignCenter().Text(r.SalesTaxRate > 0 ? "TAX INVOICE" : (design.Title ?? "RECEIPT").ToUpperInvariant()).Bold();
-                col.Item().AlignCenter().Text((r.ReceiptNumber is { } no ? $"No. {no} · " : "") + $"Order #{r.OrderId}");
+                col.Item().AlignCenter().Text(Title(r, design)).Bold();
+                col.Item().AlignCenter().Text((r.ReceiptNumber is { } no ? T("pdf.no", no) + " · " : "") + T("pdf.orderno", r.OrderId));
                 col.Item().AlignCenter().Text(r.OrderedAtLocal.ToString("dd MMM yyyy, hh:mm tt", CultureInfo.InvariantCulture)).FontSize(size - 1);
                 col.Item().LineHorizontal(0.5f);
 
                 col.Item().Column(c =>
                 {
+                    c.Item().Text(T("pdf.billto")).FontSize(size - 1).FontColor(Colors.Grey.Darken1);
                     c.Item().Text(r.CustomerName).Bold();
                     if (!design.HideBuyerDetails && !string.IsNullOrWhiteSpace(r.CustomerPhone)) c.Item().Text(r.CustomerPhone);
                     if (!design.HideBuyerDetails && !string.IsNullOrWhiteSpace(r.CustomerAddress)) c.Item().Text(r.CustomerAddress);
@@ -206,43 +211,53 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
                     row.RelativeItem().Text(label).Style(bold ? TextStyle.Default.Bold() : TextStyle.Default);
                     row.AutoItem().Text(value).Style(bold ? TextStyle.Default.Bold() : TextStyle.Default);
                 });
-                Row("Subtotal", Money(r.Subtotal));
+                Row(T("pdf.subtotal"), Money(r.Subtotal));
                 if (r.DiscountAmount > 0)
-                    Row(string.IsNullOrWhiteSpace(r.DiscountCode) ? "Discount" : $"Discount ({r.DiscountCode})", "- " + Money(r.DiscountAmount));
-                if (r.DeliveryCharge > 0) Row("Delivery", Money(r.DeliveryCharge));
+                    Row(string.IsNullOrWhiteSpace(r.DiscountCode) ? T("pdf.discount") : T("pdf.discountcode", r.DiscountCode), "- " + Money(r.DiscountAmount));
+                if (r.DeliveryCharge > 0) Row(T("pdf.delivery"), Money(r.DeliveryCharge));
                 if (r.SalesTaxRate > 0)
-                    Row($"Sales tax ({r.SalesTaxRate.ToString("0.##", CultureInfo.InvariantCulture)}%)", Money(r.SalesTaxAmount));
-                Row(r.SalesTaxRate > 0 ? "TOTAL (incl. tax)" : "TOTAL", Money(r.Total), bold: true);
+                    Row(T("pdf.salestax", r.SalesTaxRate.ToString("0.##", CultureInfo.InvariantCulture)), Money(r.SalesTaxAmount));
+                Row(r.SalesTaxRate > 0 ? T("pdf.totalincltax") : T("pdf.total"), Money(r.Total), bold: true);
 
                 var partly = !r.Paid && r.AmountPaid > 0;
-                col.Item().Text($"{r.PaymentMethod}: {(r.Paid ? "PAID" : partly ? "PARTLY PAID" : "UNPAID")}").Bold();
+                col.Item().Text($"{r.PaymentMethod}: {PaymentStatus(r.Paid, partly)}").Bold();
                 if (partly)
                 {
-                    Row("Paid", Money(r.AmountPaid));
-                    Row("Balance due", Money(Math.Max(0, r.Total - r.AmountPaid)), bold: true);
+                    Row(T("pdf.paidsofar"), Money(r.AmountPaid));
+                    Row(T("pdf.balancedue"), Money(Math.Max(0, r.Total - r.AmountPaid)), bold: true);
                 }
-                if (!string.IsNullOrWhiteSpace(r.TrackingNumber)) col.Item().Text($"Tracking: {r.TrackingCourier} {r.TrackingNumber}".Replace("  ", " ").Trim());
+                if (!string.IsNullOrWhiteSpace(r.TrackingNumber)) col.Item().Text($"{T("pdf.tracking")}: {r.TrackingCourier} {r.TrackingNumber}".Replace("  ", " ").Trim());
                 if (!r.Paid && r.PayTo.Count > 0)
                 {
-                    col.Item().Text("Pay to:").Bold();
+                    col.Item().Text(T("pdf.payto")).Bold();
                     foreach (var p in r.PayTo) col.Item().Text(p);
                 }
-                if (!string.IsNullOrWhiteSpace(r.Notes)) col.Item().Text($"Note: {r.Notes}");
+                if (!string.IsNullOrWhiteSpace(r.Notes)) col.Item().Text($"{T("pdf.note")}: {r.Notes}");
 
                 col.Item().LineHorizontal(0.5f);
-                col.Item().AlignCenter().Text(string.IsNullOrWhiteSpace(r.Footer) ? $"Thank you for shopping with {r.BusinessName}!" : r.Footer).FontSize(size - 1);
+                col.Item().AlignCenter().Text(Footer(r)).FontSize(size - 1);
             });
         })).GeneratePdf();
     }
 
     private static float TextSizeDelta(ReceiptDesign d) => d.TextSize switch { "small" => -1f, "large" => 1.5f, _ => 0f };
 
+    /// <summary>The receipt's heading: a tax invoice, the seller's own title, or the standard "RECEIPT / رسید".</summary>
+    private static string Title(ReceiptData r, ReceiptDesign design) =>
+        r.SalesTaxRate > 0 ? T("pdf.taxinvoice") : design.Title is null ? T("pdf.receipt") : design.Title.ToUpperInvariant();
+
+    private static string PaymentStatus(bool paid, bool partly) =>
+        paid ? T("pdf.paid") : partly ? T("pdf.partlypaid") : T("pdf.unpaid");
+
+    private static string Footer(ReceiptData r) =>
+        string.IsNullOrWhiteSpace(r.Footer) ? T("pdf.thanks", r.BusinessName) : r.Footer;
+
     private static byte[] Render(ReceiptData r)
     {
         if (ThermalWidthMm(r.PaperSize) is { } thermalWidth) return RenderThermal(r, thermalWidth);
         var design = r.Design ?? new ReceiptDesign();
         var accent = design.Accent ?? Accent;
-        var title = r.SalesTaxRate > 0 ? "TAX INVOICE" : (design.Title ?? "RECEIPT").ToUpperInvariant();
+        var title = Title(r, design);
 
         return Document.Create(doc => doc.Page(page =>
         {
@@ -270,8 +285,8 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
                 {
                     IContainer Line(IContainer x) => right ? x.AlignRight() : x.AlignCenter();
                     c.Item().Element(Line).Text(title).FontSize(14).Bold().FontColor(design.Accent is null ? Ink : accent);
-                    c.Item().Element(Line).Text(r.ReceiptNumber is { } no ? $"No. {no}" : $"#{r.OrderId}").FontSize(11);
-                    if (r.ReceiptNumber is not null) c.Item().Element(Line).Text($"Order #{r.OrderId}").FontSize(9).FontColor(Muted);
+                    c.Item().Element(Line).Text(r.ReceiptNumber is { } no ? T("pdf.no", no) : $"#{r.OrderId}").FontSize(11);
+                    if (r.ReceiptNumber is not null) c.Item().Element(Line).Text(T("pdf.orderno", r.OrderId)).FontSize(9).FontColor(Muted);
                     c.Item().Element(Line).Text(r.OrderedAtLocal.ToString("dd MMM yyyy, hh:mm tt", CultureInfo.InvariantCulture)).FontSize(9).FontColor(Muted);
                 });
 
@@ -300,7 +315,7 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
 
                 col.Item().Column(c =>
                 {
-                    c.Item().Text("BILL TO").FontSize(8).Bold().FontColor(Muted);
+                    c.Item().Text(T("pdf.billto")).FontSize(8).Bold().FontColor(Muted);
                     c.Item().Text(r.CustomerName).Bold();
                     if (!design.HideBuyerDetails && !string.IsNullOrWhiteSpace(r.CustomerPhone)) c.Item().Text(r.CustomerPhone);
                     if (!design.HideBuyerDetails && !string.IsNullOrWhiteSpace(r.CustomerAddress)) c.Item().Text(r.CustomerAddress);
@@ -318,10 +333,10 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
                     table.Header(h =>
                     {
                         static IContainer Head(IContainer c) => c.BorderBottom(1).BorderColor(Line).PaddingBottom(4);
-                        h.Cell().Element(Head).Text("Item").FontSize(8).Bold().FontColor(Muted);
-                        h.Cell().Element(Head).AlignRight().Text("Qty").FontSize(8).Bold().FontColor(Muted);
-                        h.Cell().Element(Head).AlignRight().Text("Price").FontSize(8).Bold().FontColor(Muted);
-                        h.Cell().Element(Head).AlignRight().Text("Amount").FontSize(8).Bold().FontColor(Muted);
+                        h.Cell().Element(Head).Text(T("pdf.item")).FontSize(8).Bold().FontColor(Muted);
+                        h.Cell().Element(Head).AlignRight().Text(T("pdf.qty")).FontSize(8).Bold().FontColor(Muted);
+                        h.Cell().Element(Head).AlignRight().Text(T("pdf.price")).FontSize(8).Bold().FontColor(Muted);
+                        h.Cell().Element(Head).AlignRight().Text(T("pdf.amount")).FontSize(8).Bold().FontColor(Muted);
                     });
                     foreach (var item in r.Lines)
                     {
@@ -340,51 +355,51 @@ public sealed class ReceiptPdfGenerator : IReceiptPdfGenerator
                         row.RelativeItem().Text(label).Style(bold ? TextStyle.Default.Bold() : TextStyle.Default);
                         row.AutoItem().Text(value).Style((bold ? TextStyle.Default.Bold() : TextStyle.Default).FontColor(color ?? Ink));
                     });
-                    Row("Subtotal", Money(r.Subtotal));
+                    Row(T("pdf.subtotal"), Money(r.Subtotal));
                     if (r.DiscountAmount > 0)
-                        Row(string.IsNullOrWhiteSpace(r.DiscountCode) ? "Discount" : $"Discount ({r.DiscountCode})", "- " + Money(r.DiscountAmount));
+                        Row(string.IsNullOrWhiteSpace(r.DiscountCode) ? T("pdf.discount") : T("pdf.discountcode", r.DiscountCode), "- " + Money(r.DiscountAmount));
                     if (r.DeliveryCharge > 0)
-                        Row("Delivery", Money(r.DeliveryCharge));
+                        Row(T("pdf.delivery"), Money(r.DeliveryCharge));
                     c.Item().PaddingVertical(3).LineHorizontal(1).LineColor(Line);
                     if (r.SalesTaxRate > 0)
                     {
-                        Row("Value excl. sales tax", Money(r.Total - r.SalesTaxAmount));
-                        Row($"Sales tax ({r.SalesTaxRate.ToString("0.##", CultureInfo.InvariantCulture)}%)", Money(r.SalesTaxAmount));
+                        Row(T("pdf.valueexcltax"), Money(r.Total - r.SalesTaxAmount));
+                        Row(T("pdf.salestax", r.SalesTaxRate.ToString("0.##", CultureInfo.InvariantCulture)), Money(r.SalesTaxAmount));
                     }
-                    Row(r.SalesTaxRate > 0 ? "TOTAL (incl. tax)" : "TOTAL", Money(r.Total), bold: true, color: accent);
+                    Row(r.SalesTaxRate > 0 ? T("pdf.totalincltax") : T("pdf.total"), Money(r.Total), bold: true, color: accent);
                     if (r.SalesTaxRate > 0)
-                        c.Item().PaddingTop(3).Text("Prices include sales tax.").FontSize(8).FontColor(Muted);
+                        c.Item().PaddingTop(3).Text(T("pdf.pricesincltax")).FontSize(8).FontColor(Muted);
                 });
 
                 col.Item().Background(Colors.Grey.Lighten4).Padding(8).Column(c =>
                 {
                     c.Item().Text(t =>
                     {
-                        t.Span("Payment: ").Bold();
+                        t.Span($"{T("pdf.payment")}: ").Bold();
                         t.Span($"{r.PaymentMethod} — ");
                         var partly = !r.Paid && r.AmountPaid > 0;
-                        t.Span(r.Paid ? "PAID" : partly ? "PARTLY PAID" : "UNPAID").Bold().FontColor(r.Paid ? accent : Colors.Red.Darken2);
+                        t.Span(PaymentStatus(r.Paid, partly)).Bold().FontColor(r.Paid ? accent : Colors.Red.Darken2);
                     });
                     if (!r.Paid && r.AmountPaid > 0)
                         c.Item().Text(t =>
                         {
-                            t.Span($"Paid: {Money(r.AmountPaid)} · ");
-                            t.Span($"Balance due: {Money(Math.Max(0, r.Total - r.AmountPaid))}").Bold();
+                            t.Span($"{T("pdf.paidsofar")}: {Money(r.AmountPaid)} · ");
+                            t.Span($"{T("pdf.balancedue")}: {Money(Math.Max(0, r.Total - r.AmountPaid))}").Bold();
                         });
-                    if (!design.HideOrderStatus) c.Item().Text(t => { t.Span("Order status: ").Bold(); t.Span(r.Status); });
+                    if (!design.HideOrderStatus) c.Item().Text(t => { t.Span($"{T("pdf.orderstatus")}: ").Bold(); t.Span(r.Status); });
                     if (!string.IsNullOrWhiteSpace(r.Notes))
-                        c.Item().Text(t => { t.Span("Note: ").Bold(); t.Span(r.Notes); });
+                        c.Item().Text(t => { t.Span($"{T("pdf.note")}: ").Bold(); t.Span(r.Notes); });
                     if (!string.IsNullOrWhiteSpace(r.TrackingNumber))
-                        c.Item().Text(t => { t.Span("Tracking: ").Bold(); t.Span($"{r.TrackingCourier} {r.TrackingNumber}".Trim()); });
+                        c.Item().Text(t => { t.Span($"{T("pdf.tracking")}: ").Bold(); t.Span($"{r.TrackingCourier} {r.TrackingNumber}".Trim()); });
                     if (!r.Paid && r.PayTo.Count > 0)
                     {
-                        c.Item().PaddingTop(4).Text("Pay to:").Bold();
+                        c.Item().PaddingTop(4).Text(T("pdf.payto")).Bold();
                         foreach (var p in r.PayTo) c.Item().Text(p);
                     }
                 });
             });
 
-            page.Footer().AlignCenter().Text(string.IsNullOrWhiteSpace(r.Footer) ? $"Thank you for shopping with {r.BusinessName}!" : r.Footer).FontSize(9).FontColor(Muted);
+            page.Footer().AlignCenter().Text(Footer(r)).FontSize(9).FontColor(Muted);
         })).GeneratePdf();
     }
 }

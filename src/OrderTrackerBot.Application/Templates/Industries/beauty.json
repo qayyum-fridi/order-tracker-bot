@@ -15,5 +15,6 @@
     "Gift wrap jaisi baat ke liye \"note 12 gift wrap\" likhein: receipt par chhap jati hai."
   ],
   "dataFocus": "cost price, stock aur category",
+  "menuTip": "Shade ya size naam mein likhein, aur \"barcode <product> <code>\" se scanner jod dein.",
   "units": ["piece", "ml", "gram", "tola", "pack", "box", "set", "pair"]
 }

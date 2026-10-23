@@ -161,7 +161,7 @@ public partial class ConversationEngine
 
     private static bool TryParseDateRange(string message, out DateTime from, out DateTime to)
     {
-        from = DateTime.UtcNow.AddDays(-30);
+        from = SellerClock.DaysAgoUtc(30, DateTime.UtcNow);
         to = DateTime.UtcNow;
         var parts = message.Split(new[] { " se ", " to ", " tak ", " - ", "–" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (parts.Length != 2) return false;
@@ -215,7 +215,7 @@ public partial class ConversationEngine
 
     private async Task SendSlowMoversAsync(Seller seller, int days, CancellationToken ct)
     {
-        var since = DateTime.UtcNow.AddDays(-days);
+        var since = SellerClock.DaysAgoUtc(days, DateTime.UtcNow);
         var recentlyOrderedNames = await _db.OrderItems
             .Where(i => i.Order!.SellerId == seller.Id && i.Order.CreatedAt >= since)
             .Select(i => i.ProductNameSnapshot)
@@ -246,7 +246,7 @@ public partial class ConversationEngine
 
         if (minDaysOld is int d)
         {
-            var cutoff = DateTime.UtcNow.AddDays(-d);
+            var cutoff = SellerClock.DaysAgoUtc(d, DateTime.UtcNow);
             query = query.Where(o => o.DeliveredAt != null && o.DeliveredAt <= cutoff);
         }
 

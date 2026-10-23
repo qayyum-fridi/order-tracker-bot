@@ -7,6 +7,28 @@ namespace OrderTrackerBot.Tests;
 public class TurnDecisionTests
 {
     [Fact]
+    public void AmountWordTheEngineCannotRead_AsksForDigits_AndRunsNothing()
+    {
+        var decision = ConversationEngine.DecideRewrite("Ayesha ko ekhattar hazar ka order", new[] { "customer Ayesha price 71000" }, null);
+
+        // The price step is risky, so it is refused rather than offered as a choice; either way nothing runs and the reply names the word.
+        Assert.Equal(DecisionKind.Reject, decision.Kind);
+        Assert.Empty(decision.Steps);
+        Assert.Contains("ekhattar", decision.Message);
+    }
+
+    [Theory]
+    [InlineData("ikhattar hazar", "")]
+    [InlineData("mere paas hazar rupay hain", "")]
+    [InlineData("ekhattar hazar", "ekhattar")]
+    public void UnknownAmountWords_OnlyFlagsAnAmountWordTheEngineCannotRead(string text, string expected)
+    {
+        var words = SpokenNumbers.UnknownAmountWords(text);
+
+        Assert.Equal(string.IsNullOrEmpty(expected) ? Array.Empty<string>() : new[] { expected }, words);
+    }
+
+    [Fact]
     public void FaithfulRewrite_Executes()
     {
         var decision = ConversationEngine.DecideRewrite("Panj hazaar ton ghatt rakhna", new[] { "price under 5000" }, null);

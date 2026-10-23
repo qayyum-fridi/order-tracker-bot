@@ -160,7 +160,7 @@ public partial class ConversationEngine
             .OrderBy(g => g.Avg).ToList();
         var lines = groups.Select(g => $"• {g.Name}: average {Num((decimal)g.Avg)} din ({g.Orders} orders, sab se der {Num((decimal)g.Max)} din)");
         await ReplyAsync(seller,
-            MessageTemplates.Get("insights2.011", label, string.Join("\n", lines), (fromOrder > 0 ? $"\nℹ️ {fromOrder} order(s) mein \"shipped\" nahi likha tha, un ka waqt order banne se ginta hai (zyada aa sakta hai)." : "")), ct);
+            MessageTemplates.Get("insights2.011", label, string.Join("\n", lines), (fromOrder > 0 ? $"\nℹ️ {fromOrder} order(s) mein \"shipped\" nahi likha tha, un ka waqt order banne se ginta hai (zyada aa sakta hai)." : "")) + await ProductDeliverySectionAsync(seller, text, start, end, ct), ct);
         SuggestNext("orders today", "cod pending");
     }
 

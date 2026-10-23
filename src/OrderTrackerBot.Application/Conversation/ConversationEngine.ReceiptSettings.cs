@@ -214,7 +214,21 @@ public partial class ConversationEngine
             return;
         }
 
-        var to = string.IsNullOrWhiteSpace(cmd.Text2) ? seller.Email : cmd.Text2.Trim();
+        var (order, fromList) = await FindReceiptOrderAsync(seller, ctx, new ParsedCommand { Kind = CommandKind.Receipt, Number = cmd.Number }, ct);
+        if (order is null)
+        {
+            await ReplyAsync(seller, cmd.Number is not null ? MessageTemplates.Get("commands.028", cmd.Number) : MessageTemplates.Get("order-edit.014"), ct);
+            return;
+        }
+
+        // "email receipt 12 to buyer" goes to the customer's saved email ("Sara ka email sara@mail.com"); no word = the seller's own address.
+        var toBuyer = string.Equals(cmd.Text2, "buyer", StringComparison.OrdinalIgnoreCase);
+        var to = toBuyer ? order.Customer?.Email : string.IsNullOrWhiteSpace(cmd.Text2) ? seller.Email : cmd.Text2.Trim();
+        if (toBuyer && string.IsNullOrWhiteSpace(to))
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.035", order.Customer?.Name ?? "Customer", order.Id), ct);
+            return;
+        }
         if (string.IsNullOrWhiteSpace(to))
         {
             await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.022"), ct);
@@ -226,13 +240,6 @@ public partial class ConversationEngine
             return;
         }
 
-        var (order, fromList) = await FindReceiptOrderAsync(seller, ctx, new ParsedCommand { Kind = CommandKind.Receipt, Number = cmd.Number }, ct);
-        if (order is null)
-        {
-            await ReplyAsync(seller, cmd.Number is not null ? MessageTemplates.Get("commands.028", cmd.Number) : MessageTemplates.Get("order-edit.014"), ct);
-            return;
-        }
-
         if (!TryTakeEmailSlot(seller.Id))
         {
             await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.024", EmailsPerHour), ct);
@@ -240,7 +247,7 @@ public partial class ConversationEngine
         }
 
         var branding = await _db.SellerBrandings.AsNoTracking().FirstOrDefaultAsync(b => b.SellerId == seller.Id, ct);
-        var (pdf, numberIsNew) = await RenderReceiptAsync(seller, order, branding, ct);
+        var (pdf, numberIsNew, imageSkipped) = await RenderReceiptAsync(seller, order, branding, ct);
         var business = seller.BusinessName ?? "Order Receipt";
         var kind = order.SalesTaxRate > 0 ? "Tax invoice" : "Receipt";
         var sent = await _email.SendAsync(to,
@@ -256,6 +263,7 @@ public partial class ConversationEngine
             return;
         }
 
+        if (imageSkipped) await ReplyAsync(seller, MessageTemplates.Get("receipts.008"), ct);
         await ReplyAsync(seller, MessageTemplates.Get("receipt-settings.026", kind, order.ReceiptNumber, order.Id, to, (fromList ? $"\nℹ️ \"{cmd.Number}\" aapki last list ka number tha." : "")), ct);
     }
 

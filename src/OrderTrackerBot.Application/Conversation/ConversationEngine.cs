@@ -138,6 +138,7 @@ public partial class ConversationEngine
                 : MessageTemplates.Get("engine.005"), ct);
             return;
         }
+        await SendPendingNoticesAsync(seller, ct);
         // Every text counts against the seller's hourly text cap and USD budget, before any AI call can be made for it.
         if (!TryTakeUsage(seller, fromPhoneNumber, MediaKind.Text, out var textDecision, out var textWait))
         {
@@ -501,7 +502,7 @@ public partial class ConversationEngine
 
     private static readonly HashSet<CommandKind> LooseRuleKinds = new()
     {
-        CommandKind.Insight, CommandKind.FuzzyStatusUpdate, CommandKind.CustomerOrderLookup, CommandKind.ProductReport, CommandKind.CustomerSearch, CommandKind.HowTo
+        CommandKind.Insight, CommandKind.FuzzyStatusUpdate, CommandKind.CustomerOrderLookup, CommandKind.ProductReport, CommandKind.CustomerSearch, CommandKind.OrderSearch, CommandKind.HowTo
     };
 
     private async Task<bool> LooseRuleMatchIsWrongAsync(ParsedCommand command, string message, CancellationToken ct)

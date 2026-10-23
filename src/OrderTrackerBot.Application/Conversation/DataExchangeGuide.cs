@@ -23,7 +23,7 @@ public static class DataExchangeGuide
     private static GuideColumn C(string header, Type type, GuideLevel level, string help, string example) => new(header, type, level, help, example);
 
     private static readonly GuideSheetSpec Customers = new(CustomersSheet, true,
-        "Aap ke customers. Import mein har row ek customer banati hai. / Your customers — each row becomes one customer.", new[]
+        "Aap ke customers. Import mein har row ek customer banati hai. Phone, naam ya address badalne se shared customer record badalta hai, isliye us customer ke sab orders mein nayi detail dikhti hai. Import sirf naye customers add karta hai, pehle se maujood customer ko file se kabhi update nahi karta. / Your customers — each row becomes one customer. Changing a phone, name or address changes the shared customer record, so every order of that customer shows it. Import only adds new customers and never updates an existing one from the file.", new[]
     {
         C("Name", typeof(string), GuideLevel.Required, "Customer ka naam. / Customer name.", "Ayesha Khan"),
         C("Phone", typeof(string), GuideLevel.Recommended, "Mobile number. Isi se customer pehchana jata hai: same phone = same customer (dobara nahi banega). Shuru ka 0 ghayab ho jaye to bot khud theek kar leta hai. / Used to recognise a customer — same phone means same customer.", "03001234567"),
@@ -88,7 +88,18 @@ public static class DataExchangeGuide
         C("Sales tax %", typeof(decimal), GuideLevel.Info, "Sales tax ka percent.", "16"),
         C("Sales tax", typeof(decimal), GuideLevel.Info, "Sales tax ki raqam.", "1000"),
         C("Tax withheld", typeof(decimal), GuideLevel.Info, "Kata hua (withheld) tax.", "0"),
-        C("Net after withholding", typeof(decimal), GuideLevel.Info, "Withholding ke baad ki raqam.", "7200")
+        C("Net after withholding", typeof(decimal), GuideLevel.Info, "Withholding ke baad ki raqam.", "7200"),
+        C("Courier fee", typeof(decimal), GuideLevel.Info, "Courier ne is parcel ka jo bill diya (sirf aap ko dikhta hai). / What the courier charged for this parcel (seller only).", "250")
+    });
+
+    private static readonly GuideSheetSpec Expenses = new(
+        "Expenses", false,
+        "Aap ke kharche (\"expense ...\" se likhe gaye). Abhi import nahi hote. / Your business expenses; not importable yet.", new[]
+    {
+        C("Date", typeof(DateTime), GuideLevel.Info, "Kharcha kab hua.", "2026-10-02 11:30"),
+        C("Category", typeof(string), GuideLevel.Info, "Pehla lafz (jaise packaging, petrol, rent).", "packaging"),
+        C("Note", typeof(string), GuideLevel.Info, "Poori tafseel.", "packaging tape 3 roll"),
+        C("Amount", typeof(decimal), GuideLevel.Info, "Kitna kharch hua.", "500")
     });
 
     private static readonly GuideSheetSpec OrderItems = new(
@@ -125,7 +136,7 @@ public static class DataExchangeGuide
     });
 
     private static readonly Dictionary<string, GuideSheetSpec> BySheet =
-        new[] { Customers, Catalog, Orders, OrderItems, Discounts, LoyaltyRules }.ToDictionary(s => s.Sheet, StringComparer.OrdinalIgnoreCase);
+        new[] { Customers, Catalog, Orders, OrderItems, Discounts, LoyaltyRules, Expenses }.ToDictionary(s => s.Sheet, StringComparer.OrdinalIgnoreCase);
 
     public static GuideSheetSpec? SpecFor(string sheetName) => BySheet.GetValueOrDefault(sheetName);
 

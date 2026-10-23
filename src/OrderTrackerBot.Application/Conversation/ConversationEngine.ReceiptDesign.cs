@@ -97,7 +97,7 @@ public partial class ConversationEngine
         order ??= SampleOrder(seller);
 
         var branding = await _db.SellerBrandings.AsNoTracking().FirstOrDefaultAsync(b => b.SellerId == seller.Id, ct);
-        var (pdf, _) = await RenderReceiptAsync(seller, order, branding, ct, preview: true);
+        var (pdf, _, _) = await RenderReceiptAsync(seller, order, branding, ct, preview: true);
         var sent = await _sender.SendDocumentAsync(seller.WhatsAppPhoneNumber, pdf, "Receipt-preview.pdf", "application/pdf",
             sample ? "👀 Preview (sample order) — aur badlav likhein, ya done." : $"👀 Preview (Order #{order.Id}) — aur badlav likhein, ya done.", ct);
         if (!sent) await ReplyAsync(seller, MessageTemplates.Get("receipt-design.005"), ct);

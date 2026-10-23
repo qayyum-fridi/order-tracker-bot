@@ -711,8 +711,26 @@ public class ConversationEngineTests : IDisposable
 
         await engine.HandleIncomingMessageAsync(Phone, "new order", default);
 
-        Assert.Contains(_sentMessages, m => m.Contains("Misaal (is tarah likhein):") &&
-            m.Contains("Zainab, 2 Lawn Kurti XL, 1 Kurti, 03219876543, address: House 42 Street 5 DHA Phase 6 Lahore, delivery 250"));
+        Assert.Contains(_sentMessages, m => m.Contains("Ya ek line mein likhein") && m.Contains(IndustryProfiles.General.OrderExample));
+    }
+
+    [Fact]
+    public async Task Menus_follow_the_shops_kind_not_a_fixed_lawn_example()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var seller = db.Sellers.Single(s => s.WhatsAppPhoneNumber == Phone);
+        var grocery = IndustryProfiles.ByKey("grocery");
+        seller.BusinessType = grocery.Title;
+        await db.SaveChangesAsync();
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "menu catalog", default);
+        await engine.HandleIncomingMessageAsync(Phone, "menu", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains(grocery.SimpleProductName));
+        Assert.Contains(_sentMessages, m => m.Contains(grocery.MenuTip));
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("Lawn"));
     }
 
     [Fact]
@@ -785,17 +803,16 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
-    public async Task OrdersMenu_and_the_order_start_reply_both_show_the_full_order_example()
+    public async Task OrdersMenu_and_the_order_start_reply_both_show_the_shops_order_example()
     {
         using var db = _dbFactory.CreateContext();
         await OnboardSellerAsync(db);
         var engine = CreateEngine(db);
-        const string example = "Zainab, 2 Lawn Kurti XL, 1 Kurti, 03219876543, address: House 42 Street 5 DHA Phase 6 Lahore, delivery 250";
+        var example = IndustryProfiles.General.OrderExample;
 
         await engine.HandleIncomingMessageAsync(Phone, "menu orders", default);
 
-        Assert.Contains(_sentMessages, m => m.Contains(example));
-        Assert.Contains(example, OrderTrackerBot.Application.Templates.MessageTemplates.Get("order-flow.045"));
+        Assert.Contains(_sentMessages, m => m.Contains("Naya order: " + example));
     }
 
     [Fact]
@@ -1668,7 +1685,7 @@ public class ConversationEngineTests : IDisposable
 
         var pdf = new Mock<IReceiptPdfGenerator>();
         ReceiptData? captured = null;
-        pdf.Setup(p => p.Generate(It.IsAny<ReceiptData>())).Callback<ReceiptData>(d => captured = d).Returns(new byte[] { 1, 2, 3 });
+        pdf.Setup(p => p.Generate(It.IsAny<ReceiptData>())).Callback<ReceiptData>(d => captured = d).Returns(new ReceiptPdf(new byte[] { 1, 2, 3 }, false));
         _sender.Setup(s => s.SendDocumentAsync(Phone, It.IsAny<byte[]>(), It.IsAny<string>(), "application/pdf", It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
         var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, receiptPdf: pdf.Object);
@@ -1703,7 +1720,7 @@ public class ConversationEngineTests : IDisposable
         var pdf = new Mock<IReceiptPdfGenerator>();
         pdf.Setup(p => p.CanEmbedImage(logo)).Returns(true);
         ReceiptData? captured = null;
-        pdf.Setup(p => p.Generate(It.IsAny<ReceiptData>())).Callback<ReceiptData>(d => captured = d).Returns(new byte[] { 1 });
+        pdf.Setup(p => p.Generate(It.IsAny<ReceiptData>())).Callback<ReceiptData>(d => captured = d).Returns(new ReceiptPdf(new byte[] { 1 }, false));
         _sender.Setup(s => s.SendDocumentAsync(Phone, It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
         var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: media.Object, receiptPdf: pdf.Object);
 
@@ -1765,7 +1782,7 @@ public class ConversationEngineTests : IDisposable
         db.Orders.Add(new OrderTrackerBot.Domain.Entities.Order { SellerId = seller.Id, CustomerId = customer.Id, Total = 100 });
         await db.SaveChangesAsync();
         var pdf = new Mock<IReceiptPdfGenerator>();
-        pdf.Setup(p => p.Generate(It.IsAny<ReceiptData>())).Returns(new byte[] { 1 });
+        pdf.Setup(p => p.Generate(It.IsAny<ReceiptData>())).Returns(new ReceiptPdf(new byte[] { 1 }, false));
         _sender.Setup(s => s.SendDocumentAsync(Phone, It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
         var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, receiptPdf: pdf.Object);
 

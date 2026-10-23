@@ -172,6 +172,23 @@ public class OfflineSalesEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task ADelayedStatusChange_KeepsItsSendTime()
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+        var engine = Engine(db);
+        var sent = DateTime.UtcNow.AddHours(-3);
+
+        await engine.HandleIncomingMessageAsync(Phone, "counter sale 900", default, sent);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default, sent);
+        await engine.HandleIncomingMessageAsync(Phone, "mark 1 returned", default, sent.AddHours(1));
+
+        var order = await db.Orders.SingleAsync();
+        Assert.Equal(OrderStatus.Returned, order.Status);
+        Assert.InRange(order.ReturnedAt!.Value, sent.AddHours(1).AddSeconds(-1), sent.AddHours(1).AddSeconds(1));
+    }
+
+    [Fact]
     public async Task ASendTimeInTheFutureOrTooOld_IsIgnored()
     {
         using var db = _dbFactory.CreateContext();

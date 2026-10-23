@@ -16,7 +16,7 @@ public class ReceiptPdfTests
     [Fact]
     public void Generate_ProducesPdfBytes()
     {
-        var pdf = new ReceiptPdfGenerator().Generate(Sample());
+        var pdf = new ReceiptPdfGenerator().Generate(Sample()).Bytes;
 
         Assert.True(pdf.Length > 1000);
         Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(pdf, 0, 5));
@@ -27,7 +27,7 @@ public class ReceiptPdfTests
     {
         var data = Sample(paid: true, customer: "عائشہ خان") with { CustomerPhone = null, CustomerAddress = "", BusinessCity = null, InstagramHandle = null, DiscountAmount = 0, DiscountCode = null };
 
-        var pdf = new ReceiptPdfGenerator().Generate(data);
+        var pdf = new ReceiptPdfGenerator().Generate(data).Bytes;
 
         Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(pdf, 0, 5));
     }
@@ -49,8 +49,8 @@ public class ReceiptPdfTests
     {
         var generator = new ReceiptPdfGenerator();
 
-        var branded = generator.Generate(Sample() with { Logo = TinyPng, Banner = TinyPng });
-        var fallback = generator.Generate(Sample() with { Logo = new byte[] { 1, 2, 3 }, Banner = new byte[] { 9 } });
+        var branded = generator.Generate(Sample() with { Logo = TinyPng, Banner = TinyPng }).Bytes;
+        var fallback = generator.Generate(Sample() with { Logo = new byte[] { 1, 2, 3 }, Banner = new byte[] { 9 } }).Bytes;
 
         Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(branded, 0, 5));
         Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(fallback, 0, 5));
@@ -59,14 +59,14 @@ public class ReceiptPdfTests
     [Fact]
     public void Generate_WithDeliveryCharge_Works()
     {
-        var pdf = new ReceiptPdfGenerator().Generate(Sample() with { DeliveryCharge = 200, Total = 8120 });
+        var pdf = new ReceiptPdfGenerator().Generate(Sample() with { DeliveryCharge = 200, Total = 8120 }).Bytes;
         Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(pdf, 0, 5));
     }
 
     [Fact]
     public void Generate_PartlyPaid_Works()
     {
-        var pdf = new ReceiptPdfGenerator().Generate(Sample() with { AmountPaid = 2000 });
+        var pdf = new ReceiptPdfGenerator().Generate(Sample() with { AmountPaid = 2000 }).Bytes;
         Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(pdf, 0, 5));
     }
 }

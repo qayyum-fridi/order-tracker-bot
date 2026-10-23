@@ -112,6 +112,8 @@ public sealed class SessionContextData
     public int? SupplierLeadDays { get; set; }
     /// <summary>The seller-local day (yyyy-MM-dd) the "add cost prices" reminder was last sent, so it comes at most once a day.</summary>
     public string? SetupNudgeDay { get; set; }
+    /// <summary>Proactive messages (weekly summary, trial reminder) that could not be sent because WhatsApp's 24-hour window had closed. Sent with the seller's next message.</summary>
+    public List<string>? PendingNotices { get; set; }
     /// <summary>True once the "4 ways to add products" tips and the units hint were shown, so later saves only confirm the product.</summary>
     public bool ProductHowToShown { get; set; }
     /// <summary>The page (1-based) and order ("az" / "latest" / null = as added) of the catalog list the seller last looked at ("catalog next").</summary>
@@ -170,6 +172,10 @@ public sealed class SessionContextData
     public List<string>? PendingVoiceContinue { get; set; }
     /// <summary>When <see cref="PendingVoiceContinue"/> was parked (UTC). Steps left this long are stale and are not replayed.</summary>
     public DateTime? PendingVoiceContinueAt { get; set; }
+    /// <summary>When the voice note that holds <see cref="PendingVoiceContinue"/> was really sent (UTC), so its records keep that time.</summary>
+    public DateTime? PendingVoiceContinueSentAt { get; set; }
+    /// <summary>When the voice note that holds <see cref="PendingVoiceSteps"/> was really sent (UTC), so its records keep that time once YES runs them.</summary>
+    public DateTime? PendingVoiceSentAt { get; set; }
     /// <summary>WhatsApp ids of the latest voice notes that were handled (newest last). A reply to one of them is not run again.</summary>
     public List<string>? ProcessedVoiceNoteIds { get; set; }
     /// <summary>Action log ids (exclusive start, inclusive end) made by the last voice note, for "undo note".</summary>
