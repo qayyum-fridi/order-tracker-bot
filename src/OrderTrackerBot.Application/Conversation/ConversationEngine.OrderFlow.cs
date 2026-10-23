@@ -351,6 +351,15 @@ public partial class ConversationEngine
 
         if (pending.Items.FirstOrDefault(i => i.StatedPrice is not null) is { } priced)
         {
+            // The seller has given the same price answer every time so far (ConversationEngine.Strategy.cs): applied without the question. The draft still shows the price before YES.
+            if (await UsualPriceAnswerAsync(seller, ct) is { } usual)
+            {
+                await ApplyPriceAnswerAsync(seller, priced, usual, ct);
+                priced.AutoPriceArm = PriceArm(usual);
+                await RecordPriceDecisionAsync(seller, usual, ct);
+                await ContinueResolvingDraftAsync(seller, session, ctx, ct);
+                return;
+            }
             ctx.PendingMissingField = "PriceChoice";
             SetState(session, ConversationState.AwaitingOrderMissingFields);
             await SendChoicesAsync(seller.WhatsAppPhoneNumber,
@@ -631,6 +640,7 @@ public partial class ConversationEngine
             return true;
         }
 
+        if (isCancel) await RetractAutoPricesAsync(seller, ctx.PendingOrder, ct);
         ResetFlowContext(ctx);
         SetState(session, ConversationState.Idle);
 
@@ -661,6 +671,7 @@ public partial class ConversationEngine
                 return;
             }
             var order = await SaveOrderFromDraftAsync(seller, pending, ct);
+            RememberAutoPriceUse(ctx, pending, order);
             await ReplyAsync(seller, SavedText(seller, order, pending), ct);
             await SendOrderActionButtonsAsync(seller, order, ct);
             await AfterOrderSavedAsync(seller, session, ctx, order, ct);
@@ -684,6 +695,7 @@ public partial class ConversationEngine
 
         if (message.Trim().Equals("edit", StringComparison.OrdinalIgnoreCase))
         {
+            await RetractAutoPricesAsync(seller, ctx.PendingOrder, ct);
             ctx.PendingOrder = null;
             SetState(session, ConversationState.Idle);
             await ReplyAsync(seller, MessageTemplates.Get("order-flow.012"), ct);
@@ -1001,18 +1013,8 @@ public partial class ConversationEngine
                     await ReplyAsync(seller, MessageTemplates.Get("order-flow.024"), ct);
                     return;
                 }
-                if (answer is "1" or "3")
-                {
-                    item.UnitPrice = item.StatedPrice!.Value;
-                    item.PriceDecided = true;
-                }
-                else item.WrittenPrice = null; // "2": the buyer's catalog rate applies from now on
-                if (answer == "3" && item.ProductId is { } productId && await _db.Products.FirstOrDefaultAsync(p => p.Id == productId && p.SellerId == seller.Id, ct) is { } listed)
-                {
-                    listed.Price = item.StatedPrice!.Value;
-                    await _db.SaveChangesAsync(ct);
-                }
-                item.StatedPrice = null;
+                await ApplyPriceAnswerAsync(seller, item, answer, ct);
+                await RecordPriceDecisionAsync(seller, answer, ct);
                 ctx.PendingMissingField = null;
                 await ContinueResolvingDraftAsync(seller, session, ctx, ct);
                 return;
@@ -1484,6 +1486,7 @@ public partial class ConversationEngine
             : default((PendingOrderData? Draft, List<PendingOrderData>? Queued, ConversationState State, string? Missing, string? NewName));
         _draftPutOnHold = pausedDraft.Draft is not null;
 
+        if (route == "cancel") await RetractAutoPricesAsync(seller, ctx.PendingOrder, ct);
         ResetFlowContext(ctx);
         SetState(session, ConversationState.Idle);
         if (route == "cancel")

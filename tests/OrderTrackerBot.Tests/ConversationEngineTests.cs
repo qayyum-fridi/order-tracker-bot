@@ -2346,7 +2346,7 @@ public class ConversationEngineTests : IDisposable
         Assert.Null((await db.Customers.SingleAsync(c => c.Name == "Sara")).PriceGroup);
     }
 
-    private void StatedPriceOrder(decimal? stated)
+    private void StatedPriceOrder(decimal? stated, string customer = "Sara", string phone = "03009876543")
     {
         _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiMessageAnalysis
@@ -2354,8 +2354,8 @@ public class ConversationEngineTests : IDisposable
                 IsOrderAttempt = true,
                 Order = new AiOrderDraft
                 {
-                    CustomerName = "Sara",
-                    Phone = "03009876543",
+                    CustomerName = customer,
+                    Phone = phone,
                     Address = "Gulberg Lahore",
                     Items = { new AiOrderItemDraft { ProductName = "Kurti", MatchedCatalogProductName = "Kurti", Quantity = 1, StatedUnitPrice = stated } }
                 }
@@ -2522,6 +2522,115 @@ public class ConversationEngineTests : IDisposable
         Assert.Equal(7000m, order.Subtotal);
         Assert.Equal(700m, order.DiscountAmount);
         Assert.Equal(6300m, order.Total);
+    }
+
+    private ConversationEngine CreateStrategyEngine(AppDbContext db) => new(db, _ai.Object, _sender.Object, _founderAlerts.Object,
+        features: new FeatureOptions { StrategyLearning = true, ShortcutButtons = false, ConfirmButtons = false, SuggestionButtons = false, SetupNudges = false, IndustryQuestion = false });
+
+    // StrategyPolicy: sixteen identical answers are the first with a lower bound of at least 0.80.
+    private const int AnswersUntilAuto = 16;
+
+    /// <summary>
+    /// An order for a new buyer (one customer per order: a repeat buyer gets the duplicate-order question) whose written price differs from the catalog.
+    /// The seller answers <paramref name="answer"/> to the price question; null = no answer, the bot's next reply is the test's point.
+    /// </summary>
+    private async Task PlaceOrderAsync(ConversationEngine engine, int n, string? answer)
+    {
+        StatedPriceOrder(1500, $"Buyer {n}", $"03001{n:D6}");
+        await engine.HandleIncomingMessageAsync(Phone, $"Buyer {n} ne kurti 1500 ki li, Gulberg Lahore", default);
+        if (answer is not null) await engine.HandleIncomingMessageAsync(Phone, answer, default);
+    }
+
+    /// <summary>Orders <paramref name="count"/> buyers, answers the price question with 2 (catalog rate) each time, and saves.</summary>
+    private async Task PlaceCatalogAnsweredOrdersAsync(ConversationEngine engine, int count)
+    {
+        for (var n = 1; n <= count; n++)
+        {
+            await PlaceOrderAsync(engine, n, "2");
+            await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        }
+    }
+
+    private void CollectSentBodies() =>
+        _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, body, _, _, _) => _sentMessages.Add(body)).Returns(Task.CompletedTask);
+
+    [Fact]
+    public async Task PriceStrategy_SameAnswerEveryTime_IsAppliedWithoutAsking()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateStrategyEngine(db);
+        CollectSentBodies();
+        await PlaceCatalogAnsweredOrdersAsync(engine, AnswersUntilAuto);
+
+        _sentMessages.Clear();
+        await PlaceOrderAsync(engine, AnswersUntilAuto + 1, null);
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("Qeemat mein farq"));
+        Assert.Contains(_sentMessages, m => m.Contains("Confirm order"));
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        Assert.Equal(1800, (int)(await db.Orders.OrderByDescending(o => o.Id).FirstAsync()).Total);
+    }
+
+    [Fact]
+    public async Task PriceStrategy_OneAnswerShortOfTheThreshold_StillAsks()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateStrategyEngine(db);
+        CollectSentBodies();
+        await PlaceCatalogAnsweredOrdersAsync(engine, AnswersUntilAuto - 1);
+
+        _sentMessages.Clear();
+        await PlaceOrderAsync(engine, AnswersUntilAuto, null);
+        Assert.Contains(_sentMessages, m => m.Contains("Qeemat mein farq"));
+    }
+
+    [Fact]
+    public async Task PriceStrategy_AutoAnswerEditedInTheDraft_IsAskedAgain()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateStrategyEngine(db);
+        CollectSentBodies();
+        await PlaceCatalogAnsweredOrdersAsync(engine, AnswersUntilAuto);
+        await PlaceOrderAsync(engine, AnswersUntilAuto + 1, null);
+        await engine.HandleIncomingMessageAsync(Phone, "edit", default);
+
+        _sentMessages.Clear();
+        await PlaceOrderAsync(engine, AnswersUntilAuto + 2, null);
+        Assert.Contains(_sentMessages, m => m.Contains("Qeemat mein farq"));
+    }
+
+    [Fact]
+    public async Task PriceStrategy_AutoAnswerOrderUndone_IsAskedAgain()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateStrategyEngine(db);
+        CollectSentBodies();
+        await PlaceCatalogAnsweredOrdersAsync(engine, AnswersUntilAuto);
+        await PlaceOrderAsync(engine, AnswersUntilAuto + 1, null);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        await engine.HandleIncomingMessageAsync(Phone, "undo", default);
+
+        _sentMessages.Clear();
+        await PlaceOrderAsync(engine, AnswersUntilAuto + 2, null);
+        Assert.Contains(_sentMessages, m => m.Contains("Qeemat mein farq"));
+    }
+
+    [Fact]
+    public async Task PriceStrategy_FlagOff_KeepsAskingEveryTime()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        CollectSentBodies();
+        await PlaceCatalogAnsweredOrdersAsync(engine, AnswersUntilAuto);
+
+        _sentMessages.Clear();
+        await PlaceOrderAsync(engine, AnswersUntilAuto + 1, null);
+        Assert.Contains(_sentMessages, m => m.Contains("Qeemat mein farq"));
     }
 
     [Fact]

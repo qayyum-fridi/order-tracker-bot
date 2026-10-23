@@ -35,6 +35,7 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<SellerBranding> SellerBrandings => Set<SellerBranding>();
     public DbSet<Expense> Expenses => Set<Expense>();
     public DbSet<BuyerEnquiry> BuyerEnquiries => Set<BuyerEnquiry>();
+    public DbSet<StrategyStat> StrategyStats => Set<StrategyStat>();
     public DbSet<Loss> Losses => Set<Loss>();
     public DbSet<WageEntry> WageEntries => Set<WageEntry>();
     public DbSet<CashDrawerSession> CashDrawerSessions => Set<CashDrawerSession>();
@@ -172,6 +173,7 @@ public class AppDbContext : DbContext, IAppDbContext
         modelBuilder.Entity<WageEntry>(e => e.HasIndex(x => new { x.SellerId, x.CreatedAt }));
         modelBuilder.Entity<CashDrawerSession>(e => e.HasIndex(x => new { x.SellerId, x.OpenedAt }));
         modelBuilder.Entity<Payout>(e => e.HasIndex(x => new { x.SellerId, x.ReceivedAt }));
+        modelBuilder.Entity<StrategyStat>(e => e.HasIndex(x => new { x.SellerId, x.Context, x.Arm }).IsUnique());
         modelBuilder.Entity<CashMovement>(e =>
         {
             e.HasIndex(x => new { x.SellerId, x.CreatedAt });
