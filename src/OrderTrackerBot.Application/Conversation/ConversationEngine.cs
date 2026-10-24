@@ -630,22 +630,22 @@ public sealed class FeatureOptions
     public bool Instagram { get; set; }
 
     /// <summary>Menu: discount rows (menu discounts, discount list, add discount, discount performance). Off = hidden from the menu; the typed commands still work.</summary>
-    public bool Discounts { get; set; } = true;
+    public bool Discounts { get; set; } = false;
 
     /// <summary>Menu: loyalty rows (add loyalty rule, loyal customers). Off = hidden from the menu; the typed commands still work.</summary>
-    public bool Loyalty { get; set; } = true;
+    public bool Loyalty { get; set; } = false;
 
     /// <summary>Menu: payment rows (Payments category, payment link, payment methods, courier payouts). Off = hidden from the menu; the typed commands still work. Unpaid / COD lists stay.</summary>
-    public bool Payments { get; set; } = true;
+    public bool Payments { get; set; } = false;
 
     /// <summary>Menu: courier payout rows (payout pending). Off = hidden from the menu; the typed commands still work.</summary>
-    public bool Payouts { get; set; } = true;
+    public bool Payouts { get; set; } = false;
 
     /// <summary>Menu: cash drawer rows (drawer). Off = hidden from the menu; the typed commands still work.</summary>
-    public bool Drawer { get; set; } = true;
+    public bool Drawer { get; set; } = false;
 
     /// <summary>Menu: label rows (shipping label, business label). Off = hidden from the menu; the typed commands still work.</summary>
-    public bool Labels { get; set; } = true;
+    public bool Labels { get; set; } = false;
 
     /// <summary>A short "listening" message the moment a voice note arrives, so a long transcription is not silent. Off = no extra message (unit tests).</summary>
     public bool VoiceAck { get; set; }
