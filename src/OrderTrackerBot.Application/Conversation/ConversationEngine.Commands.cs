@@ -384,7 +384,7 @@ public partial class ConversationEngine
                 await ReplyAsync(seller, MessageTemplates.Get("commands.003"), ct);
                 return;
             case CommandKind.Greeting:
-                await HandleGreetingAsync(seller, ct);
+                // A bare "hi" gets no reply: the stats greeting was sent unprompted. The kind stays so "hi" never reaches the AI path.
                 return;
             case CommandKind.Help:
                 await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, HelpTextFor(seller), "Commands dekhein", HelpSections, ct);
@@ -565,13 +565,6 @@ public partial class ConversationEngine
                 await ReplyAsync(seller, MessageTemplates.Get("commands.007"), ct);
                 return;
         }
-    }
-
-    private async Task HandleGreetingAsync(Seller seller, CancellationToken ct)
-    {
-        var pending = await _db.Orders.CountAsync(o => o.SellerId == seller.Id && o.Status == OrderStatus.Pending, ct);
-        var unpaid = await _db.Orders.CountAsync(o => o.SellerId == seller.Id && o.PaymentStatus == PaymentStatus.Unpaid && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned, ct);
-        await ReplyAsync(seller, Formatters.ReturningGreeting(seller.PreferredLanguage, seller.BusinessName, pending, unpaid), ct);
     }
 
     // "mark 1 shipped" / "payment link 1" mean position 1 of the last numbered list shown; with no list (or a number
