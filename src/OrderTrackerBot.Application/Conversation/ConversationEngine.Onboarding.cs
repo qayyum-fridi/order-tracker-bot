@@ -211,6 +211,7 @@ public partial class ConversationEngine
             && CommandParser.TryParseShopName(message, out var renamed))
         {
             seller.BusinessName = renamed;
+            await ReplyAsync(seller, MessageTemplates.Get("onboarding.200", renamed), ct);
             if (session.State == ConversationState.OnboardingIndustry) await AskIndustryAsync(seller, null, ct);
             return;
         }
