@@ -28,16 +28,32 @@ public partial class ConversationEngine
     // Rows hidden from the menu lists. They stay in the code; remove an id here to show it again.
     private static readonly HashSet<string> HiddenMenuRowIds = new()
     {
-        "menu payments", "menu discounts", "menu shop", "walkin", "label", "new order (detailed)", "add product (detailed)", "scan cart",
-        "discount performance", "discount list", "add discount", "create loyalty", "loyal customers"
+        "menu shop", "walkin", "new order (detailed)", "add product (detailed)", "scan cart"
     };
+
+    // Rows hidden when their feature flag is off (Features:Discounts / Loyalty / Payments / Payouts / Drawer / Labels). Typed commands keep working; only the menu lists change.
+    private static readonly HashSet<string> DiscountMenuRowIds = new() { "menu discounts", "discount performance", "discount list", "add discount" };
+    private static readonly HashSet<string> LoyaltyMenuRowIds = new() { "create loyalty", "loyal customers" };
+    private static readonly HashSet<string> PaymentMenuRowIds = new() { "menu payments", "payment link", "add payment" };
+    private static readonly HashSet<string> PayoutMenuRowIds = new() { "payout pending" };
+    private static readonly HashSet<string> DrawerMenuRowIds = new() { "drawer" };
+    private static readonly HashSet<string> LabelMenuRowIds = new() { "label" };
 
     // Instagram rows, shown only when Features:Instagram is on (see FeatureOptions.Instagram).
     private static readonly HashSet<string> InstagramMenuRowIds = new() { "comment leads", "connect instagram" };
 
-    private static IReadOnlyList<MenuRow> VisibleRows(IEnumerable<MenuRow> rows) => rows.Where(r => !HiddenMenuRowIds.Contains(r.Id)).ToArray();
+    private bool MenuRowHidden(string id) =>
+        HiddenMenuRowIds.Contains(id)
+        || (!_features.Discounts && DiscountMenuRowIds.Contains(id))
+        || (!_features.Loyalty && LoyaltyMenuRowIds.Contains(id))
+        || (!_features.Payments && PaymentMenuRowIds.Contains(id))
+        || (!_features.Payouts && PayoutMenuRowIds.Contains(id))
+        || (!_features.Drawer && DrawerMenuRowIds.Contains(id))
+        || (!_features.Labels && LabelMenuRowIds.Contains(id));
 
-    private static IReadOnlyList<MenuSection> VisibleSections(IEnumerable<MenuSection> sections) =>
+    private IReadOnlyList<MenuRow> VisibleRows(IEnumerable<MenuRow> rows) => rows.Where(r => !MenuRowHidden(r.Id)).ToArray();
+
+    private IReadOnlyList<MenuSection> VisibleSections(IEnumerable<MenuSection> sections) =>
         sections.Select(s => new MenuSection(s.Title, VisibleRows(s.Rows))).ToArray();
 
     private static readonly IReadOnlyList<MenuSection> MainMenuSections = new[]
