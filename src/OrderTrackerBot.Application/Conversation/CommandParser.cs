@@ -455,6 +455,17 @@ public static class CommandParser
     }
 
     /// <summary>"delivery 250" / "free delivery" -> the amount; used for the seller default and inside an order confirmation.</summary>
+    // "meri dukaan ka naam hai Piyush Shop" (also Urdu script, and "nahi, yeh galat hai, ..." before it): the shop name the seller says or types.
+    private static readonly Regex ShopNameStatement = new(
+        @"^(?:(?:nahi|نہیں)[\s,،.]*(?:yeh|یہ)?\s*(?:galat|غلط)\s*(?:hai|ہے)?[\s,،.]*)?(?:(?:mera|meri|mere|میرا|میری|میرے)\s+)?(?:dukaan|dukan|dokan|shop|دکان|دوکان)(?:\s+ka|\s+کا)?\s+(?:naam|name|نام)(?:\s+(?:hai|ہے))?\s*[:\-]?\s*(?<name>.+?)[\s.۔!]*$", Opts);
+
+    public static bool TryParseShopName(string message, out string name)
+    {
+        var match = ShopNameStatement.Match(message.Trim());
+        name = match.Success ? match.Groups["name"].Value.Trim() : "";
+        return match.Success && name.Length is >= 2 and <= 60 && !name.Any(char.IsDigit);
+    }
+
     public static bool TryParseDeliveryAmount(string message, out decimal amount)
     {
         var text = LeadingSymbols.Replace(message.Trim(), "").Trim();

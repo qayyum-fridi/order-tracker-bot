@@ -305,7 +305,9 @@ public partial class ConversationEngine
                 _logger?.LogInformation("Voice step skipped: duplicate of an earlier step");
                 continue;
             }
-            if (SpanProblem(transcript, result.Steps[i], span, known) is { } problem)
+            // A shop-name correction ("meri dukaan ka naam hai ...") is kept with the model's spelling: the name is often written in another script than it was said in.
+            var shopNameRename = CommandParser.TryParseShopName(transcript, out _) && CommandParser.TryParseShopName(result.Steps[i], out _);
+            if (!shopNameRename && SpanProblem(transcript, result.Steps[i], span, known) is { } problem)
             {
                 _logger?.LogWarning("Voice step dropped: {Reason}", problem.Reason);
                 _droppedVoiceSteps.Add((result.Steps[i], problem.Template));
@@ -322,7 +324,13 @@ public partial class ConversationEngine
     private static (string Reason, string Template)? SpanProblem(string transcript, string step, string span, IReadOnlySet<long> known)
     {
         var spoken = SpeechWords(span);
-        if (spoken.Trim().Length == 0) return null;
+        if (spoken.Trim().Length == 0)
+        {
+            // No span to check against: the numbers still must have been said as digits ("2" for a correction read as a list pick is not).
+            var digitsSaid = System.Text.RegularExpressions.Regex.Matches(step, @"\d+")
+                .All(m => System.Text.RegularExpressions.Regex.IsMatch(transcript, $@"(?<!\d){m.Value}(?!\d)"));
+            return digitsSaid ? null : ("step number is not in the transcript", "voice-confirm.008");
+        }
         if (!SpeechWords(transcript).Contains(spoken))
         {
             // The span is spelled differently ("pachis" for "pachees") but every amount of the step was said: the step may run.
