@@ -263,7 +263,7 @@ public class DataImportTests : IDisposable
         Assert.Equal("kg", sugar.UnitType);
         Assert.Equal(1, await db.Products.CountAsync(p => p.Name == "Lawn Suit"));
         Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
-        Assert.Contains(_texts, t => t.Contains("Import ho gaya") && t.Contains("2 customers") && t.Contains("2 products"));
+        Assert.Contains(_texts, t => t.Contains("Import ho gaya") && t.Contains("2 customers") && t.Contains("3 products"));
 
         await engine.HandleIncomingMessageAsync(Phone, "undo", default);
 

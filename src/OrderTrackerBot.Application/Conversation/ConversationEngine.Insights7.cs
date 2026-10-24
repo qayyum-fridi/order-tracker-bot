@@ -130,8 +130,9 @@ public partial class ConversationEngine
     /// <summary>Customers who pay by wallet/bank for the dear orders but ask for COD on the cheap ones.</summary>
     private async Task InsightPaymentHabitAsync(Seller seller, CancellationToken ct)
     {
+        var since = SellerClock.DaysAgoUtc(365, DateTime.UtcNow);
         var rows = await _db.Orders.AsNoTracking()
-            .Where(o => o.SellerId == seller.Id && o.CreatedAt >= SellerClock.DaysAgoUtc(365, DateTime.UtcNow) && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned && o.Customer!.DeletedAt == null)
+            .Where(o => o.SellerId == seller.Id && o.CreatedAt >= since && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned && o.Customer!.DeletedAt == null)
             .Select(o => new { o.CustomerId, o.Customer!.Name, o.Total, o.PaymentMethod })
             .ToListAsync(ct);
         if (rows.Count < 6)

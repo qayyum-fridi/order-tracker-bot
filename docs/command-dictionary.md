@@ -24,7 +24,7 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 | Orders of a day / period | `orders today` | `show orders` · `orders yesterday` · `orders 30 days` · `aaj ke orders` |
 | Next / previous page of the last order list | `orders next` | `orders prev` · `orders last` · `orders page 3` · `orders size 25` (also sets the catalog page size) |
 | Pending / unpaid / COD owed | `pending orders` · `unpaid orders` · `cod pending` | `pending` · `active orders` · `pending payments` · `payment due list` (unpaid) |
-| One order in full | `order 12` | `#12` · `order 12 details` · `find order 12` |
+| One order in full | `order 12` | `#12` · `order 12 details` |
 | Change status | `mark 12 shipped` | `delivered` · `returned` · `paid` · `bhej diya` · `mukammal` |
 | Cancel an order | `cancel 12` | |
 | Edit a saved order | `edit order 12` | `edit order` (the latest) — inside: `1 = 3` · `price 1 = 1500` · `remove 2` · `add Kurti 2` · `phone ...` · `address ...` · `delivery 250` · `done` |
