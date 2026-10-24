@@ -629,6 +629,15 @@ public sealed class FeatureOptions
     /// <summary>Instagram connect, comment leads and the Meta webhooks. Off = "connect instagram" says it is not active, comments are ignored and the Instagram endpoints answer 404.</summary>
     public bool Instagram { get; set; }
 
+    /// <summary>Menu: discount rows (menu discounts, discount list, add discount, discount performance). Off = hidden from the menu; the typed commands still work.</summary>
+    public bool Discounts { get; set; } = true;
+
+    /// <summary>Menu: loyalty rows (add loyalty rule, loyal customers). Off = hidden from the menu; the typed commands still work.</summary>
+    public bool Loyalty { get; set; } = true;
+
+    /// <summary>Menu: payment rows (Payments category, payment link, payment methods, courier payouts). Off = hidden from the menu; the typed commands still work. Unpaid / COD lists stay.</summary>
+    public bool Payments { get; set; } = true;
+
     /// <summary>A short "listening" message the moment a voice note arrives, so a long transcription is not silent. Off = no extra message (unit tests).</summary>
     public bool VoiceAck { get; set; }
 
