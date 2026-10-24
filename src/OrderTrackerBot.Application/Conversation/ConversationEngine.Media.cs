@@ -348,7 +348,7 @@ public partial class ConversationEngine
     /// <summary>Urdu-script words for the bot's command words, so "آرڈر منسوخ" matches a step written as "cancel order".</summary>
     private static readonly (string Key, string Value)[] UrduCommandWords =
     {
-        ("منسوخ", " cancel "), ("کینسل", " cancel "), ("آرڈر", " order "), ("حالت", " status "), ("سٹیٹس", " status "), ("چیک", " check "),
+        ("منسوخ", " cancel "), ("کینسل", " cancel "), ("اکاؤنٹ", " account "), ("اکاونٹ", " account "), ("ری سیٹ", " reset "), ("ری‌سیٹ", " reset "), ("میرا", " mera "), ("کر دیں", " kar dein "), ("کردیں", " kar dein "), ("کر دو", " kar do "), ("کردو", " kar do "), ("آرڈر", " order "), ("حالت", " status "), ("سٹیٹس", " status "), ("چیک", " check "),
     };
 
     private static bool CommandWordsSaid(string transcript, string step)
@@ -385,7 +385,8 @@ public partial class ConversationEngine
     /// </summary>
     public static IReadOnlyList<string> CorrectAccountReset(string transcript, IReadOnlyList<string> steps)
     {
-        var said = transcript.Trim().TrimEnd('.', '۔', '!', '?', ' ');
+        var spoken = UrduCommandWords.Aggregate(transcript, (text, pair) => text.Replace(pair.Key, pair.Value));
+        var said = string.Join(' ', spoken.Split(' ', StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.', '۔', '!', '?', ' ');
         return CommandParser.TryParse(said) is { Kind: CommandKind.ResetAccount } ? new[] { "reset account" } : steps;
     }
 
