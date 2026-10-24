@@ -59,9 +59,11 @@ public partial class ConversationEngine
         IReceiptPdfGenerator? receiptPdf = null, IExportFileWriter? exportWriter = null, FeatureOptions? features = null,
         IIssueReporter? issues = null, IAudioTranscriber? transcriber = null, IImportFileReader? importReader = null,
         INewSellerNotifier? newSellers = null, MediaRateLimiter? mediaLimiter = null, TimeProvider? clock = null,
-        IMerchantEmailSender? emailSender = null, Microsoft.Extensions.Logging.ILogger<ConversationEngine>? logger = null, BuildInfo? build = null)
+        IMerchantEmailSender? emailSender = null, Microsoft.Extensions.Logging.ILogger<ConversationEngine>? logger = null, BuildInfo? build = null,
+        DashboardOptions? dashboard = null)
     {
         _build = build ?? new BuildInfo();
+        _dashboard = dashboard ?? new DashboardOptions();
         _logger = logger;
         _email = emailSender;
         _clock = clock ?? TimeProvider.System;
@@ -531,6 +533,7 @@ public partial class ConversationEngine
     }
 
     private readonly BuildInfo _build;
+    private readonly DashboardOptions _dashboard;
 
     private Task ReplyAsync(Seller seller, string text, CancellationToken ct) =>
         _sender.SendTextMessageAsync(seller.WhatsAppPhoneNumber, text, ct);
