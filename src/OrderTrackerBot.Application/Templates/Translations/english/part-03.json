@@ -74,5 +74,6 @@
   "shortcuts.010": "➕ New order",
   "shortcuts.011": "➕ New order",
   "dashsend.customer": "👤 *{0}*\n📞 {1}\n📍 {2}\nOrders: {3}\nTotal purchases: {4}\nLast order: {5}",
-  "dashsend.report": "📊 *{0} to {1}*\nOrders: {2}\nSales: {3}\nAverage order: {4}\nCancelled: {5} · Returned: {6}"
+  "dashsend.report": "📊 *{0} to {1}*\nOrders: {2}\nSales: {3}\nAverage order: {4}\nCancelled: {5} · Returned: {6}",
+  "onboarding.200": "✅ Shop name saved: {0}."
 }
