@@ -326,10 +326,9 @@ public partial class ConversationEngine
         var spoken = SpeechWords(span);
         if (spoken.Trim().Length == 0)
         {
-            // No span to check against: the numbers still must have been said as digits ("2" for a correction read as a list pick is not).
-            var digitsSaid = System.Text.RegularExpressions.Regex.Matches(step, @"\d+")
-                .All(m => System.Text.RegularExpressions.Regex.IsMatch(transcript, $@"(?<!\d){m.Value}(?!\d)"));
-            return digitsSaid ? null : ("step number is not in the transcript", "voice-confirm.008");
+            // A bare list number with no span ("2" for a correction read as a list pick) must have been said as digits.
+            if (!System.Text.RegularExpressions.Regex.IsMatch(step.Trim(), @"^\d{1,2}$")) return null;
+            return System.Text.RegularExpressions.Regex.IsMatch(transcript, $@"(?<!\d){step.Trim()}(?!\d)") ? null : ("step number is not in the transcript", "voice-confirm.008");
         }
         if (!SpeechWords(transcript).Contains(spoken))
         {
