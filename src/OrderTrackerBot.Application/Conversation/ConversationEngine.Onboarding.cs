@@ -364,7 +364,8 @@ public partial class ConversationEngine
                         return;
                     }
                     var added = new List<Product>();
-                    foreach (var line in productLines) added.Add((await UpsertProductAsync(seller, line!, ct)).Product);
+                    foreach (var line in productLines)
+                        if ((await UpsertProductAsync(seller, line!, ct)).Product is { } listed) added.Add(listed);
                     await _db.SaveChangesAsync(ct);
                     var total = await _db.Products.CountAsync(p => p.SellerId == seller.Id && p.IsActive, ct);
                     var summary = added.Count == 1
