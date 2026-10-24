@@ -266,12 +266,12 @@ public partial class ConversationEngine
             if (steps.Count > 0)
             {
                 // Waiting for dates: nothing here is money or an order, and dates legitimately add digits (a day, a year) the seller spoke as words ("yakum", "do hazar chhabees").
-                if (seller.Session!.State == ConversationState.AwaitingCustomDateRange) return TurnDecision.Execute(CorrectMarginQuestion(transcript, steps));
+                if (seller.Session!.State == ConversationState.AwaitingCustomDateRange) return TurnDecision.Execute(CorrectMarginQuestion(transcript, CorrectAccountReset(transcript, steps)));
                 // A rewrite that changes what was said is not run, and neither is the raw transcript: the seller is asked again.
                 // Reason only (never the transcript text): makes refused rewrites visible in the logs.
                 if (WhyUnfaithful(transcript, string.Join("\n", steps), known) is { } why)
                     _logger?.LogWarning("Voice rewrite refused: {Reason} (risky={Risky})", why, StepsAreRisky(steps));
-                return DecideRewrite(transcript, CorrectMarginQuestion(transcript, steps), known);
+                return DecideRewrite(transcript, CorrectMarginQuestion(transcript, CorrectAccountReset(transcript, steps)), known);
             }
         }
         // The AI was unavailable: the transcript goes to the deterministic engine, as before, unless it has an amount word the engine cannot read.
@@ -377,6 +377,16 @@ public partial class ConversationEngine
             steps = steps.Select(st => st.TrimStart().StartsWith("sales by category", StringComparison.OrdinalIgnoreCase) ? "category products" : st).Distinct().ToList();
         if (!steps.Any(IsBareCreateDiscount) || !MarginWords.IsMatch(transcript) || MakesACode.IsMatch(transcript)) return steps;
         return steps.Select(st => IsBareCreateDiscount(st) ? "margin" : st).Distinct().ToList();
+    }
+
+    /// <summary>
+    /// A voice note that asks to reset the account runs the reset (it still asks YES). A rewrite can answer "kya karun" (the help list) instead, because the words sound like a request for help.
+    /// Plain text rule on the transcript, so it holds whatever the model returned.
+    /// </summary>
+    public static IReadOnlyList<string> CorrectAccountReset(string transcript, IReadOnlyList<string> steps)
+    {
+        var said = transcript.Trim().TrimEnd('.', '۔', '!', '?', ' ');
+        return CommandParser.TryParse(said) is { Kind: CommandKind.ResetAccount } ? new[] { "reset account" } : steps;
     }
 
     private static bool IsBareCreateDiscount(string step) =>
