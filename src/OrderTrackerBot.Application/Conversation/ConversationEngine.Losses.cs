@@ -31,7 +31,8 @@ public partial class ConversationEngine
             return;
         }
 
-        var product = await FindProductAsync(seller, name, ct);
+        var (product, variants) = await FindProductMatchAsync(seller, name, ct);
+        if (product is null && variants.Count > 1) { await ReplyVariantChoiceAsync(seller, name, variants, ct); return; }
         var loss = new Loss
         {
             SellerId = seller.Id, ProductId = product?.Id, ProductName = product is null ? name : Formatters.ProductLabel(product),
