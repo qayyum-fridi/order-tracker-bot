@@ -146,6 +146,11 @@ public partial class ConversationEngine
             {
                 var order = await _db.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == last.OrderId && o.SellerId == seller.Id, ct);
                 if (order is null) return;
+                if (_turnCtx?.AutoPriceUse is { } autoPrice && autoPrice.OrderId == order.Id)
+                {
+                    await RetractPriceAnswerAsync(seller, autoPrice.Arm, ct); // undoing an order priced without asking is a correction
+                    _turnCtx.AutoPriceUse = null;
+                }
                 var stockBefore = StockFootprint(order);
                 order.Status = OrderStatus.Cancelled;
                 order.CancelledAt = DateTime.UtcNow;

@@ -151,6 +151,7 @@ public partial class ConversationEngine
             await ReplyAsync(seller, $"⚠️ {result}", ct);
             return;
         }
+        await RetractEditedAutoAnswersAsync(seller, order, change.Kind, change.Amount, ct);
 
         if (!ctx.EditSnapshotLogged)
         {
