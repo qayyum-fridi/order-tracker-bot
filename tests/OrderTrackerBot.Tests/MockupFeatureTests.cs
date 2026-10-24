@@ -1823,7 +1823,7 @@ public class MockupFeatureTests : IDisposable
         AiReturns(Order("Sara", "Kurti", 1));
         await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
-        _sender.Setup(s => s.SendTemplateMessageAsync("923001234567", It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _sender.Setup(s => s.SendTemplateMessageAsync("923001234567", It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
         await engine.HandleIncomingMessageAsync(Phone, "naya stock aaya — sab customers ko batao: naye lawn suits available", default);
         Assert.Contains(_buttons, b => b.Body.Contains("Konse channel"));

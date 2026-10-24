@@ -4,6 +4,11 @@
       "Name": "",
       "Language": "en",
       "Body": "{{1}}"
+    },
+    "weekly": {
+      "Name": "weekly_summary",
+      "Language": "en",
+      "Body": "Aapki is hafte ki report tayyar hai. Is hafte aapke {{1}} orders aaye, jin ka total Rs. {{2}} hai. Tafseel ke liye \"orders this week\" likhein. Shukriya."
     }
   }
 }

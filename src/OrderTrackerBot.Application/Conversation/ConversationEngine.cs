@@ -588,10 +588,10 @@ public partial class ConversationEngine
             return _inner.SendButtonsMessageAsync(toPhoneNumber, bodyText, buttonLabels, cancellationToken);
         }
 
-        public Task<bool> SendTemplateMessageAsync(string toPhoneNumber, IReadOnlyList<string> bodyParameters, CancellationToken cancellationToken = default)
+        public Task<bool> SendTemplateMessageAsync(string toPhoneNumber, IReadOnlyList<string> bodyParameters, string templateKey = WhatsAppTemplateKeys.Broadcast, CancellationToken cancellationToken = default)
         {
-            Log(toPhoneNumber, $"[template] {string.Join(" | ", bodyParameters)}");
-            return _inner.SendTemplateMessageAsync(toPhoneNumber, bodyParameters, cancellationToken);
+            Log(toPhoneNumber, $"[template {templateKey}] {string.Join(" | ", bodyParameters)}");
+            return _inner.SendTemplateMessageAsync(toPhoneNumber, bodyParameters, templateKey, cancellationToken);
         }
 
         public Task<bool> SendDocumentAsync(string toPhoneNumber, byte[] content, string fileName, string mimeType, string? caption, CancellationToken cancellationToken = default)

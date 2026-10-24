@@ -1,13 +1,16 @@
+using OrderTrackerBot.Application.Abstractions;
+
 namespace OrderTrackerBot.Infrastructure.WhatsApp;
 
 /// <summary>
-/// Meta-approved WhatsApp templates, keyed by the id the code uses (e.g. "broadcast"). Lives in its own file
+/// Meta-approved WhatsApp templates, keyed by the id the code uses (<see cref="WhatsAppTemplateKeys"/>, e.g. "broadcast"). Lives in its own file
 /// (<c>whatsapp-templates.json</c>) so it can be edited or removed without touching code; changes hot-reload.
 /// </summary>
 public class WhatsAppTemplatesOptions : Dictionary<string, WhatsAppTemplate>
 {
     public const string SectionName = "WhatsAppTemplates";
-    public const string Broadcast = "broadcast";
+    public const string Broadcast = WhatsAppTemplateKeys.Broadcast;
+    public const string Weekly = WhatsAppTemplateKeys.Weekly;
 }
 
 public class WhatsAppTemplate
