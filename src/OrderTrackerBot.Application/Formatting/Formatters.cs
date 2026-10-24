@@ -145,20 +145,6 @@ public static class Formatters
         return $"{header}\n\n{string.Join("\n", lines)}\n\n{footer}";
     }
 
-    public static string ReturningGreeting(string language, string? businessName, int pending, int unpaid) =>
-        Lang.Normalize(language) switch
-        {
-            Lang.UrduScript => $"سلام {businessName}! 👋\n\n" +
-                               $"Quick stats: {pending} pending orders, {unpaid} unpaid۔\n" +
-                               "\"menu\" لکھیں options کے لیے، یا سیدھا order بھیج دیں۔",
-            Lang.English => $"Hello, {businessName}! 👋\n\n" +
-                            $"Quick stats: {pending} pending orders, {unpaid} unpaid.\n" +
-                            "Type \"menu\" for options, or forward an order directly.",
-            _ => $"Salam {businessName}! 👋\n\n" +
-                 $"Quick stats: {pending} pending orders, {unpaid} unpaid.\n" +
-                 "Type \"menu\" for options, ya seedha order bhej dein."
-        };
-
     public static string OrderLine(int index, Order order) =>
         $"{index} {order.Customer?.Name} - {ItemsSummary(order)} - {Money(order.Total)} - {Status(order.Status)}";
 }
