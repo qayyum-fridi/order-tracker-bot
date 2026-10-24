@@ -638,6 +638,15 @@ public sealed class FeatureOptions
     /// <summary>Menu: payment rows (Payments category, payment link, payment methods, courier payouts). Off = hidden from the menu; the typed commands still work. Unpaid / COD lists stay.</summary>
     public bool Payments { get; set; } = true;
 
+    /// <summary>Menu: courier payout rows (payout pending). Off = hidden from the menu; the typed commands still work.</summary>
+    public bool Payouts { get; set; } = true;
+
+    /// <summary>Menu: cash drawer rows (drawer). Off = hidden from the menu; the typed commands still work.</summary>
+    public bool Drawer { get; set; } = true;
+
+    /// <summary>Menu: label rows (shipping label, business label). Off = hidden from the menu; the typed commands still work.</summary>
+    public bool Labels { get; set; } = true;
+
     /// <summary>A short "listening" message the moment a voice note arrives, so a long transcription is not silent. Off = no extra message (unit tests).</summary>
     public bool VoiceAck { get; set; }
 
