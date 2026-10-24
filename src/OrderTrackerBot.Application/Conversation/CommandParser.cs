@@ -858,7 +858,9 @@ public static class CommandParser
     private static readonly Regex TrendingProducts = new(@"^trending\s+products?$", Opts);
     private static readonly Regex SlowMovers = new(@"^slow\s+movers?$", Opts);
     private static readonly Regex CustomerFeedbackList = new(@"^customer\s+feedback$", Opts);
-    private static readonly Regex ResetAccount = new(@"^(reset|delete)\s+account$|^account\s+(reset|delete)$", Opts);
+    // Roman Urdu and Urdu forms too ("mera account reset kar do", "میرا اکاؤنٹ ری سیٹ کر دیں"); the reset still asks YES first.
+    private static readonly Regex ResetAccount = new(
+        @"^(reset|delete)\s+account$|^account\s+(reset|delete)$|^(?:(?:mera|meri|mere)\s+)?account\s+(?:reset|delete)(?:\s+kar\s*(?:do|dein|den|dijiye))?$|^(?:میرا\s+)?اکاؤنٹ\s+(?:ری\s*سیٹ|حذف)(?:\s+کر\s+(?:دیں|دو|دیجیے))?$", Opts);
     private static readonly Regex Feedback = new(@"^feedback:\s*(.+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Singleline);
     private static readonly Regex Broadcast = new(@"^broadcast:\s*(.+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Singleline);
     // "Lawn Suit - 3500" / "Lawn suite-3500" / "Kurti = 1800" with no command prefix. The name has no digits,
