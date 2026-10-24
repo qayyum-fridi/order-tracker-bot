@@ -125,8 +125,10 @@ shared-state action: confirm with the user and get SSH/host details first.
 - Subscription "paid" is trusted on the seller's word and fires a founder alert to verify manually;
   there is no payment verification.
 - Proactive messages (weekly summary Sunday 9:00 PKT, trial-ending reminder) come from
-  `ScheduledMessagesService`; outside WhatsApp's 24h window Meta rejects free-form text, so these
-  only reach sellers who messaged the bot in the last 24h until a template is used.
+  `ScheduledMessagesService`; outside WhatsApp's 24h window Meta rejects free-form text. The weekly summary
+  then sends the approved `weekly_summary` template (`WhatsAppTemplates:weekly`, 2 params: order count, total) and
+  is kept for the seller's next message only if that send fails. The trial-ending reminder still reaches only
+  sellers who messaged in the last 24h.
 - EF migrations: one SQL Server baseline (`SqlServerBaseline`, covers the whole model as of PR #62; the old Sqlite-typed `InitialCreate`/`MockupParity`/`InstagramLeadsAndSupportQueries` were replaced). Every "no SQL Server migration yet" note below is now covered by it; new model changes need a new migration, generated with `Database__Provider=SqlServer ASPNETCORE_ENVIRONMENT=Production dotnet ef migrations add <Name> ...` (Sqlite output would carry INTEGER/TEXT types). Check with `dotnet ef migrations has-pending-model-changes` under the same env. Never run against a live SQL Server yet: the script was only generated, not applied.
 - An order naming two unmatched catalog products only walks through add-new/map-existing
   for the first one.

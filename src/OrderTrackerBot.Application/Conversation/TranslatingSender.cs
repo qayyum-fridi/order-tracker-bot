@@ -119,8 +119,8 @@ internal sealed class TranslatingSender : IWhatsAppSender
 
     private static string OriginKey(string phone, string label) => $"{phone}\u0001{label}";
 
-    public Task<bool> SendTemplateMessageAsync(string toPhoneNumber, IReadOnlyList<string> bodyParameters, CancellationToken cancellationToken = default) =>
-        _inner.SendTemplateMessageAsync(toPhoneNumber, bodyParameters, cancellationToken);
+    public Task<bool> SendTemplateMessageAsync(string toPhoneNumber, IReadOnlyList<string> bodyParameters, string templateKey = WhatsAppTemplateKeys.Broadcast, CancellationToken cancellationToken = default) =>
+        _inner.SendTemplateMessageAsync(toPhoneNumber, bodyParameters, templateKey, cancellationToken);
 
     // Documents (receipts, exports) are forwarded as-is; their captions are short and often carry order numbers.
     public Task<bool> SendDocumentAsync(string toPhoneNumber, byte[] content, string fileName, string mimeType, string? caption, CancellationToken cancellationToken = default) =>
