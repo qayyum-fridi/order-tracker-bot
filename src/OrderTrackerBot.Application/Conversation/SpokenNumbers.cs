@@ -405,6 +405,34 @@ public static class SpokenNumbers
         return negated;
     }
 
+    // Words a seller adds around a spoken pick ("tisre NUMBER wala MERE hai"); none of them changes the number.
+    private static readonly HashSet<string> ChoiceFiller = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "number", "nambar", "numbar", "wala", "wali", "wale", "mere", "meri", "mera", "hai", "hain", "chahiye", "option", "ye", "yeh", "ka", "ki", "ke",
+        "نمبر", "والا", "والی", "والے", "میرے", "میری", "میرا", "ہے", "ہیں", "چاہیے", "یہ",
+    };
+
+    /// <summary>
+    /// The pick from a numbered list the bot showed: "tisre number wala mere hai" = 3, "teen" = 3, "3" = 3, "pehla wala" = 1. Null unless the words are
+    /// one pick (1-9) plus filler, so a sentence that names an amount, an order or a product is never read as a choice.
+    /// </summary>
+    public static int? ChoiceNumber(string text)
+    {
+        int? pick = null;
+        foreach (var token in Tokens(text))
+        {
+            if (ChoiceFiller.Contains(token)) continue;
+            int? value =
+                Ordinals.TryGetValue(token, out var ordinal) ? ordinal
+                : int.TryParse(token, NumberStyles.None, CultureInfo.InvariantCulture, out var digit) ? digit
+                : Words.TryGetValue(token, out var word) && word == decimal.Truncate(word) ? (int)word
+                : null;
+            if (value is null || pick is not null) return null;
+            pick = value;
+        }
+        return pick is >= 1 and <= 9 ? pick : null;
+    }
+
     // "pehla wala" = 1, "doosra" = 2: a choice from a list the bot showed.
     private static readonly Dictionary<string, int> Ordinals = new(StringComparer.OrdinalIgnoreCase)
     {

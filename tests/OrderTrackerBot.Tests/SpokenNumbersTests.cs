@@ -55,6 +55,19 @@ public class SpokenNumbersTests
         Assert.Contains(choice, SpokenNumbers.SmallCounts(text));
 
     [Theory]
+    [InlineData("tisre number wala mere hai", 3)]
+    [InlineData("teen", 3)]
+    [InlineData("3", 3)]
+    [InlineData("pehla wala", 1)]
+    [InlineData("تیسرے نمبر والا میرے ہے", 3)]
+    [InlineData("order 12", null)]               // a number that is not a list pick
+    [InlineData("teen piece chahiye", null)]     // a count of goods, not a pick
+    [InlineData("tisre order cancel kar do", null)]
+    [InlineData("", null)]
+    public void ChoiceNumber_ReadsOnlyAPickFromAList(string text, int? expected) =>
+        Assert.Equal(expected, SpokenNumbers.ChoiceNumber(text));
+
+    [Theory]
     [InlineData("price 3500", 3500)]
     [InlineData("price 3,500 rupay", 3500)]
     [InlineData("price ٣٥٠٠", 3500)]
