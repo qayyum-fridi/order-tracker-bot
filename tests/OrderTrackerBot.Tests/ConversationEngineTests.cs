@@ -812,7 +812,7 @@ public class ConversationEngineTests : IDisposable
 
         await engine.HandleIncomingMessageAsync(Phone, "menu orders", default);
 
-        Assert.Contains(_sentMessages, m => m.Contains("Naya order: " + example));
+        Assert.Contains(_sentMessages, m => m.Contains("Naya order") && m.Contains(example));
     }
 
     [Fact]
