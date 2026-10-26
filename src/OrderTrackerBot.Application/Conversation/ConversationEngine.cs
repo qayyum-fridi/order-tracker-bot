@@ -629,6 +629,9 @@ public sealed class FeatureOptions
     /// <summary>Instagram connect, comment leads and the Meta webhooks. Off = "connect instagram" says it is not active, comments are ignored and the Instagram endpoints answer 404.</summary>
     public bool Instagram { get; set; }
 
+    /// <summary>The "📥 Purana data" button on the first setup screen. Off = the button is hidden (MVP); typing "purana data" / "import" still works.</summary>
+    public bool OldDataImport { get; set; } = true;
+
     /// <summary>Menu: discount rows (menu discounts, discount list, add discount, discount performance). Off = hidden from the menu; the typed commands still work.</summary>
     public bool Discounts { get; set; } = false;
 

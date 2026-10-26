@@ -146,6 +146,12 @@ public partial class ConversationEngine
             steps = new[] { string.Join(", ", steps) };
 
         // "done"/"skip" end setup and start the trial: the rewrite must not add them unless the seller said they were finished.
+        // A step that ends with one of them is checked too, not only a step that is just the word.
+        if (!seller.OnboardingComplete && !FinishWords.IsMatch(text))
+        {
+            var withoutTrailing = steps.Select(s => TrailingFinishWord.Replace(s, "").Trim()).ToList();
+            if (withoutTrailing.All(s => s.Length > 0)) steps = withoutTrailing;
+        }
         if (!seller.OnboardingComplete && !FinishWords.IsMatch(text) && steps.Any(s => DoneOrSkip.IsMatch(s.Trim())))
         {
             var withoutFinish = steps.Where(s => !DoneOrSkip.IsMatch(s.Trim())).ToList();
@@ -199,6 +205,9 @@ public partial class ConversationEngine
         ctx.ProcessedVoiceNoteIds = ids.TakeLast(20).ToList();
         await PersistAsync(session, ctx, ct);
     }
+
+    /// <summary>A "skip" or "done" the rewrite tacked on the end of a step ("Sargodha, Bakery, skip"); the seller did not say it.</summary>
+    private static readonly Regex TrailingFinishWord = new(@"[,\s]+(?:done|skip)\.?$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     /// <summary>Words that really mean "I am finished / skip this" in the transcript (Roman Urdu, English or Urdu script).</summary>
     private static readonly Regex FinishWords = new(

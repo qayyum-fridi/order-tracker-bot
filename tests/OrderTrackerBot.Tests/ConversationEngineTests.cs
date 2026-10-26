@@ -74,7 +74,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        await engine.HandleIncomingMessageAsync(Phone, "10 ke qareeb", default);
+        await engine.HandleIncomingMessageAsync(Phone, default);
         await engine.HandleIncomingMessageAsync(Phone, "Lawn Suit - 3500", default);
         await engine.HandleIncomingMessageAsync(Phone, "Kurti - 1800", default);
         await engine.HandleIncomingMessageAsync(Phone, "done", default);
@@ -1206,7 +1206,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Chhota (20 se kam)", default);
+        await engine.HandleIncomingMessageAsync(Phone, default);
 
         await engine.HandleIncomingMessageAsync(Phone, "Kurti - 1800", default);
         Assert.Equal(new[] { "➕ Aur product", "📋 Catalog dekhein", "✅ Done" }, labels);
@@ -1234,7 +1234,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        await engine.HandleIncomingMessageAsync(Phone, "10 ke qareeb", default);
+        await engine.HandleIncomingMessageAsync(Phone, default);
         _sentMessages.Clear();
 
         await engine.HandleIncomingMessageAsync(Phone, "orders today", default);
@@ -1279,7 +1279,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        await engine.HandleIncomingMessageAsync(Phone, "10 ke qareeb", default);
+        await engine.HandleIncomingMessageAsync(Phone, default);
         _sentMessages.Clear();
 
         await engine.HandleIncomingMessageAsync(Phone, "help", default);
@@ -1304,7 +1304,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        await engine.HandleIncomingMessageAsync(Phone, "10 ke qareeb", default);
+        await engine.HandleIncomingMessageAsync(Phone, default);
         await engine.HandleIncomingMessageAsync(Phone, "Kurti - 1800", default);
         _sentMessages.Clear();
 
@@ -1330,7 +1330,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Chhota (20 se kam)", default);
+        await engine.HandleIncomingMessageAsync(Phone, default);
 
         var rows = sections!.SelectMany(s => s.Rows).ToList();
         // "connect instagram" is hidden while Features:Instagram is off (the engine default here).
@@ -1348,7 +1348,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Chhota (20 se kam)", default);
+        await engine.HandleIncomingMessageAsync(Phone, default);
         _sentMessages.Clear();
 
         await engine.HandleIncomingMessageAsync(Phone, "setup", default);
@@ -1379,7 +1379,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Chhota (20 se kam)", default);
+        await engine.HandleIncomingMessageAsync(Phone, default);
         _sentMessages.Clear();
     }
 

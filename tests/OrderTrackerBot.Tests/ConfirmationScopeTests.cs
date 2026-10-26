@@ -36,7 +36,7 @@ public class ConfirmationScopeTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = CreateEngine(db);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "10 ke qareeb", "Kurti - 1800", "done" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
         var session = await db.Sessions.FirstAsync();
         session.State = state;

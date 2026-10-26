@@ -129,6 +129,18 @@ public partial class ConversationEngine
         if (parts.Count > 1 && !keepType) seller.BusinessType = parts[1];
     }
 
+    /// <summary>
+    /// After the shop city and type: straight to the first product. The "how many products" question is not asked in the MVP;
+    /// the product examples come from the seller's kind of shop.
+    /// </summary>
+    private async Task StartProductStepAsync(Seller seller, ConversationSession session, CancellationToken ct)
+    {
+        SetState(session, ConversationState.OnboardingAddProduct);
+        await ReplyAsync(seller, MessageTemplates.Get("onboarding.010", BusinessInfoSummary(seller), MessageTemplates.Get("onboarding.021", Industry(seller).SimpleProduct)), ct);
+        await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("onboarding.012"),
+            "Options dekhein", CatalogStepQuickActionsFor(), ct);
+    }
+
     private static string BusinessInfoSummary(Seller seller) =>
         string.Join(", ", new[] { seller.City, seller.BusinessType is null ? null : $"{seller.BusinessType} business", seller.InstagramHandle }
             .Where(v => !string.IsNullOrWhiteSpace(v)));
@@ -228,12 +240,7 @@ public partial class ConversationEngine
                     return;
                 }
                 seller.BusinessName = CommandParser.TryParseShopName(message, out var typedName) ? typedName : message;
-                if (_features.IndustryQuestion && string.IsNullOrWhiteSpace(seller.BusinessType))
-                {
-                    SetState(session, ConversationState.OnboardingIndustry);
-                    await AskIndustryAsync(seller, null, ct);
-                    return;
-                }
+                // The city comes first, then the kind of shop (taps); the Instagram handle is not asked in the MVP.
                 SetState(session, ConversationState.OnboardingOptionalDetails);
                 // Skip is a tap, not a word to type. A real order sent at any step also ends setup (TryOrderDuringOnboardingAsync), and the seller is told so.
                 await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
@@ -245,9 +252,7 @@ public partial class ConversationEngine
                 // The shop type was already saved (the dashboard Config page sets it): the question is answered, so move on.
                 if (IndustryProfiles.All.Any(p => p.Title == seller.BusinessType))
                 {
-                    SetState(session, ConversationState.OnboardingOptionalDetails);
-                    await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
-                        MessageTemplates.Get("onboarding.007", seller.BusinessType!), new[] { "Skip" }, ct);
+                    await StartProductStepAsync(seller, session, ct);
                     return;
                 }
                 if (CommandParser.TryParse(message) is { Kind: CommandKind.Help or CommandKind.Menu } helpCmd)
@@ -277,9 +282,7 @@ public partial class ConversationEngine
                     return;
                 }
                 seller.BusinessType = picked.Title;
-                SetState(session, ConversationState.OnboardingOptionalDetails);
-                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
-                    MessageTemplates.Get("onboarding.007", picked.Title), new[] { "Skip" }, ct);
+                await StartProductStepAsync(seller, session, ct);
                 return;
             }
 
@@ -302,19 +305,15 @@ public partial class ConversationEngine
                     await ReplyAsync(seller, MessageTemplates.Get("onboarding.035"), ct);
                     return;
                 }
-                SetState(session, ConversationState.OnboardingCatalogSize);
-                var askCatalog = MessageTemplates.Get("onboarding.023");
-                if (DoneOrSkip.IsMatch(message))
+                // The city was the answer here; the kind of shop comes next as taps, then the first product (no product-count question).
+                if (!DoneOrSkip.IsMatch(message)) ApplyBusinessInfo(seller, message, keepType: true);
+                if (_features.IndustryQuestion && string.IsNullOrWhiteSpace(seller.BusinessType))
                 {
-                    await ReplyAsync(seller, MessageTemplates.Get("onboarding.009", askCatalog), ct);
+                    SetState(session, ConversationState.OnboardingIndustry);
+                    await AskIndustryAsync(seller, null, ct);
+                    return;
                 }
-                else
-                {
-                    ApplyBusinessInfo(seller, message, keepType: _features.IndustryQuestion && !string.IsNullOrWhiteSpace(seller.BusinessType));
-                    await ReplyAsync(seller, MessageTemplates.Get("onboarding.010", BusinessInfoSummary(seller), askCatalog), ct);
-                }
-                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("onboarding.011"),
-                    new[] { MessageTemplates.Get("onboarding.032"), "Bara (20+)" }, ct);
+                await StartProductStepAsync(seller, session, ct);
                 return;
 
             case ConversationState.OnboardingCatalogSize:

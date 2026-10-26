@@ -12,6 +12,7 @@ public partial class ConversationEngine
 {
     // "Language badlein" was the third button; the seller has just picked a language, so that slot now offers moving data over (typing "change language" still works).
     private static readonly string[] StartChoiceButtons = { "Setup shuru karein", "Pehle guide dekhein", "📥 Purana data" };
+    private string[] StartChoiceButtonsFor() => _features.OldDataImport ? StartChoiceButtons : StartChoiceButtons[..2];
     private static readonly string[] BusinessNameButtons = { "📖 Guide dekhein", "🌐 Language badlein", "Baad mein karunga" };
     private static readonly string[] AfterLanguageButtons = { "📋 Menu", "📦 New Order", "📖 Guide" };
     private static readonly string[] BusinessSetupButtons = { "Business Info", "Payment Method", "Language" };
@@ -41,7 +42,7 @@ public partial class ConversationEngine
     {
         seller.PreferredLanguage = Lang.Resolve(message);
         SetState(session, ConversationState.OnboardingStartChoice);
-        await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, LanguageChosenText(seller.PreferredLanguage, true), StartChoiceButtons, ct);
+        await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, LanguageChosenText(seller.PreferredLanguage, true), StartChoiceButtonsFor(), ct);
     }
 
     private async Task HandleOnboardingStartChoiceAsync(Seller seller, ConversationSession session, string message, CancellationToken ct)

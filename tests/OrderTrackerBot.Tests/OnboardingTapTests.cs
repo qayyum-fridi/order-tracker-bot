@@ -47,7 +47,7 @@ public class OnboardingTapTests : IDisposable
 
         using var db = _dbFactory.CreateContext();
         var engine = CreateEngine(db);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Skip", "Chhota (20 se kam)" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Skip" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
 
         // The list shown after "how many products" must let the seller add a product.

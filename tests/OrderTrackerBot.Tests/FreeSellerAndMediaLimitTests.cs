@@ -38,7 +38,7 @@ public class FreeSellerAndMediaLimitTests : IDisposable
 
     private async Task OnboardAsync(ConversationEngine engine, string phone)
     {
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha", "10 ke qareeb", "Lawn Suit - 3500", "done" })
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha", "Lawn Suit - 3500", "done" })
             await engine.HandleIncomingMessageAsync(phone, m, default);
     }
 

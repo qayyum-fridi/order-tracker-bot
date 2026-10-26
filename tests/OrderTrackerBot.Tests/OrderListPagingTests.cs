@@ -36,7 +36,7 @@ public class OrderListPagingTests : IDisposable
     private async Task<ConversationEngine> OnboardAsync(AppDbContext db)
     {
         var engine = CreateEngine(db);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "10 ke qareeb", "Kurti - 1800", "done" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
         _sent.Clear();
         _buttons.Clear();

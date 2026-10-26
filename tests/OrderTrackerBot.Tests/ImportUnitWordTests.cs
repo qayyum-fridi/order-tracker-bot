@@ -35,7 +35,7 @@ public class ImportUnitWordTests : IDisposable
     private async Task OnboardAsync(AppDbContext db)
     {
         var engine = CreateEngine(db);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "10 ke qareeb", "Lawn Suit - 3500", "done" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Lawn Suit - 3500", "done" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
     }
 

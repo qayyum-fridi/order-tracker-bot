@@ -43,7 +43,7 @@ public class MockupFeatureTests : IDisposable
     private async Task<ConversationEngine> OnboardAsync(AppDbContext db, BillingOptions? billing = null, params string[] products)
     {
         var engine = Engine(db, billing);
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "10 ke qareeb" })
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         foreach (var p in products.Length == 0 ? new[] { "Lawn Suit - 3500", "Kurti - 1800" } : products)
             await engine.HandleIncomingMessageAsync(Phone, p, default);
@@ -157,7 +157,7 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = Engine(db);
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "10 ke qareeb" })
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         // Even if the model wrongly calls this an order, there is no buyer phone, so it must not end setup or start the trial.
         AiReturns(Order("Mere", "lawn suit", 4, phone: null));
@@ -623,7 +623,7 @@ public class MockupFeatureTests : IDisposable
     private async Task<ConversationEngine> VoiceEngineAtAddProductAsync(AppDbContext db, string transcript)
     {
         var setup = Engine(db);
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "10 ke qareeb" })
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections" })
             await setup.HandleIncomingMessageAsync(Phone, m, default);
         _sent.Clear();
         _media.Setup(m => m.DownloadAsync("voice-ctx", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
@@ -679,7 +679,7 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = Engine(db);
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "10 ke qareeb" })
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         AiSaysNewProducts();
 
@@ -1335,7 +1335,7 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = Engine(db);
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "10 ke qareeb" })
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         _sent.Clear();
 

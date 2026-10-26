@@ -117,7 +117,7 @@ public class AdversarialInputTests : IDisposable
     private async Task<ConversationEngine> OnboardAsync(AppDbContext db)
     {
         var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, null, _media.Object);
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "10 ke qareeb", "Lawn Suit - 3500", "Kurti - 1800", "done" })
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "Lawn Suit - 3500", "Kurti - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         return engine;
     }

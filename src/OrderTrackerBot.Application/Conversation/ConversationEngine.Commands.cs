@@ -28,7 +28,7 @@ public partial class ConversationEngine
     // Rows hidden from the menu lists. They stay in the code; remove an id here to show it again.
     private static readonly HashSet<string> HiddenMenuRowIds = new()
     {
-        "menu shop", "walkin", "new order (detailed)", "add product (detailed)", "scan cart"
+        "menu shop", "walkin", "new order (detailed)", "add product (detailed)", "add customer (detailed)", "scan cart"
     };
 
     // Rows hidden when their feature flag is off (Features:Discounts / Loyalty / Payments / Payouts / Drawer / Labels). Typed commands keep working; only the menu lists change.
@@ -83,7 +83,7 @@ public partial class ConversationEngine
             {
                 new MenuRow("orders today", "Orders today"), new MenuRow("pending orders", "Pending orders"),
                 new MenuRow("unpaid orders", "Unpaid orders"), new MenuRow("cod pending", "COD pending"), new MenuRow("receipt", "Last order receipt (PDF)"), new MenuRow("edit order", "Last order edit"),
-                new MenuRow("new order (detailed)", "New order (form)"), new MenuRow("walkin", "Counter sale (walk-in)"), new MenuRow("label", "Shipping label"), BackToMenu
+                new MenuRow("new order", "New order"), new MenuRow("walkin", "Counter sale (walk-in)"), new MenuRow("label", "Shipping label"), BackToMenu
             }),
             ["reports"] = ("📊 Reports", "menu.reports", new[]
             {
@@ -816,9 +816,7 @@ public partial class ConversationEngine
             "create discount: WELCOME50, Rs.50 flat\n\n" +
             "Ya seedha sirf code ka naam bhejein (e.g. EID10) — main value pooch loon ga. \"cancel\" likh kar ruk sakte hain.",
         "product" =>
-            "🛍️ Product shamil karne ke liye is tarah likhein (naam - price, cost, stock, category):\n\n" +
-            string.Join("\n", IndustryProfiles.Resolve(seller?.BusinessType).ProductLines) + "\n\n" +
-            "Cost, stock aur category zaroori nahi — jo chahein likhein. Aap ek saath kai products bhi bhej sakte hain (har line mein ek product).",
+            "🛍️ " + MessageTemplates.Get("product.formats", IndustryProfiles.Resolve(seller?.BusinessType).SimpleProduct),
         "payment" =>
             "💳 Payment method save karne ke liye likhein:\n\n" +
             "add payment: jazzcash, 0300-1234567\nadd payment: easypaisa, 0300-1234567",

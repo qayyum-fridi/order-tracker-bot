@@ -42,7 +42,7 @@ public class ResetRaceAcrossInstancesTests : IDisposable
         using var b = Open();
         a.Database.EnsureCreated();
         var engineA = CreateEngine(a);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "10 ke qareeb", "Kurti - 1800", "done" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800", "done" })
             await engineA.HandleIncomingMessageAsync(Phone, step, default);
         await engineA.HandleIncomingMessageAsync(Phone, "reset account", default);
 
