@@ -136,7 +136,7 @@ public partial class ConversationEngine
     private async Task StartProductStepAsync(Seller seller, ConversationSession session, CancellationToken ct)
     {
         SetState(session, ConversationState.OnboardingAddProduct);
-        await ReplyAsync(seller, MessageTemplates.Get("onboarding.010", BusinessInfoSummary(seller), MessageTemplates.Get("onboarding.021", Industry(seller).SimpleProduct)), ct);
+        await ReplyAsync(seller, MessageTemplates.Get("onboarding.010", BusinessInfoSummary(seller), MessageTemplates.Get("onboarding.021", MessageTemplates.Get("product.formats", Industry(seller).SimpleProduct))), ct);
         await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("onboarding.012"),
             "Options dekhein", CatalogStepQuickActionsFor(), ct);
     }
@@ -249,12 +249,6 @@ public partial class ConversationEngine
 
             case ConversationState.OnboardingIndustry:
             {
-                // The shop type was already saved (the dashboard Config page sets it): the question is answered, so move on.
-                if (IndustryProfiles.All.Any(p => p.Title == seller.BusinessType))
-                {
-                    await StartProductStepAsync(seller, session, ct);
-                    return;
-                }
                 if (CommandParser.TryParse(message) is { Kind: CommandKind.Help or CommandKind.Menu } helpCmd)
                 {
                     await ExecuteCommandAsync(seller, session, ctx, helpCmd, ct);
@@ -307,7 +301,7 @@ public partial class ConversationEngine
                 }
                 // The city was the answer here; the kind of shop comes next as taps, then the first product (no product-count question).
                 if (!DoneOrSkip.IsMatch(message)) ApplyBusinessInfo(seller, message, keepType: true);
-                if (_features.IndustryQuestion && string.IsNullOrWhiteSpace(seller.BusinessType))
+                if (_features.IndustryQuestion)
                 {
                     SetState(session, ConversationState.OnboardingIndustry);
                     await AskIndustryAsync(seller, null, ct);
