@@ -711,7 +711,7 @@ public class ConversationEngineTests : IDisposable
 
         await engine.HandleIncomingMessageAsync(Phone, "new order", default);
 
-        Assert.Contains(_sentMessages, m => m.Contains("Ya ek line mein likhein") && m.Contains(IndustryProfiles.General.OrderExample));
+        Assert.Contains(_sentMessages, m => m.Contains("Ek line mein likhein") && m.Contains(IndustryProfiles.General.OrderExample));
     }
 
     [Fact]

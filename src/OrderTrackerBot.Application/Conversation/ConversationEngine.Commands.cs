@@ -820,7 +820,6 @@ public partial class ConversationEngine
     {
         new MenuSection("Order", new[]
         {
-            new MenuRow("new order (detailed)", "📝 Form se order"),
             new MenuRow("catalog", "🛍️ Catalog dekhein"),
             new MenuRow("orders today", "📦 Aaj ke orders"),
             BackToMenu
