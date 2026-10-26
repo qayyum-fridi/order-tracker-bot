@@ -409,9 +409,9 @@ public static class SpokenNumbers
     private static readonly Dictionary<string, int> Ordinals = new(StringComparer.OrdinalIgnoreCase)
     {
         ["pehla"] = 1, ["pehli"] = 1, ["پہلا"] = 1, ["پہلی"] = 1,
-        ["dusra"] = 2, ["doosra"] = 2, ["dosra"] = 2, ["dusri"] = 2, ["doosri"] = 2, ["دوسرا"] = 2, ["دوسری"] = 2,
-        ["teesra"] = 3, ["teesri"] = 3, ["تیسرا"] = 3,
-        ["chautha"] = 4, ["chauthi"] = 4, ["چوتھا"] = 4,
+        ["dusra"] = 2, ["doosra"] = 2, ["dosra"] = 2, ["dusri"] = 2, ["doosri"] = 2, ["dusre"] = 2, ["doosre"] = 2, ["دوسرا"] = 2, ["دوسری"] = 2, ["دوسرے"] = 2,
+        ["teesra"] = 3, ["teesri"] = 3, ["teesre"] = 3, ["tisra"] = 3, ["tisri"] = 3, ["tisre"] = 3, ["تیسرا"] = 3, ["تیسری"] = 3, ["تیسرے"] = 3,
+        ["chautha"] = 4, ["chauthi"] = 4, ["chauthe"] = 4, ["چوتھا"] = 4, ["چوتھی"] = 4, ["چوتھے"] = 4,
     };
 
     // Small counts (0-99, as words, digits or ordinals) that are not part of a spoken amount: "teen piece" is 3, "teen hazaar" is not a count.
