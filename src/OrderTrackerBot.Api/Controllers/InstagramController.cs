@@ -1,6 +1,7 @@
 using System.Net;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using OrderTrackerBot.Application.Conversation;
 using OrderTrackerBot.Domain.Entities;
@@ -22,10 +23,16 @@ public class InstagramController : ControllerBase
     private readonly ILogger<InstagramController> _logger;
     private readonly WebhookInbox _inbox;
     private readonly FeatureOptions _features;
+    private readonly IHostEnvironment _environment;
+
+    /// <summary>Upper bound for one webhook POST, checked before the body is read (same limit as the WhatsApp webhook).</summary>
+    private const int MaxBodyBytes = 1024 * 1024;
 
     public InstagramController(InstagramClient instagram, IOptions<InstagramOptions> options, IOptions<WhatsAppOptions> whatsApp,
-        IOptions<FeatureOptions> features, AppDbContext db, ConversationEngine engine, ILogger<InstagramController> logger, WebhookInbox inbox)
+        IOptions<FeatureOptions> features, AppDbContext db, ConversationEngine engine, ILogger<InstagramController> logger, WebhookInbox inbox,
+        IHostEnvironment environment)
     {
+        _environment = environment;
         _inbox = inbox;
         _features = features.Value;
         _instagram = instagram;
@@ -109,18 +116,22 @@ public class InstagramController : ControllerBase
     }
 
     [HttpPost("webhook/instagram")]
+    [RequestSizeLimit(MaxBodyBytes)]
     public async Task<IActionResult> Receive(CancellationToken ct)
     {
         if (!_features.Instagram) return NotFound();
-        using var reader = new StreamReader(Request.Body);
-        var rawBody = await reader.ReadToEndAsync(ct);
+        // The raw bytes are what Meta signed; the text is only decoded for parsing, after the signature check.
+        using var buffer = new MemoryStream();
+        await Request.Body.CopyToAsync(buffer, ct);
+        var rawBytes = buffer.ToArray();
 
         var signature = Request.Headers["X-Hub-Signature-256"].FirstOrDefault();
-        if (!WhatsAppSignatureValidator.IsValid(_options.AppSecret, System.Text.Encoding.UTF8.GetBytes(rawBody), signature))
+        if (!WhatsAppSignatureValidator.IsAllowed(_options.AppSecret, _environment.IsDevelopment(), rawBytes, signature))
         {
-            _logger.LogWarning("Rejected Instagram webhook call with invalid signature.");
+            _logger.LogWarning("Rejected Instagram webhook call with missing or invalid signature.");
             return Unauthorized();
         }
+        var rawBody = System.Text.Encoding.UTF8.GetString(rawBytes);
 
         // Same durable hand-off as WhatsApp (WebhookInbox → WebhookWorkerService): the AI call runs after the 200, so a slow
         // reply never makes Meta retry, and a restart cannot lose an accepted comment. A full queue answers 503 so Meta retries later.
