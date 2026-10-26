@@ -222,8 +222,18 @@ public partial class ConversationEngine
     /// ("pehla wala" -> "1", "haan kar do" -> "yes", "mere paas 4 lawn suit 3500" -> "Lawn Suit - 3500"). The rewrite still goes through the
     /// normal deterministic engine; the transcript itself is used when the AI is unavailable or the rewrite drops a number.
     /// </summary>
+    // States where the bot shows a numbered list; a spoken pick there is read as its number, with no AI call to mishear it.
+    private static readonly HashSet<ConversationState> NumberedChoiceStates = new()
+    {
+        ConversationState.OnboardingIndustry, ConversationState.AwaitingClarificationChoice, ConversationState.AwaitingOrderGroupingChoice,
+        ConversationState.AwaitingRuntimeFilterChoice, ConversationState.AwaitingBroadcastAudienceChoice, ConversationState.AwaitingBroadcastChannelChoice,
+        ConversationState.AwaitingReceiptOrderChoice, ConversationState.AwaitingSupportQueryPick,
+    };
+
     private async Task<TurnDecision> InterpretVoiceAsync(Seller seller, string transcript, CancellationToken ct)
     {
+        if (NumberedChoiceStates.Contains(seller.Session!.State) && SpokenNumbers.ChoiceNumber(transcript) is { } pick)
+            return TurnDecision.Execute(new[] { pick.ToString() });
         var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
         var catalog = await LoadCatalogAsync(seller, ct);
         var recent = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)

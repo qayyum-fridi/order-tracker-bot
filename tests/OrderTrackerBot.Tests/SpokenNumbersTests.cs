@@ -46,6 +46,28 @@ public class SpokenNumbersTests
     public void WordAmounts_TwoPlainNumbersInARow_AreNotAdded() => Assert.Equal(new long[] { 500 }, Words("kar do paanch sau"));
 
     [Theory]
+    [InlineData("Tisre number wala mere hai", 3)]          // the seller's own words for choice 3 in a list
+    [InlineData("tisra wala", 3)]
+    [InlineData("تیسرے نمبر والا میرے ہے", 3)]
+    [InlineData("dusre wala", 2)]
+    [InlineData("chauthe wale", 4)]
+    public void SmallCounts_OrdinalChoiceWords_AreRead(string text, int choice) =>
+        Assert.Contains(choice, SpokenNumbers.SmallCounts(text));
+
+    [Theory]
+    [InlineData("tisre number wala mere hai", 3)]
+    [InlineData("teen", 3)]
+    [InlineData("3", 3)]
+    [InlineData("pehla wala", 1)]
+    [InlineData("تیسرے نمبر والا میرے ہے", 3)]
+    [InlineData("order 12", null)]               // a number that is not a list pick
+    [InlineData("teen piece chahiye", null)]     // a count of goods, not a pick
+    [InlineData("tisre order cancel kar do", null)]
+    [InlineData("", null)]
+    public void ChoiceNumber_ReadsOnlyAPickFromAList(string text, int? expected) =>
+        Assert.Equal(expected, SpokenNumbers.ChoiceNumber(text));
+
+    [Theory]
     [InlineData("price 3500", 3500)]
     [InlineData("price 3,500 rupay", 3500)]
     [InlineData("price ٣٥٠٠", 3500)]
