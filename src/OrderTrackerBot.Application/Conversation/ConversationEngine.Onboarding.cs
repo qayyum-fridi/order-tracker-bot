@@ -206,6 +206,16 @@ public partial class ConversationEngine
 
     private async Task HandleOnboardingAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
+        // "meri dukaan ka naam hai X" is a name, not an answer: a correction after the name is set keeps the question open.
+        if (session.State is ConversationState.OnboardingIndustry or ConversationState.OnboardingOptionalDetails
+            && CommandParser.TryParseShopName(message, out var renamed))
+        {
+            seller.BusinessName = renamed;
+            await ReplyAsync(seller, MessageTemplates.Get("onboarding.200", renamed), ct);
+            if (session.State == ConversationState.OnboardingIndustry) await AskIndustryAsync(seller, null, ct);
+            return;
+        }
+
         switch (session.State)
         {
             case ConversationState.OnboardingBusinessName:
@@ -217,7 +227,7 @@ public partial class ConversationEngine
                     await ReplyAsync(seller, MessageTemplates.Get("onboarding.033"), ct);
                     return;
                 }
-                seller.BusinessName = message;
+                seller.BusinessName = CommandParser.TryParseShopName(message, out var typedName) ? typedName : message;
                 if (_features.IndustryQuestion && string.IsNullOrWhiteSpace(seller.BusinessType))
                 {
                     SetState(session, ConversationState.OnboardingIndustry);
@@ -364,7 +374,8 @@ public partial class ConversationEngine
                         return;
                     }
                     var added = new List<Product>();
-                    foreach (var line in productLines) added.Add((await UpsertProductAsync(seller, line!, ct)).Product);
+                    foreach (var line in productLines)
+                        if ((await UpsertProductAsync(seller, line!, ct)).Product is { } listed) added.Add(listed);
                     await _db.SaveChangesAsync(ct);
                     var total = await _db.Products.CountAsync(p => p.SellerId == seller.Id && p.IsActive, ct);
                     var summary = added.Count == 1

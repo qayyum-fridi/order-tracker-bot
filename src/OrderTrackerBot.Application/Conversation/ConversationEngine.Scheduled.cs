@@ -1,5 +1,7 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
@@ -139,7 +141,18 @@ public partial class ConversationEngine
             .Select(g => new { Name = g.Key, Orders = g.Select(i => i.OrderId).Distinct().Count() })
             .OrderByDescending(g => g.Orders).FirstOrDefault();
 
-        await ProactiveReplyAsync(seller,
-            MessageTemplates.Get("scheduled.002", seller.BusinessName, orders.Count, orders.Count(o => o.Status == OrderStatus.Delivered), orders.Count(o => o.Status == OrderStatus.Pending), orders.Count(o => o.Status == OrderStatus.Cancelled), orders.Count(o => o.Status == OrderStatus.Returned), (top is null ? "" : $"Top product: {top.Name} ({top.Orders} orders)\n"), Formatters.Money(active.Sum(o => o.Total)), (active.Sum(o => o.TaxWithheld) is > 0 and var withheld ? $"Tax withheld by courier/gateway: {Formatters.Money(withheld)}\n" : "")), ct);
+        var text = MessageTemplates.Get("scheduled.002", seller.BusinessName, orders.Count, orders.Count(o => o.Status == OrderStatus.Delivered), orders.Count(o => o.Status == OrderStatus.Pending), orders.Count(o => o.Status == OrderStatus.Cancelled), orders.Count(o => o.Status == OrderStatus.Returned), (top is null ? "" : $"Top product: {top.Name} ({top.Orders} orders)\n"), Formatters.Money(active.Sum(o => o.Total)), (active.Sum(o => o.TaxWithheld) is > 0 and var withheld ? $"Tax withheld by courier/gateway: {Formatters.Money(withheld)}\n" : ""));
+
+        if (await WithinServiceWindowAsync(seller, ct))
+        {
+            await ReplyAsync(seller, text, ct);
+            return;
+        }
+
+        // Outside the 24-hour window only the approved weekly_summary template reaches the seller. Its body already says "Rs.", so the total is sent as a bare number.
+        var total = active.Sum(o => o.Total).ToString("#,0.##", CultureInfo.InvariantCulture);
+        var sent = await _sender.SendTemplateMessageAsync(seller.WhatsAppPhoneNumber,
+            new[] { active.Count.ToString(CultureInfo.InvariantCulture), total }, WhatsAppTemplateKeys.Weekly, ct);
+        if (!sent) QueueProactiveNotice(seller, text);
     }
 }

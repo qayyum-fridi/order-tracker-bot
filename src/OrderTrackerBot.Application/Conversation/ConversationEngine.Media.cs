@@ -276,12 +276,12 @@ public partial class ConversationEngine
             if (steps.Count > 0)
             {
                 // Waiting for dates: nothing here is money or an order, and dates legitimately add digits (a day, a year) the seller spoke as words ("yakum", "do hazar chhabees").
-                if (seller.Session!.State == ConversationState.AwaitingCustomDateRange) return TurnDecision.Execute(CorrectMarginQuestion(transcript, steps));
+                if (seller.Session!.State == ConversationState.AwaitingCustomDateRange) return TurnDecision.Execute(CorrectMarginQuestion(transcript, CorrectAccountReset(transcript, steps)));
                 // A rewrite that changes what was said is not run, and neither is the raw transcript: the seller is asked again.
                 // Reason only (never the transcript text): makes refused rewrites visible in the logs.
                 if (WhyUnfaithful(transcript, string.Join("\n", steps), known) is { } why)
                     _logger?.LogWarning("Voice rewrite refused: {Reason} (risky={Risky})", why, StepsAreRisky(steps));
-                return DecideRewrite(transcript, CorrectMarginQuestion(transcript, steps), known);
+                return DecideRewrite(transcript, CorrectMarginQuestion(transcript, CorrectAccountReset(transcript, steps)), known);
             }
         }
         // The AI was unavailable: the transcript goes to the deterministic engine, as before, unless it has an amount word the engine cannot read.
@@ -315,7 +315,9 @@ public partial class ConversationEngine
                 _logger?.LogInformation("Voice step skipped: duplicate of an earlier step");
                 continue;
             }
-            if (SpanProblem(transcript, result.Steps[i], span, known) is { } problem)
+            // A shop-name correction ("meri dukaan ka naam hai ...") is kept with the model's spelling: the name is often written in another script than it was said in.
+            var shopNameRename = CommandParser.TryParseShopName(transcript, out _) && CommandParser.TryParseShopName(result.Steps[i], out _);
+            if (!shopNameRename && SpanProblem(transcript, result.Steps[i], span, known) is { } problem)
             {
                 _logger?.LogWarning("Voice step dropped: {Reason}", problem.Reason);
                 _droppedVoiceSteps.Add((result.Steps[i], problem.Template));
@@ -332,7 +334,12 @@ public partial class ConversationEngine
     private static (string Reason, string Template)? SpanProblem(string transcript, string step, string span, IReadOnlySet<long> known)
     {
         var spoken = SpeechWords(span);
-        if (spoken.Trim().Length == 0) return null;
+        if (spoken.Trim().Length == 0)
+        {
+            // A bare list number with no span ("2" for a correction read as a list pick) must have been said as digits.
+            if (!System.Text.RegularExpressions.Regex.IsMatch(step.Trim(), @"^\d{1,2}$")) return null;
+            return System.Text.RegularExpressions.Regex.IsMatch(transcript, $@"(?<!\d){step.Trim()}(?!\d)") ? null : ("step number is not in the transcript", "voice-confirm.008");
+        }
         if (!SpeechWords(transcript).Contains(spoken))
         {
             // The span is spelled differently ("pachis" for "pachees") but every amount of the step was said: the step may run.
@@ -358,7 +365,7 @@ public partial class ConversationEngine
     /// <summary>Urdu-script words for the bot's command words, so "آرڈر منسوخ" matches a step written as "cancel order".</summary>
     private static readonly (string Key, string Value)[] UrduCommandWords =
     {
-        ("منسوخ", " cancel "), ("کینسل", " cancel "), ("آرڈر", " order "), ("حالت", " status "), ("سٹیٹس", " status "), ("چیک", " check "),
+        ("منسوخ", " cancel "), ("کینسل", " cancel "), ("اکاؤنٹ", " account "), ("اکاونٹ", " account "), ("ری سیٹ", " reset "), ("ری‌سیٹ", " reset "), ("میرا", " mera "), ("کر دیں", " kar dein "), ("کردیں", " kar dein "), ("کر دو", " kar do "), ("کردو", " kar do "), ("آرڈر", " order "), ("حالت", " status "), ("سٹیٹس", " status "), ("چیک", " check "),
     };
 
     private static bool CommandWordsSaid(string transcript, string step)
@@ -387,6 +394,17 @@ public partial class ConversationEngine
             steps = steps.Select(st => st.TrimStart().StartsWith("sales by category", StringComparison.OrdinalIgnoreCase) ? "category products" : st).Distinct().ToList();
         if (!steps.Any(IsBareCreateDiscount) || !MarginWords.IsMatch(transcript) || MakesACode.IsMatch(transcript)) return steps;
         return steps.Select(st => IsBareCreateDiscount(st) ? "margin" : st).Distinct().ToList();
+    }
+
+    /// <summary>
+    /// A voice note that asks to reset the account runs the reset (it still asks YES). A rewrite can answer "kya karun" (the help list) instead, because the words sound like a request for help.
+    /// Plain text rule on the transcript, so it holds whatever the model returned.
+    /// </summary>
+    public static IReadOnlyList<string> CorrectAccountReset(string transcript, IReadOnlyList<string> steps)
+    {
+        var spoken = UrduCommandWords.Aggregate(transcript, (text, pair) => text.Replace(pair.Key, pair.Value));
+        var said = string.Join(' ', spoken.Split(' ', StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.', '۔', '!', '?', ' ');
+        return CommandParser.TryParse(said) is { Kind: CommandKind.ResetAccount } ? new[] { "reset account" } : steps;
     }
 
     private static bool IsBareCreateDiscount(string step) =>

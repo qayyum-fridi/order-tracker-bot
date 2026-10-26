@@ -25,6 +25,8 @@ public sealed partial class ConversationEngine
         if (CommandParser.TryParse(text) is { Kind: CommandKind.Industry, Text: { Length: > 0 } key })
             text = key;
         var all = IndustryProfiles.All.Append(IndustryProfiles.General).ToList();
+        // The list is numbered 1-7 in this order: a typed number picks the same row.
+        if (int.TryParse(text, out var number) && number >= 1 && number <= all.Count) return all[number - 1];
         return all.FirstOrDefault(p => p.Key.Equals(text, StringComparison.OrdinalIgnoreCase))
                ?? all.FirstOrDefault(p => p.Title.Equals(text, StringComparison.OrdinalIgnoreCase))
                ?? IndustryProfiles.All.FirstOrDefault(p => p.Matches(text))

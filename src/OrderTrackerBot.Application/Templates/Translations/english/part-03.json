@@ -28,7 +28,7 @@
   "onboarding.027": "🛍️ Your Catalog ({0}):\n{1}",
   "onboarding.028": "✅ Added: {0} - {1}{2}",
   "onboarding.029": "✅ {0} products added:\n{1}",
-  "onboarding.030": "👋 Assalam o alaikum! I am your Order Assistant.\n\nI help you with:\n📦 recording orders (forward them from Instagram / WhatsApp)\n📊 seeing daily and weekly sales\n💰 tracking payments and COD\n🎟️ managing discounts and loyal customers\n\nAll of this happens in this same WhatsApp chat — no separate app is needed.",
+  "onboarding.030": "👋 Assalam o alaikum! I am your Order Assistant.\n\nI help you with:\n📦 recording orders (forward them from Instagram / WhatsApp)\n📊 seeing daily and weekly sales\n\nAll of this happens in this same WhatsApp chat — no separate app is needed.",
   "onboarding.031": "First choose your preferred language — tap a button below, or type it yourself:",
   "onboarding.032": "Small (under 20)",
   "onboarding.033": "ℹ️ Now type your shop's name (for example \"Ayesha Collections\"). Products will be added in the next part of the setup.",
@@ -74,5 +74,6 @@
   "shortcuts.010": "➕ New order",
   "shortcuts.011": "➕ New order",
   "dashsend.customer": "👤 *{0}*\n📞 {1}\n📍 {2}\nOrders: {3}\nTotal purchases: {4}\nLast order: {5}",
-  "dashsend.report": "📊 *{0} to {1}*\nOrders: {2}\nSales: {3}\nAverage order: {4}\nCancelled: {5} · Returned: {6}"
+  "dashsend.report": "📊 *{0} to {1}*\nOrders: {2}\nSales: {3}\nAverage order: {4}\nCancelled: {5} · Returned: {6}",
+  "onboarding.200": "✅ Shop name saved: {0}."
 }

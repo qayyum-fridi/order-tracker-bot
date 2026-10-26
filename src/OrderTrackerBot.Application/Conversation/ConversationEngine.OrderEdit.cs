@@ -351,13 +351,15 @@ public partial class ConversationEngine
             case "add":
             {
                 var catalog = await LoadCatalogAsync(seller, ct);
+                var variants = ProductVariants.VariantsOf(catalog.Select(c => c.Product), change.Text!);
+                if (variants.Count > 1) return (false, MessageTemplates.Get("variants.001", change.Text!, string.Join(", ", variants.Select(Formatters.ProductMatchLabel)), Formatters.ProductMatchLabel(variants[0])));
                 var entry = FindCatalogEntry(catalog, change.Text!)
                             ?? catalog.FirstOrDefault(c => c.Product.Name.Contains(change.Text!, StringComparison.OrdinalIgnoreCase));
                 if (entry is null) return (false, $"\"{change.Text}\" catalog mein nahi mila. Pehle add karein: \"{change.Text} - price\"");
                 var line = new PendingOrderItemData { ProductName = entry.Product.Name, Quantity = change.Quantity ?? 1 };
                 ApplyCatalogEntry(line, entry);
-                order.Items.Add(new OrderItem { ProductId = entry.Product.Id, ProductNameSnapshot = entry.Product.Name, UnitPrice = line.UnitPrice, UnitCost = entry.Product.CostPrice, Quantity = line.Quantity });
-                return (true, $"{entry.Product.Name} x{line.Quantity} add kar diya ({Formatters.Money(line.UnitPrice)} each).");
+                order.Items.Add(new OrderItem { ProductId = entry.Product.Id, ProductNameSnapshot = line.ProductName, UnitPrice = line.UnitPrice, UnitCost = entry.Product.CostPrice, Quantity = line.Quantity });
+                return (true, $"{line.ProductName} x{line.Quantity} add kar diya ({Formatters.Money(line.UnitPrice)} each).");
             }
             case "phone":
                 order.Customer!.Phone = change.Text;

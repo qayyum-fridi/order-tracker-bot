@@ -59,9 +59,11 @@ public partial class ConversationEngine
         IReceiptPdfGenerator? receiptPdf = null, IExportFileWriter? exportWriter = null, FeatureOptions? features = null,
         IIssueReporter? issues = null, IAudioTranscriber? transcriber = null, IImportFileReader? importReader = null,
         INewSellerNotifier? newSellers = null, MediaRateLimiter? mediaLimiter = null, TimeProvider? clock = null,
-        IMerchantEmailSender? emailSender = null, Microsoft.Extensions.Logging.ILogger<ConversationEngine>? logger = null, BuildInfo? build = null)
+        IMerchantEmailSender? emailSender = null, Microsoft.Extensions.Logging.ILogger<ConversationEngine>? logger = null, BuildInfo? build = null,
+        DashboardOptions? dashboard = null)
     {
         _build = build ?? new BuildInfo();
+        _dashboard = dashboard ?? new DashboardOptions();
         _logger = logger;
         _email = emailSender;
         _clock = clock ?? TimeProvider.System;
@@ -531,6 +533,7 @@ public partial class ConversationEngine
     }
 
     private readonly BuildInfo _build;
+    private readonly DashboardOptions _dashboard;
 
     private Task ReplyAsync(Seller seller, string text, CancellationToken ct) =>
         _sender.SendTextMessageAsync(seller.WhatsAppPhoneNumber, text, ct);
@@ -585,10 +588,10 @@ public partial class ConversationEngine
             return _inner.SendButtonsMessageAsync(toPhoneNumber, bodyText, buttonLabels, cancellationToken);
         }
 
-        public Task<bool> SendTemplateMessageAsync(string toPhoneNumber, IReadOnlyList<string> bodyParameters, CancellationToken cancellationToken = default)
+        public Task<bool> SendTemplateMessageAsync(string toPhoneNumber, IReadOnlyList<string> bodyParameters, string templateKey = WhatsAppTemplateKeys.Broadcast, CancellationToken cancellationToken = default)
         {
-            Log(toPhoneNumber, $"[template] {string.Join(" | ", bodyParameters)}");
-            return _inner.SendTemplateMessageAsync(toPhoneNumber, bodyParameters, cancellationToken);
+            Log(toPhoneNumber, $"[template {templateKey}] {string.Join(" | ", bodyParameters)}");
+            return _inner.SendTemplateMessageAsync(toPhoneNumber, bodyParameters, templateKey, cancellationToken);
         }
 
         public Task<bool> SendDocumentAsync(string toPhoneNumber, byte[] content, string fileName, string mimeType, string? caption, CancellationToken cancellationToken = default)
@@ -625,6 +628,24 @@ public sealed class FeatureOptions
 
     /// <summary>Instagram connect, comment leads and the Meta webhooks. Off = "connect instagram" says it is not active, comments are ignored and the Instagram endpoints answer 404.</summary>
     public bool Instagram { get; set; }
+
+    /// <summary>Menu: discount rows (menu discounts, discount list, add discount, discount performance). Off = hidden from the menu; the typed commands still work.</summary>
+    public bool Discounts { get; set; } = false;
+
+    /// <summary>Menu: loyalty rows (add loyalty rule, loyal customers). Off = hidden from the menu; the typed commands still work.</summary>
+    public bool Loyalty { get; set; } = false;
+
+    /// <summary>Menu: payment rows (Payments category, payment link, payment methods, courier payouts). Off = hidden from the menu; the typed commands still work. Unpaid / COD lists stay.</summary>
+    public bool Payments { get; set; } = false;
+
+    /// <summary>Menu: courier payout rows (payout pending). Off = hidden from the menu; the typed commands still work.</summary>
+    public bool Payouts { get; set; } = false;
+
+    /// <summary>Menu: cash drawer rows (drawer). Off = hidden from the menu; the typed commands still work.</summary>
+    public bool Drawer { get; set; } = false;
+
+    /// <summary>Menu: label rows (shipping label, business label). Off = hidden from the menu; the typed commands still work.</summary>
+    public bool Labels { get; set; } = false;
 
     /// <summary>A short "listening" message the moment a voice note arrives, so a long transcription is not silent. Off = no extra message (unit tests).</summary>
     public bool VoiceAck { get; set; }

@@ -21,6 +21,8 @@ public sealed class PendingOrderItemData
     public decimal? WrittenPrice { get; set; }
     /// <summary>True once the seller answered the price question (1 or 3): the line keeps its price and is not re-priced for the buyer's group.</summary>
     public bool PriceDecided { get; set; }
+    /// <summary>Listings of one name that differ by size or colour, and the typed name names none of them; the seller picks one (VariantChoice). Null once chosen.</summary>
+    public List<int>? VariantProductIds { get; set; }
 }
 
 public sealed class PendingOrderData
