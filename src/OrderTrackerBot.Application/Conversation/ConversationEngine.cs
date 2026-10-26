@@ -632,6 +632,9 @@ public sealed class FeatureOptions
     /// <summary>The "📥 Purana data" button on the first setup screen. Off = the button is hidden (MVP); typing "purana data" / "import" still works.</summary>
     public bool OldDataImport { get; set; } = true;
 
+    /// <summary>MVP cut: the features that are off for now (discounts, loyalty, payments, payouts, drawer, labels, Instagram, import, walk-in, forms, scan) answer one "not available yet" reply when typed, not only hidden from menus. Off in code so existing tests keep their behaviour; on in appsettings.</summary>
+    public bool MvpOnly { get; set; }
+
     /// <summary>Menu: discount rows (menu discounts, discount list, add discount, discount performance). Off = hidden from the menu; the typed commands still work.</summary>
     public bool Discounts { get; set; } = false;
 

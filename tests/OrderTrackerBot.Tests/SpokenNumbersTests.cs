@@ -68,6 +68,13 @@ public class SpokenNumbersTests
         Assert.Equal(expected, SpokenNumbers.ChoiceNumber(text));
 
     [Theory]
+    [InlineData("jis ki qeemat sau rupay hai")]
+    [InlineData("qimat sau rupay")]
+    [InlineData("اس کی قیمت سو روپے ہے")]
+    public void UnknownAmountWords_PriceWordBeforeSau_IsNotAnUnknownNumber(string text) =>
+        Assert.Empty(SpokenNumbers.UnknownAmountWords(text));
+
+    [Theory]
     [InlineData("price 3500", 3500)]
     [InlineData("price 3,500 rupay", 3500)]
     [InlineData("price ٣٥٠٠", 3500)]

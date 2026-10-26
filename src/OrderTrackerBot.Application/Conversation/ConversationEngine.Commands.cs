@@ -144,11 +144,31 @@ public partial class ConversationEngine
             new[] { new MenuSection(title, VisibleRows(shown)) }, ct);
     }
 
+    /// <summary>MVP cut (see <c>FeatureOptions.MvpOnly</c>): commands of the features that are off for now. They answer one reply and do not run.</summary>
+    private bool IsOutOfMvp(CommandKind kind) => _features.MvpOnly && kind is
+        CommandKind.CreateDiscount or CommandKind.DiscountList or CommandKind.DiscountPerformance
+        or CommandKind.CreateLoyalty or CommandKind.LoyalCustomers
+        or CommandKind.PaymentLink or CommandKind.AddPaymentMethod
+        or CommandKind.Payout
+        or CommandKind.CashDrawer or CommandKind.CashMovement
+        or CommandKind.ShippingLabel or CommandKind.BusinessLabel or CommandKind.LabelSize
+        or CommandKind.ConnectInstagram or CommandKind.DisconnectInstagram or CommandKind.CommentLeads or CommandKind.LeadAction
+        or CommandKind.SupportQueries or CommandKind.ResolveSupportQuery or CommandKind.ReplySupportQuery or CommandKind.ForwardedQuery
+        or CommandKind.ImportHelp or CommandKind.ImportTemplate
+        or CommandKind.WalkInSale
+        or CommandKind.DetailedForm
+        or CommandKind.Scan or CommandKind.BarcodeSet;
+
     private async Task ExecuteCommandAsync(Seller seller, ConversationSession session, SessionContextData ctx, ParsedCommand cmd, CancellationToken ct)
     {
         if (IsBlockedByPlan(seller, cmd.Kind))
         {
             await SendProOnlyAsync(seller, ct);
+            return;
+        }
+        if (IsOutOfMvp(cmd.Kind))
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("mvp.001"), ct);
             return;
         }
 

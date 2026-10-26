@@ -322,7 +322,9 @@ public static class SpokenNumbers
     // Everyday words that can sit right before "sau/hazar/lakh" without being a number: "mere paas hazar rupay", "ke hazar".
     private static readonly HashSet<string> NotAmountWords = new(StringComparer.OrdinalIgnoreCase)
     {
-        "ke", "ki", "ka", "ko", "se", "mein", "me", "par", "pe", "paas", "wale", "wali", "wala", "sath", "saath", "aur", "ya", "bhi", "tak", "kuch"
+        "ke", "ki", "ka", "ko", "se", "mein", "me", "par", "pe", "paas", "wale", "wali", "wala", "sath", "saath", "aur", "ya", "bhi", "tak", "kuch",
+        // Price and count words said before "sau" / "hazar": "jis ki qeemat sau rupay hai" is 100, not an unknown number word.
+        "qeemat", "qimat", "qemat", "قیمت", "price", "rate", "stock", "cost", "rupay", "rupees", "rs", "hai", "hain", "hay", "ہے", "ہیں", "taqreeban", "taqriban", "تقریباً", "kor", "کور", "kareeb", "قریب",
     };
 
     /// <summary>
