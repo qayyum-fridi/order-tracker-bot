@@ -223,9 +223,12 @@ public partial class ConversationEngine
             {
                 ApplyCatalogEntry(line, entry);
                 // Only a plain per-piece listing is compared: a stated price for a kg / pack listing may mean the pack, the kg or the total.
-                if (item.StatedUnitPrice is { } stated && !fromScreenshot && line.UnitType == "piece" && line.UnitQty == 1
-                    && Math.Abs(stated - line.UnitPrice) >= 0.01m)
-                    line.StatedPrice = stated;
+                if (item.StatedUnitPrice is { } stated && !fromScreenshot && line.UnitType == "piece" && line.UnitQty == 1)
+                {
+                    // ApplyBuyerPriceGroupAsync compares it again with the buyer's price once the buyer is known.
+                    line.WrittenPrice = stated;
+                    if (Math.Abs(stated - line.UnitPrice) >= 0.01m) line.StatedPrice = stated;
+                }
             }
             pending.Items.Add(line);
         }
@@ -239,6 +242,30 @@ public partial class ConversationEngine
         if (wanted.EndsWith(')') && wanted.Contains(" (sold per ")) wanted = wanted[..wanted.IndexOf(" (sold per ", StringComparison.Ordinal)];
         return catalog.FirstOrDefault(c => string.Equals(c.Label, wanted, StringComparison.OrdinalIgnoreCase))
                ?? catalog.FirstOrDefault(c => string.Equals(c.Product.Name, wanted, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Sets each catalog line's price from the buyer's price group (Product.PriceA/B/C) once the buyer is known. A wholesale tier, a line the seller
+    /// already answered and a line with no catalog product keep their price. A price the seller typed is compared with the buyer's price.
+    /// </summary>
+    private async Task ApplyBuyerPriceGroupAsync(Seller seller, PendingOrderData pending, CancellationToken ct)
+    {
+        var lines = pending.Items.Where(i => i.ProductId is not null && !i.IsTierPrice && !i.PriceDecided).ToList();
+        if (lines.Count == 0) return;
+
+        var buyer = pending.CustomerName?.Trim().ToLower();
+        var group = string.IsNullOrEmpty(buyer) ? null
+            : (await _db.Customers.FirstOrDefaultAsync(c => c.SellerId == seller.Id && c.Name.ToLower() == buyer, ct))?.PriceGroup;
+        var ids = lines.Select(l => l.ProductId!.Value).ToList();
+        var products = await _db.Products.Where(p => p.SellerId == seller.Id && ids.Contains(p.Id)).ToListAsync(ct);
+
+        foreach (var line in lines)
+        {
+            if (products.FirstOrDefault(p => p.Id == line.ProductId) is not { } product) continue;
+            var reference = product.PriceFor(group);
+            line.UnitPrice = reference;
+            line.StatedPrice = line.WrittenPrice is { } written && written != reference ? written : null;
+        }
     }
 
     /// <summary>Resolves price: the matching wholesale tier for the quantity, else the listing price.</summary>
@@ -262,6 +289,7 @@ public partial class ConversationEngine
     private async Task ContinueResolvingDraftAsync(Seller seller, ConversationSession session, SessionContextData ctx, CancellationToken ct)
     {
         var pending = ctx.PendingOrder!;
+        await ApplyBuyerPriceGroupAsync(seller, pending, ct);
 
         var unresolved = pending.Items.FirstOrDefault(i => i.UnitPrice < 0);
         if (unresolved is not null)
@@ -784,7 +812,12 @@ public partial class ConversationEngine
                     await ReplyAsync(seller, MessageTemplates.Get("order-flow.024"), ct);
                     return;
                 }
-                if (answer is "1" or "3") item.UnitPrice = item.StatedPrice!.Value;
+                if (answer is "1" or "3")
+                {
+                    item.UnitPrice = item.StatedPrice!.Value;
+                    item.PriceDecided = true;
+                }
+                else item.WrittenPrice = null; // "2": the buyer's catalog rate applies from now on
                 if (answer == "3" && item.ProductId is { } productId && await _db.Products.FirstOrDefaultAsync(p => p.Id == productId && p.SellerId == seller.Id, ct) is { } listed)
                 {
                     listed.Price = item.StatedPrice!.Value;

@@ -86,6 +86,8 @@ public class CommandDictionaryTests
     [InlineData("edit product: Kurti - 1900", CommandKind.EditProduct)]
     [InlineData("delete product: Kurti", CommandKind.DeleteProduct)]
     [InlineData("Kurti - 1800", CommandKind.AddProduct)]
+    [InlineData("Polo Shirt - 500, price B 450", CommandKind.AddProduct)]
+    [InlineData("Sara ka group B", CommandKind.CustomerUpdate)]
     [InlineData("naya product: Kurti - 1800", CommandKind.AddProduct)]
     [InlineData("Polo Shirt - 500, cost 300, stock 10, category: Shirts", CommandKind.AddProduct)]
     [InlineData("create discount: EID10, 10 percent", CommandKind.CreateDiscount)]

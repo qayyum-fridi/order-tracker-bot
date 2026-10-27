@@ -1995,6 +1995,91 @@ public class ConversationEngineTests : IDisposable
         Assert.Equal(OrderStatus.Pending, order.Status);
     }
 
+    // Kurti is 1800 in the catalog; Price B for it is 1600. Sara is the buyer; her price group is the argument.
+    private async Task SetupPriceGroupAsync(AppDbContext db, string? buyerGroup)
+    {
+        var seller = await db.Sellers.FirstAsync(s => s.WhatsAppPhoneNumber == Phone);
+        var kurti = await db.Products.FirstAsync(p => p.SellerId == seller.Id && p.Name == "Kurti");
+        kurti.PriceB = 1600;
+        db.Customers.Add(new OrderTrackerBot.Domain.Entities.Customer { SellerId = seller.Id, Name = "Sara", Phone = "03009876543", PriceGroup = buyerGroup });
+        await db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task PriceGroup_BuyerInGroupB_PaysTheGroupPrice()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        await SetupPriceGroupAsync(db, "B");
+        var engine = CreateEngine(db);
+        StatedPriceOrder(null);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara ne kurti li, 03009876543, Gulberg Lahore", default);
+        Assert.Contains(_sentMessages, m => m.Contains("Confirm order"));
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        var order = await db.Orders.SingleAsync();
+        Assert.Equal(1600m, order.Total);
+    }
+
+    [Fact]
+    public async Task PriceGroup_BuyerWithoutAGroup_PaysTheRegularPrice()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        await SetupPriceGroupAsync(db, null);
+        var engine = CreateEngine(db);
+        StatedPriceOrder(null);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara ne kurti li, 03009876543, Gulberg Lahore", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        var order = await db.Orders.SingleAsync();
+        Assert.Equal(1800m, order.Total);
+    }
+
+    [Theory]
+    [InlineData("1", 1800)]  // the price the seller wrote
+    [InlineData("2", 1600)]  // the buyer's group rate
+    public async Task PriceGroup_WrittenRegularPrice_AsksAgainstTheGroupRate(string choice, int expectedTotal)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        await SetupPriceGroupAsync(db, "B");
+        var engine = CreateEngine(db);
+        StatedPriceOrder(1800);
+        _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, body, _, _, _) => _sentMessages.Add(body)).Returns(Task.CompletedTask);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara ne kurti 1800 ki li, 03009876543, Gulberg Lahore", default);
+        Assert.Contains(_sentMessages, m => m.Contains("Qeemat mein farq") && m.Contains("1,600") && m.Contains("1,800"));
+
+        _sentMessages.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, choice, default);
+        Assert.Contains(_sentMessages, m => m.Contains("Confirm order"));
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        var order = await db.Orders.SingleAsync();
+        Assert.Equal(expectedTotal, order.Total);
+    }
+
+    [Fact]
+    public async Task PriceGroup_CustomerGroupCommand_SetsAndClearsTheGroup()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var seller = await db.Sellers.FirstAsync(s => s.WhatsAppPhoneNumber == Phone);
+        db.Customers.Add(new OrderTrackerBot.Domain.Entities.Customer { SellerId = seller.Id, Name = "Sara", Phone = "03009876543" });
+        await db.SaveChangesAsync();
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara ka group B", default);
+        Assert.Equal("B", (await db.Customers.SingleAsync(c => c.Name == "Sara")).PriceGroup);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara ka group none", default);
+        Assert.Null((await db.Customers.SingleAsync(c => c.Name == "Sara")).PriceGroup);
+    }
+
     private void StatedPriceOrder(decimal? stated)
     {
         _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))

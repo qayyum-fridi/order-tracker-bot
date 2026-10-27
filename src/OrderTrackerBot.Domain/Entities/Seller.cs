@@ -83,6 +83,18 @@ public class Product
     public Seller? Seller { get; set; }
     public required string Name { get; set; }
     public decimal Price { get; set; }
+    /// <summary>Price for buyers in price group A / B / C; null = the regular <see cref="Price"/>.</summary>
+    public decimal? PriceA { get; set; }
+    public decimal? PriceB { get; set; }
+    public decimal? PriceC { get; set; }
+    /// <summary>The price a buyer in this group pays: the group's level when set, else <see cref="Price"/>.</summary>
+    public decimal PriceFor(string? group) => group switch
+    {
+        "A" => PriceA ?? Price,
+        "B" => PriceB ?? Price,
+        "C" => PriceC ?? Price,
+        _ => Price
+    };
     /// <summary>piece | kg | gram | dozen | liter | meter | yard | pack — the catalog listing is the atomic sellable unit.</summary>
     public string UnitType { get; set; } = "piece";
     /// <summary>How many units one listing holds, e.g. 5 for a "Sugar 5kg" pack.</summary>
@@ -156,6 +168,8 @@ public class Customer
     public string? City { get; set; }
     public string? PreferredContact { get; set; }
     public string? Notes { get; set; }
+    /// <summary>Which price group (A, B or C) this buyer pays; null = regular price.</summary>
+    public string? PriceGroup { get; set; }
 
     /// <summary>Soft delete: hidden from customer views, restorable for 30 days, then purged.</summary>
     public DateTime? DeletedAt { get; set; }
