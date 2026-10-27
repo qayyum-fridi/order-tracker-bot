@@ -246,6 +246,11 @@ public partial class ConversationEngine
         ConversationState.AwaitingReceiptOrderChoice, ConversationState.AwaitingSupportQueryPick,
     };
 
+    private static readonly HashSet<CommandKind> ReadOnlyVoiceCommands = new()
+    {
+        CommandKind.Help, CommandKind.Menu, CommandKind.OrdersToday, CommandKind.PendingOrders, CommandKind.TodaysSummary, CommandKind.Catalog, CommandKind.UnpaidOrders,
+    };
+
     private static readonly HashSet<string> SmallTalkWords = new(StringComparer.OrdinalIgnoreCase)
     {
         "hello", "hi", "hey", "salam", "assalam", "alaikum", "bhai", "bhaiya", "kya", "hogaya", "hua", "kaise", "kaisay", "kaisi", "ho",
@@ -266,6 +271,9 @@ public partial class ConversationEngine
         // A greeting or small talk is not an order or a command: say so plainly, and do not let the model invent steps from it.
         if (IsSmallTalkOnly(transcript))
             return TurnDecision.Clarify(MessageTemplates.Get("voice.smalltalk"));
+        // A plain read-only command ("orders today", "menu") needs no rewrite: it runs as spoken, the same as a typed one.
+        if (CommandParser.TryParse(transcript) is { } readOnly && ReadOnlyVoiceCommands.Contains(readOnly.Kind))
+            return TurnDecision.Execute(new[] { transcript });
         var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
         var catalog = await LoadCatalogAsync(seller, ct);
         var recent = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
