@@ -256,6 +256,24 @@ public class OnboardingCustomerTests : IDisposable
         AiMustNotBeAsked();
     }
 
+    // The second live voice note (spoken as a sentence, "ایڈریس" for address): it used to be read as "rename a customer" and refused at this step.
+    [Fact]
+    public async Task SpokenCustomerSentence_AtTheProductStep_SavesWithoutTheAi_NotRefusedAsAnOrder()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+
+        await CreateEngine(db).HandleIncomingMessageAsync(Phone,
+            "میرا کسٹمر ہے جس کا نام محمد علی ہے۔ فون تو چلیں میں بعد میں بتاؤں گا، اس کا ایڈریس ہے ماڈل ٹاؤن لاہور۔", default);
+
+        var saved = await db.Customers.SingleAsync(c => c.Name == "محمد علی");
+        Assert.Equal("ماڈل ٹاؤن لاہور", saved.Address);
+        Assert.Null(saved.Phone);
+        Assert.Contains(_sent, m => m.Contains("customer list"));
+        Assert.DoesNotContain(_sent, m => m.Contains("order darj nahi ho sakta"));
+        AiMustNotBeAsked();
+    }
+
     [Fact]
     public async Task CustomerAddCommand_AtTheCityStep_SavesWithoutTheAi_AndAsksTheCityAgain()
     {

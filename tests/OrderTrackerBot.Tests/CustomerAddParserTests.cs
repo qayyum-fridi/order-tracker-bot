@@ -14,6 +14,11 @@ public class CustomerAddParserTests
     [InlineData("new client Bilal phone 0300-1234567 city Karachi", "Bilal", "0300-1234567", null, "Karachi")]
     [InlineData("nayi customer Ayesha, pata Gulberg, shehar Lahore", "Ayesha", null, "Gulberg", "Lahore")]
     [InlineData("نیا کلائنٹ محمد علی، پتہ ماڈل ٹاؤن لاہور", "محمد علی", null, "ماڈل ٹاؤن لاہور", null)]
+    // Said aloud (the live voice notes): the sentence form, with "ایڈریس" for address and "ہے" after each value.
+    [InlineData("میرا کسٹمر ہے جس کا نام محمد علی ہے۔ فون تو چلیں میں بعد میں بتاؤں گا، اس کا ایڈریس ہے ماڈل ٹاؤن لاہور۔", "محمد علی", null, "ماڈل ٹاؤن لاہور", null)]
+    [InlineData("mera customer hai jiska naam Muhammad Ali hai, phone baad mein batata hoon, uska address Model Town Lahore hai", "Muhammad Ali", null, "Model Town Lahore", null)]
+    [InlineData("ek naya client aaya hai, uska naam Bilal hai, city Karachi", "Bilal", null, null, "Karachi")]
+    [InlineData("customer ka naam Sara", "Sara", null, null, null)]
     public void ReadsTheNameAndWhateverDetailsWereGiven(string text, string name, string? phone, string? address, string? city)
     {
         var parsed = CommandParser.TryParse(text);
@@ -34,6 +39,10 @@ public class CustomerAddParserTests
     [InlineData("add customer order Sara")]
     [InlineData("new customer kya hai?")]
     [InlineData("customer add")]
+    [InlineData("naye customers kitne aaye")]
+    [InlineData("new clients list")]
+    [InlineData("customer ka naam kya hai?")]
+    [InlineData("mera customer Sara ka phone 03001234567")]
     public void OtherPhrases_AreNotACustomerAdd(string text) =>
         Assert.NotEqual(CommandKind.CustomerAdd, CommandParser.TryParse(text)?.Kind);
 
