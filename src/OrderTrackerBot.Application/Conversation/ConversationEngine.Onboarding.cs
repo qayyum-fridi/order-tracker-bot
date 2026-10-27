@@ -209,7 +209,7 @@ public partial class ConversationEngine
     private async Task<string> SaveNewCustomerAsync(Seller seller, AiNewCustomer buyer, CancellationToken ct)
     {
         var name = buyer.Name.Trim();
-        if (await _db.Customers.AnyAsync(c => c.SellerId == seller.Id && c.Name.ToLower() == name.ToLower(), ct))
+        if (await _db.Customers.AnyAsync(c => c.SellerId == seller.Id && c.DeletedAt == null && c.Name.ToLower() == name.ToLower(), ct))
             return MessageTemplates.Get("onboarding.038", name);
 
 
@@ -337,6 +337,18 @@ public partial class ConversationEngine
             seller.BusinessName = renamed;
             await ReplyAsync(seller, MessageTemplates.Get("onboarding.200", renamed), ct);
             if (session.State == ConversationState.OnboardingIndustry) await AskIndustryAsync(seller, null, ct);
+            return;
+        }
+
+        // "customer add Sara, Model Town" / "naya client Sara address ...": a buyer saved at any setup step, by plain rules (no AI). At the shop-name
+        // step a bare "New Customer Care" is a shop name, so a customer there needs a phone, address or city too.
+        if (session.State is ConversationState.OnboardingBusinessName or ConversationState.OnboardingIndustry or ConversationState.OnboardingOptionalDetails
+                or ConversationState.OnboardingCatalogSize or ConversationState.OnboardingAddProduct
+            && CommandParser.TryParse(message) is { Kind: CommandKind.CustomerAdd } add
+            && (session.State != ConversationState.OnboardingBusinessName || add.Text2 is not null || add.Text3 is not null || add.Text4 is not null))
+        {
+            await RepromptOnboardingStepAsync(seller, session,
+                await SaveNewCustomerAsync(seller, new AiNewCustomer { Name = add.Text!, Phone = add.Text2, Address = add.Text3, City = add.Text4 }, ct), ct);
             return;
         }
 

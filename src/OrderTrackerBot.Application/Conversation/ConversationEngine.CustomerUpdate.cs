@@ -52,6 +52,14 @@ public partial class ConversationEngine
         SuggestNext($"order for {customer.Name}", $"{customer.Name} ka order");
     }
 
+    /// <summary>"customer add Sara, Model Town, 0300…": a buyer saved without an order (no undo: retype the details to change them).</summary>
+    private async Task HandleCustomerAddAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
+    {
+        var name = cmd.Text!.Trim();
+        await ReplyAsync(seller, await SaveNewCustomerAsync(seller, new Ai.AiNewCustomer { Name = name, Phone = cmd.Text2, Address = cmd.Text3, City = cmd.Text4 }, ct), ct);
+        SuggestNext($"order for {name}", $"{name} ka order");
+    }
+
     private async Task UndoCustomerUpdateAsync(Seller seller, ActionLog log, CancellationToken ct)
     {
         using var doc = JsonDocument.Parse(log.PayloadJson);

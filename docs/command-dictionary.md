@@ -181,6 +181,7 @@ Every phrase below is pinned in `StrategicInsightParserTests` (Urdu script and R
 |---|---|
 | List / detail / search | `customer list` (or `customers` · `show customers` · `all customers` · `saare customers`) · `customer 1` · `search customer: Sara` · `search customer Sara` · `customer search Sara` |
 | Order search | `search order Sara` · `find order Sara` · `order search 1203` (order number, customer name or phone, product name, or a product's design code / SKU; newest 10) |
+| Add a customer (no order yet) | `customer add Sara, Model Town, 03001234567` · `naya client Sara address Model Town phone 03001234567` · `add customer Sara` (name, then phone / address / city as you have them; works at every setup step too) |
 | Correct details | `Sara ka phone 03001234567` · `Sara ka address ...` · `Sara ka email sara@mail.com` |
 | Customer price group (A / B / C; `none` = regular price) | `Sara ka group B` · `Sara ka group none` |
 | Delete / restore | `delete customer Sara` · `restore customer Sara` |
