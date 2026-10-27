@@ -1773,8 +1773,15 @@ public static class CommandParser
     private static readonly Regex Acknowledgement = new(@"^(ok|okay|theek\s+hai|thik\s+hai|👍\S*|✅)[.!]*$", Opts);
 
     // "What do I do / say now?" — answered with a tip for the current step in ANY state (the plain words help / guide / menu keep their old meaning).
+    // "setup" as the speech model writes it: setup, set up, سیٹ اپ, سیک اپ, سیٹاپ.
+    private const string SetupWord = @"(?:set\s*up|سی[ٹک]\s*اپ|سیٹاپ|سٹ\s*اپ)";
     private static readonly Regex GuidanceRequest = new(
-        @"^(?:(?:ab\s+)?kya\s+kar(?:un|oon|u)(?:\s+ab)?|kaise\s+kar(?:un|oon|u)|kya\s+(?:bolun|bolu|likhun|likhu)|samajh\s+nahi\s+aa\s+raha|(?:mujhe\s+)?(?:madad|help)\s+chahiye|help\s+me|need\s+help|guidelines?|tips?|what\s+now|what\s+can\s+i\s+(?:do|say|type)|\?+|کیا\s+کروں|مجھے\s+مدد\s+چاہیے)[.!?]*$", Opts);
+        @"^(?:(?:ab\s+)?kya\s+kar(?:un|oon|u)(?:\s+ab)?|kaise\s+kar(?:un|oon|u)|kya\s+(?:bolun|bolu|likhun|likhu)|samajh\s+nahi\s+aa\s+raha|(?:mujhe\s+)?(?:madad|help)\s+chahiye|help\s+me|need\s+help|guidelines?|tips?|what\s+now|what\s+can\s+i\s+(?:do|say|type)|\?+|کیا\s+کروں|مجھے\s+مدد\s+چاہیے"
+        // "ab kya karna hai", "agla kaam kya hai", "what is next": the next step, asked in other words.
+        + @"|ab\s+kya\s+kar(?:na\s+hai|ein|en)|agla\s+(?:kaam|step)\s+kya\s+hai|next\s+(?:step\s+)?kya\s+hai|what(?:'s|\s+is)\s+(?:next|left)|اب\s+کیا\s+کرنا\s+ہے|اگلا\s+(?:کام|مرحلہ)\s+کیا\s+ہے"
+        // "setup mein abhi kya cheez baqi hai?": what is left of the setup (the setup word is required, "kya baqi hai" alone may be a balance question).
+        + @"|" + SetupWord + @"\s+(?:mein|me)\s+(?:(?:abhi|ab)\s+)?kya\s+(?:(?:cheez|kuch|kaam|kya)\s+)?(?:baqi|baaki|baki|bacha|bachi)\s+hai"
+        + @"|" + SetupWord + @"\s+میں\s+(?:(?:ابھی|اب)\s+)?کیا\s+(?:(?:چیز|کچھ|کام)\s+)?باقی\s+ہے)[.!?؟۔]*$", Opts);
 
     public static bool IsGuidanceRequest(string message) => GuidanceRequest.IsMatch(message.Trim());
 

@@ -274,6 +274,9 @@ public partial class ConversationEngine
         // A plain read-only command ("orders today", "menu") needs no rewrite: it runs as spoken, the same as a typed one.
         if (CommandParser.TryParse(transcript) is { } readOnly && ReadOnlyVoiceCommands.Contains(readOnly.Kind))
             return TurnDecision.Execute(new[] { transcript });
+        // "setup mein abhi kya baqi hai?", "ab kya karna hai": a request for the next step is answered with the tip for the current step, as typed.
+        if (CommandParser.IsGuidanceRequest(transcript))
+            return TurnDecision.Execute(new[] { transcript });
         var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
         var catalog = await LoadCatalogAsync(seller, ct);
         var recent = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
