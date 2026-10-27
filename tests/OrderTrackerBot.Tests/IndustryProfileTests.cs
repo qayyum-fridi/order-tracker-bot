@@ -365,6 +365,7 @@ public class IndustryQuestionTests : IDisposable
     {
         var (db, engine, seller) = await StartAsync();
         await engine.HandleIncomingMessageAsync(Phone, "Bilal Mart", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Karachi", default);
         await engine.HandleIncomingMessageAsync(Phone, typed, default);
         Assert.Equal(title, (await db.Sellers.FindAsync(seller.Id))!.BusinessType);
     }
@@ -377,6 +378,7 @@ public class IndustryQuestionTests : IDisposable
     {
         var (db, engine, seller) = await StartAsync();
         await engine.HandleIncomingMessageAsync(Phone, "Bilal Mart", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Karachi", default);
         await engine.HandleIncomingMessageAsync(Phone, typed, default);
         Assert.Equal(title, (await db.Sellers.FindAsync(seller.Id))!.BusinessType);
     }
@@ -386,6 +388,7 @@ public class IndustryQuestionTests : IDisposable
     {
         var (db, engine, seller) = await StartAsync();
         await engine.HandleIncomingMessageAsync(Phone, "Bilal Mart", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Karachi", default);
         _sent.Clear();
         await engine.HandleIncomingMessageAsync(Phone, "xyzzy qqq", default);
         Assert.Contains("samajh nahi aaya", string.Join("\n", _sent));
@@ -398,6 +401,7 @@ public class IndustryQuestionTests : IDisposable
     {
         var (db, engine, seller) = await StartAsync();
         await engine.HandleIncomingMessageAsync(Phone, "Bilal Mart", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Karachi", default);
         await engine.HandleIncomingMessageAsync(Phone, "industry grocery", default);
         await engine.HandleIncomingMessageAsync(Phone, "Karachi, Clothing, @bilal.mart", default);
         var saved = await db.Sellers.FindAsync(seller.Id);

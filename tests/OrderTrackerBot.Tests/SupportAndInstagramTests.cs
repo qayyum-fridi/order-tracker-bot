@@ -328,7 +328,7 @@ public class SupportAndInstagramTests : IDisposable
         {
             body = null;
             await engine.HandleIncomingMessageAsync(Phone, text, default);
-            Assert.Contains("Naya order darj karne ke 3 aasaan tareeqay", body);
+            Assert.Contains("Naya order darj karne ke 4 tareeqay", body);
         }
         _ai.Verify(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
