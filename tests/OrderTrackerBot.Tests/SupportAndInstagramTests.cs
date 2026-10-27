@@ -49,7 +49,7 @@ public class SupportAndInstagramTests : IDisposable
     private async Task<ConversationEngine> OnboardAsync(AppDbContext db)
     {
         var engine = Engine(db);
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "10", "Lawn Suit - 3500", "Kurti - 1800", "done" })
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Lawn Suit - 3500", "Kurti - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         _sent.Clear();
         _buttons.Clear();
@@ -328,7 +328,7 @@ public class SupportAndInstagramTests : IDisposable
         {
             body = null;
             await engine.HandleIncomingMessageAsync(Phone, text, default);
-            Assert.Contains("Naya order darj karne ke 3 aasaan tareeqay", body);
+            Assert.Contains("Naya order darj karne ke 4 tareeqay", body);
         }
         _ai.Verify(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }

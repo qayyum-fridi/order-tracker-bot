@@ -142,7 +142,7 @@ public partial class ConversationEngine
     }
 
     private static string BusinessInfoSummary(Seller seller) =>
-        string.Join(", ", new[] { seller.City, seller.BusinessType is null ? null : $"{seller.BusinessType} business", seller.InstagramHandle }
+        string.Join(", ", new[] { seller.City, seller.BusinessType is null ? null : MessageTemplates.Get("onboarding.business", seller.BusinessType), seller.InstagramHandle }
             .Where(v => !string.IsNullOrWhiteSpace(v)));
 
     private async Task HandleBusinessInfoAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
@@ -276,6 +276,7 @@ public partial class ConversationEngine
                     return;
                 }
                 seller.BusinessType = picked.Title;
+                await _db.SaveChangesAsync(ct);
                 await StartProductStepAsync(seller, session, ct);
                 return;
             }

@@ -30,7 +30,7 @@ public class OnboardingTapTests : IDisposable
 
         await engine.HandleIncomingMessageAsync(Phone, "Skip", default);
 
-        Assert.Equal(ConversationState.OnboardingCatalogSize, db.Sessions.Single().State);
+        Assert.Equal(ConversationState.OnboardingAddProduct, db.Sessions.Single().State);
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public class OnboardingTapTests : IDisposable
         sent.Clear();
         await engine.HandleIncomingMessageAsync(Phone, "add product", default);
         Assert.DoesNotContain(sent, m => m.Contains("pehle catalog complete"));
-        Assert.Contains(sent, m => m.Contains("Water Bottle - 500"));
+        Assert.Contains(sent, m => m.Contains(IndustryProfiles.General.SimpleProduct));
     }
 
     public void Dispose() => _dbFactory.Dispose();

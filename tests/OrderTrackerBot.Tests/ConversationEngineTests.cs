@@ -317,7 +317,7 @@ public class ConversationEngineTests : IDisposable
     [InlineData("نیا ڈسکاؤنٹ بنائیں۔", "create discount: EID10")]
     [InlineData("discount bana do", "create discount: EID10")]
     [InlineData("ڈسکاؤنٹ نیا بنا دیں", "create discount: EID10")]
-    [InlineData("New Product", "Water Bottle - 500")]
+    [InlineData("New Product", "Rice 5 kg - 800")]
     [InlineData("add payment", "add payment: jazzcash")]
     [InlineData("create loyalty", "create loyalty: 5 orders")]
     [InlineData("add tracking", "add tracking: Leopards")]
@@ -675,18 +675,17 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
-    public async Task AddProductHowTo_ShowsEveryExampleLineOfTheSellersIndustry()
+    public async Task AddProductHowTo_ShowsTheSellersIndustryExample()
     {
         using var db = _dbFactory.CreateContext();
         await OnboardSellerAsync(db);
         var engine = CreateEngine(db);
         var seller = await db.Sellers.SingleAsync();
-        var examples = IndustryProfiles.Resolve(seller.BusinessType).ProductLines;
+        var example = IndustryProfiles.Resolve(seller.BusinessType).SimpleProduct;
 
         await engine.HandleIncomingMessageAsync(Phone, "add product", default);
 
-        Assert.True(examples.Length >= 3);
-        Assert.Contains(_sentMessages, m => examples.All(line => m.Contains(line)));
+        Assert.Contains(_sentMessages, m => m.Contains(example));
     }
 
     [Fact]
@@ -1151,43 +1150,6 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
-    public async Task CatalogSizeStep_OffersButtons_SoUserCanTapInsteadOfTypingWrongInput()
-    {
-        using var db = _dbFactory.CreateContext();
-        var engine = CreateEngine(db);
-        IReadOnlyList<string>? labels = null;
-        _sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
-            .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, _, l, _) => labels = l)
-            .Returns(Task.CompletedTask);
-
-        await engine.HandleIncomingMessageAsync(Phone, "start", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
-        await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-
-        Assert.Equal(new[] { "Chhota (20 se kam)", "Bara (20+)" }, labels);
-        Assert.Equal(ConversationState.OnboardingCatalogSize, (await db.Sessions.FirstAsync()).State);
-    }
-
-    [Fact]
-    public async Task CatalogSizeStep_TappingLargeButton_OffersBulkPaste()
-    {
-        using var db = _dbFactory.CreateContext();
-        var engine = CreateEngine(db);
-        await engine.HandleIncomingMessageAsync(Phone, "start", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
-        await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        _sentMessages.Clear();
-
-        await engine.HandleIncomingMessageAsync(Phone, "Bara (20+)", default);
-
-        Assert.Contains(_sentMessages, m => m.Contains("ek saath kai products"));
-    }
-
-    [Fact]
     public async Task AfterAddingProduct_OffersAddAnotherOrDoneButtons_AndDoneButtonFinishesOnboarding()
     {
         using var db = _dbFactory.CreateContext();
@@ -1266,7 +1228,7 @@ public class ConversationEngineTests : IDisposable
 
         // The optional-details step is still open afterward.
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        Assert.Equal(ConversationState.OnboardingCatalogSize, (await db.Sessions.FirstAsync()).State);
+        Assert.Equal(ConversationState.OnboardingAddProduct, (await db.Sessions.FirstAsync()).State);
     }
 
     [Fact]
