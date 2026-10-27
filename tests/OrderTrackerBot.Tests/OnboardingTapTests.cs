@@ -30,7 +30,7 @@ public class OnboardingTapTests : IDisposable
 
         await engine.HandleIncomingMessageAsync(Phone, "Skip", default);
 
-        Assert.Equal(ConversationState.OnboardingCatalogSize, db.Sessions.Single().State);
+        Assert.Equal(ConversationState.OnboardingAddProduct, db.Sessions.Single().State);
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public class OnboardingTapTests : IDisposable
 
         using var db = _dbFactory.CreateContext();
         var engine = CreateEngine(db);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Skip", "Chhota (20 se kam)" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Skip" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
 
         // The list shown after "how many products" must let the seller add a product.
@@ -58,7 +58,7 @@ public class OnboardingTapTests : IDisposable
         sent.Clear();
         await engine.HandleIncomingMessageAsync(Phone, "add product", default);
         Assert.DoesNotContain(sent, m => m.Contains("pehle catalog complete"));
-        Assert.Contains(sent, m => m.Contains("Water Bottle - 500"));
+        Assert.Contains(sent, m => m.Contains(IndustryProfiles.General.SimpleProduct));
     }
 
     public void Dispose() => _dbFactory.Dispose();

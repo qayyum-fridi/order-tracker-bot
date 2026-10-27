@@ -40,10 +40,16 @@ public class MockupFeatureTests : IDisposable
     private ConversationEngine Engine(AppDbContext db, BillingOptions? billing = null) =>
         new(db, _ai.Object, _sender.Object, _founderAlerts.Object, billing, _media.Object);
 
+    // The production setup asks the kind of shop as taps (appsettings: Features:IndustryQuestion).
+    private static readonly FeatureOptions IndustryFeatures = new() { ShortcutButtons = false, IndustryQuestion = true };
+
+    private ConversationEngine IndustryEngine(AppDbContext db) =>
+        new(db, _ai.Object, _sender.Object, _founderAlerts.Object, null, _media.Object, features: IndustryFeatures);
+
     private async Task<ConversationEngine> OnboardAsync(AppDbContext db, BillingOptions? billing = null, params string[] products)
     {
         var engine = Engine(db, billing);
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "10 ke qareeb" })
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         foreach (var p in products.Length == 0 ? new[] { "Lawn Suit - 3500", "Kurti - 1800" } : products)
             await engine.HandleIncomingMessageAsync(Phone, p, default);
@@ -87,18 +93,21 @@ public class MockupFeatureTests : IDisposable
     public async Task Onboarding_SavesOptionalDetails_AndStartsFreeTrial()
     {
         using var db = _dbFactory.CreateContext();
-        var engine = Engine(db);
+        var engine = IndustryEngine(db);
         foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         await engine.HandleIncomingMessageAsync(Phone, "Lahore, Clothing, @ayesha.collections", default);
-        Assert.Contains(_sent, m => m.Contains("Noted — Lahore, Clothing business, @ayesha.collections"));
+        Assert.Contains(_sent, m => m.Contains("dukaan kis qism ki hai"));
 
-        foreach (var m in new[] { "10", "Lawn Suit - 3500", "done" })
+        await engine.HandleIncomingMessageAsync(Phone, "clothing", default);
+        Assert.Contains(_sent, m => m.Contains("Noted — Lahore, Kapray / Lawn / Boutique business, @ayesha.collections"));
+
+        foreach (var m in new[] { "Lawn Suit - 3500", "done" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
 
         var seller = await db.Sellers.FirstAsync();
         Assert.Equal("Lahore", seller.City);
-        Assert.Equal("Clothing", seller.BusinessType);
+        Assert.Equal("Kapray / Lawn / Boutique", seller.BusinessType);
         Assert.Equal("@ayesha.collections", seller.InstagramHandle);
         Assert.NotNull(seller.TrialEndsAt);
         Assert.Contains(_sent, m => m.Contains("14-din FREE trial"));
@@ -157,7 +166,7 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = Engine(db);
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "10 ke qareeb" })
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         // Even if the model wrongly calls this an order, there is no buyer phone, so it must not end setup or start the trial.
         AiReturns(Order("Mere", "lawn suit", 4, phone: null));
@@ -623,7 +632,7 @@ public class MockupFeatureTests : IDisposable
     private async Task<ConversationEngine> VoiceEngineAtAddProductAsync(AppDbContext db, string transcript)
     {
         var setup = Engine(db);
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "10 ke qareeb" })
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections" })
             await setup.HandleIncomingMessageAsync(Phone, m, default);
         _sent.Clear();
         _media.Setup(m => m.DownloadAsync("voice-ctx", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
@@ -679,7 +688,7 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = Engine(db);
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "10 ke qareeb" })
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         AiSaysNewProducts();
 
@@ -1019,13 +1028,13 @@ public class MockupFeatureTests : IDisposable
             p => { Assert.Equal("Wool Dupatta", p.Name); Assert.Equal(800m, p.Price); });
     }
 
-    private ConversationEngine VoiceEngine(AppDbContext db, string transcript, Microsoft.Extensions.Logging.ILogger<ConversationEngine>? logger = null)
+    private ConversationEngine VoiceEngine(AppDbContext db, string transcript, Microsoft.Extensions.Logging.ILogger<ConversationEngine>? logger = null, FeatureOptions? features = null)
     {
         _media.Setup(m => m.DownloadAsync("voice-ctx", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
         var transcriber = new Mock<IAudioTranscriber>();
         transcriber.SetupGet(t => t.IsConfigured).Returns(true);
         transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>())).ReturnsAsync(transcript);
-        return new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object, logger: logger);
+        return new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object, logger: logger, features: features);
     }
 
     [Fact]
@@ -1334,8 +1343,8 @@ public class MockupFeatureTests : IDisposable
     public async Task Guidance_DuringOnboarding_GivesAProductExample_AndStaysOnTheStep()
     {
         using var db = _dbFactory.CreateContext();
-        var engine = Engine(db);
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "10 ke qareeb" })
+        var engine = IndustryEngine(db);
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "clothing" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         _sent.Clear();
 
@@ -1525,13 +1534,13 @@ public class MockupFeatureTests : IDisposable
     public async Task VoiceNote_AtOptionalDetails_SplitIntoSeveralSteps_IsAppliedAsOneAnswer()
     {
         using var db = _dbFactory.CreateContext();
-        var setup = Engine(db);
+        var setup = IndustryEngine(db);
         foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections" })
             await setup.HandleIncomingMessageAsync(Phone, m, default);
         var seller = await db.Sellers.FirstAsync();
         seller.BusinessType = "Food"; // stale value from an earlier attempt
         await db.SaveChangesAsync();
-        var engine = VoiceEngine(db, "سرگودھا کلوتھنگ");
+        var engine = VoiceEngine(db, "سرگودھا کلوتھنگ", features: IndustryFeatures);
         _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiVoiceInterpretation { Steps = { "Sargodha", "Clothing" } });
         _sent.Clear();
@@ -1540,9 +1549,15 @@ public class MockupFeatureTests : IDisposable
 
         seller = await db.Sellers.AsNoTracking().FirstAsync();
         Assert.Equal("Sargodha", seller.City);
-        Assert.Equal("Clothing", seller.BusinessType);
-        Assert.Equal(ConversationState.OnboardingCatalogSize, (await db.Sessions.AsNoTracking().FirstAsync()).State);
-        Assert.Contains(_sent, m => m.Contains("Sargodha, Clothing business"));
+        Assert.Equal(ConversationState.OnboardingIndustry, (await db.Sessions.AsNoTracking().FirstAsync()).State);
+
+        // The kind of shop is picked from the taps, so the stale value is replaced by the tap.
+        await engine.HandleIncomingMessageAsync(Phone, "clothing", default);
+
+        seller = await db.Sellers.AsNoTracking().FirstAsync();
+        Assert.Equal("Kapray / Lawn / Boutique", seller.BusinessType);
+        Assert.Equal(ConversationState.OnboardingAddProduct, (await db.Sessions.AsNoTracking().FirstAsync()).State);
+        Assert.Contains(_sent, m => m.Contains("Sargodha, Kapray / Lawn / Boutique business"));
     }
 
     [Fact]
@@ -1823,7 +1838,7 @@ public class MockupFeatureTests : IDisposable
         AiReturns(Order("Sara", "Kurti", 1));
         await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
-        _sender.Setup(s => s.SendTemplateMessageAsync("923001234567", It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _sender.Setup(s => s.SendTemplateMessageAsync("923001234567", It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
         await engine.HandleIncomingMessageAsync(Phone, "naya stock aaya — sab customers ko batao: naye lawn suits available", default);
         Assert.Contains(_buttons, b => b.Body.Contains("Konse channel"));

@@ -266,7 +266,7 @@ public class BadInputEngineTests : IDisposable
     {
         var db = _dbFactory.CreateContext();
         var engine = new ConversationEngine(db, _ai.Object, _sender.Object, Mock.Of<IFounderAlertNotifier>());
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "10 ke qareeb", "Kurti - 1800", "done" })
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         _sent.Clear();
         return (engine, db);

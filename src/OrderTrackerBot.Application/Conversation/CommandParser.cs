@@ -455,6 +455,17 @@ public static class CommandParser
     }
 
     /// <summary>"delivery 250" / "free delivery" -> the amount; used for the seller default and inside an order confirmation.</summary>
+    // "meri dukaan ka naam hai Piyush Shop" (also Urdu script, and "nahi, yeh galat hai, ..." before it): the shop name the seller says or types.
+    private static readonly Regex ShopNameStatement = new(
+        @"^(?:.*?[\s,،.]+)?(?:(?:mera|meri|mere|میرا|میری|میرے)\s+)?(?:dukaan|dukan|dokan|shop|دکان|دوکان)(?:\s+ka|\s+کا)?\s+(?:naam|name|نام)(?:\s+(?:hai|ہے))?\s*[:\-]?\s*(?<name>.+?)[\s.۔!]*$", Opts);
+
+    public static bool TryParseShopName(string message, out string name)
+    {
+        var match = ShopNameStatement.Match(message.Trim());
+        name = match.Success ? match.Groups["name"].Value.Trim() : "";
+        return match.Success && name.Length is >= 2 and <= 60 && !name.Any(char.IsDigit);
+    }
+
     public static bool TryParseDeliveryAmount(string message, out decimal amount)
     {
         var text = LeadingSymbols.Replace(message.Trim(), "").Trim();
@@ -858,7 +869,9 @@ public static class CommandParser
     private static readonly Regex TrendingProducts = new(@"^trending\s+products?$", Opts);
     private static readonly Regex SlowMovers = new(@"^slow\s+movers?$", Opts);
     private static readonly Regex CustomerFeedbackList = new(@"^customer\s+feedback$", Opts);
-    private static readonly Regex ResetAccount = new(@"^(reset|delete)\s+account$|^account\s+(reset|delete)$", Opts);
+    // Roman Urdu and Urdu forms too ("mera account reset kar do", "میرا اکاؤنٹ ری سیٹ کر دیں"); the reset still asks YES first.
+    private static readonly Regex ResetAccount = new(
+        @"^(reset|delete)\s+account$|^account\s+(reset|delete)$|^(?:(?:mera|meri|mere)\s+)?account\s+(?:reset|delete)(?:\s+kar\s*(?:do|dein|den|dijiye))?$|^(?:میرا\s+)?اکا[ؤو]نٹ\s+(?:ری\s*سیٹ|حذف)(?:\s*کر\s*(?:دیں|دو|دیجیے))?$", Opts);
     private static readonly Regex Feedback = new(@"^feedback:\s*(.+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Singleline);
     private static readonly Regex Broadcast = new(@"^broadcast:\s*(.+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Singleline);
     // "Lawn Suit - 3500" / "Lawn suite-3500" / "Kurti = 1800" with no command prefix. The name has no digits,

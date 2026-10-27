@@ -8,7 +8,8 @@ namespace OrderTrackerBot.Application.Conversation;
 public partial class ConversationEngine
 {
     private static readonly string[] GuideOfferButtons = { "Guide dekhein", "Baad mein" };
-    private static readonly string[] GuideTopicButtons = { "Poora guide", "Sirf orders", "Sirf payments" };
+    // Payments are not offered as a guide topic; "sirf payments" typed still works.
+    private static readonly string[] GuideTopicButtons = { "Poora guide", "Sirf orders" };
     private static readonly string[] GuideStepButtons = { "Next ➜", "Guide band karein" };
 
     private static string GuideOrdersBodyFor(Seller? seller) =>

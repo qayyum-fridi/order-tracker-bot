@@ -146,6 +146,12 @@ public partial class ConversationEngine
             steps = new[] { string.Join(", ", steps) };
 
         // "done"/"skip" end setup and start the trial: the rewrite must not add them unless the seller said they were finished.
+        // A step that ends with one of them is checked too, not only a step that is just the word.
+        if (!seller.OnboardingComplete && !FinishWords.IsMatch(text))
+        {
+            var withoutTrailing = steps.Select(s => TrailingFinishWord.Replace(s, "").Trim()).ToList();
+            if (withoutTrailing.All(s => s.Length > 0)) steps = withoutTrailing;
+        }
         if (!seller.OnboardingComplete && !FinishWords.IsMatch(text) && steps.Any(s => DoneOrSkip.IsMatch(s.Trim())))
         {
             var withoutFinish = steps.Where(s => !DoneOrSkip.IsMatch(s.Trim())).ToList();
@@ -200,6 +206,9 @@ public partial class ConversationEngine
         await PersistAsync(session, ctx, ct);
     }
 
+    /// <summary>A "skip" or "done" the rewrite tacked on the end of a step ("Sargodha, Bakery, skip"); the seller did not say it.</summary>
+    private static readonly Regex TrailingFinishWord = new(@"[,\s]+(?:done|skip)\.?$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
     /// <summary>Words that really mean "I am finished / skip this" in the transcript (Roman Urdu, English or Urdu script).</summary>
     private static readonly Regex FinishWords = new(
         @"\b(?:done|skip|finish(?:ed)?|complete|khatam|khtm|bas|hogaya|ho\s+gaya|mukammal|chor|chhor|baad\s+mein)\b|ڈن|ختم|بس|ہو\s*گیا|مکمل|سکپ|چھوڑ|بعد\s*میں",
@@ -222,8 +231,18 @@ public partial class ConversationEngine
     /// ("pehla wala" -> "1", "haan kar do" -> "yes", "mere paas 4 lawn suit 3500" -> "Lawn Suit - 3500"). The rewrite still goes through the
     /// normal deterministic engine; the transcript itself is used when the AI is unavailable or the rewrite drops a number.
     /// </summary>
+    // States where the bot shows a numbered list; a spoken pick there is read as its number, with no AI call to mishear it.
+    private static readonly HashSet<ConversationState> NumberedChoiceStates = new()
+    {
+        ConversationState.OnboardingIndustry, ConversationState.AwaitingClarificationChoice, ConversationState.AwaitingOrderGroupingChoice,
+        ConversationState.AwaitingRuntimeFilterChoice, ConversationState.AwaitingBroadcastAudienceChoice, ConversationState.AwaitingBroadcastChannelChoice,
+        ConversationState.AwaitingReceiptOrderChoice, ConversationState.AwaitingSupportQueryPick,
+    };
+
     private async Task<TurnDecision> InterpretVoiceAsync(Seller seller, string transcript, CancellationToken ct)
     {
+        if (NumberedChoiceStates.Contains(seller.Session!.State) && SpokenNumbers.ChoiceNumber(transcript) is { } pick)
+            return TurnDecision.Execute(new[] { pick.ToString() });
         var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
         var catalog = await LoadCatalogAsync(seller, ct);
         var recent = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
@@ -266,12 +285,12 @@ public partial class ConversationEngine
             if (steps.Count > 0)
             {
                 // Waiting for dates: nothing here is money or an order, and dates legitimately add digits (a day, a year) the seller spoke as words ("yakum", "do hazar chhabees").
-                if (seller.Session!.State == ConversationState.AwaitingCustomDateRange) return TurnDecision.Execute(CorrectMarginQuestion(transcript, steps));
+                if (seller.Session!.State == ConversationState.AwaitingCustomDateRange) return TurnDecision.Execute(CorrectMarginQuestion(transcript, CorrectAccountReset(transcript, steps)));
                 // A rewrite that changes what was said is not run, and neither is the raw transcript: the seller is asked again.
                 // Reason only (never the transcript text): makes refused rewrites visible in the logs.
                 if (WhyUnfaithful(transcript, string.Join("\n", steps), known) is { } why)
                     _logger?.LogWarning("Voice rewrite refused: {Reason} (risky={Risky})", why, StepsAreRisky(steps));
-                return DecideRewrite(transcript, CorrectMarginQuestion(transcript, steps), known);
+                return DecideRewrite(transcript, CorrectMarginQuestion(transcript, CorrectAccountReset(transcript, steps)), known);
             }
         }
         // The AI was unavailable: the transcript goes to the deterministic engine, as before, unless it has an amount word the engine cannot read.
@@ -279,7 +298,7 @@ public partial class ConversationEngine
         // The AI answered without a usable step: the transcript runs only when it reads as a plain command or answer.
         if (CommandParser.TryParse(transcript) is not null || CommandParser.IsAffirmative(transcript) || CommandParser.IsNegative(transcript))
             return TurnDecision.Execute(new[] { transcript });
-        return TurnDecision.Clarify(ParserFailureQuestion);
+        return TurnDecision.Clarify(MessageTemplates.Get("voice.parse", Industry(seller).SimpleProduct));
     }
 
     /// <summary>Steps removed by <see cref="KeepSpokenSteps"/> for the current voice note; shown to the seller with the echo.</summary>
@@ -305,7 +324,9 @@ public partial class ConversationEngine
                 _logger?.LogInformation("Voice step skipped: duplicate of an earlier step");
                 continue;
             }
-            if (SpanProblem(transcript, result.Steps[i], span, known) is { } problem)
+            // A shop-name correction ("meri dukaan ka naam hai ...") is kept with the model's spelling: the name is often written in another script than it was said in.
+            var shopNameRename = CommandParser.TryParseShopName(transcript, out _) && CommandParser.TryParseShopName(result.Steps[i], out _);
+            if (!shopNameRename && SpanProblem(transcript, result.Steps[i], span, known) is { } problem)
             {
                 _logger?.LogWarning("Voice step dropped: {Reason}", problem.Reason);
                 _droppedVoiceSteps.Add((result.Steps[i], problem.Template));
@@ -322,7 +343,12 @@ public partial class ConversationEngine
     private static (string Reason, string Template)? SpanProblem(string transcript, string step, string span, IReadOnlySet<long> known)
     {
         var spoken = SpeechWords(span);
-        if (spoken.Trim().Length == 0) return null;
+        if (spoken.Trim().Length == 0)
+        {
+            // A bare list number with no span ("2" for a correction read as a list pick) must have been said as digits.
+            if (!System.Text.RegularExpressions.Regex.IsMatch(step.Trim(), @"^\d{1,2}$")) return null;
+            return System.Text.RegularExpressions.Regex.IsMatch(transcript, $@"(?<!\d){step.Trim()}(?!\d)") ? null : ("step number is not in the transcript", "voice-confirm.008");
+        }
         if (!SpeechWords(transcript).Contains(spoken))
         {
             // The span is spelled differently ("pachis" for "pachees") but every amount of the step was said: the step may run.
@@ -348,7 +374,7 @@ public partial class ConversationEngine
     /// <summary>Urdu-script words for the bot's command words, so "آرڈر منسوخ" matches a step written as "cancel order".</summary>
     private static readonly (string Key, string Value)[] UrduCommandWords =
     {
-        ("منسوخ", " cancel "), ("کینسل", " cancel "), ("آرڈر", " order "), ("حالت", " status "), ("سٹیٹس", " status "), ("چیک", " check "),
+        ("منسوخ", " cancel "), ("کینسل", " cancel "), ("اکاؤنٹ", " account "), ("اکاونٹ", " account "), ("ری سیٹ", " reset "), ("ری‌سیٹ", " reset "), ("میرا", " mera "), ("کر دیں", " kar dein "), ("کردیں", " kar dein "), ("کر دو", " kar do "), ("کردو", " kar do "), ("آرڈر", " order "), ("حالت", " status "), ("سٹیٹس", " status "), ("چیک", " check "),
     };
 
     private static bool CommandWordsSaid(string transcript, string step)
@@ -377,6 +403,17 @@ public partial class ConversationEngine
             steps = steps.Select(st => st.TrimStart().StartsWith("sales by category", StringComparison.OrdinalIgnoreCase) ? "category products" : st).Distinct().ToList();
         if (!steps.Any(IsBareCreateDiscount) || !MarginWords.IsMatch(transcript) || MakesACode.IsMatch(transcript)) return steps;
         return steps.Select(st => IsBareCreateDiscount(st) ? "margin" : st).Distinct().ToList();
+    }
+
+    /// <summary>
+    /// A voice note that asks to reset the account runs the reset (it still asks YES). A rewrite can answer "kya karun" (the help list) instead, because the words sound like a request for help.
+    /// Plain text rule on the transcript, so it holds whatever the model returned.
+    /// </summary>
+    public static IReadOnlyList<string> CorrectAccountReset(string transcript, IReadOnlyList<string> steps)
+    {
+        var spoken = UrduCommandWords.Aggregate(transcript, (text, pair) => text.Replace(pair.Key, pair.Value));
+        var said = string.Join(' ', spoken.Split(' ', StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.', '۔', '!', '?', ' ');
+        return CommandParser.TryParse(said) is { Kind: CommandKind.ResetAccount } ? new[] { "reset account" } : steps;
     }
 
     private static bool IsBareCreateDiscount(string step) =>
@@ -423,8 +460,6 @@ public partial class ConversationEngine
     // that was used. None of them runs a step.
     private const string UnfaithfulQuestion =
         "Maaf kijiye, yeh poori tarah samajh nahi aaya. Barae meherbani rakam, quantity ya \"nahi\" wali baat alag alag likh kar dobara bhej dein.";
-    private const string ParserFailureQuestion =
-        "Maaf kijiye, samajh nahi aaya. Barae meherbani dobara bolein, ya likh kar bhejein (jaise \"Kurti - 1800\" ya \"order confirm\").";
 
     /// <summary>Ids, totals and prices the model was shown for this voice note: a rewrite may legitimately use them ("pichla order" -> "edit order 105").</summary>
     private static IReadOnlySet<long> KnownVoiceNumbers(IEnumerable<Order> recent, IEnumerable<CatalogEntry> catalog, IEnumerable<string>? recentChatTexts = null)

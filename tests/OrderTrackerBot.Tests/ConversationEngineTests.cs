@@ -74,7 +74,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        await engine.HandleIncomingMessageAsync(Phone, "10 ke qareeb", default);
+        await engine.HandleIncomingMessageAsync(Phone, default);
         await engine.HandleIncomingMessageAsync(Phone, "Lawn Suit - 3500", default);
         await engine.HandleIncomingMessageAsync(Phone, "Kurti - 1800", default);
         await engine.HandleIncomingMessageAsync(Phone, "done", default);
@@ -317,7 +317,7 @@ public class ConversationEngineTests : IDisposable
     [InlineData("نیا ڈسکاؤنٹ بنائیں۔", "create discount: EID10")]
     [InlineData("discount bana do", "create discount: EID10")]
     [InlineData("ڈسکاؤنٹ نیا بنا دیں", "create discount: EID10")]
-    [InlineData("New Product", "Water Bottle - 500")]
+    [InlineData("New Product", "Rice 5 kg - 800")]
     [InlineData("add payment", "add payment: jazzcash")]
     [InlineData("create loyalty", "create loyalty: 5 orders")]
     [InlineData("add tracking", "add tracking: Leopards")]
@@ -675,18 +675,17 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
-    public async Task AddProductHowTo_ShowsEveryExampleLineOfTheSellersIndustry()
+    public async Task AddProductHowTo_ShowsTheSellersIndustryExample()
     {
         using var db = _dbFactory.CreateContext();
         await OnboardSellerAsync(db);
         var engine = CreateEngine(db);
         var seller = await db.Sellers.SingleAsync();
-        var examples = IndustryProfiles.Resolve(seller.BusinessType).ProductLines;
+        var example = IndustryProfiles.Resolve(seller.BusinessType).SimpleProduct;
 
         await engine.HandleIncomingMessageAsync(Phone, "add product", default);
 
-        Assert.True(examples.Length >= 3);
-        Assert.Contains(_sentMessages, m => examples.All(line => m.Contains(line)));
+        Assert.Contains(_sentMessages, m => m.Contains(example));
     }
 
     [Fact]
@@ -711,7 +710,7 @@ public class ConversationEngineTests : IDisposable
 
         await engine.HandleIncomingMessageAsync(Phone, "new order", default);
 
-        Assert.Contains(_sentMessages, m => m.Contains("Ya ek line mein likhein") && m.Contains(IndustryProfiles.General.OrderExample));
+        Assert.Contains(_sentMessages, m => m.Contains("Ek line mein likhein") && m.Contains(IndustryProfiles.General.OrderExample));
     }
 
     [Fact]
@@ -812,7 +811,7 @@ public class ConversationEngineTests : IDisposable
 
         await engine.HandleIncomingMessageAsync(Phone, "menu orders", default);
 
-        Assert.Contains(_sentMessages, m => m.Contains("Naya order: " + example));
+        Assert.Contains(_sentMessages, m => m.Contains("Naya order") && m.Contains(example));
     }
 
     [Fact]
@@ -1106,6 +1105,22 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task GuideTopics_OfferOrdersButNotPayments()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        IReadOnlyList<string>? labels = null;
+        _sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, _, l, _) => labels = l)
+            .Returns(Task.CompletedTask);
+
+        await engine.HandleIncomingMessageAsync(Phone, "guide", default);
+
+        Assert.Equal(new[] { "Poora guide", "Sirf orders" }, labels);
+    }
+
+    [Fact]
     public async Task CustomerList_Detail_AndSearch_ShowOrdersAndSpend()
     {
         using var db = _dbFactory.CreateContext();
@@ -1151,43 +1166,6 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
-    public async Task CatalogSizeStep_OffersButtons_SoUserCanTapInsteadOfTypingWrongInput()
-    {
-        using var db = _dbFactory.CreateContext();
-        var engine = CreateEngine(db);
-        IReadOnlyList<string>? labels = null;
-        _sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
-            .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, _, l, _) => labels = l)
-            .Returns(Task.CompletedTask);
-
-        await engine.HandleIncomingMessageAsync(Phone, "start", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
-        await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-
-        Assert.Equal(new[] { "Chhota (20 se kam)", "Bara (20+)" }, labels);
-        Assert.Equal(ConversationState.OnboardingCatalogSize, (await db.Sessions.FirstAsync()).State);
-    }
-
-    [Fact]
-    public async Task CatalogSizeStep_TappingLargeButton_OffersBulkPaste()
-    {
-        using var db = _dbFactory.CreateContext();
-        var engine = CreateEngine(db);
-        await engine.HandleIncomingMessageAsync(Phone, "start", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
-        await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        _sentMessages.Clear();
-
-        await engine.HandleIncomingMessageAsync(Phone, "Bara (20+)", default);
-
-        Assert.Contains(_sentMessages, m => m.Contains("ek saath kai products"));
-    }
-
-    [Fact]
     public async Task AfterAddingProduct_OffersAddAnotherOrDoneButtons_AndDoneButtonFinishesOnboarding()
     {
         using var db = _dbFactory.CreateContext();
@@ -1206,7 +1184,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Chhota (20 se kam)", default);
+        await engine.HandleIncomingMessageAsync(Phone, default);
 
         await engine.HandleIncomingMessageAsync(Phone, "Kurti - 1800", default);
         Assert.Equal(new[] { "➕ Aur product", "📋 Catalog dekhein", "✅ Done" }, labels);
@@ -1234,7 +1212,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        await engine.HandleIncomingMessageAsync(Phone, "10 ke qareeb", default);
+        await engine.HandleIncomingMessageAsync(Phone, default);
         _sentMessages.Clear();
 
         await engine.HandleIncomingMessageAsync(Phone, "orders today", default);
@@ -1266,7 +1244,7 @@ public class ConversationEngineTests : IDisposable
 
         // The optional-details step is still open afterward.
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        Assert.Equal(ConversationState.OnboardingCatalogSize, (await db.Sessions.FirstAsync()).State);
+        Assert.Equal(ConversationState.OnboardingAddProduct, (await db.Sessions.FirstAsync()).State);
     }
 
     [Fact]
@@ -1279,7 +1257,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        await engine.HandleIncomingMessageAsync(Phone, "10 ke qareeb", default);
+        await engine.HandleIncomingMessageAsync(Phone, default);
         _sentMessages.Clear();
 
         await engine.HandleIncomingMessageAsync(Phone, "help", default);
@@ -1304,7 +1282,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        await engine.HandleIncomingMessageAsync(Phone, "10 ke qareeb", default);
+        await engine.HandleIncomingMessageAsync(Phone, default);
         await engine.HandleIncomingMessageAsync(Phone, "Kurti - 1800", default);
         _sentMessages.Clear();
 
@@ -1330,7 +1308,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Chhota (20 se kam)", default);
+        await engine.HandleIncomingMessageAsync(Phone, default);
 
         var rows = sections!.SelectMany(s => s.Rows).ToList();
         // "connect instagram" is hidden while Features:Instagram is off (the engine default here).
@@ -1348,7 +1326,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Chhota (20 se kam)", default);
+        await engine.HandleIncomingMessageAsync(Phone, default);
         _sentMessages.Clear();
 
         await engine.HandleIncomingMessageAsync(Phone, "setup", default);
@@ -1379,7 +1357,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Chhota (20 se kam)", default);
+        await engine.HandleIncomingMessageAsync(Phone, default);
         _sentMessages.Clear();
     }
 

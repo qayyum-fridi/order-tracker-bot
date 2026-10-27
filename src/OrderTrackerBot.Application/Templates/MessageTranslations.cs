@@ -23,6 +23,7 @@ public static class MessageTranslations
     private const string IndustryFile = "industry-profiles.json";
     // A template with less fixed text than this would match almost any message, so it is never matched.
     private const int MinFixedLength = 4;
+    private const string ParagraphBreak = "\n\n";
     private static readonly Regex PlaceholderPattern = new(@"\{(\d+)\}", RegexOptions.Compiled);
     // A line of a multi-line argument: its bullet or number ("• ", "1. ") and the text after it.
     private static readonly Regex LinePrefix = new(@"^(\s*(?:[•\-\*]|\d+[.)])?\s*)(.*)$", RegexOptions.Singleline);
@@ -43,6 +44,10 @@ public static class MessageTranslations
         translated = text;
         if (!Texts.TryGetValue(language, out var texts) || !ShopWording.TryGetValue(language, out var shop)) return false;
 
+        // Several rendered templates sent as one message (the guide's steps) are translated paragraph by paragraph.
+        if (text.Contains(ParagraphBreak) && TryTranslateParagraphs(text, language, out translated)) return true;
+        translated = text;
+
         foreach (var matcher in Matchers)
         {
             var match = matcher.Pattern.Match(text);
@@ -50,9 +55,9 @@ public static class MessageTranslations
             if (!texts.TryGetValue(matcher.Key, out var template)) return false;
 
             var args = new string[matcher.ArgumentCount];
-            for (var i = 0; i < matcher.ArgumentSlots.Length; i++)
+            foreach (var slot in matcher.ArgumentSlots)
             {
-                args[matcher.ArgumentSlots[i]] = Localize(match.Groups[i + 1].Value, shop);
+                args[slot] = TranslateArgument(match.Groups[GroupName(slot)].Value, language, shop);
             }
 
             var complete = true;
@@ -67,8 +72,55 @@ public static class MessageTranslations
             translated = text;
             return false;
         }
+        // A message of lines, each a template of its own (the data check), is translated line by line; blank lines stay.
+        if (text.Contains('\n') && TryTranslateLines(text, language, out translated)) return true;
+        translated = text;
         return false;
     }
+
+    private static bool TryTranslateLines(string text, string language, out string translated)
+    {
+        translated = text;
+        var lines = text.Split('\n');
+        var result = new string[lines.Length];
+        for (var i = 0; i < lines.Length; i++)
+        {
+            if (string.IsNullOrWhiteSpace(lines[i])) { result[i] = lines[i]; continue; }
+            if (!TryTranslate(lines[i], language, out result[i])) return false;
+        }
+        translated = string.Join("\n", result);
+        return true;
+    }
+
+    /// <summary>
+    /// A paragraph-joined message translates only when every paragraph is a template of its own; otherwise the caller matches it as a whole.
+    /// </summary>
+    private static bool TryTranslateParagraphs(string text, string language, out string translated)
+    {
+        translated = text;
+        var parts = text.Split(ParagraphBreak);
+        var result = new string[parts.Length];
+        for (var i = 0; i < parts.Length; i++)
+        {
+            if (!TryTranslate(parts[i], language, out result[i])) return false;
+        }
+        translated = string.Join(ParagraphBreak, result);
+        return true;
+    }
+
+    /// <summary>
+    /// An argument that is itself a rendered template (a guide step inside a step header) is translated too. A comma list (the business summary:
+    /// city, "Kiryana business", handle) is translated part by part. Anything else is localised as before.
+    /// </summary>
+    private static string TranslateArgument(string value, string language, IReadOnlyDictionary<string, string> shop)
+    {
+        if (TryTranslate(value, language, out var translated)) return translated;
+        var localized = Localize(value, shop);
+        if (localized != value || !value.Contains(", ")) return localized;
+        return string.Join(", ", value.Split(", ").Select(part => TryTranslate(part, language, out var piece) ? piece : Localize(part, shop)));
+    }
+
+    private static string GroupName(int slot) => "arg" + slot.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>
     /// A shop title or tip passed as an argument is swapped for its translation, alone or one per line behind a bullet ("• tip").
@@ -170,7 +222,10 @@ public static class MessageTranslations
             .OrderByDescending(m => m.FixedLength)
             .ToArray();
 
-    /// <summary>The Roman template as a regex: the fixed text escaped, each placeholder a capture. Null when the template cannot be matched safely.</summary>
+    /// <summary>
+    /// The Roman template as a regex: the fixed text escaped, each placeholder a named capture. A placeholder used again (product.formats shows the
+    /// same product name twice) is a back-reference, so both uses must be the same text. Null when the template cannot be matched safely.
+    /// </summary>
     private static Matcher? BuildMatcher(string key, string template)
     {
         var pattern = new StringBuilder("\\A");
@@ -180,18 +235,21 @@ public static class MessageTranslations
         foreach (Match m in PlaceholderPattern.Matches(template))
         {
             var literal = template[last..m.Index];
-            pattern.Append(Regex.Escape(literal)).Append("(.*?)");
+            pattern.Append(Regex.Escape(literal));
             fixedLength += literal.Count(c => !char.IsWhiteSpace(c));
-            slots.Add(int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture));
+            var slot = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
+            pattern.Append(slots.Contains(slot) ? $"\\k<{GroupName(slot)}>" : $"(?<{GroupName(slot)}>.*?)");
+            slots.Add(slot);
             last = m.Index + m.Length;
         }
         var tail = template[last..];
         pattern.Append(Regex.Escape(tail)).Append("\\z");
         fixedLength += tail.Count(c => !char.IsWhiteSpace(c));
 
-        if (fixedLength < MinFixedLength || slots.Distinct().Count() != slots.Count) return null;
+        if (fixedLength < MinFixedLength) return null;
         var regex = new Regex(pattern.ToString(), RegexOptions.Singleline | RegexOptions.CultureInvariant);
-        return new Matcher(key, regex, fixedLength, slots.ToArray(), slots.Count == 0 ? 0 : slots.Max() + 1);
+        var distinct = slots.Distinct().ToArray();
+        return new Matcher(key, regex, fixedLength, distinct, distinct.Length == 0 ? 0 : distinct.Max() + 1);
     }
 
     private sealed record Matcher(string Key, Regex Pattern, int FixedLength, int[] ArgumentSlots, int ArgumentCount);

@@ -27,7 +27,7 @@ public class OnboardingSavedShopTypeTests : IDisposable
     public void Dispose() { }
 
     [Fact]
-    public async Task Saved_shop_type_moves_setup_on_instead_of_asking_again()
+    public async Task Saved_shop_type_still_shows_the_list_in_setup_so_the_seller_can_pick()
     {
         using var db = _dbFactory.CreateContext();
         db.Sellers.Add(new Seller
@@ -42,7 +42,8 @@ public class OnboardingSavedShopTypeTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Business Setup", default);
 
         var seller = await db.Sellers.Include(s => s.Session).SingleAsync();
-        Assert.Equal(ConversationState.OnboardingOptionalDetails, seller.Session!.State);
+        // The list is still open: a saved type no longer skips the kind-of-shop question during setup.
+        Assert.Equal(ConversationState.OnboardingIndustry, seller.Session!.State);
         Assert.Equal("Cosmetics / Jewellery", seller.BusinessType);
     }
 }

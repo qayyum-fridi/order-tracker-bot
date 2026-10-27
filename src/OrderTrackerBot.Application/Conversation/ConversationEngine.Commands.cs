@@ -28,16 +28,32 @@ public partial class ConversationEngine
     // Rows hidden from the menu lists. They stay in the code; remove an id here to show it again.
     private static readonly HashSet<string> HiddenMenuRowIds = new()
     {
-        "menu payments", "menu discounts", "menu shop", "walkin", "label", "new order (detailed)", "add product (detailed)", "scan cart",
-        "discount performance", "discount list", "add discount", "create loyalty", "loyal customers"
+        "menu shop", "walkin", "new order (detailed)", "add product (detailed)", "add customer (detailed)", "scan cart"
     };
+
+    // Rows hidden when their feature flag is off (Features:Discounts / Loyalty / Payments / Payouts / Drawer / Labels). Typed commands keep working; only the menu lists change.
+    private static readonly HashSet<string> DiscountMenuRowIds = new() { "menu discounts", "discount performance", "discount list", "add discount" };
+    private static readonly HashSet<string> LoyaltyMenuRowIds = new() { "create loyalty", "loyal customers" };
+    private static readonly HashSet<string> PaymentMenuRowIds = new() { "menu payments", "payment link", "add payment" };
+    private static readonly HashSet<string> PayoutMenuRowIds = new() { "payout pending" };
+    private static readonly HashSet<string> DrawerMenuRowIds = new() { "drawer" };
+    private static readonly HashSet<string> LabelMenuRowIds = new() { "label" };
 
     // Instagram rows, shown only when Features:Instagram is on (see FeatureOptions.Instagram).
     private static readonly HashSet<string> InstagramMenuRowIds = new() { "comment leads", "connect instagram" };
 
-    private static IReadOnlyList<MenuRow> VisibleRows(IEnumerable<MenuRow> rows) => rows.Where(r => !HiddenMenuRowIds.Contains(r.Id)).ToArray();
+    private bool MenuRowHidden(string id) =>
+        HiddenMenuRowIds.Contains(id)
+        || (!_features.Discounts && DiscountMenuRowIds.Contains(id))
+        || (!_features.Loyalty && LoyaltyMenuRowIds.Contains(id))
+        || (!_features.Payments && PaymentMenuRowIds.Contains(id))
+        || (!_features.Payouts && PayoutMenuRowIds.Contains(id))
+        || (!_features.Drawer && DrawerMenuRowIds.Contains(id))
+        || (!_features.Labels && LabelMenuRowIds.Contains(id));
 
-    private static IReadOnlyList<MenuSection> VisibleSections(IEnumerable<MenuSection> sections) =>
+    private IReadOnlyList<MenuRow> VisibleRows(IEnumerable<MenuRow> rows) => rows.Where(r => !MenuRowHidden(r.Id)).ToArray();
+
+    private IReadOnlyList<MenuSection> VisibleSections(IEnumerable<MenuSection> sections) =>
         sections.Select(s => new MenuSection(s.Title, VisibleRows(s.Rows))).ToArray();
 
     private static readonly IReadOnlyList<MenuSection> MainMenuSections = new[]
@@ -67,7 +83,7 @@ public partial class ConversationEngine
             {
                 new MenuRow("orders today", "Orders today"), new MenuRow("pending orders", "Pending orders"),
                 new MenuRow("unpaid orders", "Unpaid orders"), new MenuRow("cod pending", "COD pending"), new MenuRow("receipt", "Last order receipt (PDF)"), new MenuRow("edit order", "Last order edit"),
-                new MenuRow("new order (detailed)", "New order (form)"), new MenuRow("walkin", "Counter sale (walk-in)"), new MenuRow("label", "Shipping label"), BackToMenu
+                new MenuRow("new order", "New order"), new MenuRow("walkin", "Counter sale (walk-in)"), new MenuRow("label", "Shipping label"), BackToMenu
             }),
             ["reports"] = ("📊 Reports", "menu.reports", new[]
             {
@@ -128,11 +144,31 @@ public partial class ConversationEngine
             new[] { new MenuSection(title, VisibleRows(shown)) }, ct);
     }
 
+    /// <summary>MVP cut (see <c>FeatureOptions.MvpOnly</c>): commands of the features that are off for now. They answer one reply and do not run.</summary>
+    private bool IsOutOfMvp(CommandKind kind) => _features.MvpOnly && kind is
+        CommandKind.CreateDiscount or CommandKind.DiscountList or CommandKind.DiscountPerformance
+        or CommandKind.CreateLoyalty or CommandKind.LoyalCustomers
+        or CommandKind.PaymentLink or CommandKind.AddPaymentMethod
+        or CommandKind.Payout
+        or CommandKind.CashDrawer or CommandKind.CashMovement
+        or CommandKind.ShippingLabel or CommandKind.BusinessLabel or CommandKind.LabelSize
+        or CommandKind.ConnectInstagram or CommandKind.DisconnectInstagram or CommandKind.CommentLeads or CommandKind.LeadAction
+        or CommandKind.SupportQueries or CommandKind.ResolveSupportQuery or CommandKind.ReplySupportQuery or CommandKind.ForwardedQuery
+        or CommandKind.ImportHelp or CommandKind.ImportTemplate
+        or CommandKind.WalkInSale
+        or CommandKind.DetailedForm
+        or CommandKind.Scan or CommandKind.BarcodeSet;
+
     private async Task ExecuteCommandAsync(Seller seller, ConversationSession session, SessionContextData ctx, ParsedCommand cmd, CancellationToken ct)
     {
         if (IsBlockedByPlan(seller, cmd.Kind))
         {
             await SendProOnlyAsync(seller, ct);
+            return;
+        }
+        if (IsOutOfMvp(cmd.Kind))
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("mvp.001"), ct);
             return;
         }
 
@@ -384,7 +420,7 @@ public partial class ConversationEngine
                 await ReplyAsync(seller, MessageTemplates.Get("commands.003"), ct);
                 return;
             case CommandKind.Greeting:
-                await HandleGreetingAsync(seller, ct);
+                // A bare "hi" gets no reply: the stats greeting was sent unprompted. The kind stays so "hi" never reaches the AI path.
                 return;
             case CommandKind.Help:
                 await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, HelpTextFor(seller), "Commands dekhein", HelpSections, ct);
@@ -565,13 +601,6 @@ public partial class ConversationEngine
                 await ReplyAsync(seller, MessageTemplates.Get("commands.007"), ct);
                 return;
         }
-    }
-
-    private async Task HandleGreetingAsync(Seller seller, CancellationToken ct)
-    {
-        var pending = await _db.Orders.CountAsync(o => o.SellerId == seller.Id && o.Status == OrderStatus.Pending, ct);
-        var unpaid = await _db.Orders.CountAsync(o => o.SellerId == seller.Id && o.PaymentStatus == PaymentStatus.Unpaid && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned, ct);
-        await ReplyAsync(seller, Formatters.ReturningGreeting(seller.PreferredLanguage, seller.BusinessName, pending, unpaid), ct);
     }
 
     // "mark 1 shipped" / "payment link 1" mean position 1 of the last numbered list shown; with no list (or a number
@@ -791,7 +820,6 @@ public partial class ConversationEngine
     {
         new MenuSection("Order", new[]
         {
-            new MenuRow("new order (detailed)", "📝 Form se order"),
             new MenuRow("catalog", "🛍️ Catalog dekhein"),
             new MenuRow("orders today", "📦 Aaj ke orders"),
             BackToMenu
@@ -807,9 +835,7 @@ public partial class ConversationEngine
             "create discount: WELCOME50, Rs.50 flat\n\n" +
             "Ya seedha sirf code ka naam bhejein (e.g. EID10) — main value pooch loon ga. \"cancel\" likh kar ruk sakte hain.",
         "product" =>
-            "🛍️ Product shamil karne ke liye is tarah likhein (naam - price, cost, stock, category):\n\n" +
-            string.Join("\n", IndustryProfiles.Resolve(seller?.BusinessType).ProductLines) + "\n\n" +
-            "Cost, stock aur category zaroori nahi — jo chahein likhein. Aap ek saath kai products bhi bhej sakte hain (har line mein ek product).",
+            "🛍️ " + MessageTemplates.Get("product.formats", IndustryProfiles.Resolve(seller?.BusinessType).SimpleProduct),
         "payment" =>
             "💳 Payment method save karne ke liye likhein:\n\n" +
             "add payment: jazzcash, 0300-1234567\nadd payment: easypaisa, 0300-1234567",
@@ -826,7 +852,13 @@ public partial class ConversationEngine
     {
         var line = cmd.Product ?? new ProductLine(cmd.Text!, cmd.Amount!.Value, "piece", 1);
         _upsertBefore = null;
-        var (product, updated) = await UpsertProductAsync(seller, line, ct);
+        var (saved, updated, variants) = await UpsertProductAsync(seller, line, ct);
+        if (saved is null)
+        {
+            await ReplyVariantChoiceAsync(seller, line.Name, variants, ct);
+            return;
+        }
+        var product = saved;
         var label = Formatters.ProductLabel(product);
         var before = _upsertBefore;
         string? existingReply = null;
@@ -846,6 +878,9 @@ public partial class ConversationEngine
             : updated ? MessageTemplates.Get("commands.033", label, Formatters.Money(product.Price), ProductDetailsText(product))
             : showHowTo ? MessageTemplates.Get("commands.035", label, Formatters.Money(product.Price), ProductDetailsText(product), Industry(seller).FullProduct)
             : MessageTemplates.Get("commands.034", label, Formatters.Money(product.Price), ProductDetailsText(product)), ct);
+        // A new variant of a product the catalog already has: name its siblings, so the seller sees the listings were kept apart.
+        if (!updated && variants.Count > 0)
+            await ReplyAsync(seller, MessageTemplates.Get("variants.004", string.Join(", ", variants.Select(Formatters.ProductMatchLabel))), ct);
 
         if (!showHowTo) return;
         ctx!.ProductHowToShown = true;
@@ -894,22 +929,29 @@ public partial class ConversationEngine
         foreach (var p in products.Where(p => p.Price is not null))
         {
             // A price the AI read out of free text never silently overwrites a product that already exists: the seller changes prices on purpose.
-            var lowerName = p.Name.ToLower();
-            var current = await _db.Products.FirstOrDefaultAsync(x => x.SellerId == seller.Id && x.IsActive && x.UnitType == "piece" && x.UnitQty == 1 && x.Name.ToLower() == lowerName, ct);
-            if (current is not null && current.Price != p.Price!.Value)
+            pendingExtras.TryGetValue(p.Name, out var earlier);
+            var merged = MergeExtras(earlier, ExtrasOf(p));
+            var line = new ProductLine(p.Name, p.Price!.Value, "piece", 1, merged);
+            var sameName = await SameNameListingsAsync(seller, p.Name, "piece", 1, ct);
+            var (current, ambiguous) = ProductVariants.MatchListing(sameName, merged?.Size, merged?.Color);
+            if (ambiguous)
             {
-                priceKept.Add($"⚠️ {Formatters.ProductLabel(current)} pehle se {Formatters.Money(current.Price)} par hai — price nahi badli.\nBadalni ho to likhein: edit product: {current.Name} - {p.Price.Value:0.##}");
+                priceKept.Add(MessageTemplates.Get("variants.001", p.Name, string.Join(", ", sameName.Select(Formatters.ProductMatchLabel)), Formatters.ProductMatchLabel(sameName[0])));
                 continue;
             }
-            pendingExtras.TryGetValue(p.Name, out var earlier);
-            var line = new ProductLine(p.Name, p.Price!.Value, "piece", 1, MergeExtras(earlier, ExtrasOf(p)));
+            if (current is not null && current.Price != p.Price!.Value)
+            {
+                priceKept.Add($"⚠️ {Formatters.ProductLabel(current)} pehle se {Formatters.Money(current.Price)} par hai — price nahi badli.\nBadalni ho to likhein: edit product: {Formatters.ProductMatchLabel(current)} - {p.Price.Value:0.##}");
+                continue;
+            }
             pendingExtras.Remove(p.Name);
             if (_features.ProductConfirmation)
             {
                 toConfirm.Add(line);
                 continue;
             }
-            var (product, _) = await UpsertProductAsync(seller, line, ct);
+            var (product, _, _) = await UpsertProductAsync(seller, line, ct);
+            if (product is null) continue;
             saved.Add($"• {Formatters.ProductLabel(product)} - {Formatters.Money(product.Price)}{ProductDetailsText(product)}");
         }
 
@@ -1006,13 +1048,16 @@ public partial class ConversationEngine
     private async Task HandleAddProductsBulkAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
     {
         var results = new List<string>();
+        var skipped = new List<string>();
         foreach (var line in cmd.Text!.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             if (!CommandParser.TryParseProductLine(line, out ProductLine? parsed)) continue;
-            var (product, updated) = await UpsertProductAsync(seller, parsed!, ct);
+            var (product, updated, variants) = await UpsertProductAsync(seller, parsed!, ct);
+            if (product is null) { skipped.Add(MessageTemplates.Get("variants.005", parsed!.Name, Formatters.ProductMatchLabel(variants[0]))); continue; }
             results.Add($"{results.Count + 1} {Formatters.ProductLabel(product)} - {Formatters.Money(product.Price)}{ProductDetailsText(product)}{(updated ? " (updated)" : "")}");
         }
         await ReplyAsync(seller, MessageTemplates.Get("commands.018", results.Count, string.Join("\n", results)), ct);
+        if (skipped.Count > 0) await ReplyAsync(seller, string.Join("\n", skipped), ct);
     }
 
     private async Task HandleImportCatalogSheetAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
@@ -1026,10 +1071,12 @@ public partial class ConversationEngine
         }
 
         var results = new List<string>();
+        var skipped = new List<string>();
         foreach (var line in lines)
         {
             if (!CommandParser.TryParseProductLine(line, out ProductLine? parsed)) continue;
-            var (product, updated) = await UpsertProductAsync(seller, parsed!, ct);
+            var (product, updated, variants) = await UpsertProductAsync(seller, parsed!, ct);
+            if (product is null) { skipped.Add(MessageTemplates.Get("variants.005", parsed!.Name, Formatters.ProductMatchLabel(variants[0]))); continue; }
             results.Add($"{results.Count + 1} {Formatters.ProductLabel(product)} - {Formatters.Money(product.Price)}{ProductDetailsText(product)}{(updated ? " (updated)" : "")}");
         }
 
@@ -1041,14 +1088,16 @@ public partial class ConversationEngine
         }
 
         await ReplyAsync(seller, MessageTemplates.Get("commands.021", results.Count, string.Join("\n", results)), ct);
+        if (skipped.Count > 0) await ReplyAsync(seller, string.Join("\n", skipped), ct);
     }
 
-    // The same name with a different pack size ("Sugar 5kg" vs "Sugar 10kg") is a separate listing.
-    private async Task<(Product Product, bool Updated)> UpsertProductAsync(Seller seller, ProductLine line, CancellationToken ct)
+    // The same name with a different pack size ("Sugar 5kg" vs "Sugar 10kg") is a separate listing, and so is the same name in another size or colour.
+    // Variants is the listings the line's name shares (same pack). Product is null when the line names no variant and several exist: nothing is written.
+    private async Task<(Product? Product, bool Updated, List<Product> Variants)> UpsertProductAsync(Seller seller, ProductLine line, CancellationToken ct)
     {
-        var lower = line.Name.ToLower();
-        var existing = (await _db.Products.Where(p => p.SellerId == seller.Id && p.Name.ToLower() == lower).ToListAsync(ct))
-            .FirstOrDefault(p => p.UnitType == line.UnitType && p.UnitQty == line.UnitQty);
+        var variants = await SameNameListingsAsync(seller, line.Name, line.UnitType, line.UnitQty, ct);
+        var (existing, ambiguous) = ProductVariants.MatchListing(variants, line.Extras?.Size, line.Extras?.Color);
+        if (ambiguous) return (null, false, variants);
         if (existing is not null)
         {
             _upsertBefore = (existing.Price, existing.IsActive);
@@ -1056,7 +1105,7 @@ public partial class ConversationEngine
             existing.IsActive = true;
             ApplyProductExtras(existing, line.Extras);
             SuggestNext("catalog", "menu");
-            return (existing, true);
+            return (existing, true, variants);
         }
 
         var product = new Product { SellerId = seller.Id, Name = line.Name, Price = line.Price, UnitType = line.UnitType, UnitQty = line.UnitQty };
@@ -1064,8 +1113,20 @@ public partial class ConversationEngine
         _db.Products.Add(product);
         await _db.SaveChangesAsync(ct);
         SuggestNext("catalog", "menu");
-        return (product, false);
+        return (product, false, variants);
     }
+
+    private async Task<List<Product>> SameNameListingsAsync(Seller seller, string name, string unitType, decimal unitQty, CancellationToken ct)
+    {
+        var lower = name.ToLower();
+        return (await _db.Products.Where(p => p.SellerId == seller.Id && p.Name.ToLower() == lower).ToListAsync(ct))
+            .Where(p => p.UnitType == unitType && p.UnitQty == unitQty).ToList();
+    }
+
+    /// <summary>Asked when a name has several variants and the line says which one it means by neither colour nor size.</summary>
+    private Task ReplyVariantChoiceAsync(Seller seller, string name, List<Product> variants, CancellationToken ct) =>
+        ReplyAsync(seller, MessageTemplates.Get("variants.001", name, string.Join(", ", variants.Select(Formatters.ProductMatchLabel)),
+            Formatters.ProductMatchLabel(variants[0])), ct);
 
     /// <summary>Cost, stock and attributes the seller wrote after the price; only what was written is changed.</summary>
     private static void ApplyProductExtras(Product product, ProductExtras? extras)
@@ -1118,7 +1179,8 @@ public partial class ConversationEngine
 
     private async Task HandleDeleteProductAsync(Seller seller, string name, CancellationToken ct)
     {
-        var product = await FindProductAsync(seller, name, ct);
+        var (product, variants) = await FindProductMatchAsync(seller, name, ct);
+        if (product is null && variants.Count > 1) { await ReplyVariantChoiceAsync(seller, name, variants, ct); return; }
         if (product is null)
         {
             await ReplyAsync(seller, MessageTemplates.Get("commands.022", name), ct);
@@ -1129,15 +1191,23 @@ public partial class ConversationEngine
         await ReplyAsync(seller, MessageTemplates.Get("commands.023", Formatters.ProductLabel(product)), ct);
     }
 
-    private async Task<Product?> FindProductAsync(Seller seller, string name, CancellationToken ct)
+    /// <summary>
+    /// The product a command's name means. A name shared by several variants (and naming none) gives no product and the variants to choose from:
+    /// a price or stock change must never land on the first one by accident.
+    /// </summary>
+    private async Task<(Product? Product, List<Product> Variants)> FindProductMatchAsync(Seller seller, string name, CancellationToken ct)
     {
         var products = await _db.Products.Where(p => p.SellerId == seller.Id && p.IsActive).ToListAsync(ct);
         var wanted = name.Trim().ToLower();
+        var variants = ProductVariants.VariantsOf(products, name);
+        if (variants.Count > 1) return (null, variants);
         // A design code or SKU ("1203", "KRT-001") names its product only when exactly one product has it.
         var coded = products.Where(p => HasProductCode(p, wanted)).ToList();
-        return products.FirstOrDefault(p => Formatters.ProductLabel(p).ToLower() == wanted)
+        var product = products.FirstOrDefault(p => Formatters.ProductLabel(p).ToLower() == wanted)
                ?? products.FirstOrDefault(p => p.Name.ToLower() == wanted)
+               ?? ProductVariants.Find(products, name)
                ?? (coded.Count == 1 ? coded[0] : null);
+        return (product, new List<Product>());
     }
 
     private static readonly System.Text.RegularExpressions.Regex TierSpec =
@@ -1156,7 +1226,8 @@ public partial class ConversationEngine
         }
 
         var unit = tiers.Select(t => t.Unit).FirstOrDefault(u => u is not null) ?? "piece";
-        var product = await FindProductAsync(seller, cmd.Text!, ct);
+        var (product, variants) = await FindProductMatchAsync(seller, cmd.Text!, ct);
+        if (product is null && variants.Count > 1) { await ReplyVariantChoiceAsync(seller, cmd.Text!, variants, ct); return; }
         if (product is null)
         {
             product = new Product { SellerId = seller.Id, Name = cmd.Text!, Price = tiers[0].Price, UnitType = unit, UnitQty = 1 };
@@ -1182,7 +1253,8 @@ public partial class ConversationEngine
 
     private async Task HandleEditProductAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
     {
-        var product = await FindProductAsync(seller, cmd.Text!, ct);
+        var (product, variants) = await FindProductMatchAsync(seller, cmd.Text!, ct);
+        if (product is null && variants.Count > 1) { await ReplyVariantChoiceAsync(seller, cmd.Text!, variants, ct); return; }
         if (product is null)
         {
             await ReplyAsync(seller, MessageTemplates.Get("commands.026", cmd.Text), ct);

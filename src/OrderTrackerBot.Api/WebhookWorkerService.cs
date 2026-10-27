@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Conversation;
@@ -100,6 +101,19 @@ public sealed class WebhookWorkerService : BackgroundService
         if (left > 0) _logger.LogWarning("Webhook lane {Lane} stopped with {Count} message(s) still queued; they are recovered at the next start", lane, left);
     }
 
+    // A sender who sends several messages while one is still being handled gets the waiting notice once, not once per message.
+    private static readonly TimeSpan WaitingNoticeEvery = TimeSpan.FromSeconds(30);
+    private readonly ConcurrentDictionary<string, DateTime> _lastWaitingNotice = new();
+
+    private bool ShouldSayWaiting(string sender)
+    {
+        var now = DateTime.UtcNow;
+        var last = _lastWaitingNotice.GetOrAdd(sender, DateTime.MinValue);
+        if (now - last < WaitingNoticeEvery) return false;
+        _lastWaitingNotice[sender] = now;
+        return true;
+    }
+
     private async Task ProcessAsync(WebhookWork work)
     {
         // Not tied to the app-stopping token: the message in hand is finished (bounded by its own timeout) before the lane stops.
@@ -111,6 +125,8 @@ public sealed class WebhookWorkerService : BackgroundService
         try
         {
             var gate = scope.ServiceProvider.GetRequiredService<WebhookMessageGate>();
+            if (gate.IsBusy(work.From) && ShouldSayWaiting(work.From))
+                await engine.SendWaitingNoticeAsync(work.From, CancellationToken.None);
             await gate.RunOnceAsync(work.From, work.MessageId, () => work.Handle(engine, ct), ct);
             if (clock.ElapsedMilliseconds > 3000)
                 _logger.LogWarning("Slow WhatsApp message from {From}: handled in {Ms} ms", work.From, clock.ElapsedMilliseconds);

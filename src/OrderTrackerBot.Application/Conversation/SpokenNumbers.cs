@@ -322,7 +322,9 @@ public static class SpokenNumbers
     // Everyday words that can sit right before "sau/hazar/lakh" without being a number: "mere paas hazar rupay", "ke hazar".
     private static readonly HashSet<string> NotAmountWords = new(StringComparer.OrdinalIgnoreCase)
     {
-        "ke", "ki", "ka", "ko", "se", "mein", "me", "par", "pe", "paas", "wale", "wali", "wala", "sath", "saath", "aur", "ya", "bhi", "tak", "kuch"
+        "ke", "ki", "ka", "ko", "se", "mein", "me", "par", "pe", "paas", "wale", "wali", "wala", "sath", "saath", "aur", "ya", "bhi", "tak", "kuch",
+        // Price and count words said before "sau" / "hazar": "jis ki qeemat sau rupay hai" is 100, not an unknown number word.
+        "qeemat", "qimat", "qemat", "قیمت", "price", "rate", "stock", "cost", "rupay", "rupees", "rs", "hai", "hain", "hay", "ہے", "ہیں", "taqreeban", "taqriban", "تقریباً", "kor", "کور", "kareeb", "قریب",
     };
 
     /// <summary>
@@ -405,13 +407,41 @@ public static class SpokenNumbers
         return negated;
     }
 
+    // Words a seller adds around a spoken pick ("tisre NUMBER wala MERE hai"); none of them changes the number.
+    private static readonly HashSet<string> ChoiceFiller = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "number", "nambar", "numbar", "wala", "wali", "wale", "mere", "meri", "mera", "hai", "hain", "chahiye", "option", "ye", "yeh", "ka", "ki", "ke",
+        "نمبر", "والا", "والی", "والے", "میرے", "میری", "میرا", "ہے", "ہیں", "چاہیے", "یہ",
+    };
+
+    /// <summary>
+    /// The pick from a numbered list the bot showed: "tisre number wala mere hai" = 3, "teen" = 3, "3" = 3, "pehla wala" = 1. Null unless the words are
+    /// one pick (1-9) plus filler, so a sentence that names an amount, an order or a product is never read as a choice.
+    /// </summary>
+    public static int? ChoiceNumber(string text)
+    {
+        int? pick = null;
+        foreach (var token in Tokens(text))
+        {
+            if (ChoiceFiller.Contains(token)) continue;
+            int? value =
+                Ordinals.TryGetValue(token, out var ordinal) ? ordinal
+                : int.TryParse(token, NumberStyles.None, CultureInfo.InvariantCulture, out var digit) ? digit
+                : Words.TryGetValue(token, out var word) && word == decimal.Truncate(word) ? (int)word
+                : null;
+            if (value is null || pick is not null) return null;
+            pick = value;
+        }
+        return pick is >= 1 and <= 9 ? pick : null;
+    }
+
     // "pehla wala" = 1, "doosra" = 2: a choice from a list the bot showed.
     private static readonly Dictionary<string, int> Ordinals = new(StringComparer.OrdinalIgnoreCase)
     {
         ["pehla"] = 1, ["pehli"] = 1, ["پہلا"] = 1, ["پہلی"] = 1,
-        ["dusra"] = 2, ["doosra"] = 2, ["dosra"] = 2, ["dusri"] = 2, ["doosri"] = 2, ["دوسرا"] = 2, ["دوسری"] = 2,
-        ["teesra"] = 3, ["teesri"] = 3, ["تیسرا"] = 3,
-        ["chautha"] = 4, ["chauthi"] = 4, ["چوتھا"] = 4,
+        ["dusra"] = 2, ["doosra"] = 2, ["dosra"] = 2, ["dusri"] = 2, ["doosri"] = 2, ["dusre"] = 2, ["doosre"] = 2, ["دوسرا"] = 2, ["دوسری"] = 2, ["دوسرے"] = 2,
+        ["teesra"] = 3, ["teesri"] = 3, ["teesre"] = 3, ["tisra"] = 3, ["tisri"] = 3, ["tisre"] = 3, ["تیسرا"] = 3, ["تیسری"] = 3, ["تیسرے"] = 3,
+        ["chautha"] = 4, ["chauthi"] = 4, ["chauthe"] = 4, ["چوتھا"] = 4, ["چوتھی"] = 4, ["چوتھے"] = 4,
     };
 
     // Small counts (0-99, as words, digits or ordinals) that are not part of a spoken amount: "teen piece" is 3, "teen hazaar" is not a count.

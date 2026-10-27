@@ -75,7 +75,7 @@ public class UnitSuggestionTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = CreateEngine(db);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "10 ke qareeb", "done" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "done" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
         var seller = await db.Sellers.FirstAsync();
         seller.BusinessType = "Clothing";

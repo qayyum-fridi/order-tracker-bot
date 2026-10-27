@@ -14,11 +14,15 @@
   "order-edit.013": "↩️ Reverted — Order #{0} ki tabdeeliyan wapas.\n{1}",
   "order-edit.014": "Abhi koi order nahi hai.",
   "order-edit.015": "• \"price {0} = {1}\" — {2} ka rate",
-  "order-edit.016": "Item {0} nahi hai — 1 se {1} tak number likhein.",
+  "order-edit.016": "⚠️ Item {0} nahi hai — 1 se {1} tak number likhein.",
   "order-edit.017": "Kya badalna hai? (aik waqt mein aik baat)\n• \"1 = 3\" — item 1 ki tadaad 3\n• \"price 1 = 1500\" — item 1 ka rate\n• \"remove 2\" — item 2 hatao\n• \"add Kurti 2\" — naya item\n• \"phone 0300…\" / \"address …\" / \"name …\"\n• \"delivery 250\" / \"free delivery\"\n• \"payment cod\" / \"payment jazzcash\"\nMukammal ho to \"done\". Ghalti ho jaye to baad mein \"undo\".",
   "order-edit.018": "\n⚠️ Payment PAID thi ({0}) — farq ka hisaab khud rakhein.",
   "order-edit.019": "Edit jaari hai — aur badlaav likhein (jaise \"1 = 3\"), ya \"done\" likh kar save karein.",
   "order-edit.020": "• \"delivery {0}\" — delivery charge",
   "order-edit.021": "⚠️ {0} ke {2} aur orders bhi hain. {1} badlne se un sab orders ke customer record mein bhi yehi badal jayega.\nJaari rakhne ke liye \"haan\" likhein, ya \"nahi\" likh kar kuch na badlein.",
+  "order-edit.030": "⚠️ Tadaad kam az kam 1 honi chahiye — hatana ho to \"remove {0}\".",
+  "order-edit.031": "⚠️ {0} piece bohat zyada lag raha hai, kuch nahi badla. Rate badalna ho to likhein: \"price {1} = {0}\".",
+  "order-edit.032": "⚠️ Yeh aakhri item hai — poora order hatana ho to \"cancel order {0}\".",
+  "order-edit.033": "⚠️ \"{0}\" catalog mein nahi mila. Pehle add karein: \"{0} - price\"",
   "order-edit.022": "Theek hai, customer ka record nahi badla. Edit jaari hai — aur badlaav likhein, ya \"done\" likh kar save karein."
 }

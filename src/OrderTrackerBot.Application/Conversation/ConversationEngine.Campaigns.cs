@@ -93,7 +93,7 @@ public partial class ConversationEngine
         {
             if (channel is "whatsapp" or "both")
             {
-                var ok = await _sender.SendTemplateMessageAsync(ToWhatsAppNumber(customer.Phone!), new[] { $"{seller.BusinessName}: {text}" }, ct);
+                var ok = await _sender.SendTemplateMessageAsync(ToWhatsAppNumber(customer.Phone!), new[] { $"{seller.BusinessName}: {text}" }, cancellationToken: ct);
                 if (ok) waSent++; else waFailed++;
                 campaign.Sends.Add(new CampaignSend { CustomerId = customer.Id, CustomerPhone = customer.Phone!, Channel = "whatsapp", Status = ok ? "sent" : "failed" });
             }

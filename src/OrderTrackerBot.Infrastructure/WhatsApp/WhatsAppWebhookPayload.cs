@@ -195,4 +195,11 @@ public static class WhatsAppSignatureValidator
 
         return CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(computedHex), Encoding.UTF8.GetBytes(expectedHex));
     }
+
+    /// <summary>
+    /// Whether a webhook POST may be handled. The unsigned local dev loop (no AppSecret) is allowed only in Development;
+    /// anywhere else a missing secret refuses every call instead of accepting unsigned posts.
+    /// </summary>
+    public static bool IsAllowed(string appSecret, bool isDevelopment, byte[] requestBody, string? signatureHeader) =>
+        string.IsNullOrEmpty(appSecret) ? isDevelopment : IsValid(appSecret, requestBody, signatureHeader);
 }

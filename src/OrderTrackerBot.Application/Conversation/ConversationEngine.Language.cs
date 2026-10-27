@@ -12,7 +12,10 @@ public partial class ConversationEngine
 {
     // "Language badlein" was the third button; the seller has just picked a language, so that slot now offers moving data over (typing "change language" still works).
     private static readonly string[] StartChoiceButtons = { "Setup shuru karein", "Pehle guide dekhein", "📥 Purana data" };
+    private string[] StartChoiceButtonsFor() => _features.OldDataImport ? StartChoiceButtons : StartChoiceButtons[..2];
     private static readonly string[] BusinessNameButtons = { "📖 Guide dekhein", "🌐 Language badlein", "Baad mein karunga" };
+    // The guide was just sent above the question, so its button is left out.
+    private static readonly string[] BusinessNameButtonsAfterGuide = { "🌐 Language badlein", "Baad mein karunga" };
     private static readonly string[] AfterLanguageButtons = { "📋 Menu", "📦 New Order", "📖 Guide" };
     private static readonly string[] BusinessSetupButtons = { "Business Info", "Payment Method", "Language" };
 
@@ -26,11 +29,11 @@ public partial class ConversationEngine
         _ => MessageTemplates.Get("language.chosen.roman")
     };
 
-    private Task AskBusinessNameAsync(Seller seller, ConversationSession session, CancellationToken ct)
+    private Task AskBusinessNameAsync(Seller seller, ConversationSession session, CancellationToken ct, bool guideShown = false)
     {
         SetState(session, ConversationState.OnboardingBusinessName);
         return _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
-            MessageTemplates.Get("business.name.ask"), BusinessNameButtons, ct);
+            MessageTemplates.Get("business.name.ask"), guideShown ? BusinessNameButtonsAfterGuide : BusinessNameButtons, ct);
     }
 
     private Task AskLanguageAsync(Seller seller, CancellationToken ct) =>
@@ -41,7 +44,7 @@ public partial class ConversationEngine
     {
         seller.PreferredLanguage = Lang.Resolve(message);
         SetState(session, ConversationState.OnboardingStartChoice);
-        await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, LanguageChosenText(seller.PreferredLanguage, true), StartChoiceButtons, ct);
+        await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, LanguageChosenText(seller.PreferredLanguage, true), StartChoiceButtonsFor(), ct);
     }
 
     private async Task HandleOnboardingStartChoiceAsync(Seller seller, ConversationSession session, string message, CancellationToken ct)
@@ -69,7 +72,7 @@ public partial class ConversationEngine
         if (choice.Contains("guide"))
             await ReplyAsync(seller, string.Join("\n\n", GuideStepsFor(seller)), ct);
 
-        await AskBusinessNameAsync(seller, session, ct);
+        await AskBusinessNameAsync(seller, session, ct, guideShown: choice.Contains("guide"));
     }
 
     /// <summary>The three buttons under "Business ka naam bataiye?" must not be saved as the business name.</summary>
@@ -80,7 +83,7 @@ public partial class ConversationEngine
         if (choice is "guide dekhein" or "guide" or "pehle guide dekhein")
         {
             await ReplyAsync(seller, string.Join("\n\n", GuideStepsFor(seller)), ct);
-            await AskBusinessNameAsync(seller, session, ct);
+            await AskBusinessNameAsync(seller, session, ct, guideShown: true);
             return true;
         }
 

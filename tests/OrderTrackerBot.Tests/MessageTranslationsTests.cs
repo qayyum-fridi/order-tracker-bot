@@ -68,6 +68,65 @@ public class MessageTranslationsTests
     }
 
     [Fact]
+    public void TryTranslate_TranslatesEveryStepOfTheGuide_WhenSentAsOneMessage()
+    {
+        var steps = new[]
+        {
+            MessageTemplates.Get("guide.006", MessageTemplates.Get("guide.004", "Hamza, 1 fast charger 20w, 03001234567, Saddar Rawalpindi")),
+            MessageTemplates.Get("guide.007"),
+            MessageTemplates.Get("guide.008"),
+            MessageTemplates.Get("guide.009")
+        };
+        var roman = string.Join("\n\n", steps);
+
+        Assert.True(MessageTranslations.TryTranslate(roman, Lang.UrduScript, out var urdu));
+        Assert.Contains("مرحلہ 1/4", urdu);
+        Assert.Contains("مرحلہ 2/4", urdu);
+        Assert.Contains("مرحلہ 4/4", urdu);
+        Assert.Contains("گاہک کا پیغام", urdu);
+        Assert.Contains("03001234567", urdu);
+        Assert.DoesNotContain("Customer ka message", urdu);
+        Assert.DoesNotContain("Orders Dekhna", urdu);
+
+        Assert.True(MessageTranslations.TryTranslate(roman, Lang.English, out var english));
+        Assert.Contains("Step 2/4 — Seeing Orders", english);
+        Assert.DoesNotContain("Orders Dekhna", english);
+    }
+
+    [Fact]
+    public void TryTranslate_TranslatesTheProductStep_WithItsRepeatedPlaceholderAndBusinessSummary()
+    {
+        var summary = string.Join(", ", "Sargodha", MessageTemplates.Get("onboarding.business", "Food / Bakery"), "@qayyumfareedi");
+        var roman = MessageTemplates.Get("onboarding.010", summary,
+            MessageTemplates.Get("onboarding.021", MessageTemplates.Get("product.formats", "Brownies Box - 1200")));
+
+        Assert.True(MessageTranslations.TryTranslate(roman, Lang.UrduScript, out var urdu));
+        Assert.Contains("کھانا / بیکری کاروبار", urdu);
+        Assert.Contains("@qayyumfareedi", urdu);
+        Assert.Contains("Brownies Box - 1200, cost 2000, stock 10", urdu);
+        Assert.DoesNotContain("Product add karne ka tareeqa", urdu);
+        Assert.DoesNotContain("Theek hai, ab products", urdu);
+        Assert.DoesNotContain("Sab products ho jayein", urdu);
+    }
+
+    [Fact]
+    public void TryTranslate_TranslatesTheDataCheckLineByLine()
+    {
+        var roman = MessageTemplates.Get("setup-check.005", 1, 2, 0)
+            + "\n\n" + MessageTemplates.Get("setup-check.007", 2, 5, "Lawn Suit - 3500, cost 2400")
+            + "\n" + MessageTemplates.Get("setup-check.013")
+            + "\n\n" + MessageTemplates.Get("setup-check.003")
+            + "\n" + MessageTemplates.Get("setup-check.018", 1, "Kurti");
+
+        Assert.True(MessageTranslations.TryTranslate(roman, Lang.UrduScript, out var urdu));
+        Assert.Contains("قیمتِ خرید نہیں: 2/5", urdu);
+        Assert.Contains("پرانے آرڈرز", urdu);
+        Assert.Contains("غلط / شک والی اندراجات", urdu);
+        Assert.DoesNotContain("Cost price", urdu);
+        Assert.DoesNotContain("Price 0", urdu);
+    }
+
+    [Fact]
     public void TryTranslate_TextNoTemplateMatches_IsLeftForTheAi()
     {
         const string text = "Kuch bhi likha hua, koi template nahi.";

@@ -35,7 +35,7 @@ public class SellerIsolationTests : IDisposable
 
     private async Task OnboardAsync(string phone, string shop, string product)
     {
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", shop, "skip", "10 ke qareeb", product, "done" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", shop, "skip", product, "done" })
             await _engine.HandleIncomingMessageAsync(phone, step, default);
     }
 

@@ -248,17 +248,28 @@ public partial class ConversationEngine
         foreach (var item in draft.Items)
         {
             var quantity = item.Quantity <= 0 ? 1 : item.Quantity;
+            var stated = !fromScreenshot ? item.StatedUnitPrice : null;
+            // "Polo Shirt" written while the catalog has it in white and black: the seller picks one (VariantChoice); the matcher never guesses.
+            if (AmbiguousVariants(catalog, item.ProductName) is { Count: > 1 } variants)
+            {
+                pending.Items.Add(new PendingOrderItemData
+                {
+                    ProductName = item.ProductName, Quantity = quantity, UnitPrice = -1m,
+                    VariantProductIds = variants.Select(v => v.Product.Id).ToList(), WrittenPrice = stated
+                });
+                continue;
+            }
             var entry = FindCatalogEntry(catalog, item.MatchedCatalogProductName ?? item.ProductName);
-            var line = new PendingOrderItemData { ProductName = entry?.Product.Name ?? item.ProductName, Quantity = quantity, UnitPrice = -1m };
+            var line = new PendingOrderItemData { ProductName = item.ProductName, Quantity = quantity, UnitPrice = -1m };
             if (entry is not null)
             {
                 ApplyCatalogEntry(line, entry);
                 // Only a plain per-piece listing is compared: a stated price for a kg / pack listing may mean the pack, the kg or the total.
-                if (item.StatedUnitPrice is { } stated && !fromScreenshot && line.UnitType == "piece" && line.UnitQty == 1)
+                if (stated is { } price && line.UnitType == "piece" && line.UnitQty == 1)
                 {
                     // ApplyBuyerPriceGroupAsync compares it again with the buyer's price once the buyer is known.
-                    line.WrittenPrice = stated;
-                    if (Math.Abs(stated - line.UnitPrice) >= 0.01m) line.StatedPrice = stated;
+                    line.WrittenPrice = price;
+                    if (Math.Abs(price - line.UnitPrice) >= 0.01m) line.StatedPrice = price;
                 }
             }
             pending.Items.Add(line);
@@ -274,11 +285,24 @@ public partial class ConversationEngine
         var byName = catalog.FirstOrDefault(c => string.Equals(c.Label, wanted, StringComparison.OrdinalIgnoreCase))
                ?? catalog.FirstOrDefault(c => string.Equals(c.Product.Name, wanted, StringComparison.OrdinalIgnoreCase));
         if (byName is not null) return byName;
+        // "Polo Shirt white" names the one variant that has that colour or size.
+        if (catalog.Where(c => ProductVariants.NamesVariant(c.Product, wanted)).ToList() is [var named]) return named;
         // A design code or SKU typed in the order ("1203 x2", "KRT-001") names its product when exactly one product has it.
         var lower = wanted.ToLowerInvariant();
         var coded = catalog.Where(c => HasProductCode(c.Product, lower)).ToList();
         return coded.Count == 1 ? coded[0] : null;
     }
+
+    /// <summary>The variants a typed product name could mean (see <see cref="ProductVariants.VariantsOf"/>), as catalog entries.</summary>
+    private static List<CatalogEntry> AmbiguousVariants(List<CatalogEntry> catalog, string written)
+    {
+        var variants = ProductVariants.VariantsOf(catalog.Select(c => c.Product), written);
+        return catalog.Where(c => variants.Any(v => v.Id == c.Product.Id)).ToList();
+    }
+
+    /// <summary>The variant choices of a draft line, in catalog order, so the numbers the seller sees are the numbers answered.</summary>
+    private static List<CatalogEntry> VariantChoicesOf(List<CatalogEntry> catalog, PendingOrderItemData line) =>
+        catalog.Where(c => line.VariantProductIds?.Contains(c.Product.Id) == true).ToList();
 
     /// <summary>
     /// Sets each catalog line's price from the buyer's price group (Product.PriceA/B/C) once the buyer is known. A wholesale tier, a line the seller
@@ -308,7 +332,8 @@ public partial class ConversationEngine
     private static void ApplyCatalogEntry(PendingOrderItemData line, CatalogEntry entry)
     {
         line.ProductId = entry.Product.Id;
-        line.ProductName = entry.Product.Name;
+        line.ProductName = ProductVariants.SnapshotName(entry.Product);
+        line.VariantProductIds = null;
         line.UnitType = entry.Product.UnitType;
         line.UnitQty = entry.Product.UnitQty;
         var tier = entry.Tiers.Where(t => t.MinQty <= line.Quantity).MaxBy(t => t.MinQty) ?? entry.Tiers.FirstOrDefault();
@@ -326,6 +351,23 @@ public partial class ConversationEngine
     {
         var pending = ctx.PendingOrder!;
         await ApplyBuyerPriceGroupAsync(seller, pending, ct);
+
+        if (pending.Items.FirstOrDefault(i => i.VariantProductIds is { Count: > 0 }) is { } shared)
+        {
+            var choices = VariantChoicesOf(await LoadCatalogAsync(seller, ct), shared);
+            if (choices.Count == 0)
+            {
+                // The listings were removed meanwhile: nothing to choose, the line falls through to the product question.
+                shared.VariantProductIds = null;
+                await ContinueResolvingDraftAsync(seller, session, ctx, ct);
+                return;
+            }
+            ctx.PendingMissingField = "VariantChoice";
+            SetState(session, ConversationState.AwaitingOrderMissingFields);
+            await SendChoicesAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("variants.002", shared.ProductName),
+                choices.Select((c, i) => new ChoiceOption(c.Label, (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture))).ToList(), ct);
+            return;
+        }
 
         var unresolved = pending.Items.FirstOrDefault(i => i.UnitPrice < 0);
         if (unresolved is not null)
@@ -856,7 +898,7 @@ public partial class ConversationEngine
 
         // A real command (e.g. "Dupatta - 600, cost 300") sent while the draft waits on "which product?" is not an answer: drop the draft and run it,
         // instead of searching the catalog for the command text over and over.
-        if (ctx.PendingMissingField is "ProductChoice" or "MappedProductName" or "NewProductPrice"
+        if (ctx.PendingMissingField is "ProductChoice" or "MappedProductName" or "NewProductPrice" or "VariantChoice"
             && !IsProductStepAnswer(message)
             && CommandParser.TryParse(message) is { } leave
             && (ctx.PendingMissingField != "MappedProductName" || FindCatalogEntry(await LoadCatalogAsync(seller, ct), message.Trim()) is null))
@@ -1049,6 +1091,30 @@ public partial class ConversationEngine
                     pending.TextDeliveryCharge = null; // no longer the written charge: a later change is not a correction of it
                 }
                 await RecordDeliveryDecisionAsync(seller, keptWritten: answer == "1", ct);
+                ctx.PendingMissingField = null;
+                await ContinueResolvingDraftAsync(seller, session, ctx, ct);
+                return;
+            }
+
+            case "VariantChoice":
+            {
+                var answer = message.Trim().TrimEnd('.');
+                var shared = pending.Items.FirstOrDefault(i => i.VariantProductIds is { Count: > 0 });
+                if (shared is null) { ctx.PendingMissingField = null; await ContinueResolvingDraftAsync(seller, session, ctx, ct); return; }
+                var choices = VariantChoicesOf(await LoadCatalogAsync(seller, ct), shared);
+                var chosen = int.TryParse(answer, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var number)
+                    && number >= 1 && number <= choices.Count ? choices[number - 1]
+                    : choices.FirstOrDefault(c => string.Equals(c.Label, answer, StringComparison.OrdinalIgnoreCase));
+                if (chosen is null)
+                {
+                    await ReplyAsync(seller, MessageTemplates.Get("variants.003", choices.Count), ct);
+                    return;
+                }
+                // The price the seller wrote is compared with the chosen variant, as for a product named exactly (plain per-piece listings only).
+                var written = shared.WrittenPrice;
+                ApplyCatalogEntry(shared, chosen);
+                shared.WrittenPrice = written is not null && shared.UnitType == "piece" && shared.UnitQty == 1 ? written : null;
+                if (shared.WrittenPrice is { } writtenPrice && Math.Abs(writtenPrice - shared.UnitPrice) >= 0.01m) shared.StatedPrice = writtenPrice;
                 ctx.PendingMissingField = null;
                 await ContinueResolvingDraftAsync(seller, session, ctx, ct);
                 return;

@@ -23,6 +23,8 @@ public sealed class PendingOrderItemData
     public bool PriceDecided { get; set; }
     /// <summary>"written" / "catalog" when the price answer was applied without asking (strategy learning); a draft edit or cancel counts against it.</summary>
     public string? AutoPriceArm { get; set; }
+    /// <summary>Listings of one name that differ by size or colour, and the typed name names none of them; the seller picks one (VariantChoice). Null once chosen.</summary>
+    public List<int>? VariantProductIds { get; set; }
 }
 
 public sealed class PendingOrderData
