@@ -112,7 +112,8 @@ public class OnboardingCustomerTests : IDisposable
 
         await CreateEngine(db).HandleIncomingMessageAsync(Phone, Message, default);
 
-        Assert.True(await db.Customers.AnyAsync(c => c.Name == "Muhammad Ali" && c.City == "Lahore"));
+        // The plain-rule reader catches this sentence first (address and name); the model is only the fallback for looser wording.
+        Assert.True(await db.Customers.AnyAsync(c => c.Name == "Muhammad Ali" && c.Address == "Model Town Lahore"));
         Assert.Contains(_sent, m => m.Contains("customer list") && m.Contains("dukaan ka naam"));
         Assert.Null((await db.Sellers.SingleAsync()).BusinessName);
     }
@@ -235,6 +236,70 @@ public class OnboardingCustomerTests : IDisposable
         Assert.Contains(_sent, m => m.Contains("Samjha"));
         Assert.Contains(_sent, m => m.Contains("Muhammad Ali") && m.Contains("customer list"));
         Assert.DoesNotContain(_sent, m => m.Contains("samajh nahi aaya"));
+    }
+
+    private void AiMustNotBeAsked() =>
+        _ai.Verify(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+
+    [Fact]
+    public async Task CustomerAddCommand_AtTheProductStep_SavesWithoutTheAi()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+
+        await CreateEngine(db).HandleIncomingMessageAsync(Phone, "naya client hai Muhammad Ali, address Model Town Lahore, phone baad mein", default);
+
+        var saved = await db.Customers.SingleAsync(c => c.Name == "Muhammad Ali");
+        Assert.Equal("Model Town Lahore", saved.Address);
+        Assert.Null(saved.Phone);
+        Assert.Contains(_sent, m => m.Contains("Muhammad Ali") && m.Contains("customer list"));
+        AiMustNotBeAsked();
+    }
+
+    [Fact]
+    public async Task CustomerAddCommand_AtTheCityStep_SavesWithoutTheAi_AndAsksTheCityAgain()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardUntilAsync(db, "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections");
+
+        await CreateEngine(db).HandleIncomingMessageAsync(Phone, "customer add Sara, Model Town, 03001234567", default);
+
+        var saved = await db.Customers.SingleAsync(c => c.Name == "Sara");
+        Assert.Equal("03001234567", saved.Phone);
+        Assert.Contains(_sent, m => m.Contains("customer list") && m.Contains("shehar"));
+        AiMustNotBeAsked();
+    }
+
+    [Fact]
+    public async Task CustomerAddCommand_AtTheShopNameStep_NeedsDetails_ABareNameIsTheShop()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardUntilAsync(db, "start", "Roman Urdu", "Setup shuru karein");
+        AnalysisIs(new AiMessageAnalysis { Intent = "unclear" }); // "New Customer Care" has an order / customer word, so the AI is asked once and says it is nothing
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "customer add Ali, Lahore", default);
+        Assert.True(await db.Customers.AnyAsync(c => c.Name == "Ali"));
+        Assert.Null((await db.Sellers.SingleAsync()).BusinessName);
+
+        await engine.HandleIncomingMessageAsync(Phone, "New Customer Care", default);
+        Assert.Equal("New Customer Care", (await db.Sellers.SingleAsync()).BusinessName);
+        Assert.Equal(1, await db.Customers.CountAsync());
+    }
+
+    [Fact]
+    public async Task CustomerAddCommand_WhenIdle_SavesWithoutTheAi_AndOffersTheOrder()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardUntilAsync(db, "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800", "done");
+
+        await CreateEngine(db).HandleIncomingMessageAsync(Phone, "customer add Sara, Model Town, 03001234567", default);
+
+        var saved = await db.Customers.SingleAsync(c => c.Name == "Sara");
+        Assert.Equal("Model Town", saved.Address);
+        Assert.Equal("03001234567", saved.Phone);
+        Assert.Contains(_sent, m => m.Contains("Sara") && m.Contains("customer list"));
+        AiMustNotBeAsked();
     }
 
     [Fact]

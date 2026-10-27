@@ -91,6 +91,7 @@ public enum CommandKind
     Loss,
     Wage,
     CustomerUpdate,
+    CustomerAdd,
     OrderPayment,
     OrderDeliveryCharge,
     OrderCourierFee,
@@ -165,6 +166,7 @@ public sealed class ParsedCommand
     public ProductLine? Product { get; init; }
     public ExportRequest? Export { get; init; }
     public string? Text3 { get; init; }
+    public string? Text4 { get; init; }
 }
 
 public static class CommandParser
@@ -299,6 +301,69 @@ public static class CommandParser
     private static readonly Regex CustomerUpdateOf = new(@"^(?:customer\s+)?(?<name>[^\d,:]{2,40}?)\s+(?:ka|ki|کا|کی)\s+(?:naya\s+|new\s+)?" + CustomerField + @"\s*(?:ab\s+|hai\s+|:|=|-)?\s*(?<v>.+)$", Opts);
     private static readonly Regex CustomerUpdatePrefix = new(@"^customer\s+(?<name>[^\d,:]{2,40}?)\s+" + CustomerField + @"\s*:?\s*(?<v>.+)$", Opts);
     private static readonly Regex QuestionWords = new(@"^(?:kya|kia|kiya|batao|bata|dikhao|kaun|kahan|\?)|\?$", Opts);
+
+    // "customer add Sara, Model Town, 0300…", "naya client hai Muhammad Ali, address Model Town Lahore, phone baad mein": a buyer saved before any order.
+    // Text = name, Text2 = phone, Text3 = address, Text4 = city. Plain rules, no AI: the same words work when the model is not reachable.
+    private static readonly Regex CustomerAddPrefix = new(
+        @"^(?:(?:customer|client|gahak|grahak|کسٹمر|کلائنٹ|گاہک)\s+(?:add|jodo|shamil)|(?:add|new|naya|nayi|naye|نیا|نئی)\s+(?:customer|client|gahak|grahak|کسٹمر|کلائنٹ|گاہک))(?:\s+(?:karo|kar\s+do|hai|hain|ye|yeh))?\s*[:\-–,]?\s*(?<rest>.+)$", Opts);
+    private static readonly Regex CustomerAddLabel = new(
+        @"(?<![\p{L}\p{N}])(?<k>address|pata|patta|phone|fone|mobile|number|city|shehar|پتہ|فون|نمبر|شہر)(?![\p{L}\p{N}])", Opts);
+    private static readonly Regex CustomerAddPhoneLike = new(@"^\+?\d[\d\s-]{8,16}\d$", Opts);
+    private static readonly Regex CustomerAddNameBlocked = new(@"^(?:order|orders|list|report|search|find|phone|number|address|city|summary|catalog|price)\b", Opts);
+    private static readonly Regex CustomerAddNameWord = new(@"^[\p{L}\p{M}.'’-]+$", Opts);
+    private static readonly Regex CustomerAddTrailingFiller = new(@"\s+(?:hai|hain)$", Opts);
+
+    private static string CleanCustomerPart(string text) => CustomerAddTrailingFiller.Replace(text.Trim().Trim(',', '،', ':', ';', '=', '-', '–', '—', '.', '!', '۔', ' '), "").Trim();
+
+    private static bool ValidCustomerName(string name)
+    {
+        if (name.Length is < 2 or > 40 || CustomerAddNameBlocked.IsMatch(name)) return false;
+        var words = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return words.Length is >= 1 and <= 4 && words.All(w => CustomerAddNameWord.IsMatch(w));
+    }
+
+    private static ParsedCommand? TryParseCustomerAdd(string message)
+    {
+        var m = CustomerAddPrefix.Match(message.Trim());
+        if (!m.Success) return null;
+        var rest = m.Groups["rest"].Value.Trim();
+        string name;
+        string? phone = null, address = null, city = null;
+
+        var labels = CustomerAddLabel.Matches(rest);
+        if (labels.Count > 0)
+        {
+            name = CleanCustomerPart(rest[..labels[0].Index]);
+            for (var i = 0; i < labels.Count; i++)
+            {
+                var end = i + 1 < labels.Count ? labels[i + 1].Index : rest.Length;
+                var value = CleanCustomerPart(rest[(labels[i].Index + labels[i].Length)..end]);
+                if (value.Length == 0) continue;
+                switch (labels[i].Groups["k"].Value.ToLowerInvariant())
+                {
+                    case "phone" or "fone" or "mobile" or "number" or "فون" or "نمبر": phone ??= CustomerAddPhoneLike.IsMatch(value) ? value : null; break; // "baad mein" = no phone yet
+                    case "city" or "shehar" or "شہر": city ??= value; break;
+                    default: address ??= value; break;
+                }
+            }
+        }
+        else
+        {
+            var parts = rest.Split(new[] { ',', '،', ';', '\n', '|' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (parts.Length == 0) return null;
+            name = CleanCustomerPart(parts[0]);
+            foreach (var part in parts.Skip(1).Select(CleanCustomerPart).Where(p => p.Length > 0))
+            {
+                if (CustomerAddPhoneLike.IsMatch(part)) phone ??= part;
+                else if (address is null) address = part;
+                else city ??= part;
+            }
+        }
+
+        return ValidCustomerName(name)
+            ? new ParsedCommand { Kind = CommandKind.CustomerAdd, Text = name, Text2 = phone, Text3 = address, Text4 = city }
+            : null;
+    }
 
     private static ParsedCommand? TryParseCustomerUpdate(string message)
     {
@@ -1516,6 +1581,7 @@ public static class CommandParser
         if (TryParseForwardedQuery(message, out var asker, out var question))
             return new ParsedCommand { Kind = CommandKind.ForwardedQuery, Text = asker, Text2 = question };
 
+        if (!wasQuestion && TryParseCustomerAdd(message) is { } customerAdd) return customerAdd;
         if (!wasQuestion && TryParseCustomerUpdate(message) is { } customerUpdate) return customerUpdate;
         if ((m = CustomerDetail.Match(message)).Success)
         {
