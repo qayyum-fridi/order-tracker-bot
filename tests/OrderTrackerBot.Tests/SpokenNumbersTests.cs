@@ -280,4 +280,21 @@ public class ParserOverlapTests
     [InlineData("purana data hata do system se")]
     public void ImportHelp_IsNotTriggeredWithoutAnImportIntent_OrWithADestructiveWord(string text) =>
         Assert.NotEqual(CommandKind.ImportHelp, CommandParser.TryParse(text)?.Kind);
+
+    [Theory]
+    [InlineData("Yeh main ne number 5 bola tha", 5)]
+    [InlineData("number paanch bola tha", 5)]
+    [InlineData("nambar 3", 3)]
+    [InlineData("نمبر پانچ", 5)]
+    [InlineData("میں نے نمبر دو بولا تھا", 2)]
+    [InlineData("pehla wala", 1)]
+    public void ChoiceNumber_ReadsANumberSaidWithItsFillerWords(string spoken, int expected) =>
+        Assert.Equal(expected, SpokenNumbers.ChoiceNumber(spoken));
+
+    [Theory]
+    [InlineData("2 kurti")]
+    [InlineData("Ayesha ka order")]
+    [InlineData("number 5 aur 6")]
+    public void ChoiceNumber_IsNullWhenTheWordsAreNotOnlyAChoice(string spoken) =>
+        Assert.Null(SpokenNumbers.ChoiceNumber(spoken));
 }

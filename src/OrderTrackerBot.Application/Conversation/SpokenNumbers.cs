@@ -411,7 +411,9 @@ public static class SpokenNumbers
     private static readonly HashSet<string> ChoiceFiller = new(StringComparer.OrdinalIgnoreCase)
     {
         "number", "nambar", "numbar", "wala", "wali", "wale", "mere", "meri", "mera", "hai", "hain", "chahiye", "option", "ye", "yeh", "ka", "ki", "ke",
+        "bola", "boli", "bole", "tha", "thi", "the", "main", "mein", "ne", "bhi", "sirf",
         "نمبر", "والا", "والی", "والے", "میرے", "میری", "میرا", "ہے", "ہیں", "چاہیے", "یہ",
+        "بولا", "بولی", "بولے", "تھا", "تھی", "تھے", "میں", "نے", "بھی", "صرف",
     };
 
     /// <summary>
