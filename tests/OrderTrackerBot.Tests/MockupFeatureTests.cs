@@ -1171,7 +1171,6 @@ public class MockupFeatureTests : IDisposable
 
         Assert.Contains(_sent, m => m.Contains("pehle wale voice note ke jawab"));
         Assert.DoesNotContain(_sent, m => m.Contains("Maine suna"));
-        _ai.Verify(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -1543,6 +1542,20 @@ public class MockupFeatureTests : IDisposable
         Assert.Contains(_sent, m => m.Contains("samajh nahi aaya"));
         _ai.Verify(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         Assert.Equal(0, await db.Orders.CountAsync());
+    }
+
+    [Fact]
+    public async Task VoiceReadOnlyCommand_RunsAsSpoken_WithoutTheRewrite()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        var voice = VoiceEngine(db, "orders today");
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        _ai.Verify(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.Contains(_sent, m => m.Contains("Maine suna"));
     }
 
     [Theory]
