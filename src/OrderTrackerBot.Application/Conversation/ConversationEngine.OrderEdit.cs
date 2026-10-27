@@ -148,7 +148,7 @@ public partial class ConversationEngine
         var (ok, result) = await ApplyOrderEditAsync(seller, order, change, ct);
         if (!ok)
         {
-            await ReplyAsync(seller, $"⚠️ {result}", ct);
+            await ReplyAsync(seller, result, ct);
             return;
         }
 
@@ -327,10 +327,10 @@ public partial class ConversationEngine
             case "qty":
             {
                 if (Item(change.Item) is not { } item) return (false, NoItem(change.Item));
-                if (change.Quantity is not > 0) return (false, "Tadaad kam az kam 1 honi chahiye — hatana ho to \"remove " + change.Item + "\".");
+                if (change.Quantity is not > 0) return (false, MessageTemplates.Get("order-edit.030", change.Item));
                 // "1 = 3000" is almost always a price typed as a quantity: ask instead of putting 3000 pieces on the order.
                 if (change.Quantity > MaxEditQuantity)
-                    return (false, $"{change.Quantity} piece bohat zyada lag raha hai, kuch nahi badla. Rate badalna ho to likhein: \"price {change.Item} = {change.Quantity}\".");
+                    return (false, MessageTemplates.Get("order-edit.031", change.Quantity, change.Item));
                 item.Quantity = change.Quantity.Value;
                 return (true, $"{item.ProductNameSnapshot} ki tadaad {item.Quantity} kar di.");
             }
@@ -343,7 +343,7 @@ public partial class ConversationEngine
             case "remove":
             {
                 if (Item(change.Item) is not { } item) return (false, NoItem(change.Item));
-                if (items.Count == 1) return (false, $"Yeh aakhri item hai — poora order hatana ho to \"cancel order {order.Id}\".");
+                if (items.Count == 1) return (false, MessageTemplates.Get("order-edit.032", order.Id));
                 order.Items.Remove(item);
                 _db.OrderItems.Remove(item);
                 return (true, $"{item.ProductNameSnapshot} hata diya.");
@@ -355,7 +355,7 @@ public partial class ConversationEngine
                 if (variants.Count > 1) return (false, MessageTemplates.Get("variants.001", change.Text!, string.Join(", ", variants.Select(Formatters.ProductMatchLabel)), Formatters.ProductMatchLabel(variants[0])));
                 var entry = FindCatalogEntry(catalog, change.Text!)
                             ?? catalog.FirstOrDefault(c => c.Product.Name.Contains(change.Text!, StringComparison.OrdinalIgnoreCase));
-                if (entry is null) return (false, $"\"{change.Text}\" catalog mein nahi mila. Pehle add karein: \"{change.Text} - price\"");
+                if (entry is null) return (false, MessageTemplates.Get("order-edit.033", change.Text));
                 var line = new PendingOrderItemData { ProductName = entry.Product.Name, Quantity = change.Quantity ?? 1 };
                 ApplyCatalogEntry(line, entry);
                 order.Items.Add(new OrderItem { ProductId = entry.Product.Id, ProductNameSnapshot = line.ProductName, UnitPrice = line.UnitPrice, UnitCost = entry.Product.CostPrice, Quantity = line.Quantity });

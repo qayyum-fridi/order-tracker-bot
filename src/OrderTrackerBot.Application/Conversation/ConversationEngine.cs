@@ -400,6 +400,13 @@ public partial class ConversationEngine
     }
 
     /// <summary>Screen 3c: something threw while handling a message — tell the seller instead of going silent.</summary>
+    /// <summary>Sent while this seller's previous message is still being handled, so the reply is not mistaken for a lost one.</summary>
+    public async Task SendWaitingNoticeAsync(string fromPhoneNumber, CancellationToken ct = default)
+    {
+        await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
+        await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("engine.004"), ct);
+    }
+
     public Task SendSystemErrorAsync(string fromPhoneNumber, string? issueCode = null, CancellationToken ct = default) =>
         _sender.SendTextMessageAsync(fromPhoneNumber,
             MessageTemplates.Get("engine.003", (issueCode is null ? "" : $"\n\nSupport ko batana ho to yeh code bataein: {issueCode}")), ct);

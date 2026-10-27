@@ -72,7 +72,24 @@ public static class MessageTranslations
             translated = text;
             return false;
         }
+        // A message of lines, each a template of its own (the data check), is translated line by line; blank lines stay.
+        if (text.Contains('\n') && TryTranslateLines(text, language, out translated)) return true;
+        translated = text;
         return false;
+    }
+
+    private static bool TryTranslateLines(string text, string language, out string translated)
+    {
+        translated = text;
+        var lines = text.Split('\n');
+        var result = new string[lines.Length];
+        for (var i = 0; i < lines.Length; i++)
+        {
+            if (string.IsNullOrWhiteSpace(lines[i])) { result[i] = lines[i]; continue; }
+            if (!TryTranslate(lines[i], language, out result[i])) return false;
+        }
+        translated = string.Join("\n", result);
+        return true;
     }
 
     /// <summary>
