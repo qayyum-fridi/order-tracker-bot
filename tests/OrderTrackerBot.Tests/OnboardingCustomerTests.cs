@@ -30,10 +30,14 @@ public class OnboardingCustomerTests : IDisposable
 
     private ConversationEngine CreateEngine(AppDbContext db) => new(db, _ai.Object, _sender.Object, _founderAlerts.Object);
 
-    private async Task OnboardAsync(AppDbContext db)
+    private async Task OnboardAsync(AppDbContext db) =>
+        await OnboardUntilAsync(db, "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800");
+
+    /// <summary>Plays the first setup steps and stops, so the next message lands on that step.</summary>
+    private async Task OnboardUntilAsync(AppDbContext db, params string[] steps)
     {
         var engine = CreateEngine(db);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800" })
+        foreach (var step in steps)
             await engine.HandleIncomingMessageAsync(Phone, step, default);
         _sent.Clear();
     }
@@ -97,6 +101,79 @@ public class OnboardingCustomerTests : IDisposable
 
         var saved = await db.Customers.SingleAsync(c => c.Name == "Sara");
         Assert.Null(saved.Phone);
+    }
+
+    [Fact]
+    public async Task ClientNamedAtTheShopNameStep_IsSaved_AndTheNameIsAskedAgain()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardUntilAsync(db, "start", "Roman Urdu", "Setup shuru karein");
+        AnalysisIs(new AiMessageAnalysis { Intent = "add_customer", NewCustomer = new AiNewCustomer { Name = "Muhammad Ali", City = "Lahore" } });
+
+        await CreateEngine(db).HandleIncomingMessageAsync(Phone, Message, default);
+
+        Assert.True(await db.Customers.AnyAsync(c => c.Name == "Muhammad Ali" && c.City == "Lahore"));
+        Assert.Contains(_sent, m => m.Contains("customer list") && m.Contains("dukaan ka naam"));
+        Assert.Null((await db.Sellers.SingleAsync()).BusinessName);
+    }
+
+    [Fact]
+    public async Task ProductLineAtTheCityStep_IsSaved_AndTheCityIsAskedAgain()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardUntilAsync(db, "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections");
+
+        await CreateEngine(db).HandleIncomingMessageAsync(Phone, "Brownies Box - 1200", default);
+
+        Assert.True(await db.Products.AnyAsync(p => p.Name == "Brownies Box" && p.Price == 1200));
+        Assert.Contains(_sent, m => m.Contains("Brownies Box") && m.Contains("shehar"));
+        _ai.Verify(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task PlainCityAnswer_DoesNotCostAnAiCall()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardUntilAsync(db, "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections");
+
+        await CreateEngine(db).HandleIncomingMessageAsync(Phone, "Lahore", default);
+
+        _ai.Verify(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task OrderWithANamedBuyerButNoPhone_AtTheProductStep_IsTakenAsAnOrder()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        AnalysisIs(new AiMessageAnalysis
+        {
+            Intent = "new_order",
+            IsOrderAttempt = true,
+            Order = new AiOrderDraft { CustomerName = "Ayesha", Items = { new AiOrderItemDraft { ProductName = "Kurti", Quantity = 2 } } }
+        });
+
+        await CreateEngine(db).HandleIncomingMessageAsync(Phone, "Ayesha ko 2 Kurti bhej do", default);
+
+        Assert.True((await db.Sellers.SingleAsync()).OnboardingComplete);
+        Assert.DoesNotContain(_sent, m => m.Contains("samajh nahi aaya"));
+    }
+
+    [Fact]
+    public async Task OwnStockStatement_AtTheProductStep_IsNotTakenAsAnOrder()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        AnalysisIs(new AiMessageAnalysis
+        {
+            Intent = "new_order",
+            IsOrderAttempt = true,
+            Order = new AiOrderDraft { Items = { new AiOrderItemDraft { ProductName = "Lawn Suit", Quantity = 4 } } }
+        });
+
+        await CreateEngine(db).HandleIncomingMessageAsync(Phone, "mere paas 4 lawn suit hain, 3500", default);
+
+        Assert.False((await db.Sellers.SingleAsync()).OnboardingComplete);
     }
 
     public void Dispose() => _dbFactory.Dispose();

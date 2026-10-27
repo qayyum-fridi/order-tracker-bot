@@ -90,13 +90,15 @@ public partial class ConversationEngine
     /// <paramref name="requirePhoneHint"/> avoids an AI call on steps where free text is normally something else (business name, city...).
     /// </summary>
     private async Task<bool> TryOrderDuringOnboardingAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message,
-        bool requirePhoneHint, CancellationToken ct)
+        bool requirePhoneHint, CancellationToken ct, OnboardingProbe? probe = null)
     {
-        if (requirePhoneHint && !PhoneNumber.IsMatch(message)) return false;
+        var hasPhone = PhoneNumber.IsMatch(message);
+        if (requirePhoneHint && !hasPhone && !LooksLikeBasicAction(message)) return false;
 
         var catalog = await LoadCatalogAsync(seller, ct);
-        var analysis = await _ai.AnalyzeMessageAsync(AiContext(seller, catalog), message, ct);
-        if (analysis.AiUnavailable && PhoneNumber.IsMatch(message))
+        var analysis = await _ai.AnalyzeMessageAsync(AiContext(seller, catalog, ctx), message, ct);
+        if (probe is not null) probe.Analysis = analysis;
+        if (analysis.AiUnavailable && hasPhone)
         {
             // Looks like an order but the AI can't read it right now — say so instead of the misleading format hint.
             await ReplyAsync(seller,
@@ -104,7 +106,16 @@ public partial class ConversationEngine
             return true;
         }
 
+        // A buyer named without an order: "naya client Muhammad Ali, address Model Town Lahore".
+        if (analysis is { Intent: "add_customer", NewCustomer: { } buyer })
+        {
+            await RepromptOnboardingStepAsync(seller, session, await SaveNewCustomerAsync(seller, buyer, ct), ct);
+            return true;
+        }
+
         if (!analysis.IsOrderAttempt || analysis.Order is null) return false;
+        // Without a buyer phone only a clear order counts (a named buyer and items): "mere paas 4 lawn suit hain, 3500" is the seller's own stock.
+        if (!hasPhone && (!NamedBuyerInMessage(analysis.Order.CustomerName, message) || analysis.Order.Items.Count == 0)) return false;
 
         seller.OnboardingComplete = true;
         StartTrial(seller);
@@ -113,6 +124,73 @@ public partial class ConversationEngine
             MessageTemplates.Get("onboarding.002", TrialStartedText(seller)), ct);
         await HandleAnalysisAsync(seller, session, ctx, analysis, catalog, fromScreenshot: false, ct);
         return true;
+    }
+
+    /// <summary>Carries the AI analysis made while probing for an order, so the add-product step does not ask the AI twice.</summary>
+    private sealed class OnboardingProbe
+    {
+        public AiMessageAnalysis? Analysis { get; set; }
+    }
+
+    /// <summary>
+    /// A setup step normally expects a short answer (a shop name, a city, a number). A longer message, or one with digits or an order / customer word,
+    /// may instead be one of the three basics (add a product, a customer or an order), so it is worth one AI read.
+    /// </summary>
+    private static bool LooksLikeBasicAction(string message)
+    {
+        var text = message.Trim();
+        if (text.Length < 12 || InstagramHandle.IsMatch(text)) return false;
+        var words = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+        return words >= 4 || (words >= 2 && text.Any(char.IsDigit)) || BasicActionCue.IsMatch(text);
+    }
+
+    private static readonly Regex BasicActionCue = new(
+        @"\b(?:order|client|customer|gahak|grahak)\b|گاہک|کلائنٹ|کسٹمر|آرڈر", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly HashSet<string> NotABuyerName = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "mere", "mera", "meri", "main", "mein", "mujhe", "hum", "hamare", "hamara", "apna", "apne", "my", "me", "i", "we", "our",
+        "میرے", "میرا", "میری", "میں", "ہم", "ہمارے"
+    };
+
+    /// <summary>True when the buyer the model found is a name the seller really wrote ("Ayesha ko 2 Kurti"), not a pronoun and not invented.</summary>
+    private static bool NamedBuyerInMessage(string? buyer, string message)
+    {
+        var name = buyer?.Trim();
+        if (string.IsNullOrEmpty(name) || name.Length < 2 || NotABuyerName.Contains(name)) return false;
+        return message.Contains(name, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>"Kurti - 1800" at any setup step: the product is saved, then the step's own question is asked again.</summary>
+    private async Task<bool> TrySaveProductDuringOnboardingAsync(Seller seller, ConversationSession session, string message, CancellationToken ct)
+    {
+        if (PhoneNumber.IsMatch(message) || !CommandParser.TryParseProductLine(message, out ProductLine? line) || line is null) return false;
+        if ((await UpsertProductAsync(seller, line, ct)).Product is not { } listed) return false;
+        await _db.SaveChangesAsync(ct);
+        await RepromptOnboardingStepAsync(seller, session,
+            MessageTemplates.Get("onboarding.028", Formatters.ProductLabel(listed), Formatters.Money(listed.Price), ProductDetailsText(listed)), ct);
+        return true;
+    }
+
+    /// <summary>Sends <paramref name="text"/> and then the question of the setup step the seller is still on.</summary>
+    private async Task RepromptOnboardingStepAsync(Seller seller, ConversationSession session, string text, CancellationToken ct)
+    {
+        switch (session.State)
+        {
+            case ConversationState.OnboardingBusinessName:
+                await ReplyAsync(seller, text + "\n\n" + MessageTemplates.Get("onboarding.033"), ct);
+                return;
+            case ConversationState.OnboardingOptionalDetails:
+                await ReplyAsync(seller, text + "\n\n" + MessageTemplates.Get("onboarding.035"), ct);
+                return;
+            case ConversationState.OnboardingIndustry:
+                await ReplyAsync(seller, text, ct);
+                await AskIndustryAsync(seller, null, ct);
+                return;
+            default:
+                await SendAddProductChoicesAsync(seller, text, ct);
+                return;
+        }
     }
 
     /// <summary>Saves a buyer named without an order (phone, address and city when said) and returns the reply. An existing customer is left as it is.</summary>
@@ -254,13 +332,9 @@ public partial class ConversationEngine
         {
             case ConversationState.OnboardingBusinessName:
                 if (await TryOnboardingShortcutAsync(seller, session, message, ct)) return;
+                // A product line is not a shop name: it is saved and the name is asked again, instead of saving "Kurti - 1800" as the shop.
+                if (await TrySaveProductDuringOnboardingAsync(seller, session, message, ct)) return;
                 if (await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: true, ct)) return;
-                // A product line is not a shop name: ask for the name again instead of saving "Kurti - 1800" as the shop.
-                if (CommandParser.TryParseProductLine(message, out _))
-                {
-                    await ReplyAsync(seller, MessageTemplates.Get("onboarding.033"), ct);
-                    return;
-                }
                 seller.BusinessName = CommandParser.TryParseShopName(message, out var typedName) ? typedName : message;
                 // The city comes first, then the kind of shop (taps); the Instagram handle is not asked in the MVP.
                 SetState(session, ConversationState.OnboardingOptionalDetails);
@@ -276,21 +350,16 @@ public partial class ConversationEngine
                     await ExecuteCommandAsync(seller, session, ctx, helpCmd, ct);
                     return;
                 }
-                if (await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: true, ct)) return;
                 var picked = PickIndustry(message);
+                if (picked is null && await TrySaveProductDuringOnboardingAsync(seller, session, message, ct)) return;
+                if ((picked is null || PhoneNumber.IsMatch(message))
+                    && await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: true, ct)) return;
                 if (picked is null)
                 {
                     // A real command here (e.g. "orders today") runs only after setup: say so, then show the list again.
                     if (CommandParser.TryParse(message) is { Kind: not (CommandKind.Help or CommandKind.Menu) })
                     {
                         await ReplyAsync(seller, MessageTemplates.Get("onboarding.036"), ct);
-                        await AskIndustryAsync(seller, null, ct);
-                        return;
-                    }
-                    // A product line here means the seller skipped the shop type: say what is expected first, then show the list again.
-                    if (CommandParser.TryParseProductLine(message, out _))
-                    {
-                        await ReplyAsync(seller, MessageTemplates.Get("onboarding.034"), ct);
                         await AskIndustryAsync(seller, null, ct);
                         return;
                     }
@@ -315,13 +384,9 @@ public partial class ConversationEngine
                     await ReplyAsync(seller, MessageTemplates.Get("onboarding.008"), ct);
                     return;
                 }
+                // A product line is not the city or Instagram handle: it is saved and this step stays open.
+                if (await TrySaveProductDuringOnboardingAsync(seller, session, message, ct)) return;
                 if (await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: true, ct)) return;
-                // A product line is not the city or Instagram handle: keep this step open and say what it expects.
-                if (CommandParser.TryParseProductLine(message, out _))
-                {
-                    await ReplyAsync(seller, MessageTemplates.Get("onboarding.035"), ct);
-                    return;
-                }
                 // The city was the answer here; the kind of shop comes next as taps, then the first product (no product-count question).
                 if (!DoneOrSkip.IsMatch(message)) ApplyBusinessInfo(seller, message, keepType: true);
                 if (_features.IndustryQuestion)
@@ -428,7 +493,8 @@ public partial class ConversationEngine
 
                 // Not a product line or command: if it's really a customer order (it names a buyer phone), take it instead of rejecting it.
                 // Without a phone, free text here is the seller describing their own stock ("mere paas 4 lawn suit hain, 3500"), never an order.
-                if (await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: true, ct)) return;
+                var probe = new OnboardingProbe();
+                if (await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: true, ct, probe)) return;
 
                 if (AcknowledgementWords.Contains(ButtonWords(message)))
                 {
@@ -437,7 +503,7 @@ public partial class ConversationEngine
                 }
 
                 // "teen chadar aur do dupatte naye products hain": the seller is naming products (maybe without prices) — read it and ask for the prices.
-                var stockAnalysis = await _ai.AnalyzeMessageAsync(AiContext(seller, await LoadCatalogAsync(seller, ct), ctx), message, ct);
+                var stockAnalysis = probe.Analysis ?? await _ai.AnalyzeMessageAsync(AiContext(seller, await LoadCatalogAsync(seller, ct), ctx), message, ct);
                 // "naya client Muhammad Ali, address Model Town Lahore": a buyer to save before any order (no items, so not an order).
                 if (stockAnalysis is { Intent: "add_customer", NewCustomer: { } buyer })
                 {
