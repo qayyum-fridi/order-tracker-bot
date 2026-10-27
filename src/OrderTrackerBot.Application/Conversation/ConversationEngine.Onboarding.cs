@@ -93,7 +93,7 @@ public partial class ConversationEngine
         bool requirePhoneHint, CancellationToken ct, OnboardingProbe? probe = null)
     {
         var hasPhone = PhoneNumber.IsMatch(message);
-        if (requirePhoneHint && !hasPhone && !LooksLikeBasicAction(message)) return false;
+        if (requirePhoneHint && !hasPhone && !await LooksLikeBasicActionAsync(seller, message, ct)) return false;
 
         var catalog = await LoadCatalogAsync(seller, ct);
         var analysis = await _ai.AnalyzeMessageAsync(AiContext(seller, catalog, ctx), message, ct);
@@ -133,19 +133,31 @@ public partial class ConversationEngine
     }
 
     /// <summary>
-    /// A setup step normally expects a short answer (a shop name, a city, a number). A longer message, or one with digits or an order / customer word,
-    /// may instead be one of the three basics (add a product, a customer or an order), so it is worth one AI read.
+    /// A setup step normally expects a short answer (a shop name, a city, a number). A message with an order / customer word, one that names a product
+    /// already in the catalog next to another word ("Ali Kurti"), or a longer one (4+ words, or digits) may instead be one of the three basics
+    /// (add a product, a customer or an order), so it is worth one AI read. A plain name or city never is.
     /// </summary>
-    private static bool LooksLikeBasicAction(string message)
+    private async Task<bool> LooksLikeBasicActionAsync(Seller seller, string message, CancellationToken ct)
     {
         var text = message.Trim();
-        if (text.Length < 12 || InstagramHandle.IsMatch(text)) return false;
-        var words = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
-        return words >= 4 || (words >= 2 && text.Any(char.IsDigit)) || BasicActionCue.IsMatch(text);
+        if (text.Length < 5 || InstagramHandle.IsMatch(text)) return false;
+        if (BasicActionCue.IsMatch(text)) return true;
+
+        var words = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        if (text.Length >= 12 && (words.Length >= 4 || (words.Length >= 2 && text.Any(char.IsDigit)))) return true;
+        if (words.Length < 2) return false;
+
+        var productNames = await _db.Products.Where(p => p.SellerId == seller.Id && p.IsActive).Select(p => p.Name).ToListAsync(ct);
+        var productWords = productNames
+            .SelectMany(n => n.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+            .Select(w => w.Trim('(', ')', ',', '.', '-')).Where(w => w.Length >= 3)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return words.Any(w => productWords.Contains(w.Trim('(', ')', ',', '.', '-')));
     }
 
     private static readonly Regex BasicActionCue = new(
-        @"\b(?:order|client|customer|gahak|grahak)\b|گاہک|کلائنٹ|کسٹمر|آرڈر", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        @"\b(?:order|client|customer|gahak|grahak|ko|chahiye|chahiyen|bhej\w*|dena|send|parcel|deliver\w*)\b|\bke\s+liye\b|گاہک|کلائنٹ|کسٹمر|آرڈر|چاہیے|بھیج",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly HashSet<string> NotABuyerName = new(StringComparer.OrdinalIgnoreCase)
     {

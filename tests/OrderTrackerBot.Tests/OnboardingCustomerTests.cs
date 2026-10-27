@@ -159,6 +159,51 @@ public class OnboardingCustomerTests : IDisposable
         Assert.DoesNotContain(_sent, m => m.Contains("samajh nahi aaya"));
     }
 
+    private static AiMessageAnalysis OrderFor(string buyer) => new()
+    {
+        Intent = "new_order",
+        IsOrderAttempt = true,
+        Order = new AiOrderDraft { CustomerName = buyer, Items = { new AiOrderItemDraft { ProductName = "Kurti", Quantity = 1 } } }
+    };
+
+    [Fact]
+    public async Task ShortOrderNamingACatalogProduct_AtTheCityStep_IsTakenAsAnOrder()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardUntilAsync(db, "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Kurti - 1800");
+        AnalysisIs(OrderFor("Ali"));
+
+        await CreateEngine(db).HandleIncomingMessageAsync(Phone, "Ali Kurti", default);
+
+        Assert.True((await db.Sellers.SingleAsync()).OnboardingComplete);
+    }
+
+    [Fact]
+    public async Task ShortOrderWithAnOrderWord_AtTheShopNameStep_IsTakenAsAnOrder()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardUntilAsync(db, "start", "Roman Urdu", "Setup shuru karein");
+        AnalysisIs(OrderFor("Ali"));
+
+        await CreateEngine(db).HandleIncomingMessageAsync(Phone, "Ali ko Kurti", default);
+
+        Assert.True((await db.Sellers.SingleAsync()).OnboardingComplete);
+    }
+
+    [Theory]
+    [InlineData("Model Town Lahore")]
+    [InlineData("Ayesha Collections")]
+    [InlineData("Lahore")]
+    public async Task CityOrShopName_EvenWithAProductInTheCatalog_DoesNotCostAnAiCall(string answer)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardUntilAsync(db, "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Kurti - 1800");
+
+        await CreateEngine(db).HandleIncomingMessageAsync(Phone, answer, default);
+
+        _ai.Verify(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     [Fact]
     public async Task OwnStockStatement_AtTheProductStep_IsNotTakenAsAnOrder()
     {
