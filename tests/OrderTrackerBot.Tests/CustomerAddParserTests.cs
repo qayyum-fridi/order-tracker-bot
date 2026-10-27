@@ -19,6 +19,10 @@ public class CustomerAddParserTests
     [InlineData("mera customer hai jiska naam Muhammad Ali hai, phone baad mein batata hoon, uska address Model Town Lahore hai", "Muhammad Ali", null, "Model Town Lahore", null)]
     [InlineData("ek naya client aaya hai, uska naam Bilal hai, city Karachi", "Bilal", null, null, "Karachi")]
     [InlineData("customer ka naam Sara", "Sara", null, null, null)]
+    // The speech model wrote "صارفہ" for customer (the third live note), with a possessive and "ایک نیا" in front.
+    [InlineData("میرے پاس ایک نیا صارفہ ہے جس کا نام محمد علی", "محمد علی", null, null, null)]
+    [InlineData("mere paas ek naya client hai jiska naam Bilal hai, shehar Karachi", "Bilal", null, null, "Karachi")]
+    [InlineData("نیا خریدار سارہ، پتہ گلبرگ", "سارہ", null, "گلبرگ", null)]
     public void ReadsTheNameAndWhateverDetailsWereGiven(string text, string name, string? phone, string? address, string? city)
     {
         var parsed = CommandParser.TryParse(text);
@@ -45,6 +49,12 @@ public class CustomerAddParserTests
     [InlineData("mera customer Sara ka phone 03001234567")]
     public void OtherPhrases_AreNotACustomerAdd(string text) =>
         Assert.NotEqual(CommandKind.CustomerAdd, CommandParser.TryParse(text)?.Kind);
+
+    [Theory]
+    [InlineData("mera dost hai jis ka naam Ali hai")]
+    [InlineData("میرے پاس ایک دوست ہے جس کا نام علی")]
+    public void ASpokenClauseIsNotARenameOfACustomer(string text) =>
+        Assert.NotEqual(CommandKind.CustomerUpdate, CommandParser.TryParse(text)?.Kind);
 
     [Fact]
     public void CustomerCorrection_StaysACorrection() =>

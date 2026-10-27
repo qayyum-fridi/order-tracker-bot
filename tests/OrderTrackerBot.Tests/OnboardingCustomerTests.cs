@@ -275,6 +275,19 @@ public class OnboardingCustomerTests : IDisposable
     }
 
     [Fact]
+    public async Task SpokenCustomerWithoutDetails_AtTheProductStep_IsSaved_WhenTheSpeechModelWritesSarif()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+
+        await CreateEngine(db).HandleIncomingMessageAsync(Phone, "میرے پاس ایک نیا صارفہ ہے جس کا نام محمد علی", default);
+
+        Assert.True(await db.Customers.AnyAsync(c => c.Name == "محمد علی"));
+        Assert.DoesNotContain(_sent, m => m.Contains("order darj nahi ho sakta"));
+        AiMustNotBeAsked();
+    }
+
+    [Fact]
     public async Task CustomerAddCommand_AtTheCityStep_SavesWithoutTheAi_AndAsksTheCityAgain()
     {
         using var db = _dbFactory.CreateContext();

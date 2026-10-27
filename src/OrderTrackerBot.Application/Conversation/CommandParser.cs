@@ -304,11 +304,12 @@ public static class CommandParser
 
     // "customer add Sara, Model Town, 0300…", "naya client hai Muhammad Ali, address Model Town Lahore, phone baad mein": a buyer saved before any order.
     // Text = name, Text2 = phone, Text3 = address, Text4 = city. Plain rules, no AI: the same words work when the model is not reachable.
+    private const string CustomerWord = @"(?:customer|client|gahak|grahak|kharidar|buyer|کسٹمر|کلائنٹ|گاہک|صارف|صارفہ|خریدار)";
     private static readonly Regex CustomerAddPrefix = new(
-        @"^(?:(?:customer|client|gahak|grahak|کسٹمر|کلائنٹ|گاہک)\s+(?:add|jodo|shamil)|(?:add|new|naya|nayi|naye|نیا|نئی)\s+(?:customer|client|gahak|grahak|کسٹمر|کلائنٹ|گاہک)(?![\p{L}\p{N}]))(?:\s+(?:karo|kar\s+do|hai|hain|ye|yeh))?\s*[:\-–,]?\s*(?<rest>.+)$", Opts);
+        @"^(?:" + CustomerWord + @"\s+(?:add|jodo|shamil)|(?:add|new|naya|nayi|naye|نیا|نئی)\s+" + CustomerWord + @"(?![\p{L}\p{N}]))(?:\s+(?:karo|kar\s+do|hai|hain|ye|yeh))?\s*[:\-–,]?\s*(?<rest>.+)$", Opts);
     // The way a seller says it aloud: "mera customer hai jiska naam Bilal hai, ...", "ek naya client aaya hai, uska naam Bilal hai", "میرا کسٹمر ہے جس کا نام محمد علی ہے".
     private static readonly Regex CustomerAddSentencePrefix = new(
-        @"^(?:(?:mera|meri|mere|میرا|میری|میرے)\s+)?(?:(?:ek\s+)?(?:naya|nayi|naye|new)\s+|(?:ایک\s+)?(?:نیا|نئی)\s+)?(?:customer|client|gahak|grahak|کسٹمر|کلائنٹ|گاہک)(?![\p{L}\p{N}])"
+        @"^(?:(?:mera|meri|mere|میرا|میری|میرے)\s+(?:(?:paas|پاس)\s+)?)?(?:(?:ek\s+)?(?:naya|nayi|naye|new)\s+|(?:ایک\s+)?(?:نیا|نئی)\s+)?" + CustomerWord + @"(?![\p{L}\p{N}])"
         + @"(?:\s+(?:aaya|aya|hai|hain|آیا|ہے|ہیں))*\s*[,،]?\s*(?:(?:(?:jis|us|is)\s*(?:ka|ki)|(?:جس|اس)\s*(?:کا|کی)|ka|ki|کا|کی)\s+)?(?:naam|name|نام)\b\s*(?:hai\b|ہے)?\s*[:\-–,،]?\s*(?<rest>.+)$", Opts);
     private static readonly Regex CustomerAddLabel = new(
         @"(?<![\p{L}\p{N}])(?<k>address|pata|patta|phone|fone|mobile|number|city|shehar|پتہ|ایڈریس|ایڈرس|فون|موبائل|نمبر|شہر)(?![\p{L}\p{N}])", Opts);
@@ -379,11 +380,15 @@ public static class CommandParser
             : null;
     }
 
+    private static readonly Regex NotACustomerName = new(
+        @"(?<![\p{L}\p{N}])(?:hai|hain|ہے|ہیں|mera|meri|mere|میرا|میری|میرے|paas|پاس|jis|جس|ek|ایک|naya|nayi|نیا|نئی)(?![\p{L}\p{N}])", Opts);
+
     private static ParsedCommand? TryParseCustomerUpdate(string message)
     {
         var m = CustomerUpdateOf.Match(message);
         if (!m.Success) m = CustomerUpdatePrefix.Match(message);
         if (!m.Success) return null;
+        if (NotACustomerName.IsMatch(m.Groups["name"].Value)) return null;
         var value = m.Groups["v"].Value.Trim();
         if (QuestionWords.IsMatch(value)) return null;
         var fieldWord = Regex.Replace(m.Groups["f"].Value.ToLowerInvariant(), @"\s+", "");
