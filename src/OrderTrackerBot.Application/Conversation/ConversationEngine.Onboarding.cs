@@ -21,7 +21,7 @@ public partial class ConversationEngine
 
     // Trailing "add" instruction a voice rewrite can keep after the price: "Suit - 500, catalog mein add kar dein", "Silk Suit - 800 product ke taur par add kar do".
     private static readonly Regex AddFiller = new(
-        @"[\s,;.]*(?:(?:(?:catalog|catalogue|product|products|list)\s+(?:mein|me)|product\s+ke\s+(?:taur|tor)\s+par)\s+)?(?:add|ad)\s+(?:kar\s*)?(?:do|dein|den|karo|kardo|kardein)[\s.!]*$",
+        @"[\s,;.]*(?:(?:(?:catalog|catalogue|product|products|list|dukan|dukaan)\s+(?:mein|me|mai)|product\s+ke\s+(?:taur|tor)\s+par)\s+)?(?:add|ad)\s+(?:kar\s*)?(?:do|dein|den|karo|kardo|kardein)[\s.!]*$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
     // "kurti price 1800": the price word is not part of the product name, so it becomes "kurti - 1800".
@@ -35,7 +35,7 @@ public partial class ConversationEngine
         if (PhoneNumber.IsMatch(line)) return null;
         line = CommandParser.NormalizeProductPriceText(line);
         // "address mein" is a mis-heard "catalog mein": it only matters when it trails the price like the other filler.
-        line = AddFiller.Replace(Regex.Replace(line, @"[\s,;]+address\s+(?:mein|me)\b", ""), "");
+        line = AddFiller.Replace(Regex.Replace(line, @"[\s,;]+address\s+(?:mein|me|mai)\b", ""), "");
         line = PriceWordBeforeAmount.Replace(line, "$1 - ");
         var m = LooseProductLine.Match(line);
         if (m.Success) return CommandParser.SplitUnit(m.Groups[1].Value, decimal.Parse(m.Groups[2].Value));
@@ -48,12 +48,12 @@ public partial class ConversationEngine
         @"^\s*(?<name>.+?)\s+(?:ki|ka|ke|کی|کا|کے)\s+(?:price|rate|qeemat|keemat|kimat|قیمت|ریٹ)\s+(?<rest>.+?)\s*[.۔!]*\s*$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     private static readonly Regex NaturalPriceVerb = new(
-        @"(?:rakho|rakh\s+do|rakhein|rakhen|rakh\s+dein|hai|hain|set|likho|likh\s+do|kar\s+do|رکھو|رکھیں|رکھ\s+دو|رکھ\s+دیں|ہے|ہیں|لکھو|کر\s+دو)\s*[.۔!]*$",
+        @"(?:rakho|rakh\s+do|rakhein|rakhen|rakh\s+dein|hai|hain|set|likho|likh\s+do|likh\s+dein|likhein|likhen|likhlein|likhlo|likhdo|lakhdo|daal\s+do|dal\s+do|daal\s+dein|daaldo|kar\s+do|kar\s+dein|kardo|kardein|krdo|krdein|رکھو|رکھیں|رکھ\s+دو|رکھ\s+دیں|ہے|ہیں|لکھو|کر\s+دو)\s*[.۔!]*$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
     // "Shawl - teen hazar do sau": the price after the dash written in number words (no digits at all).
     private static readonly Regex SpokenDashPrice = new(@"^(?<name>[^\d]{2,50}?)\s*[-–—:=]\s*(?<rest>[^\d]+?)[.!]*$", RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
-    private static readonly HashSet<string> PriceFiller = new(StringComparer.OrdinalIgnoreCase) { "rupay", "rupaye", "rupees", "rupee", "rs", "pkr", "ka", "ki", "hai", "ke", "روپے", "کا", "ہے" };
+    private static readonly HashSet<string> PriceFiller = new(StringComparer.OrdinalIgnoreCase) { "rupay", "rupaye", "rupees", "rupee", "rupia", "rupiya", "rupe", "rs", "rp", "rps", "pkr", "ka", "ki", "hai", "ke", "روپے", "کا", "ہے" };
     private static readonly Regex WordToken = new(@"[\p{L}\p{N}]+", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     /// <summary>Only number words, multipliers (sau, hazar, lakh) and a currency/filler word are allowed after the dash, and they must add up to exactly one amount.</summary>
