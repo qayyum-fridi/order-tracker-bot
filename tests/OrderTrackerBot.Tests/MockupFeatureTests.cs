@@ -1531,6 +1531,31 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task VoiceGreeting_SaysItIsNotUnderstood_AndNeverAsksTheModel()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        var voice = VoiceEngine(db, "Hello bhai, kya hogaya?");
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        Assert.Contains(_sent, m => m.Contains("samajh nahi aaya"));
+        _ai.Verify(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.Equal(0, await db.Orders.CountAsync());
+    }
+
+    [Theory]
+    [InlineData("Hello bhai, kya hogaya?", true)]
+    [InlineData("salam", true)]
+    [InlineData("Ayesha ka order", false)]
+    [InlineData("kya 2 kurti hain", false)]
+    [InlineData("Kurti 2 Ayesha", false)]
+    [InlineData("order ho gaya?", false)]
+    public void IsSmallTalkOnly_OnlyGreetingWords(string transcript, bool expected) =>
+        Assert.Equal(expected, ConversationEngine.IsSmallTalkOnly(transcript));
+
+    [Fact]
     public async Task VoiceNote_AtOptionalDetails_SplitIntoSeveralSteps_IsAppliedAsOneAnswer()
     {
         using var db = _dbFactory.CreateContext();

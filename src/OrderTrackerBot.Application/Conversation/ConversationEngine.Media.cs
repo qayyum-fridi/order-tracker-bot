@@ -246,10 +246,26 @@ public partial class ConversationEngine
         ConversationState.AwaitingReceiptOrderChoice, ConversationState.AwaitingSupportQueryPick,
     };
 
+    private static readonly HashSet<string> SmallTalkWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "hello", "hi", "hey", "salam", "assalam", "alaikum", "bhai", "bhaiya", "kya", "hogaya", "hua", "kaise", "kaisay", "kaisi", "ho",
+        "aap", "tum", "sir", "bolo", "sun", "suno", "سلام", "علیکم", "بھائی", "کیا", "ہوگیا", "ہوا", "ہو", "آپ", "کیسے", "کیسی"
+    };
+
+    /// <summary>True when the transcript is only greeting or small-talk words: no digits, and nothing but words like hello, bhai, kya hogaya.</summary>
+    internal static bool IsSmallTalkOnly(string transcript)
+    {
+        if (transcript.Any(char.IsDigit)) return false;
+        return Regex.Split(transcript, @"[^\p{L}]+").Where(w => w.Length > 0).All(SmallTalkWords.Contains);
+    }
+
     private async Task<TurnDecision> InterpretVoiceAsync(Seller seller, string transcript, CancellationToken ct)
     {
         if (NumberedChoiceStates.Contains(seller.Session!.State) && SpokenNumbers.ChoiceNumber(transcript) is { } pick)
             return TurnDecision.Execute(new[] { pick.ToString() });
+        // A greeting or small talk is not an order or a command: say so plainly, and do not let the model invent steps from it.
+        if (IsSmallTalkOnly(transcript))
+            return TurnDecision.Clarify(MessageTemplates.Get("voice.smalltalk"));
         var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
         var catalog = await LoadCatalogAsync(seller, ct);
         var recent = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
