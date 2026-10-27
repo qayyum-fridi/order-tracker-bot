@@ -504,7 +504,7 @@ public partial class ConversationEngine
                         // Read-only lookups: they change nothing, so the seller can check orders or reports during setup.
                         or CommandKind.OrdersToday or CommandKind.OrderPage or CommandKind.PendingOrders or CommandKind.UnpaidOrders
                         or CommandKind.TodaysSummary or CommandKind.Profit or CommandKind.Margin or CommandKind.WeeklySummary
-                        or CommandKind.CustomerList or CommandKind.MenuCategory)
+                        or CommandKind.CustomerList or CommandKind.MenuCategory or CommandKind.Insight)
                     {
                         await ExecuteCommandAsync(seller, session, ctx, parsed, ct);
                         return;
