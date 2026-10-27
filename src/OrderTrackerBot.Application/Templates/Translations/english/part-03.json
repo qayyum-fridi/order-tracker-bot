@@ -60,6 +60,7 @@
   "engine.001": "ℹ️ That button was for an old question. Type a new order, or type \"menu\".",
   "engine.002": "ℹ️ That button was for an old order. Type a new order, or type \"menu\".",
   "engine.003": "⚠️ Sorry, a technical problem occurred — your work could not be saved.\nPlease try again in a little while.\n\nYour message is safe, nothing was deleted.{0}",
+  "engine.004": "⏳ Your previous message is still being processed. The reply is coming — please wait a minute.",
   "engine.004": "Your account has been closed. To reactivate it, please contact us.",
   "engine.005": "Your account is currently closed. Please contact us for help.",
   "engine.006": "I cannot understand this file yet — please send only TEXT or a screenshot, or type \"menu\".",

@@ -23,6 +23,9 @@ public sealed class WebhookMessageGate
 
     public WebhookMessageGate(IServiceScopeFactory scopes) => _scopes = scopes;
 
+    /// <summary>True while an earlier message from this sender is still being handled.</summary>
+    public bool IsBusy(string sender) => SenderLocks.TryGetValue(sender, out var gate) && gate.CurrentCount == 0;
+
     /// <summary>Returns false (and skips <paramref name="handle"/>) when this message id was already processed.</summary>
     public async Task<bool> RunOnceAsync(string sender, string? messageId, Func<Task> handle, CancellationToken ct)
     {
