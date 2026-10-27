@@ -9,6 +9,7 @@
   "onboarding.008": "Please complete the setup first — send the city, type of business or @instagram handle, or type \"skip\".",
   "onboarding.009": "Okay — you can add these details later by typing \"update business info\".\n\n{0}",
   "onboarding.010": "✅ Noted — {0}. Thank you!\n\n{1}",
+  "onboarding.business": "{0} business",
   "onboarding.011": "How many products do you have?",
   "onboarding.012": "Or is there something else you want to do now?",
   "onboarding.013": "{0}\n\nWhat is next? Pick below 👇",

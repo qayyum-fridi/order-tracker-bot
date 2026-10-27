@@ -94,6 +94,22 @@ public class MessageTranslationsTests
     }
 
     [Fact]
+    public void TryTranslate_TranslatesTheProductStep_WithItsRepeatedPlaceholderAndBusinessSummary()
+    {
+        var summary = string.Join(", ", "Sargodha", MessageTemplates.Get("onboarding.business", "Food / Bakery"), "@qayyumfareedi");
+        var roman = MessageTemplates.Get("onboarding.010", summary,
+            MessageTemplates.Get("onboarding.021", MessageTemplates.Get("product.formats", "Brownies Box - 1200")));
+
+        Assert.True(MessageTranslations.TryTranslate(roman, Lang.UrduScript, out var urdu));
+        Assert.Contains("کھانا / بیکری کاروبار", urdu);
+        Assert.Contains("@qayyumfareedi", urdu);
+        Assert.Contains("Brownies Box - 1200, cost 2000, stock 10", urdu);
+        Assert.DoesNotContain("Product add karne ka tareeqa", urdu);
+        Assert.DoesNotContain("Theek hai, ab products", urdu);
+        Assert.DoesNotContain("Sab products ho jayein", urdu);
+    }
+
+    [Fact]
     public void TryTranslate_TextNoTemplateMatches_IsLeftForTheAi()
     {
         const string text = "Kuch bhi likha hua, koi template nahi.";
