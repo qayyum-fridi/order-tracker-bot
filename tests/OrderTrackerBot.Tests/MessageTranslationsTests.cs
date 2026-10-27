@@ -110,6 +110,23 @@ public class MessageTranslationsTests
     }
 
     [Fact]
+    public void TryTranslate_TranslatesTheDataCheckLineByLine()
+    {
+        var roman = MessageTemplates.Get("setup-check.005", 1, 2, 0)
+            + "\n\n" + MessageTemplates.Get("setup-check.007", 2, 5, "Lawn Suit - 3500, cost 2400")
+            + "\n" + MessageTemplates.Get("setup-check.013")
+            + "\n\n" + MessageTemplates.Get("setup-check.003")
+            + "\n" + MessageTemplates.Get("setup-check.018", 1, "Kurti");
+
+        Assert.True(MessageTranslations.TryTranslate(roman, Lang.UrduScript, out var urdu));
+        Assert.Contains("قیمتِ خرید نہیں: 2/5", urdu);
+        Assert.Contains("پرانے آرڈرز", urdu);
+        Assert.Contains("غلط / شک والی اندراجات", urdu);
+        Assert.DoesNotContain("Cost price", urdu);
+        Assert.DoesNotContain("Price 0", urdu);
+    }
+
+    [Fact]
     public void TryTranslate_TextNoTemplateMatches_IsLeftForTheAi()
     {
         const string text = "Kuch bhi likha hua, koi template nahi.";
