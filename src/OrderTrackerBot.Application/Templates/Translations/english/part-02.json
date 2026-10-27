@@ -23,6 +23,8 @@
   "order-flow.022": "\"{0}\" is not in the catalog — send the name again, or type \"1\" to add it as a new product.",
   "order-flow.023": "The phone number does not look right — send only the number (e.g. 03001234567), or type \"cancel\".",
   "order-flow.024": "Please reply 1 (your written price), 2 (catalog rate) or 3 (update the catalog).",
+  "order-flow.059": "🚚 Which delivery charge should I use? You wrote {0} in the message, but you often change this charge. Your default is {1}.",
+  "order-flow.060": "Please reply 1 (the delivery charge you wrote) or 2 (your default).",
   "order-flow.025": "Reply 1 (same customer) or 2 (new customer).",
   "order-flow.026": "The order draft has been ended. Please try again.",
   "order-flow.027": "✅ Okay, duplicate cancelled. Nothing was changed.",

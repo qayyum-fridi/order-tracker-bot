@@ -21,12 +21,18 @@ public sealed class PendingOrderItemData
     public decimal? WrittenPrice { get; set; }
     /// <summary>True once the seller answered the price question (1 or 3): the line keeps its price and is not re-priced for the buyer's group.</summary>
     public bool PriceDecided { get; set; }
+    /// <summary>"written" / "catalog" when the price answer was applied without asking (strategy learning); a draft edit or cancel counts against it.</summary>
+    public string? AutoPriceArm { get; set; }
     /// <summary>Listings of one name that differ by size or colour, and the typed name names none of them; the seller picks one (VariantChoice). Null once chosen.</summary>
     public List<int>? VariantProductIds { get; set; }
 }
 
 public sealed class PendingOrderData
 {
+    /// <summary>The delivery charge written in the message text (not a screenshot, not the seller default); null once the seller changed it.</summary>
+    public decimal? TextDeliveryCharge { get; set; }
+    /// <summary>True once the written-or-default delivery decision was made for this draft (silently or by answer), so it is counted once.</summary>
+    public bool DeliveryDecided { get; set; }
     public string? CustomerName { get; set; }
     public List<PendingOrderItemData> Items { get; set; } = new();
     public string? Phone { get; set; }
@@ -77,6 +83,12 @@ public sealed class SessionContextData
     public OrderForCustomerData? OrderForCustomer { get; set; }
     /// <summary>The did-you-mean buttons last sent for the product question (<c>ProductChoice</c>); a tap on one is read as "2 &lt;label&gt;".</summary>
     public List<ProductSuggestion>? ProductSuggestions { get; set; }
+
+    /// <summary>The last order saved with an auto-applied price answer; an undo of that order counts against that answer.</summary>
+    public AutoPriceUse? AutoPriceUse { get; set; }
+
+    /// <summary>The last order saved with a delivery charge written in the message; a later change of that charge counts against that decision.</summary>
+    public TextDeliveryUse? TextDeliveryUse { get; set; }
     public PendingOrderData? PendingOrder { get; set; }
     /// <summary>When the draft was first shown for confirmation (UTC). Set by the engine on persist; cleared with the draft.</summary>
     public DateTime? PendingOrderAskedAt { get; set; }
@@ -212,3 +224,9 @@ public sealed class SessionContextData
             ? new SessionContextData()
             : JsonSerializer.Deserialize<SessionContextData>(json) ?? new SessionContextData();
 }
+
+/// <summary>An order saved with an auto-applied price answer (<see cref="PendingOrderItemData.AutoPriceArm"/>).</summary>
+public sealed record AutoPriceUse(int OrderId, string Arm);
+
+/// <summary>An order saved with the delivery charge the seller wrote in the message (<see cref="PendingOrderData.TextDeliveryCharge"/>).</summary>
+public sealed record TextDeliveryUse(int OrderId, decimal Charge);

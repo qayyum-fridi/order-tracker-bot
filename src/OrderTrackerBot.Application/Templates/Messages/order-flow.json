@@ -23,6 +23,8 @@
   "order-flow.022": "\"{0}\" catalog mein nahi mila — dobara naam bhejein, ya \"1\" likh kar naya product add karein.",
   "order-flow.023": "Phone number sahi nahi lagta — sirf number bhejein (e.g. 03001234567), ya \"cancel\" likhein.",
   "order-flow.024": "Barae meherbani 1 (aapki likhi qeemat), 2 (catalog rate) ya 3 (catalog update) likhein.",
+  "order-flow.059": "🚚 Delivery charge kaunsa lagayein? Aapne message mein {0} likha tha, lekin aap aksar yeh charge badal dete hain. Aapka default {1} hai.",
+  "order-flow.060": "Barae meherbani 1 (aapka likha hua delivery charge) ya 2 (aapka default) likhein.",
   "order-flow.025": "Reply 1 (wohi customer) ya 2 (naya customer).",
   "order-flow.026": "Order draft khatam kar diya gaya hai. Barae meherbani dobara koshish karein.",
   "order-flow.027": "✅ Theek hai, duplicate cancel kar diya. Koi tabdeeli nahi hui.",

@@ -630,6 +630,9 @@ public sealed class FeatureOptions
     /// <summary>Setup asks the kind of shop right after the shop name (taps); off = the old flow without that question (unit tests).</summary>
     public bool IndustryQuestion { get; set; }
 
+    /// <summary>Learns how this seller answers the price question and applies the answer they always give without asking (see <c>StrategyPolicy</c>); off = always ask.</summary>
+    public bool StrategyLearning { get; set; }
+
     /// <summary>A product line is shown back (name, colour, price, stock) and saved only after YES; off = saved straight away (unit tests).</summary>
     public bool ProductConfirmation { get; set; }
 
