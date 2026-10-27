@@ -150,6 +150,12 @@ public partial class ConversationEngine
             return;
         }
 
+        if (analysis.Intent == "add_customer" && analysis.NewCustomer is { } buyer)
+        {
+            await ReplyAsync(seller, await SaveNewCustomerAsync(seller, buyer, ct), ct);
+            return;
+        }
+
         if (!analysis.IsOrderAttempt || analysis.Order is null)
         {
             var options = analysis.ClarificationOptions.Count > 0 ? analysis.ClarificationOptions : DefaultClarificationOptions.ToList();

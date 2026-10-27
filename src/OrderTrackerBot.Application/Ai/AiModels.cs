@@ -53,7 +53,7 @@ public sealed class AiOrderDraft
 /// </summary>
 public sealed class AiMessageAnalysis
 {
-    /// <summary>new_order | status_update | customer_feedback | support_query | add_products | create_discount | off_topic | unclear.</summary>
+    /// <summary>new_order | status_update | customer_feedback | support_query | add_products | add_customer | create_discount | off_topic | unclear.</summary>
     public string Intent { get; init; } = "";
     public bool IsOrderAttempt { get; init; }
     /// <summary>True when the AI could not be reached (no API key, or the call failed) — distinct from "reached it, not an order".</summary>
@@ -67,6 +67,8 @@ public sealed class AiMessageAnalysis
     public AiSupportQuery? SupportQuery { get; init; }
     /// <summary>Set for add_products: the seller is telling the bot about products they sell (with or without prices), not placing an order.</summary>
     public List<AiNewProduct> NewProducts { get; init; } = new();
+    /// <summary>Set for add_customer: a buyer the seller is saving before any order (name, and phone / address / city when said).</summary>
+    public AiNewCustomer? NewCustomer { get; init; }
     /// <summary>Set when a screenshot is a payment receipt (JazzCash/Easypaisa/bank), not an order.</summary>
     public AiPaymentReceipt? Receipt { get; init; }
     /// <summary>True when the message named 2+ items in a way that could mean separate orders or one combined order (spec screen 3).</summary>
@@ -86,6 +88,15 @@ public sealed class AiNewProduct
     public int? Stock { get; init; }
     /// <summary>Other facts the seller gave ("fabric" = "cotton", "color" = "white"); empty when none.</summary>
     public Dictionary<string, string> Attributes { get; init; } = new();
+}
+
+/// <summary>A buyer the seller is saving before any order; phone, address and city are null when the seller did not say them.</summary>
+public sealed class AiNewCustomer
+{
+    public string Name { get; init; } = "";
+    public string? Phone { get; init; }
+    public string? Address { get; init; }
+    public string? City { get; init; }
 }
 
 public sealed class AiCustomerFeedback
