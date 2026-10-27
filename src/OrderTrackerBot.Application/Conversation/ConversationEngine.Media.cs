@@ -23,9 +23,14 @@ public partial class ConversationEngine
     public async Task HandleAudioMessageAsync(string fromPhoneNumber, string mediaId, string? messageId = null, string? replyToId = null, CancellationToken ct = default, DateTime? sentAtUtc = null)
     {
         _sentAtUtc = sentAtUtc;
+        var handling = System.Diagnostics.Stopwatch.StartNew();
+        // Meta's send time to the start of handling: WhatsApp delivery, the wait in the seller's queue, and any earlier message.
+        if (sentAtUtc is { } sentUtc)
+            _logger?.LogInformation("Voice note: {LagMs} ms from WhatsApp's send time to the start of handling", (long)(DateTime.UtcNow - sentUtc).TotalMilliseconds);
         var startLogId = await NewestActionLogIdAsync((await LoadOrCreateSellerAsync(fromPhoneNumber, ct)).Id, ct);
         _lastAudioHash = null;
         await HandleAudioCoreAsync(fromPhoneNumber, mediaId, messageId, replyToId, ct);
+        _logger?.LogInformation("Voice note: handled in {TotalMs} ms, reply included", handling.ElapsedMilliseconds);
 
         // The actions this note made are remembered for "undo note". A note that made none (a refused reply) keeps the earlier range.
         var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
@@ -83,7 +88,9 @@ public partial class ConversationEngine
             await _db.SaveChangesAsync(ct);
             return;
         }
+        var vocabularyStartMs = voiceClock.ElapsedMilliseconds;
         var vocabulary = media is null ? null : await BuildVoiceVocabularyAsync(seller, ct);
+        var vocabularyMs = voiceClock.ElapsedMilliseconds - vocabularyStartMs;
         var text = media is null ? null : await _transcriber.TranscribeAsync(media.Value.Bytes, media.Value.MimeType, vocabulary, ct);
         var transcribedMs = voiceClock.ElapsedMilliseconds;
         if (text is null)
@@ -136,8 +143,8 @@ public partial class ConversationEngine
             await _db.SaveChangesAsync(ct);
             return;
         }
-        _logger?.LogInformation("Voice note: download {DownloadMs} ms, up to transcript {TranscribedMs} ms, understood {TotalMs} ms (audio {Bytes} bytes, transcript {Words} words, decision {Kind})",
-            downloadMs, transcribedMs, voiceClock.ElapsedMilliseconds, media?.Bytes.Length ?? 0, text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length, decision.Kind);
+        _logger?.LogInformation("Voice note: download {DownloadMs} ms, vocabulary {VocabularyMs} ms, up to transcript {TranscribedMs} ms, understood {TotalMs} ms (audio {Bytes} bytes, transcript {Words} words, decision {Kind})",
+            downloadMs, vocabularyMs, transcribedMs, voiceClock.ElapsedMilliseconds, media?.Bytes.Length ?? 0, text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length, decision.Kind);
         IReadOnlyList<string> steps = decision.Steps;
 
         // City / business type / handle are one answer ("Lahore, Clothing, @x"); separate steps would leave the first one to
@@ -261,6 +268,7 @@ public partial class ConversationEngine
         if (ctx.PendingOrder is not null && OpensWithLeavePhrase(transcript.Trim().Trim('.', '!', '?', '،', '۔', ' ')))
             return TurnDecision.Execute(new[] { "cancel" });
 
+        var rewriteClock = System.Diagnostics.Stopwatch.StartNew();
         var result = await _ai.InterpretVoiceAsync(new AiVoiceContext
         {
             BusinessName = seller.BusinessName ?? "",
@@ -271,6 +279,7 @@ public partial class ConversationEngine
             KnownCustomers = knownCustomers,
             RecentExchanges = exchanges
         }, transcript, ct);
+        _logger?.LogInformation("Voice rewrite: AI answered in {RewriteMs} ms with {Steps} step(s)", rewriteClock.ElapsedMilliseconds, result?.Steps.Count ?? 0);
 
         if (result?.Question is { } question && result.Steps.Count == 0) return TurnDecision.Clarify(question, result.Options);
         if (result is { Steps.Count: > 0 })

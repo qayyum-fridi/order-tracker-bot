@@ -85,14 +85,18 @@ public class OpenAiAudioTranscriber : IAudioTranscriber
             // WhatsApp voice notes are "audio/ogg; codecs=opus"; OpenAI infers the format from the file extension.
             var extension = mimeType.Contains("ogg") ? "ogg" : mimeType.Contains("mpeg") ? "mp3" : mimeType.Contains("mp4") || mimeType.Contains("aac") ? "m4a" : "ogg";
 
+            var clock = System.Diagnostics.Stopwatch.StartNew();
             var response = await SendAsync(BuildForm(audio, extension, vocabulary, withHints: true), cancellationToken);
+            _logger.LogInformation("Transcription: HTTP {Status} after {Ms} ms (with hints)", (int)response.StatusCode, clock.ElapsedMilliseconds);
             if (response.StatusCode == System.Net.HttpStatusCode.BadRequest && UsesHints)
             {
                 // The keyword/language fields are new; if the API rejects them the voice note is still worth transcribing without hints.
                 _logger.LogWarning("Transcription with keyword/language hints was rejected ({Body}); retrying without hints",
                     await response.Content.ReadAsStringAsync(cancellationToken));
                 response.Dispose();
+                clock.Restart();
                 response = await SendAsync(BuildForm(audio, extension, vocabulary, withHints: false), cancellationToken);
+                _logger.LogInformation("Transcription: HTTP {Status} after {Ms} ms (retry without hints)", (int)response.StatusCode, clock.ElapsedMilliseconds);
             }
 
             using (response)
