@@ -335,11 +335,15 @@ public class IndustryQuestionTests : IDisposable
     }
 
     [Fact]
-    public async Task ShopName_ThenAskedTheKindOfShop_AndATapSetsIt()
+    public async Task ShopName_ThenCity_ThenAskedTheKindOfShop_AndATapSetsIt()
     {
         var (db, engine, seller) = await StartAsync();
 
         await engine.HandleIncomingMessageAsync(Phone, "Bilal Mart", default);
+        Assert.Equal(ConversationState.OnboardingOptionalDetails, (await db.Sessions.FirstAsync()).State);
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "Karachi", default);
         var ask = string.Join("\n", _sent);
         Assert.Contains("dukaan kis qism ki hai", ask);
         Assert.Contains("industry grocery", ask);
@@ -349,8 +353,8 @@ public class IndustryQuestionTests : IDisposable
         _sent.Clear();
         await engine.HandleIncomingMessageAsync(Phone, "industry grocery", default);
         Assert.Equal("Grocery / Kiryana", (await db.Sellers.FindAsync(seller.Id))!.BusinessType);
-        Assert.Equal(ConversationState.OnboardingOptionalDetails, (await db.Sessions.FirstAsync()).State);
-        Assert.Contains("Dukaan ki qism: Grocery / Kiryana", string.Join("\n", _sent));
+        Assert.Equal(ConversationState.OnboardingAddProduct, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains("Grocery / Kiryana business", string.Join("\n", _sent));
     }
 
     [Theory]
@@ -361,6 +365,20 @@ public class IndustryQuestionTests : IDisposable
     {
         var (db, engine, seller) = await StartAsync();
         await engine.HandleIncomingMessageAsync(Phone, "Bilal Mart", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Karachi", default);
+        await engine.HandleIncomingMessageAsync(Phone, typed, default);
+        Assert.Equal(title, (await db.Sellers.FindAsync(seller.Id))!.BusinessType);
+    }
+
+    [Theory]
+    [InlineData("5", "Food / Bakery")]
+    [InlineData("Yeh main ne number 5 bola tha", "Food / Bakery")]
+    [InlineData("number 2", "Grocery / Kiryana")]
+    public async Task ANumberFromTheList_IsUnderstood_AndSaved(string typed, string title)
+    {
+        var (db, engine, seller) = await StartAsync();
+        await engine.HandleIncomingMessageAsync(Phone, "Bilal Mart", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Karachi", default);
         await engine.HandleIncomingMessageAsync(Phone, typed, default);
         Assert.Equal(title, (await db.Sellers.FindAsync(seller.Id))!.BusinessType);
     }
@@ -370,6 +388,7 @@ public class IndustryQuestionTests : IDisposable
     {
         var (db, engine, seller) = await StartAsync();
         await engine.HandleIncomingMessageAsync(Phone, "Bilal Mart", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Karachi", default);
         _sent.Clear();
         await engine.HandleIncomingMessageAsync(Phone, "xyzzy qqq", default);
         Assert.Contains("samajh nahi aaya", string.Join("\n", _sent));
@@ -382,6 +401,7 @@ public class IndustryQuestionTests : IDisposable
     {
         var (db, engine, seller) = await StartAsync();
         await engine.HandleIncomingMessageAsync(Phone, "Bilal Mart", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Karachi", default);
         await engine.HandleIncomingMessageAsync(Phone, "industry grocery", default);
         await engine.HandleIncomingMessageAsync(Phone, "Karachi, Clothing, @bilal.mart", default);
         var saved = await db.Sellers.FindAsync(seller.Id);

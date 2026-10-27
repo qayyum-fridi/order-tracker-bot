@@ -16,6 +16,15 @@ namespace OrderTrackerBot.Infrastructure;
 
 public static class DependencyInjection
 {
+    // Pooled sockets / TLS sessions to OpenAI and Meta live long enough that a message after a quiet spell does not pay a fresh handshake.
+    private static HttpMessageHandler KeepAliveHandler() => new SocketsHttpHandler
+    {
+        PooledConnectionIdleTimeout = TimeSpan.FromMinutes(10),
+        PooledConnectionLifetime = TimeSpan.FromMinutes(30),
+        KeepAlivePingDelay = TimeSpan.FromSeconds(30),
+        KeepAlivePingPolicy = HttpKeepAlivePingPolicy.WithActiveRequests
+    };
+
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("Default")
@@ -68,8 +77,8 @@ public static class DependencyInjection
         services.Configure<FounderAlertOptions>(configuration.GetSection(FounderAlertOptions.SectionName));
         services.Configure<InstagramOptions>(configuration.GetSection(InstagramOptions.SectionName));
 
-        services.AddHttpClient<IWhatsAppSender, WhatsAppSender>();
-        services.AddHttpClient<IAiOrderAssistant, OpenAiOrderAssistant>();
+        services.AddHttpClient<IWhatsAppSender, WhatsAppSender>().ConfigurePrimaryHttpMessageHandler(KeepAliveHandler);
+        services.AddHttpClient<IAiOrderAssistant, OpenAiOrderAssistant>(c => c.Timeout = TimeSpan.FromSeconds(30)).ConfigurePrimaryHttpMessageHandler(KeepAliveHandler);
         services.AddHttpClient<IAudioTranscriber, OpenAiAudioTranscriber>();
         services.AddHttpClient<IFounderAlertNotifier, FounderAlertNotifier>();
         services.AddHttpClient<IIssueReporter, IssueReporter>(c => c.Timeout = TimeSpan.FromSeconds(5));
@@ -78,6 +87,7 @@ public static class DependencyInjection
         services.AddHttpClient<InstagramClient>();
         services.AddScoped<IInstagramClient>(sp => sp.GetRequiredService<InstagramClient>());
         services.AddSingleton(configuration.GetSection(BillingOptions.SectionName).Get<BillingOptions>() ?? new BillingOptions());
+        services.AddSingleton(configuration.GetSection(DashboardOptions.SectionName).Get<DashboardOptions>() ?? new DashboardOptions());
         services.AddSingleton(new BuildInfo { Version = configuration[$"{BuildInfo.SectionName}:Version"] ?? configuration["GIT_SHA"] });
         services.AddSingleton(configuration.GetSection(FeatureOptions.SectionName).Get<FeatureOptions>() ?? new FeatureOptions());
 

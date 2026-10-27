@@ -296,7 +296,7 @@ public partial class ConversationEngine
             return;
         }
 
-        if (!_instagram.IsConfigured)
+        if (!_features.Instagram || !_instagram.IsConfigured)
         {
             await ReplyAsync(seller,
                 MessageTemplates.Get("support.014"), ct);
@@ -339,7 +339,7 @@ public partial class ConversationEngine
     public async Task HandleInstagramCommentAsync(string igAccountId, string commentId, string? commenterId, string? username,
         string text, string? mediaId, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(text)) return;
+        if (!_features.Instagram || string.IsNullOrWhiteSpace(text)) return;
 
         var connection = await _db.InstagramConnections.FirstOrDefaultAsync(c => c.IgUserId == igAccountId, ct);
         if (connection is null) return;

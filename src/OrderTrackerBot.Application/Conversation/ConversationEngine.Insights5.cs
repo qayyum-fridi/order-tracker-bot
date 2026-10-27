@@ -135,7 +135,7 @@ public partial class ConversationEngine
         }
 
         var again = cohort.Count(c => c.Count >= 2);
-        var mature = cohort.Where(c => c.First <= DateTime.UtcNow.AddDays(-30)).ToList();
+        var mature = cohort.Where(c => c.First <= SellerClock.DaysAgoUtc(30, DateTime.UtcNow)).ToList();
         await ReplyAsync(seller,
             MessageTemplates.Get("insights5.007", label, cohort.Count, again, Pct((decimal)again / cohort.Count * 100m), (mature.Count > 0 && mature.Count < cohort.Count ? $"Sirf jin ko 30+ din ho gaye ({mature.Count}): {mature.Count(c => c.Count >= 2)} ({Pct((decimal)mature.Count(c => c.Count >= 2) / mature.Count * 100m)})\n" : "")), ct);
         SuggestNext("repeat customers", "inactive customers");

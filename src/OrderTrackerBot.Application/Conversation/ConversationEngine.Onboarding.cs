@@ -23,6 +23,11 @@ public partial class ConversationEngine
         @"[\s,;.]*(?:(?:(?:catalog|catalogue|product|products|list)\s+(?:mein|me)|product\s+ke\s+(?:taur|tor)\s+par)\s+)?(?:add|ad)\s+(?:kar\s*)?(?:do|dein|den|karo|kardo|kardein)[\s.!]*$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
+    // "kurti price 1800": the price word is not part of the product name, so it becomes "kurti - 1800".
+    private static readonly Regex PriceWordBeforeAmount = new(
+        @"^(.+?)(?:\s+(?:ki|ka|ke|کی|کا|کے))?\s+(?:price|rate|qeemat|keemat|kimat|قیمت|ریٹ)\s*[-–—:=]?\s*(?=(?:rs\.?\s*)?\d[\d.,]*\s*(?:/-|rs\.?|rupay|rupees|pkr)?\s*$)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+
     // Onboarding accepts any "name - price" (digits allowed in the name, e.g. "Suit 2pc - 3500"), also with ":"/"=" or an Rs/PKR marker.
     internal static ProductLine? ParseLooseProductLine(string line)
     {
@@ -30,6 +35,7 @@ public partial class ConversationEngine
         line = CommandParser.NormalizeProductPriceText(line);
         // "address mein" is a mis-heard "catalog mein": it only matters when it trails the price like the other filler.
         line = AddFiller.Replace(Regex.Replace(line, @"[\s,;]+address\s+(?:mein|me)\b", ""), "");
+        line = PriceWordBeforeAmount.Replace(line, "$1 - ");
         var m = LooseProductLine.Match(line);
         if (m.Success) return CommandParser.SplitUnit(m.Groups[1].Value, decimal.Parse(m.Groups[2].Value));
         if (CommandParser.TryParseSpacedProductLine(line, out ProductLine? spaced)) return spaced;
@@ -123,8 +129,20 @@ public partial class ConversationEngine
         if (parts.Count > 1 && !keepType) seller.BusinessType = parts[1];
     }
 
+    /// <summary>
+    /// After the shop city and type: straight to the first product. The "how many products" question is not asked in the MVP;
+    /// the product examples come from the seller's kind of shop.
+    /// </summary>
+    private async Task StartProductStepAsync(Seller seller, ConversationSession session, CancellationToken ct)
+    {
+        SetState(session, ConversationState.OnboardingAddProduct);
+        await ReplyAsync(seller, MessageTemplates.Get("onboarding.010", BusinessInfoSummary(seller), MessageTemplates.Get("onboarding.021", MessageTemplates.Get("product.formats", Industry(seller).SimpleProduct))), ct);
+        await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("onboarding.012"),
+            "Options dekhein", CatalogStepQuickActionsFor(), ct);
+    }
+
     private static string BusinessInfoSummary(Seller seller) =>
-        string.Join(", ", new[] { seller.City, seller.BusinessType is null ? null : $"{seller.BusinessType} business", seller.InstagramHandle }
+        string.Join(", ", new[] { seller.City, seller.BusinessType is null ? null : MessageTemplates.Get("onboarding.business", seller.BusinessType), seller.InstagramHandle }
             .Where(v => !string.IsNullOrWhiteSpace(v)));
 
     private async Task HandleBusinessInfoAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
@@ -180,6 +198,13 @@ public partial class ConversationEngine
         })
     };
 
+    /// <summary>The "connect instagram" row is left out while Features:Instagram is off.</summary>
+    private IReadOnlyList<Abstractions.MenuSection> CatalogStepQuickActionsFor() => _features.Instagram
+        ? CatalogStepQuickActions
+        : CatalogStepQuickActions
+            .Select(s => new Abstractions.MenuSection(s.Title, s.Rows.Where(r => r.Id != "connect instagram").ToArray()))
+            .ToArray();
+
     /// <summary>After each product: the confirmation and the next-step buttons in one message, so the options sit right under it.</summary>
     private Task SendAddProductChoicesAsync(Seller seller, string text, CancellationToken ct) =>
         _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
@@ -193,18 +218,29 @@ public partial class ConversationEngine
 
     private async Task HandleOnboardingAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
+        // "meri dukaan ka naam hai X" is a name, not an answer: a correction after the name is set keeps the question open.
+        if (session.State is ConversationState.OnboardingIndustry or ConversationState.OnboardingOptionalDetails
+            && CommandParser.TryParseShopName(message, out var renamed))
+        {
+            seller.BusinessName = renamed;
+            await ReplyAsync(seller, MessageTemplates.Get("onboarding.200", renamed), ct);
+            if (session.State == ConversationState.OnboardingIndustry) await AskIndustryAsync(seller, null, ct);
+            return;
+        }
+
         switch (session.State)
         {
             case ConversationState.OnboardingBusinessName:
                 if (await TryOnboardingShortcutAsync(seller, session, message, ct)) return;
                 if (await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: true, ct)) return;
-                seller.BusinessName = message;
-                if (_features.IndustryQuestion && string.IsNullOrWhiteSpace(seller.BusinessType))
+                // A product line is not a shop name: ask for the name again instead of saving "Kurti - 1800" as the shop.
+                if (CommandParser.TryParseProductLine(message, out _))
                 {
-                    SetState(session, ConversationState.OnboardingIndustry);
-                    await AskIndustryAsync(seller, null, ct);
+                    await ReplyAsync(seller, MessageTemplates.Get("onboarding.033"), ct);
                     return;
                 }
+                seller.BusinessName = CommandParser.TryParseShopName(message, out var typedName) ? typedName : message;
+                // The city comes first, then the kind of shop (taps); the Instagram handle is not asked in the MVP.
                 SetState(session, ConversationState.OnboardingOptionalDetails);
                 // Skip is a tap, not a word to type. A real order sent at any step also ends setup (TryOrderDuringOnboardingAsync), and the seller is told so.
                 await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
@@ -222,13 +258,26 @@ public partial class ConversationEngine
                 var picked = PickIndustry(message);
                 if (picked is null)
                 {
+                    // A real command here (e.g. "orders today") runs only after setup: say so, then show the list again.
+                    if (CommandParser.TryParse(message) is { Kind: not (CommandKind.Help or CommandKind.Menu) })
+                    {
+                        await ReplyAsync(seller, MessageTemplates.Get("onboarding.036"), ct);
+                        await AskIndustryAsync(seller, null, ct);
+                        return;
+                    }
+                    // A product line here means the seller skipped the shop type: say what is expected first, then show the list again.
+                    if (CommandParser.TryParseProductLine(message, out _))
+                    {
+                        await ReplyAsync(seller, MessageTemplates.Get("onboarding.034"), ct);
+                        await AskIndustryAsync(seller, null, ct);
+                        return;
+                    }
                     await AskIndustryAsync(seller, message.Trim(), ct);
                     return;
                 }
                 seller.BusinessType = picked.Title;
-                SetState(session, ConversationState.OnboardingOptionalDetails);
-                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
-                    MessageTemplates.Get("onboarding.007", picked.Title), new[] { "Skip" }, ct);
+                await _db.SaveChangesAsync(ct);
+                await StartProductStepAsync(seller, session, ct);
                 return;
             }
 
@@ -245,19 +294,21 @@ public partial class ConversationEngine
                     return;
                 }
                 if (await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: true, ct)) return;
-                SetState(session, ConversationState.OnboardingCatalogSize);
-                var askCatalog = MessageTemplates.Get("onboarding.023");
-                if (DoneOrSkip.IsMatch(message))
+                // A product line is not the city or Instagram handle: keep this step open and say what it expects.
+                if (CommandParser.TryParseProductLine(message, out _))
                 {
-                    await ReplyAsync(seller, MessageTemplates.Get("onboarding.009", askCatalog), ct);
+                    await ReplyAsync(seller, MessageTemplates.Get("onboarding.035"), ct);
+                    return;
                 }
-                else
+                // The city was the answer here; the kind of shop comes next as taps, then the first product (no product-count question).
+                if (!DoneOrSkip.IsMatch(message)) ApplyBusinessInfo(seller, message, keepType: true);
+                if (_features.IndustryQuestion)
                 {
-                    ApplyBusinessInfo(seller, message, keepType: _features.IndustryQuestion && !string.IsNullOrWhiteSpace(seller.BusinessType));
-                    await ReplyAsync(seller, MessageTemplates.Get("onboarding.010", BusinessInfoSummary(seller), askCatalog), ct);
+                    SetState(session, ConversationState.OnboardingIndustry);
+                    await AskIndustryAsync(seller, null, ct);
+                    return;
                 }
-                await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("onboarding.011"),
-                    new[] { MessageTemplates.Get("onboarding.032"), "Bara (20+)" }, ct);
+                await StartProductStepAsync(seller, session, ct);
                 return;
 
             case ConversationState.OnboardingCatalogSize:
@@ -269,7 +320,7 @@ public partial class ConversationEngine
                     ? MessageTemplates.Get("onboarding.020", string.Join("\n", Industry(seller).ProductLines))
                     : MessageTemplates.Get("onboarding.021", Industry(seller).SimpleProduct), ct);
                 await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("onboarding.012"),
-                    "Options dekhein", CatalogStepQuickActions, ct);
+                    "Options dekhein", CatalogStepQuickActionsFor(), ct);
                 return;
 
             case ConversationState.OnboardingAddProduct:
@@ -310,8 +361,15 @@ public partial class ConversationEngine
                     .ToList();
                 if (productLines.Count > 0 && productLines.All(p => p is not null))
                 {
+                    // One product line is shown back for YES first (saved by TryHandlePendingProductAsync).
+                    if (_features.ProductConfirmation && productLines.Count == 1)
+                    {
+                        await AskProductConfirmationAsync(seller, ctx, new[] { productLines[0]! }, ct);
+                        return;
+                    }
                     var added = new List<Product>();
-                    foreach (var line in productLines) added.Add((await UpsertProductAsync(seller, line!, ct)).Product);
+                    foreach (var line in productLines)
+                        if ((await UpsertProductAsync(seller, line!, ct)).Product is { } listed) added.Add(listed);
                     await _db.SaveChangesAsync(ct);
                     var total = await _db.Products.CountAsync(p => p.SellerId == seller.Id && p.IsActive, ct);
                     var summary = added.Count == 1
@@ -331,7 +389,11 @@ public partial class ConversationEngine
                     if (parsed.Kind is CommandKind.Help or CommandKind.Menu or CommandKind.ConnectInstagram or CommandKind.ImportCatalogSheet
                         or CommandKind.BusinessSetup or CommandKind.NewOrderHelp or CommandKind.Guide or CommandKind.Stock
                         or CommandKind.ImportHelp or CommandKind.ImportTemplate or CommandKind.HowTo
-                        or CommandKind.CustomerSearch or CommandKind.CustomerOrderLookup)
+                        or CommandKind.CustomerSearch or CommandKind.OrderSearch or CommandKind.CustomerOrderLookup
+                        // Read-only lookups: they change nothing, so the seller can check orders or reports during setup.
+                        or CommandKind.OrdersToday or CommandKind.OrderPage or CommandKind.PendingOrders or CommandKind.UnpaidOrders
+                        or CommandKind.TodaysSummary or CommandKind.Profit or CommandKind.Margin or CommandKind.WeeklySummary
+                        or CommandKind.CustomerList or CommandKind.MenuCategory)
                     {
                         await ExecuteCommandAsync(seller, session, ctx, parsed, ct);
                         return;

@@ -1,8 +1,8 @@
 using System.Net;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
-using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Conversation;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Infrastructure.Instagram;
@@ -21,12 +21,20 @@ public class InstagramController : ControllerBase
     private readonly AppDbContext _db;
     private readonly ConversationEngine _engine;
     private readonly ILogger<InstagramController> _logger;
-    private readonly IIssueReporter _issues;
+    private readonly WebhookInbox _inbox;
+    private readonly FeatureOptions _features;
+    private readonly IHostEnvironment _environment;
+
+    /// <summary>Upper bound for one webhook POST, checked before the body is read (same limit as the WhatsApp webhook).</summary>
+    private const int MaxBodyBytes = 1024 * 1024;
 
     public InstagramController(InstagramClient instagram, IOptions<InstagramOptions> options, IOptions<WhatsAppOptions> whatsApp,
-        AppDbContext db, ConversationEngine engine, ILogger<InstagramController> logger, IIssueReporter issues)
+        IOptions<FeatureOptions> features, AppDbContext db, ConversationEngine engine, ILogger<InstagramController> logger, WebhookInbox inbox,
+        IHostEnvironment environment)
     {
-        _issues = issues;
+        _environment = environment;
+        _inbox = inbox;
+        _features = features.Value;
         _instagram = instagram;
         _options = options.Value;
         _whatsApp = whatsApp.Value;
@@ -39,6 +47,7 @@ public class InstagramController : ControllerBase
     [HttpGet("instagram/connect/{state}")]
     public IActionResult Connect(string state)
     {
+        if (!_features.Instagram) return NotFound();
         if (!_instagram.IsConfigured) return Page("Instagram connect abhi active nahi hai.", ok: false);
         if (!_instagram.TryReadState(state, DateTime.UtcNow, out _))
             return Page("Yeh link expire ho gaya hai. WhatsApp par dobara \"connect instagram\" likhein.", ok: false);
@@ -49,6 +58,7 @@ public class InstagramController : ControllerBase
     public async Task<IActionResult> Callback([FromQuery] string? code, [FromQuery] string? state,
         [FromQuery(Name = "error_description")] string? errorDescription, CancellationToken ct)
     {
+        if (!_features.Instagram) return NotFound();
         if (!_instagram.TryReadState(state, DateTime.UtcNow, out var sellerId))
             return Page("Yeh link expire ho gaya hai. WhatsApp par dobara \"connect instagram\" likhein.", ok: false);
         if (string.IsNullOrEmpty(code))
@@ -98,6 +108,7 @@ public class InstagramController : ControllerBase
         [FromQuery(Name = "hub.verify_token")] string? verifyToken,
         [FromQuery(Name = "hub.challenge")] string? challenge)
     {
+        if (!_features.Instagram) return NotFound();
         var expected = string.IsNullOrEmpty(_options.VerifyToken) ? _whatsApp.VerifyToken : _options.VerifyToken;
         if (mode == "subscribe" && !string.IsNullOrEmpty(expected) && verifyToken == expected && challenge is not null)
             return Content(challenge, "text/plain");
@@ -105,34 +116,39 @@ public class InstagramController : ControllerBase
     }
 
     [HttpPost("webhook/instagram")]
+    [RequestSizeLimit(MaxBodyBytes)]
     public async Task<IActionResult> Receive(CancellationToken ct)
     {
-        using var reader = new StreamReader(Request.Body);
-        var rawBody = await reader.ReadToEndAsync(ct);
+        if (!_features.Instagram) return NotFound();
+        // The raw bytes are what Meta signed; the text is only decoded for parsing, after the signature check.
+        using var buffer = new MemoryStream();
+        await Request.Body.CopyToAsync(buffer, ct);
+        var rawBytes = buffer.ToArray();
 
         var signature = Request.Headers["X-Hub-Signature-256"].FirstOrDefault();
-        if (!WhatsAppSignatureValidator.IsValid(_options.AppSecret, System.Text.Encoding.UTF8.GetBytes(rawBody), signature))
+        if (!WhatsAppSignatureValidator.IsAllowed(_options.AppSecret, _environment.IsDevelopment(), rawBytes, signature))
         {
-            _logger.LogWarning("Rejected Instagram webhook call with invalid signature.");
+            _logger.LogWarning("Rejected Instagram webhook call with missing or invalid signature.");
             return Unauthorized();
         }
+        var rawBody = System.Text.Encoding.UTF8.GetString(rawBytes);
 
+        // Same durable hand-off as WhatsApp (WebhookInbox → WebhookWorkerService): the AI call runs after the 200, so a slow
+        // reply never makes Meta retry, and a restart cannot lose an accepted comment. A full queue answers 503 so Meta retries later.
+        var accepted = true;
         foreach (var comment in InstagramWebhookPayload.ExtractComments(rawBody))
         {
-            try
+            var message = new WebhookMessage(comment.CommentId, WebhookMessageKind.InstagramComment, comment.IgAccountId,
+                Text: comment.Text, MediaId: comment.MediaId, CommenterId: comment.FromId, Username: comment.Username);
+            // Not tied to the request token: once Meta's payload is read, recording it must not be cancelled by a dropped connection.
+            if (await _inbox.AcceptAsync(message, CancellationToken.None) == InboxResult.QueueFull)
             {
-                await _engine.HandleInstagramCommentAsync(comment.IgAccountId, comment.CommentId, comment.FromId, comment.Username,
-                    comment.Text, comment.MediaId, ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to process Instagram comment {CommentId}", comment.CommentId);
-                await _issues.ReportAsync(IssueCodes.InstagramCommentFailed, null, $"IG account {comment.IgAccountId}, comment {comment.CommentId}", ex, ct);
+                _logger.LogError("Webhook queue is full; asking Meta to retry Instagram comment {CommentId}", comment.CommentId);
+                accepted = false;
             }
         }
 
-        // Meta retries (and eventually disables the subscription) on anything but a fast 200.
-        return Ok();
+        return accepted ? Ok() : StatusCode(StatusCodes.Status503ServiceUnavailable);
     }
 
     private ContentResult Page(string message, bool ok) => Content(

@@ -35,7 +35,7 @@ public partial class ConversationEngine
     /// <summary>Monthly rent / electricity / bills (expense categories or notes that look like them, else all expenses), averaged over the last 90 days.</summary>
     private async Task<(decimal Monthly, bool Specific)> FixedMonthlyCostsAsync(Seller seller, CancellationToken ct)
     {
-        var start = DateTime.UtcNow.AddDays(-90);
+        var start = SellerClock.DaysAgoUtc(90, DateTime.UtcNow);
         var expenses = await _db.Expenses.AsNoTracking().Where(e => e.SellerId == seller.Id && e.CreatedAt >= start).ToListAsync(ct);
         var fixedOnes = expenses.Where(e => Regex.IsMatch(e.Category + " " + e.Note, @"kiraya|rent|bijli|electric|bill|utilit|کرایہ|بجلی", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)).ToList();
         var basis = fixedOnes.Count > 0 ? fixedOnes : expenses;
@@ -130,8 +130,9 @@ public partial class ConversationEngine
     /// <summary>Customers who pay by wallet/bank for the dear orders but ask for COD on the cheap ones.</summary>
     private async Task InsightPaymentHabitAsync(Seller seller, CancellationToken ct)
     {
+        var since = SellerClock.DaysAgoUtc(365, DateTime.UtcNow);
         var rows = await _db.Orders.AsNoTracking()
-            .Where(o => o.SellerId == seller.Id && o.CreatedAt >= DateTime.UtcNow.AddDays(-365) && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned && o.Customer!.DeletedAt == null)
+            .Where(o => o.SellerId == seller.Id && o.CreatedAt >= since && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned && o.Customer!.DeletedAt == null)
             .Select(o => new { o.CustomerId, o.Customer!.Name, o.Total, o.PaymentMethod })
             .ToListAsync(ct);
         if (rows.Count < 6)
@@ -212,7 +213,7 @@ public partial class ConversationEngine
     /// <summary>Products with a below-median margin that still earned the most total profit in the last 30 days.</summary>
     private async Task InsightTurnoverStarAsync(Seller seller, CancellationToken ct)
     {
-        var since = DateTime.UtcNow.AddDays(-30);
+        var since = SellerClock.DaysAgoUtc(30, DateTime.UtcNow);
         var items = await _db.OrderItems.AsNoTracking()
             .Where(i => i.ProductId != null && i.UnitCost != null && i.Order!.SellerId == seller.Id && i.Order.CreatedAt >= since && i.Order.Status != OrderStatus.Cancelled && i.Order.Status != OrderStatus.Returned)
             .Select(i => new { ProductId = i.ProductId!.Value, i.UnitPrice, Cost = i.UnitCost!.Value, i.Quantity })
@@ -287,7 +288,7 @@ public partial class ConversationEngine
             return;
         }
 
-        var since = DateTime.UtcNow.AddDays(-180);
+        var since = SellerClock.DaysAgoUtc(180, DateTime.UtcNow);
         var products = (await _db.Products.AsNoTracking().Where(p => p.SellerId == seller.Id).ToListAsync(ct)).ToDictionary(p => p.Id);
         var items = await _db.OrderItems.AsNoTracking()
             .Where(i => i.ProductId != null && i.Order!.SellerId == seller.Id && i.Order.CreatedAt >= since && i.Order.Status != OrderStatus.Cancelled && i.Order.Status != OrderStatus.Returned)
@@ -327,7 +328,7 @@ public partial class ConversationEngine
             return;
         }
 
-        var since = DateTime.UtcNow.AddDays(-days);
+        var since = SellerClock.DaysAgoUtc(days, DateTime.UtcNow);
         var items = await _db.OrderItems.AsNoTracking()
             .Where(i => i.ProductId != null && i.Order!.SellerId == seller.Id && i.Order.CreatedAt >= since)
             .Select(i => new { ProductId = i.ProductId!.Value, i.Quantity, i.Order!.Status })

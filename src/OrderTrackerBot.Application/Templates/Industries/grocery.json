@@ -15,5 +15,6 @@
     "Stock 3 ya us se kam reh jaye to bot khud warning bhejta hai."
   ],
   "dataFocus": "stock, pack size aur cost price",
+  "menuTip": "Pack ka wazan naam mein likhein, aur stock likhein: kam hone par bot khud warning deta hai.",
   "units": ["kg", "gram", "ml", "liter", "pack", "dozen", "bag", "carton"]
 }

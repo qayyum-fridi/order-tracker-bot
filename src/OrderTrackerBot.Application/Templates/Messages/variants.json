@@ -1,0 +1,7 @@
+{
+  "variants.001": "⚠️ \"{0}\" ke kai variants hain: {1}.\nKaunsa variant? Poora naam likhein, e.g. \"{2}\".",
+  "variants.002": "❓ \"{0}\" ke kai variants hain. Kaunsa bhejna hai? Number ya poora naam likhein:",
+  "variants.003": "Barae meherbani variant ka number likhein (1 se {0} tak) ya uska poora naam.",
+  "variants.004": "ℹ️ Is naam ke doosre variants: {0}",
+  "variants.005": "⚠️ \"{0}\" ke kai variants hain. Size ya colour likh kar dobara bhejein, e.g. \"{1}\"."
+}

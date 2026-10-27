@@ -1,0 +1,10 @@
+{
+  "enquiries.001": "✅ Note ho gaya: \"{0}\"{1}\nBot buyer ki chat nahi dekhta, isliye jo aap likhein wahi ginti hoti hai. Report ke liye \"enquiries\" likhein.",
+  "enquiries.002": " (product: {0})",
+  "enquiries.003": "📝 Buyer ke sawal — {0}\n\n{1}{2}\n\nYeh sirf woh hai jo aap ne likha. Buyer ki chat bot nahi dekhta.",
+  "enquiries.004": "• {0} — pucha {1} baar, bika {2} piece{3}",
+  "enquiries.005": " · ⚠️ pucha gaya, bikri nahi",
+  "enquiries.006": "ℹ️ {0} mein koi sawal note nahi hua. Likhne ke liye: \"enquiry Kurti blue\" ya \"buyer ne pucha Lawn Suit\".",
+  "enquiries.007": "\n\nℹ️ {0} sawal kisi product ka naam nahi le rahe, is liye un ka hisaab alag nahi.",
+  "enquiries.008": "• Product pehchana nahi gaya ({0} sawal)"
+}

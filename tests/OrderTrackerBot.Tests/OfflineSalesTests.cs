@@ -172,6 +172,23 @@ public class OfflineSalesEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task ADelayedStatusChange_KeepsItsSendTime()
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+        var engine = Engine(db);
+        var sent = DateTime.UtcNow.AddHours(-3);
+
+        await engine.HandleIncomingMessageAsync(Phone, "counter sale 900", default, sent);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default, sent);
+        await engine.HandleIncomingMessageAsync(Phone, "mark 1 returned", default, sent.AddHours(1));
+
+        var order = await db.Orders.SingleAsync();
+        Assert.Equal(OrderStatus.Returned, order.Status);
+        Assert.InRange(order.ReturnedAt!.Value, sent.AddHours(1).AddSeconds(-1), sent.AddHours(1).AddSeconds(1));
+    }
+
+    [Fact]
     public async Task ASendTimeInTheFutureOrTooOld_IsIgnored()
     {
         using var db = _dbFactory.CreateContext();
@@ -249,7 +266,7 @@ public class BadInputEngineTests : IDisposable
     {
         var db = _dbFactory.CreateContext();
         var engine = new ConversationEngine(db, _ai.Object, _sender.Object, Mock.Of<IFounderAlertNotifier>());
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "10 ke qareeb", "Kurti - 1800", "done" })
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         _sent.Clear();
         return (engine, db);

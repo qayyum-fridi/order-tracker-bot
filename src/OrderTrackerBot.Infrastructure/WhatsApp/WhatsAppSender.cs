@@ -154,10 +154,10 @@ public class WhatsAppSender : IWhatsAppSender
         }, cancellationToken);
     }
 
-    public Task<bool> SendTemplateMessageAsync(string toPhoneNumber, IReadOnlyList<string> bodyParameters, CancellationToken cancellationToken = default)
+    public Task<bool> SendTemplateMessageAsync(string toPhoneNumber, IReadOnlyList<string> bodyParameters, string templateKey = WhatsAppTemplateKeys.Broadcast, CancellationToken cancellationToken = default)
     {
-        // Broadcast template must take one {{1}} body parameter (the message).
-        if (!_templates.CurrentValue.TryGetValue(WhatsAppTemplatesOptions.Broadcast, out var template)
+        // The template's Body in whatsapp-templates.json lists its {{n}} placeholders; bodyParameters fill them in order.
+        if (!_templates.CurrentValue.TryGetValue(templateKey, out var template)
             || string.IsNullOrWhiteSpace(template.Name) || string.IsNullOrWhiteSpace(_options.AccessToken))
             return Task.FromResult(false);
 

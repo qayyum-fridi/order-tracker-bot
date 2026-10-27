@@ -87,7 +87,7 @@ public class ReceiptDesignModelTests
         foreach (var design in designs)
         {
             var data = ReceiptPdfTests.Sample() with { PaperSize = paper, Design = design, Logo = ReceiptPdfTests.TinyPng };
-            var pdf = generator.Generate(data);
+            var pdf = generator.Generate(data).Bytes;
             Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(pdf, 0, 5));
         }
     }
@@ -110,7 +110,7 @@ public class ReceiptDesignEngineTests : IDisposable
             .Callback<string, string, CancellationToken>((_, text, _) => _sent.Add(text)).Returns(Task.CompletedTask);
         _sender.Setup(s => s.SendDocumentAsync(Phone, It.IsAny<byte[]>(), It.IsAny<string>(), "application/pdf", It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Callback(() => _documents++).ReturnsAsync(true);
-        _pdf.Setup(p => p.Generate(It.IsAny<ReceiptData>())).Callback<ReceiptData>(d => _rendered.Add(d)).Returns(new byte[] { 1, 2, 3 });
+        _pdf.Setup(p => p.Generate(It.IsAny<ReceiptData>())).Callback<ReceiptData>(d => _rendered.Add(d)).Returns(new ReceiptPdf(new byte[] { 1, 2, 3 }, false));
         _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiMessageAnalysis { Intent = "unclear", AiUnavailable = true });
     }

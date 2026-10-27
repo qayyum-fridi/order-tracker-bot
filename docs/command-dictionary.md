@@ -22,8 +22,9 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 |---|---|---|
 | New order | `new order` · `naya order banao` · forward the customer's message, send a 🎤 voice note or a 📷 screenshot | `Ayesha, 2 suit, 03001234567` |
 | Orders of a day / period | `orders today` | `show orders` · `orders yesterday` · `orders 30 days` · `aaj ke orders` |
+| Next / previous page of the last order list | `orders next` | `orders prev` · `orders last` · `orders page 3` · `orders size 25` (also sets the catalog page size) |
 | Pending / unpaid / COD owed | `pending orders` · `unpaid orders` · `cod pending` | `pending` · `active orders` · `pending payments` · `payment due list` (unpaid) |
-| One order in full | `order 12` | `#12` · `order 12 details` · `find order 12` |
+| One order in full | `order 12` | `#12` · `order 12 details` |
 | Change status | `mark 12 shipped` | `delivered` · `returned` · `paid` · `bhej diya` · `mukammal` |
 | Cancel an order | `cancel 12` | |
 | Edit a saved order | `edit order 12` | `edit order` (the latest) — inside: `1 = 3` · `price 1 = 1500` · `remove 2` · `add Kurti 2` · `phone ...` · `address ...` · `delivery 250` · `done` |
@@ -33,6 +34,7 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 | Delivery charge | `delivery 200` (default) · `free delivery` | `order 12 delivery 300` |
 | Order note | `note 12 gift wrap` | `note 12 off` |
 | Undo the last action | `undo` | |
+| Undo everything the last voice note did | `undo note` | |
 
 ## Receipts, labels, printing
 
@@ -43,7 +45,7 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 | Paper size | `receipt size 80mm` (`58mm` · `A5` · `A4`) |
 | Header / contact / footer | `receipt header [line]` · `receipt contact [line]` · `receipt footer [up to 4 lines]` — `off` clears |
 | All receipt settings | `receipt settings` |
-| Email | `email ali@shop.com` · `email receipt 12` |
+| Email | `email ali@shop.com` · `email receipt 12` · `email receipt 12 to buyer` (saved buyer email) · `email export orders 30 days` · `email summary` (each with `to x@mail.com` for another address) |
 | Parcel / shop label | `label 12` · `print label` · `order label` (asks which label) · `business label` · `label size a6` |
 | Logo / banner | `logo` · `banner` (then send the picture) |
 | Printer help | `printer` |
@@ -53,6 +55,7 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 | Task | Write |
 |---|---|
 | See / share | `catalog` (or `products` · `maal` · `rate list` · `price list` · `catalogue` · `product list` · `show products` · `all products` · `products dikhao`) · `share catalog` |
+| How to add a product (shows the example lines for your shop) | `add product` · `new product` |
 | Catalog pages and order (10 a page, grouped by category > sub-category) | `catalog next` · `catalog prev` · `catalog page 2` · `catalog a-z` · `catalog latest` · `catalog reset` |
 | Catalog search, jump, last page, page size (remembered) | `catalog search chini` · `search chini` · `find lawn suit` · `catalog page 8` · `page 8` · `catalog last` · `catalog size 25` (5-50) · `catalog reset` |
 | Add a product | `Kurti - 1800` · `naya product: Kurti - 1800` · `Polo Shirt - 500, cost 300, stock 10, category: Shirts` |
@@ -68,11 +71,13 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 |---|---|
 | Today's account | `aaj ka hisaab` · `today's summary` · `hisaab` · `hisaab kitab` · `daily report` · `daily summary` · `today report` · `aaj ka account` · `آج کا حساب` (sales, top item, expenses, drawer cash) |
 | Other days | `kal ka hisaab` · `weekly summary` |
-| Profit | `profit` · `profit today` · `munafa` |
+| Profit | `profit` · `profit today` · `munafa` · `profit per product` (ranked by profit; `product wise profit`) |
 | Sales split by category | `sales by category` · `category wise sales` · `sales by category this week` (default: last 30 days) |
 | One product's sales, this month against last | `Polo Shirt ka report` |
 | Margin / how much discount a product can take | `margin` · `margin list` · `profit margin` · `discount room` |
-| Expenses | `expense 500 packaging` · `kharcha 800 petrol` · `expenses` · `monthly net` |
+| Margin actually made in a period (sales that happened) | `margin last month` · `margin 7 days` · `profit margin this week` |
+| Buyer questions (the bot cannot see buyers' chats: write down what was asked) | `enquiry Kurti blue` · `buyer ne pucha Lawn Suit` · `enquiries` (asked vs sold per product) · `enquiries last month` |
+| Expenses | `expense 500 packaging` · `kharcha 800 petrol` · `expenses` · `monthly net` · `expense edit 12 800 packaging` · `expense delete 12` (the number is the #12 that `expenses` shows) |
 | Supplier of a product | `supplier Lawn Suit Shah Alam` · `supplier Lawn Suit: Shah Alam` · `supplier Shah Alam: Lawn Suit, Kurti` (several at once) · `Lawn Suit ka supplier Shah Alam` · `supplier remove Lawn Suit` · `suppliers` (sale and profit per supplier) |
 | What the courier charged for a parcel | `courier fee 12 250` · `order 12 courier fee 250` · `courier fee report` (fees against the delivery charged to buyers) |
 | Payment link / methods | `payment link` · `add payment: jazzcash, 03001234567` |
@@ -133,6 +138,7 @@ Add a period if you want one (`pichle hafte`, `last month`, `is mahine`, `30 din
 | Sales that fell by half / fast movers / days of stock / out of stock but selling | `jin ki sales 15 din mein 50% gir gayi` · `kaun sa maal fast moving hai` · `mera sara stock kitne din mein saaf hoga` · `out of stock magar bikta tha` |
 | Margin that fell / cost spike / cost fell but price unchanged | `kaun se products ka margin sab se zyada gira` · `kapron ki cost 15% barh jaye to break even` · `cost kam hui magar rate purana` |
 | Courier cash not received / failed deliveries by city / returned stock / delivery charge change | `TCS ke paas kitna cash baqi` · `kaun se shehar mein parcel fail hote hain` · `return ka stock aur kharab maal` · `delivery charges 200 se 250 kar dun to` |
+| Cash forecast for the next N days (default 30; pace of the last 30 days, paid orders minus expenses and wages) | `agle 30 din mein kitna cash aayega` · `cash forecast` · `next 60 days cash forecast` |
 | Cash flow / what to keep in the drawer tonight | `kharche cash sales se zyada hain? net cash flow` · `drawer band karne ke baad kal supplier ko 20000 dene hain` |
 | Discount codes: return on a code / new customers by promotion / do code buyers come back at full price | `jo code EID10 chalaya us se munafa barha` · `kis promotion se naye gahak aaye` · `discount wale gahak pura rate dete hain?` |
 | Eid stock plan / daily sale to cover rent and bills / products near end of life / premium vs budget mix | `eid par grocery ka stock kitna barhana chahiye` · `kiraya aur bijli ke liye roz kam se kam kitni sale` · `kaun sa product lifecycle ke aakhri marhale par hai` · `mehnge ya sasti cheezon ka rujhan` |
@@ -173,8 +179,9 @@ Every phrase below is pinned in `StrategicInsightParserTests` (Urdu script and R
 
 | Task | Write |
 |---|---|
-| List / detail / search | `customer list` (or `customers` · `show customers` · `all customers` · `saare customers`) · `customer 1` · `search customer: Sara` |
-| Correct details | `Sara ka phone 03001234567` · `Sara ka address ...` |
+| List / detail / search | `customer list` (or `customers` · `show customers` · `all customers` · `saare customers`) · `customer 1` · `search customer: Sara` · `search customer Sara` · `customer search Sara` |
+| Order search | `search order Sara` · `find order Sara` · `order search 1203` (order number, customer name or phone, product name, or a product's design code / SKU; newest 10) |
+| Correct details | `Sara ka phone 03001234567` · `Sara ka address ...` · `Sara ka email sara@mail.com` |
 | Customer price group (A / B / C; `none` = regular price) | `Sara ka group B` · `Sara ka group none` |
 | Delete / restore | `delete customer Sara` · `restore customer Sara` |
 | Support / Instagram | `support queries` · `comment leads` · `connect instagram` |
@@ -190,9 +197,10 @@ Every phrase below is pinned in `StrategicInsightParserTests` (Urdu script and R
 | Menu / guide / language | `help` (or `commands` · `how to use` · `madad chahiye`) · `menu` · `guide` · `change language` |
 | Business info / plan | `update business info` · `subscribe` |
 | Bottom buttons | `shortcut off` (`shortcut on`) |
-| Data | `export` · `export orders 30 days` · `import` |
+| Data | `export` · `export orders 30 days` · `export expenses` · `import` |
 | Which build is running | `version` |
 | Sign in to the client dashboard (a code comes here) | `login` (`dashboard login`) |
+| End every dashboard session (if a login was not you) | `dashboard logout` (`logout all`, `sign out`) |
 | Tell us something | `feedback: [message]` |
 | Wipe everything | `reset account` (asks to confirm) |
 

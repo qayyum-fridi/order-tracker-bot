@@ -1,4 +1,7 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
@@ -73,6 +76,53 @@ public partial class ConversationEngine
     private Task ReportScheduledIssueAsync(string? phone, string detail, Exception ex, CancellationToken ct) =>
         _issues?.ReportAsync(Abstractions.IssueCodes.ScheduledJobFailed, phone, detail, ex, ct) ?? Task.CompletedTask;
 
+    /// <summary>WhatsApp accepts free-form text only within 24 hours of the seller's last message.</summary>
+    private async Task<bool> WithinServiceWindowAsync(Seller seller, CancellationToken ct)
+    {
+        var lastInbound = await _db.MessageLogs.AsNoTracking()
+            .Where(m => m.Phone == seller.WhatsAppPhoneNumber && m.Direction == "inbound")
+            .OrderByDescending(m => m.Id).Select(m => (DateTime?)m.CreatedAt).FirstOrDefaultAsync(ct);
+        return lastInbound is { } at && DateTime.UtcNow - at < TimeSpan.FromHours(24);
+    }
+
+    /// <summary>Sends a proactive text now inside the window; outside it the text waits for the seller's next message (see <see cref="SendPendingNoticesAsync"/>).</summary>
+    private async Task ProactiveReplyAsync(Seller seller, string text, CancellationToken ct)
+    {
+        if (await WithinServiceWindowAsync(seller, ct)) await ReplyAsync(seller, text, ct);
+        else QueueProactiveNotice(seller, text);
+    }
+
+    /// <summary>
+    /// Keeps the text in the seller's session. Meta would refuse it after the window, so the reminder used to be lost for good.
+    /// The session is saved with the scheduler's own SaveChanges. Only the last few are kept, so a long gap cannot grow the session without limit.
+    /// </summary>
+    private void QueueProactiveNotice(Seller seller, string text)
+    {
+        if (seller.Session is null)
+        {
+            _logger?.LogWarning("Proactive message for seller {SellerId} not kept: no session", seller.Id);
+            return;
+        }
+        var ctx = SessionContextData.FromJson(seller.Session.ContextJson);
+        ctx.PendingNotices = (ctx.PendingNotices ?? new List<string>()).Append(text).TakeLast(MaxPendingNotices).ToList();
+        seller.Session.ContextJson = ctx.ToJson();
+        _logger?.LogInformation("Proactive message for seller {SellerId} kept until the next message (outside the 24-hour window)", seller.Id);
+    }
+
+    private const int MaxPendingNotices = 5;
+
+    /// <summary>The seller has just written, so the window is open: the proactive messages kept for them go out first, with a heading.</summary>
+    private async Task SendPendingNoticesAsync(Seller seller, CancellationToken ct)
+    {
+        if (seller.Session is null) return;
+        var ctx = SessionContextData.FromJson(seller.Session.ContextJson);
+        if (ctx.PendingNotices is not { Count: > 0 } notices) return;
+        ctx.PendingNotices = null;
+        seller.Session.ContextJson = ctx.ToJson();
+        foreach (var notice in notices)
+            await ReplyAsync(seller, MessageTemplates.Get("scheduled.003", notice), ct);
+    }
+
     private async Task SendWeeklySummaryAsync(Seller seller, DateTime weekEndUtc, CancellationToken ct)
     {
         var since = weekEndUtc.AddDays(-7);
@@ -82,7 +132,7 @@ public partial class ConversationEngine
 
         if (orders.Count == 0)
         {
-            await ReplyAsync(seller, MessageTemplates.Get("scheduled.001", seller.BusinessName), ct);
+            await ProactiveReplyAsync(seller, MessageTemplates.Get("scheduled.001", seller.BusinessName), ct);
             return;
         }
 
@@ -91,7 +141,18 @@ public partial class ConversationEngine
             .Select(g => new { Name = g.Key, Orders = g.Select(i => i.OrderId).Distinct().Count() })
             .OrderByDescending(g => g.Orders).FirstOrDefault();
 
-        await ReplyAsync(seller,
-            MessageTemplates.Get("scheduled.002", seller.BusinessName, orders.Count, orders.Count(o => o.Status == OrderStatus.Delivered), orders.Count(o => o.Status == OrderStatus.Pending), orders.Count(o => o.Status == OrderStatus.Cancelled), orders.Count(o => o.Status == OrderStatus.Returned), (top is null ? "" : $"Top product: {top.Name} ({top.Orders} orders)\n"), Formatters.Money(active.Sum(o => o.Total)), (active.Sum(o => o.TaxWithheld) is > 0 and var withheld ? $"Tax withheld by courier/gateway: {Formatters.Money(withheld)}\n" : "")), ct);
+        var text = MessageTemplates.Get("scheduled.002", seller.BusinessName, orders.Count, orders.Count(o => o.Status == OrderStatus.Delivered), orders.Count(o => o.Status == OrderStatus.Pending), orders.Count(o => o.Status == OrderStatus.Cancelled), orders.Count(o => o.Status == OrderStatus.Returned), (top is null ? "" : $"Top product: {top.Name} ({top.Orders} orders)\n"), Formatters.Money(active.Sum(o => o.Total)), (active.Sum(o => o.TaxWithheld) is > 0 and var withheld ? $"Tax withheld by courier/gateway: {Formatters.Money(withheld)}\n" : ""));
+
+        if (await WithinServiceWindowAsync(seller, ct))
+        {
+            await ReplyAsync(seller, text, ct);
+            return;
+        }
+
+        // Outside the 24-hour window only the approved weekly_summary template reaches the seller. Its body already says "Rs.", so the total is sent as a bare number.
+        var total = active.Sum(o => o.Total).ToString("#,0.##", CultureInfo.InvariantCulture);
+        var sent = await _sender.SendTemplateMessageAsync(seller.WhatsAppPhoneNumber,
+            new[] { active.Count.ToString(CultureInfo.InvariantCulture), total }, WhatsAppTemplateKeys.Weekly, ct);
+        if (!sent) QueueProactiveNotice(seller, text);
     }
 }

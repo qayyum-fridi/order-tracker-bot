@@ -1,3 +1,4 @@
+using OrderTrackerBot.Application.Time;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
@@ -53,7 +54,7 @@ public partial class ConversationEngine
         var customers = await _db.Customers.Include(c => c.Orders)
             .Where(c => c.SellerId == seller.Id && c.DeletedAt == null && c.Phone != null && c.Phone != "")
             .ToListAsync(ct);
-        var inactiveSince = DateTime.UtcNow.AddDays(-30);
+        var inactiveSince = SellerClock.DaysAgoUtc(30, DateTime.UtcNow);
         return filter switch
         {
             "repeat_customers" => customers.Where(c => c.Orders.Count(o => o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned) > 1).ToList(),
@@ -92,7 +93,7 @@ public partial class ConversationEngine
         {
             if (channel is "whatsapp" or "both")
             {
-                var ok = await _sender.SendTemplateMessageAsync(ToWhatsAppNumber(customer.Phone!), new[] { $"{seller.BusinessName}: {text}" }, ct);
+                var ok = await _sender.SendTemplateMessageAsync(ToWhatsAppNumber(customer.Phone!), new[] { $"{seller.BusinessName}: {text}" }, cancellationToken: ct);
                 if (ok) waSent++; else waFailed++;
                 campaign.Sends.Add(new CampaignSend { CustomerId = customer.Id, CustomerPhone = customer.Phone!, Channel = "whatsapp", Status = ok ? "sent" : "failed" });
             }

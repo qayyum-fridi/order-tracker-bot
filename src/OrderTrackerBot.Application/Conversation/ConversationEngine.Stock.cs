@@ -64,8 +64,12 @@ public partial class ConversationEngine
             return;
         }
 
-        var matches = products.Where(p => string.Equals(p.Name, cmd.Text, StringComparison.OrdinalIgnoreCase)
+        // "Lawn Suit" must pick the product labelled exactly that, not fail because "Lawn Suit (3 pc)" shares its name.
+        var byLabel = products.Where(p => string.Equals(Formatters.ProductLabel(p), cmd.Text, StringComparison.OrdinalIgnoreCase)).ToList();
+        var matches = byLabel.Count == 1 ? byLabel : products.Where(p => string.Equals(p.Name, cmd.Text, StringComparison.OrdinalIgnoreCase)
                                           || string.Equals(Formatters.ProductLabel(p), cmd.Text, StringComparison.OrdinalIgnoreCase)).ToList();
+        // "Polo Shirt white" names one variant; the bare name lists them all below.
+        if (matches.Count == 0 && ProductVariants.Find(products, cmd.Text) is { } variant) matches = new List<Product> { variant };
         if (matches.Count == 0)
             matches = products.Where(p => p.Name.Contains(cmd.Text, StringComparison.OrdinalIgnoreCase)).ToList();
         if (matches.Count != 1)

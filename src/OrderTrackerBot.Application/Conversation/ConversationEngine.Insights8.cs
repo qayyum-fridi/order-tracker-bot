@@ -95,7 +95,7 @@ public partial class ConversationEngine
     private async Task InsightReturnShareOfProfitAsync(Seller seller, int days, CancellationToken ct)
     {
         days = Math.Clamp(days, 7, 730);
-        var start = DateTime.UtcNow.AddDays(-days);
+        var start = SellerClock.DaysAgoUtc(days, DateTime.UtcNow);
         var parcels = await _db.Orders.AsNoTracking()
             .Where(o => o.SellerId == seller.Id && o.CreatedAt >= start && (o.Status == OrderStatus.Returned || (o.Status == OrderStatus.Cancelled && o.ShippedAt != null)))
             .Select(o => new { o.CourierFee, o.DeliveryCharge })
@@ -122,7 +122,7 @@ public partial class ConversationEngine
     private async Task InsightPaidThenCancelledAsync(Seller seller, int days, CancellationToken ct)
     {
         days = Math.Clamp(days, 7, 365);
-        var start = DateTime.UtcNow.AddDays(-days);
+        var start = SellerClock.DaysAgoUtc(days, DateTime.UtcNow);
         var orders = await _db.Orders.AsNoTracking().Include(o => o.Customer)
             .Where(o => o.SellerId == seller.Id && o.CreatedAt >= start && (o.Status == OrderStatus.Cancelled || o.Status == OrderStatus.Returned) && (o.PaidAt != null || o.AmountPaid > 0))
             .OrderByDescending(o => o.UpdatedAt).ToListAsync(ct);
@@ -287,7 +287,7 @@ public partial class ConversationEngine
     private async Task InsightLeakageAsync(Seller seller, int days, CancellationToken ct)
     {
         days = Math.Clamp(days, 7, 365);
-        var start = DateTime.UtcNow.AddDays(-days);
+        var start = SellerClock.DaysAgoUtc(days, DateTime.UtcNow);
         var orders = await _db.Orders.AsNoTracking().Where(o => o.SellerId == seller.Id && o.CreatedAt >= start && (o.Status == OrderStatus.Cancelled || o.Status == OrderStatus.Returned))
             .Select(o => new { o.Status, o.Total, o.DeliveryCharge, o.CourierFee, o.ShippedAt }).ToListAsync(ct);
         var losses = await _db.Losses.AsNoTracking().Where(l => l.SellerId == seller.Id && l.CreatedAt >= start).ToListAsync(ct);

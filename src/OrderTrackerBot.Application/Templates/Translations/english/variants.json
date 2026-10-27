@@ -1,0 +1,7 @@
+{
+  "variants.001": "⚠️ \"{0}\" has several variants: {1}.\nWhich one? Write the full name, e.g. \"{2}\".",
+  "variants.002": "❓ \"{0}\" has several variants. Which one should I use? Reply with the number or the full name:",
+  "variants.003": "Please reply with the variant number (1 to {0}) or its full name.",
+  "variants.004": "ℹ️ Other variants of this product: {0}",
+  "variants.005": "⚠️ \"{0}\" has several variants. Send it again with the size or colour, e.g. \"{1}\"."
+}

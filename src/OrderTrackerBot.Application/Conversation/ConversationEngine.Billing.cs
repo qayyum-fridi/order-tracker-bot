@@ -22,11 +22,39 @@ public partial class ConversationEngine
     };
 
     /// <summary>
-    /// False when billing is off, or when this seller is one of the first <see cref="BillingOptions.FreeSellerLimit"/> sellers
-    /// (by id): they are free for good and never see a trial, plan, reminder or Pro-only message.
+    /// False when billing is off, when the seller is on the <see cref="SubscriptionPlan.Free"/> plan (granted by the admin API),
+    /// or when this seller is one of the first <see cref="BillingOptions.FreeSellerLimit"/> sellers (by id): they are free for good
+    /// and never see a trial, plan, reminder or Pro-only message.
     /// </summary>
     private bool BillingApplies(Seller seller) =>
-        _billing.Enabled && !(_billing.FreeSellerLimit > 0 && seller.Id > 0 && seller.Id <= _billing.FreeSellerLimit);
+        _billing.Enabled
+        && seller.Plan != SubscriptionPlan.Free
+        && !(_billing.FreeSellerLimit > 0 && seller.Id > 0 && seller.Id <= _billing.FreeSellerLimit);
+
+    /// <summary>Free tier (not billed) gets the free USD budget per rolling hour; trial and paid sellers get the paid one.</summary>
+    private decimal UsageBudgetUsd(Seller seller) =>
+        BillingApplies(seller) ? _mediaLimiter!.Options.PaidUsdPerHour : _mediaLimiter!.Options.FreeUsdPerHour;
+
+    /// <summary>Records one text, voice or image use against the seller's hourly caps. Always true when no limiter is configured.</summary>
+    private bool TryTakeUsage(Seller seller, string phone, MediaKind kind, out UsageDecision decision, out TimeSpan wait)
+    {
+        decision = UsageDecision.Allowed;
+        wait = TimeSpan.Zero;
+        if (_mediaLimiter is null) return true;
+        decision = _mediaLimiter.Consume(phone, kind, UsageBudgetUsd(seller), out wait);
+        return decision == UsageDecision.Allowed;
+    }
+
+    private string UsageLimitText(Seller seller, MediaKind kind, UsageDecision decision, TimeSpan wait)
+    {
+        var limiter = _mediaLimiter!;
+        var minutes = Math.Max(1, (int)Math.Ceiling(wait.TotalMinutes));
+        if (decision == UsageDecision.BudgetLimit)
+            return MessageTemplates.Get("usage.004", UsageBudgetUsd(seller).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture), minutes);
+
+        var key = kind switch { MediaKind.Text => "usage.001", MediaKind.Voice => "usage.002", _ => "usage.003" };
+        return MessageTemplates.Get(key, limiter.LimitFor(kind), minutes);
+    }
 
     private bool HasAccess(Seller seller, DateTime now) =>
         !BillingApplies(seller)
@@ -125,8 +153,10 @@ public partial class ConversationEngine
         var customers = await _db.Customers.CountAsync(c => c.SellerId == seller.Id && c.DeletedAt == null, ct);
         var daysLeft = Math.Max(1, (int)Math.Ceiling((seller.TrialEndsAt!.Value - DateTime.UtcNow).TotalDays));
 
-        await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
-            MessageTemplates.Get("billing.006", daysLeft, orders.Count, Formatters.Money(orders.Sum(o => o.Total)), customers, PlansText), PlanButtons, ct);
+        var reminder = MessageTemplates.Get("billing.006", daysLeft, orders.Count, Formatters.Money(orders.Sum(o => o.Total)), customers, PlansText);
+        // Buttons are a session message too: outside the 24-hour window the same text waits for the seller's next message, as plain text.
+        if (await WithinServiceWindowAsync(seller, ct)) await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, reminder, PlanButtons, ct);
+        else QueueProactiveNotice(seller, reminder);
         seller.TrialReminderSentAt = DateTime.UtcNow;
     }
 }

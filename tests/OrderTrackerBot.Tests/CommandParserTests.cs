@@ -506,8 +506,8 @@ public class CommandParserTests
     [InlineData("export orders", "orders", null)]
     [InlineData("export orders customers", "orders,customers", null)]
     [InlineData("export orders, catalog and discounts", "orders,catalog,discounts", null)]
-    [InlineData("export all", "orders,customers,catalog,discounts", null)]
-    [InlineData("export sab kuch", "orders,customers,catalog,discounts", null)]
+    [InlineData("export all", "orders,customers,catalog,discounts,expenses", null)]
+    [InlineData("export sab kuch", "orders,customers,catalog,discounts,expenses", null)]
     [InlineData("export orders 30 days", "orders", "30d")]
     [InlineData("export orders last month", "orders", "lastmonth")]
     [InlineData("export orders pichle mahine", "orders", "lastmonth")]
@@ -662,6 +662,23 @@ public class CommandParserTests
     {
         Assert.True(CommandParser.TryFindDeliveryInOrderText(message, out var amount));
         Assert.Equal(expected, amount);
+    }
+
+    [Theory]
+    [InlineData("delivery -5000")]
+    [InlineData("delivery - 200")]
+    [InlineData("delivery: -200")]
+    public void RefusesNegativeDeliveryAmount(string message)
+    {
+        Assert.False(CommandParser.TryParseDeliveryAmount(message, out _));
+    }
+
+    [Theory]
+    [InlineData("Sara 1 suit, delivery -5000, 03001234567")]
+    [InlineData("Sara 1 suit, -300 delivery, 03001234567")]
+    public void NeverReadsNegativeDeliveryInOrderTextAsPositive(string message)
+    {
+        Assert.False(CommandParser.TryFindDeliveryInOrderText(message, out _));
     }
 
     [Theory]

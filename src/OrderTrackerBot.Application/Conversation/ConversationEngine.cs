@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Ai;
@@ -31,6 +32,7 @@ public partial class ConversationEngine
     private readonly FeatureOptions _features;
     private readonly IIssueReporter? _issues;
     private readonly Microsoft.Extensions.Logging.ILogger<ConversationEngine>? _logger;
+    private static readonly TimeSpan PendingPriceWindow = TimeSpan.FromMinutes(10);
     private static readonly System.Text.RegularExpressions.Regex BareAmount = new(@"^(?:rs\.?\s*|pkr\s*)?(?<n>\d[\d,]*(?:\.\d+)?)(?:\s*(?:rs|rupay|rupees|روپے))?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
     private DateTime? _sentAtUtc;
     private List<string>? _nextActions;
@@ -48,6 +50,8 @@ public partial class ConversationEngine
     private readonly IMerchantEmailSender? _email;
     private readonly MessageLoggingSender _turn;
     private Seller? _turnSeller;
+    /// <summary>Set when this turn put an open order draft on hold to answer a side question (see route "other" in ConversationEngine.OrderFlow.cs).</summary>
+    private bool _draftPutOnHold;
     private SessionContextData? _turnCtx;
 
     public ConversationEngine(IAppDbContext db, IAiOrderAssistant ai, IWhatsAppSender sender, IFounderAlertNotifier founderAlerts,
@@ -55,9 +59,11 @@ public partial class ConversationEngine
         IReceiptPdfGenerator? receiptPdf = null, IExportFileWriter? exportWriter = null, FeatureOptions? features = null,
         IIssueReporter? issues = null, IAudioTranscriber? transcriber = null, IImportFileReader? importReader = null,
         INewSellerNotifier? newSellers = null, MediaRateLimiter? mediaLimiter = null, TimeProvider? clock = null,
-        IMerchantEmailSender? emailSender = null, Microsoft.Extensions.Logging.ILogger<ConversationEngine>? logger = null, BuildInfo? build = null)
+        IMerchantEmailSender? emailSender = null, Microsoft.Extensions.Logging.ILogger<ConversationEngine>? logger = null, BuildInfo? build = null,
+        DashboardOptions? dashboard = null)
     {
         _build = build ?? new BuildInfo();
+        _dashboard = dashboard ?? new DashboardOptions();
         _logger = logger;
         _email = emailSender;
         _clock = clock ?? TimeProvider.System;
@@ -101,14 +107,28 @@ public partial class ConversationEngine
         _turnCtx = null;
         _stockWarnings.Clear();
         if (await TryHandleVoiceConfirmationAsync(fromPhoneNumber, rawMessage, ct)) return;
+        var answeredDraft = IsOrderDraftState((await LoadOrCreateSellerAsync(fromPhoneNumber, ct)).Session!.State);
+        _draftPutOnHold = false;
         await HandleIncomingCoreAsync(fromPhoneNumber, rawMessage, ct);
+        if (_draftPutOnHold) await HoldParkedVoiceStepsAsync(fromPhoneNumber, ct);
+        await ResumeVoiceContinueAsync(fromPhoneNumber, answeredDraft, ct);
         await FlushStockWarningsAsync(fromPhoneNumber, ct);
         await TrySendShortcutBarAsync(fromPhoneNumber, ct);
     }
 
+    /// <summary>One log line for a message the bot did not understand: <c>grep NotUnderstood</c> in the server log lists the real phrasings to teach it.</summary>
+    private void LogNotUnderstood(string path, ConversationState state, string? text)
+    {
+        if (!_features.TurnLog || string.IsNullOrWhiteSpace(text)) return;
+        _logger?.LogInformation("NotUnderstood path={Path} state={State} text={Text}", path, state, text.Length > 300 ? text[..300] : text);
+    }
+
+    private static readonly TimeSpan DraftExpiry = TimeSpan.FromMinutes(20);
+
     private async Task HandleIncomingCoreAsync(string fromPhoneNumber, string rawMessage, CancellationToken ct)
     {
-        var message = TextHygiene.StripInvisible(rawMessage ?? string.Empty).Trim();
+        // A typed backslash-n (copied from code or a template) is meant as a line break.
+        var message = TextHygiene.StripInvisible(rawMessage ?? string.Empty).Replace("\\n", "\n").Trim();
         if (message.Length == 0) return;
 
         _db.MessageLogs.Add(new MessageLog { Phone = fromPhoneNumber, Direction = "inbound", RawText = message });
@@ -120,12 +140,27 @@ public partial class ConversationEngine
                 : MessageTemplates.Get("engine.005"), ct);
             return;
         }
+        await SendPendingNoticesAsync(seller, ct);
+        // Every text counts against the seller's hourly text cap and USD budget, before any AI call can be made for it.
+        if (!TryTakeUsage(seller, fromPhoneNumber, MediaKind.Text, out var textDecision, out var textWait))
+        {
+            await ReplyAsync(seller, UsageLimitText(seller, MediaKind.Text, textDecision, textWait), ct);
+            await _db.SaveChangesAsync(ct);
+            return;
+        }
         message = _translator.RestoreButtonLabel(message);
 
         var session = seller.Session!;
         var ctx = SessionContextData.FromJson(session.ContextJson);
         _turnSeller = seller;
         _turnCtx = ctx;
+
+        // A product line waiting for YES: saved on YES, dropped on NO (see ConversationEngine.ProductConfirm.cs).
+        if (await TryHandlePendingProductAsync(seller, ctx, message, ct))
+        {
+            await PersistAsync(session, ctx, ct); // the saved products and the cleared pending state must reach the database
+            return;
+        }
 
         // A tap on a product button: an answer to the unknown-product question ("2 <product>" / "1"), or one of the customer's usual items after "order for Sara"
         // (read as her items). With no such question waiting it is a stale tap.
@@ -173,6 +208,16 @@ public partial class ConversationEngine
             return;
         }
 
+        // "login" and "dashboard logout" work at every step, including onboarding: the dashboard only needs the WhatsApp number.
+        var dashboardKind = CommandParser.TryParse(message)?.Kind;
+        if (dashboardKind is CommandKind.ClientLogin or CommandKind.ClientLogout)
+        {
+            if (dashboardKind == CommandKind.ClientLogin) await HandleClientLoginAsync(seller, ct);
+            else await HandleClientLogoutAsync(seller, ct);
+            await PersistAsync(session, ctx, ct);
+            return;
+        }
+
         // An incomplete seller normally always routes to the onboarding handler — except a state that
         // has its own handler elsewhere (currently just the guide, reachable as a mid-onboarding escape
         // hatch): otherwise the very next message after opening it would fall to HandleOnboardingAsync's
@@ -194,9 +239,32 @@ public partial class ConversationEngine
             return;
         }
 
+        // An order draft left waiting for a long time is dropped: a phone or name sent hours later must not be taken as its answer.
+        if (session.State is ConversationState.AwaitingOrderConfirmation or ConversationState.AwaitingOrderMissingFields
+                or ConversationState.AwaitingOrderGroupingChoice or ConversationState.AwaitingMultiOrderConfirmation
+            && ctx.PendingOrder is not null && DateTime.UtcNow - session.UpdatedAt > DraftExpiry)
+        {
+            ctx.PendingOrder = null;
+            ctx.QueuedOrders = null;
+            ctx.PendingMissingField = null;
+            ctx.PendingNewProductName = null;
+            SetState(session, ConversationState.Idle);
+            await ReplyAsync(seller, MessageTemplates.Get("order-flow.draftexpired"), ct);
+        }
+
+        // A draft state with no draft behind it (left by an earlier turn) would answer every message as if an order were waiting.
+        if (session.State is ConversationState.AwaitingOrderConfirmation or ConversationState.AwaitingOrderMissingFields && ctx.PendingOrder is null)
+            SetState(session, ConversationState.Idle);
+
         if (session.State is ConversationState.AwaitingOrderConfirmation or ConversationState.AwaitingOrderMissingFields
                 or ConversationState.AwaitingOrderGroupingChoice or ConversationState.AwaitingMultiOrderConfirmation
             && await TryLeaveOrderDraftAsync(seller, session, ctx, message, ct))
+        {
+            await PersistAsync(session, ctx, ct);
+            return;
+        }
+
+        if (await TryRouteMidFlowReplyAsync(seller, session, ctx, message, ct))
         {
             await PersistAsync(session, ctx, ct);
             return;
@@ -332,6 +400,13 @@ public partial class ConversationEngine
     }
 
     /// <summary>Screen 3c: something threw while handling a message — tell the seller instead of going silent.</summary>
+    /// <summary>Sent while this seller's previous message is still being handled, so the reply is not mistaken for a lost one.</summary>
+    public async Task SendWaitingNoticeAsync(string fromPhoneNumber, CancellationToken ct = default)
+    {
+        await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
+        await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("engine.004"), ct);
+    }
+
     public Task SendSystemErrorAsync(string fromPhoneNumber, string? issueCode = null, CancellationToken ct = default) =>
         _sender.SendTextMessageAsync(fromPhoneNumber,
             MessageTemplates.Get("engine.003", (issueCode is null ? "" : $"\n\nSupport ko batana ho to yeh code bataein: {issueCode}")), ct);
@@ -340,6 +415,12 @@ public partial class ConversationEngine
     {
         // Waiting for new products' prices, but the seller clearly asks for something else ("Kashif ka naya order likho"): park the price
         // question for this turn so the message is read on its own, and put it back unless this turn started its own price question.
+        // An old price question is dropped first: a number sent much later (a stock quantity, say) must not be read as that product's price.
+        if (ctx.PendingPriceSetAt is { } askedAt && _clock.GetUtcNow().UtcDateTime - askedAt > PendingPriceWindow)
+        {
+            ctx.PendingPriceProducts = null;
+            ctx.PendingPriceSetAt = null;
+        }
         var parkedPrices = ctx.PendingPriceProducts is { Count: > 0 } && CommonWordPathRouter.ShouldLeavePriceWait(message) ? ctx.PendingPriceProducts : null;
         if (parkedPrices is not null) ctx.PendingPriceProducts = null;
         try
@@ -362,6 +443,7 @@ public partial class ConversationEngine
         }
 
         if (await TryHandleOrderForCustomerItemsAsync(seller, session, ctx, message, ct)) return;
+        if (await TryHandleItemsOnlyAsync(seller, session, ctx, message, ct)) return;
 
         // Waiting for the price of ONE new product and the seller sends just an amount ("9000", "Rs. 9,000"): that is its price. Plain code, no AI guess.
         if (ctx.PendingPriceProducts is { Count: 1 } waiting && BareAmount.Match(message.Trim()) is { Success: true } bare
@@ -375,13 +457,76 @@ public partial class ConversationEngine
         if (await TryHandleScannedCodeAsync(seller, ctx, message, ct)) return;
 
         var command = CommandParser.TryParse(message);
+        // A sentence the rules do not know but THIS seller once taught (by picking the right option) is understood without asking again.
+        if (command is null && LearnedCommandFor(ctx, message) is { } learnedCommand)
+        {
+            _logger?.LogInformation("Learned phrase used: {Kind}", learnedCommand.Kind);
+            await ExecuteCommandAsync(seller, session, ctx, learnedCommand, ct);
+            return;
+        }
+        // Not the exact sentence but a close one ("aaj ki sales dikha do" after "aaj ki sale dikhao"): the AI says whether it is the same request.
+        if (command is null && SimilarLearnedPhrase(ctx, message) is { } similar
+            && await _ai.ConfirmSamePhraseAsync(similar.Phrase, message, ct) == true
+            && CommandParser.TryParse(similar.Command) is { } similarCommand && !ActionRisk.RiskyCommands.Contains(similarCommand.Kind))
+        {
+            _logger?.LogInformation("Learned phrase used (similar): {Kind}", similarCommand.Kind);
+            await ExecuteCommandAsync(seller, session, ctx, similarCommand, ct);
+            return;
+        }
+        // Level 3 prototype: no shared words at all, but the same MEANING as something this seller taught.
+        if (command is null && await SemanticLearnedCandidateAsync(ctx, message, ct) is { } semantic
+            && await _ai.ConfirmSamePhraseAsync(semantic.Phrase, message, ct) == true
+            && CommandParser.TryParse(semantic.Command) is { } semanticCommand && !ActionRisk.RiskyCommands.Contains(semanticCommand.Kind))
+        {
+            _logger?.LogInformation("Learned phrase used (semantic): {Kind} score {Score:0.00}", semanticCommand.Kind, semantic.Score);
+            await ExecuteCommandAsync(seller, session, ctx, semanticCommand, ct);
+            return;
+        }
         if (command is not null)
         {
+            // A loose rule (keywords in any order) may have matched a sentence that is really something else, e.g. an order: ask the AI before running it.
+            if (await LooseRuleMatchIsWrongAsync(command, message, ct))
+            {
+                LogNotUnderstood("rule-overruled-" + command.Kind, session.State, message);
+                await HandleFreeformMessageAsync(seller, session, ctx, message, ct);
+                return;
+            }
             await ExecuteCommandAsync(seller, session, ctx, command, ct);
             return;
         }
 
         await HandleFreeformMessageAsync(seller, session, ctx, message, ct);
+    }
+
+    /// <summary>The text of a loose-rule match that was RUN (confirmed by the AI, unknown, or too short to check), for reviewing false positives. Same switch as <c>NotUnderstood</c>.</summary>
+    private void LogRuleText(string tag, CommandKind kind, bool? fits, string text)
+    {
+        if (!_features.TurnLog) return;
+        _logger?.LogInformation("{Tag} kind={Kind} fits={Fits} text={Text}", tag, kind, fits?.ToString() ?? "n/a", text.Length > 300 ? text[..300] : text);
+    }
+
+    // Commands the parser finds by LOOSE rules (keyword combinations, fuzzy names). Exact commands ("orders today", "mark 3 shipped") are never second-guessed.
+    /// <summary>A loose-rule match on a message of at least this many words is checked by the AI first (was 5; 3 so short ambiguous phrases like "customer status bhejo" are covered).</summary>
+    private const int LooseRuleMinWords = 3;
+
+    private static readonly HashSet<CommandKind> LooseRuleKinds = new()
+    {
+        CommandKind.Insight, CommandKind.FuzzyStatusUpdate, CommandKind.CustomerOrderLookup, CommandKind.ProductReport, CommandKind.CustomerSearch, CommandKind.OrderSearch, CommandKind.HowTo
+    };
+
+    private async Task<bool> LooseRuleMatchIsWrongAsync(ParsedCommand command, string message, CancellationToken ct)
+    {
+        if (!LooseRuleKinds.Contains(command.Kind)) return false;
+        if (message.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length < LooseRuleMinWords)
+        {
+            // Too short for the AI check (fewer than LooseRuleMinWords words): only recorded (with the text, Features:TurnLog) so the owner can see which short phrases the loose rules take.
+            LogRuleText("RuleShort", command.Kind, null, message);
+            return false;
+        }
+        var fits = await _ai.ConfirmCommandMatchAsync(message, command.Kind.ToString(), ct);
+        _logger?.LogInformation("RuleCheck kind={Kind} fits={Fits}", command.Kind, fits?.ToString() ?? "unknown");
+        if (fits != false) LogRuleText("RuleConfirmed", command.Kind, fits, message);
+        return fits == false;
     }
 
     private async Task PersistAsync(ConversationSession session, SessionContextData ctx, CancellationToken ct)
@@ -395,6 +540,7 @@ public partial class ConversationEngine
     }
 
     private readonly BuildInfo _build;
+    private readonly DashboardOptions _dashboard;
 
     private Task ReplyAsync(Seller seller, string text, CancellationToken ct) =>
         _sender.SendTextMessageAsync(seller.WhatsAppPhoneNumber, text, ct);
@@ -449,10 +595,10 @@ public partial class ConversationEngine
             return _inner.SendButtonsMessageAsync(toPhoneNumber, bodyText, buttonLabels, cancellationToken);
         }
 
-        public Task<bool> SendTemplateMessageAsync(string toPhoneNumber, IReadOnlyList<string> bodyParameters, CancellationToken cancellationToken = default)
+        public Task<bool> SendTemplateMessageAsync(string toPhoneNumber, IReadOnlyList<string> bodyParameters, string templateKey = WhatsAppTemplateKeys.Broadcast, CancellationToken cancellationToken = default)
         {
-            Log(toPhoneNumber, $"[template] {string.Join(" | ", bodyParameters)}");
-            return _inner.SendTemplateMessageAsync(toPhoneNumber, bodyParameters, cancellationToken);
+            Log(toPhoneNumber, $"[template {templateKey}] {string.Join(" | ", bodyParameters)}");
+            return _inner.SendTemplateMessageAsync(toPhoneNumber, bodyParameters, templateKey, cancellationToken);
         }
 
         public Task<bool> SendDocumentAsync(string toPhoneNumber, byte[] content, string fileName, string mimeType, string? caption, CancellationToken cancellationToken = default)
@@ -483,6 +629,48 @@ public sealed class FeatureOptions
 
     /// <summary>Setup asks the kind of shop right after the shop name (taps); off = the old flow without that question (unit tests).</summary>
     public bool IndustryQuestion { get; set; }
+
+    /// <summary>Learns how this seller answers the price question and applies the answer they always give without asking (see <c>StrategyPolicy</c>); off = always ask.</summary>
+    public bool StrategyLearning { get; set; }
+
+    /// <summary>A product line is shown back (name, colour, price, stock) and saved only after YES; off = saved straight away (unit tests).</summary>
+    public bool ProductConfirmation { get; set; }
+
+    /// <summary>Instagram connect, comment leads and the Meta webhooks. Off = "connect instagram" says it is not active, comments are ignored and the Instagram endpoints answer 404.</summary>
+    public bool Instagram { get; set; }
+
+    /// <summary>The "📥 Purana data" button on the first setup screen. Off = the button is hidden (MVP); typing "purana data" / "import" still works.</summary>
+    public bool OldDataImport { get; set; } = true;
+
+    /// <summary>MVP cut: the features that are off for now (discounts, loyalty, payments, payouts, drawer, labels, Instagram, import, walk-in, forms, scan) answer one "not available yet" reply when typed, not only hidden from menus. Off in code so existing tests keep their behaviour; on in appsettings.</summary>
+    public bool MvpOnly { get; set; }
+
+    /// <summary>Menu: discount rows (menu discounts, discount list, add discount, discount performance). Off = hidden from the menu; the typed commands still work.</summary>
+    public bool Discounts { get; set; } = false;
+
+    /// <summary>Menu: loyalty rows (add loyalty rule, loyal customers). Off = hidden from the menu; the typed commands still work.</summary>
+    public bool Loyalty { get; set; } = false;
+
+    /// <summary>Menu: payment rows (Payments category, payment link, payment methods, courier payouts). Off = hidden from the menu; the typed commands still work. Unpaid / COD lists stay.</summary>
+    public bool Payments { get; set; } = false;
+
+    /// <summary>Menu: courier payout rows (payout pending). Off = hidden from the menu; the typed commands still work.</summary>
+    public bool Payouts { get; set; } = false;
+
+    /// <summary>Menu: cash drawer rows (drawer). Off = hidden from the menu; the typed commands still work.</summary>
+    public bool Drawer { get; set; } = false;
+
+    /// <summary>Menu: label rows (shipping label, business label). Off = hidden from the menu; the typed commands still work.</summary>
+    public bool Labels { get; set; } = false;
+
+    /// <summary>A short "listening" message the moment a voice note arrives, so a long transcription is not silent. Off = no extra message (unit tests).</summary>
+    public bool VoiceAck { get; set; }
+
+    /// <summary>Log every message the bot could NOT understand (path, state and the seller's text) so the owner can see which real phrasings fail. The log holds seller text: keep it off if that is not acceptable. Off = nothing logged (unit tests).</summary>
+    public bool TurnLog { get; set; }
+
+    /// <summary>Prototype: a sentence that means the same as a taught phrase (found with embeddings, confirmed by the AI) runs the taught command. Off = nothing changes (unit tests).</summary>
+    public bool SemanticLearning { get; set; }
 
     /// <summary>Public link to the illustrated English/Urdu guide, sent with the Guide command. Empty = no link.</summary>
     public string GuideUrl { get; set; } = "";

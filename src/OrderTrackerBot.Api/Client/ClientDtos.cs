@@ -14,14 +14,15 @@ public sealed record DateRangeDto(string From, string To);
 
 public sealed record CustomerDto(
     int Id, string Name, string? Phone, string? City, string? Address, string? PreferredContact, string? Notes,
-    int OrderCount, decimal TotalSpent, DateTime? LastOrderAt, DateTime CreatedAt);
+    int OrderCount, decimal TotalSpent, DateTime? LastOrderAt, DateTime CreatedAt, string? PriceGroup);
 
 /// <summary>One line of the seller's WhatsApp chat with the bot. Direction is "inbound" (seller → bot) or "outbound" (bot → seller).</summary>
 public sealed record ChatMessageDto(int Id, DateTime At, string Direction, string Text);
 
 public sealed record ProductDto(
     int Id, string Name, decimal Price, decimal? CostPrice, string UnitType, decimal UnitQty, string? Category,
-    string? Subcategory, string? Size, string? Color, string? Sku, int? StockQty, bool IsActive, DateTime CreatedAt);
+    string? Subcategory, string? Size, string? Color, string? Sku, int? StockQty, bool IsActive, DateTime CreatedAt,
+    string? DefaultPriceGroup, string? ItemKind);
 
 public sealed record OrderSummaryDto(
     int Id, int CustomerId, string CustomerName, string Status, string PaymentStatus, string PaymentMethod,
@@ -49,6 +50,24 @@ public sealed record DashboardDto(
     IReadOnlyDictionary<string, int> StatusCounts, IReadOnlyList<CategoryShareDto> CategoryMix,
     IReadOnlyList<OrderSummaryDto> RecentOrders, IReadOnlyList<ProductDto> LowStock);
 
+public sealed record TopProductDto(string ProductName, int Units, decimal Revenue, decimal Profit);
+
+/// <summary>Sales per payment method (Cod, Manual, Gateway, Unspecified). Profit is left out: it needs the product cost.</summary>
+public sealed record PaymentMixDto(string Method, int Orders, decimal Revenue);
+
+public sealed record AnalysisDto(
+    DateRangeDto Range, KpisDto Kpis, IReadOnlyList<DayPointDto> Daily, IReadOnlyList<TopProductDto> TopProducts,
+    IReadOnlyList<CategoryShareDto> CategoryMix, IReadOnlyList<PaymentMixDto> PaymentMix,
+    IReadOnlyDictionary<string, int> StatusCounts, double RepeatCustomerRate, int NewCustomers, decimal GrossProfit);
+
+/// <summary>One column of a report: its key in each row, the heading, and how to show it (text, number, money, percent or date).</summary>
+public sealed record ReportColumnDto(string Key, string Label, string Type);
+
+/// <summary>A report as a table. Rows are keyed by column key; Totals holds sums for the summable columns (null when none had a number).</summary>
+public sealed record ReportTableDto(
+    string Id, string Title, DateRangeDto Range, IReadOnlyList<ReportColumnDto> Columns,
+    IReadOnlyList<IReadOnlyDictionary<string, object?>> Rows, IReadOnlyDictionary<string, decimal?> Totals, string? Note);
+
 public sealed record CategorySubDto(string Name, int ProductCount, decimal Revenue);
 
 public sealed record CategoryDto(string Name, int ProductCount, decimal Revenue, IReadOnlyList<CategorySubDto> Subcategories);
@@ -56,3 +75,30 @@ public sealed record CategoryDto(string Name, int ProductCount, decimal Revenue,
 public sealed record SetupStepDto(string Key, string Label, bool Done, string Href);
 
 public sealed record SetupDto(IReadOnlyList<SetupStepDto> Steps, int StepsDone, int StepsTotal, string? StuckReason);
+
+public sealed record PaymentMethodDto(int Id, string Type, string AccountNumberOrId);
+
+public sealed record SellerSettingsDto(
+    string? BusinessName, string? City, string? BusinessType, string? Email, string? InstagramHandle,
+    decimal DefaultDeliveryCharge, decimal SalesTaxRate, string? Ntn, string? Strn,
+    string ReceiptSize, string? ReceiptHeader, string? ReceiptFooter, string? ReceiptContact,
+    IReadOnlyList<PaymentMethodDto> PaymentMethods);
+
+/// <summary>A discount code. ExpiresAt is the last Pakistan day it works (yyyy-MM-dd), or null for no expiry.</summary>
+public sealed record DiscountDto(int Id, string Code, string Type, decimal Value, string? ExpiresAt, bool IsActive);
+
+public sealed record ExpenseDto(int Id, decimal Amount, string Category, string? Note, DateTime CreatedAt);
+public sealed record WageDto(int Id, string WorkerName, decimal Amount, int? Days, DateTime CreatedAt);
+public sealed record LossDto(int Id, int? ProductId, string ProductName, int Quantity, decimal UnitCost, string? Reason, DateTime CreatedAt);
+
+/// <summary>A list of money-out or write-off rows for a date range, with the total.</summary>
+public sealed record MoneyListDto<T>(IReadOnlyList<T> Items, decimal Total);
+
+public sealed record ProductStockDto(int Id, string Name, int? StockQty);
+
+/// <summary>Cash expected over the next Days days from the last HistoryDays days' pace (paid orders minus expenses and wages). Steps are weekly; a guide, not a promise.</summary>
+public sealed record CashForecastDto(
+    int Days, int HistoryDays, decimal DailyIn, decimal DailyOut, decimal ExpectedIn, decimal ExpectedOut, decimal Net,
+    decimal Receivables, bool HasHistory, IReadOnlyList<CashForecastStepDto> Steps);
+
+public sealed record CashForecastStepDto(int ToDay, decimal In, decimal Out, decimal Cumulative);

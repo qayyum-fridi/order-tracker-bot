@@ -129,6 +129,13 @@ public class HyperInsightParserTests
     public void PromoReturn(string text) => Topic(text, "promoroi");
 
     [Theory]
+    [InlineData("agle 30 din mein kitna cash aayega")]
+    [InlineData("cash forecast")]
+    [InlineData("next 30 days cash forecast")]
+    [InlineData("اگلے 30 دن میں کتنا کیش آئے گا")]
+    public void CashForecast(string text) => Topic(text, "cashforecast");
+
+    [Theory]
     [InlineData("کس ڈسکاؤنٹ پروموشن (مثال کے طور پر: Flat 50 off یا 10% Percent) نے دکان پر سب سے زیادہ نئے گاہک کھینچے؟")]
     [InlineData("kis discount promotion ne sab se zyada naye gahak khenche")]
     public void PromoNewCustomers(string text) => Topic(text, "promonew");

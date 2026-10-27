@@ -204,4 +204,78 @@ public sealed partial class ConversationEngine
         await ContinueResolvingDraftAsync(seller, session, ctx, ct);
         return true;
     }
+
+    // "2x Kurti, 1 x Dupatta": every part is "<qty>x <catalog product>" — items with no customer. Plain code (no AI call); the draft then asks for the name and phone.
+    private static readonly Regex ItemsOnlyPart = new(@"^\s*\d{1,3}\s*[x×]\s+\S.*$|^\s*\S.*?\s+[x×]\s*\d{1,3}\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private async Task<bool> TryHandleItemsOnlyAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
+    {
+        if (session.State != ConversationState.Idle || !seller.OnboardingComplete || ctx.PendingOrder is not null) return false;
+        var parts = message.Split(new[] { ',', '\n', '،' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length == 0) return false;
+        if (await TryRefuseNegativeQuantityAsync(seller, parts, ct)) return true;
+        if (await TryHandleUnitItemsAsync(seller, session, ctx, message, parts, ct)) return true;
+        if (!parts.All(p => ItemsOnlyPart.IsMatch(p))) return false;
+        if (CommandParser.TryParse(message) is not null) return false;
+
+        var sale = ParseWalkIn(string.Join(", ", parts));
+        if (sale.Items.Count != parts.Length || sale.Items.Any(i => i.Name == "Counter sale")) return false;
+        var catalog = await LoadCatalogAsync(seller, ct);
+        if (sale.Items.Any(i => FindCatalogEntry(catalog, i.Name) is null)) return false;
+
+        ctx.PendingOrder = BuildPendingFromWalkIn(catalog, sale);
+        await ContinueResolvingDraftAsync(seller, session, ctx, ct);
+        return true;
+    }
+
+    // "Lawn Suit 2 pack, Kurti 1 dozen": quantity + unit. The unit is checked against the product's own unit first; a unit the product is not sold in is refused
+    // (never converted: no silent x12 for a dozen), and a unit the bot does not know at all is left to the usual path.
+    private static readonly Regex UnitItemAfter = new(@"^(?<n>[^\d]*[^\W\d_][^\d]*?)\s+(?<q>\d{1,3})\s*(?<u>[^\W\d_]+)$", RegexOptions.Compiled);
+    private static readonly Regex UnitItemBefore = new(@"^(?<q>\d{1,3})\s*(?<u>[^\W\d_]+)\s+(?<n>.*[^\W\d_].*)$", RegexOptions.Compiled);
+
+    private async Task<bool> TryHandleUnitItemsAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, string[] parts, CancellationToken ct)
+    {
+        var wanted = new List<(string Name, int Qty, string Unit)>();
+        foreach (var part in parts)
+        {
+            var m = UnitItemBefore.Match(part);
+            if (!m.Success || CommandParser.NormalizeUnit(m.Groups["u"].Value) is null) m = UnitItemAfter.Match(part);
+            if (!m.Success || CommandParser.NormalizeUnit(m.Groups["u"].Value) is not { } unit) return false;
+            wanted.Add((m.Groups["n"].Value.Trim(), int.Parse(m.Groups["q"].Value), unit));
+        }
+        if (CommandParser.TryParse(message) is not null) return false;
+
+        var catalog = await LoadCatalogAsync(seller, ct);
+        var sale = new List<WalkInItem>();
+        foreach (var (name, qty, unit) in wanted)
+        {
+            var entry = FindCatalogEntry(catalog, name);
+            if (entry is null || qty <= 0) return false;
+            var own = CommandParser.NormalizeUnit(entry.Product.UnitType ?? "") ?? (entry.Product.UnitType ?? "piece").Trim().ToLowerInvariant();
+            if (own == "" ) own = "piece";
+            if (own != unit)
+            {
+                await ReplyAsync(seller, MessageTemplates.Get("order-flow.unitmismatch", entry.Product.Name, own, unit), ct);
+                return true;
+            }
+            sale.Add(new WalkInItem(entry.Product.Name, qty, null));
+        }
+
+        ctx.PendingOrder = BuildPendingFromWalkIn(catalog, new WalkInSale(sale, null, 0, false));
+        await ContinueResolvingDraftAsync(seller, session, ctx, ct);
+        return true;
+    }
+
+    // "Kurti -2, Dupatta": a minus sign stuck to the number is a negative quantity, not a "name - price" separator. Nothing is saved; the seller is told which line is wrong.
+    private static readonly Regex NegativeQtyPart = new(@"^(?<n>.*[^\W\d_].*?)\s*[-–−]\s*(?<q>\d{1,3})$", RegexOptions.Compiled);
+
+    private async Task<bool> TryRefuseNegativeQuantityAsync(Seller seller, string[] parts, CancellationToken ct)
+    {
+        var bad = parts.Select(p => NegativeQtyPart.Match(p)).FirstOrDefault(m => m.Success && !Regex.IsMatch(m.Value, @"[-–−]\s+\d"));
+        if (bad is null) return false;
+        var name = bad.Groups["n"].Value.Trim();
+        if (FindCatalogEntry(await LoadCatalogAsync(seller, ct), name) is not { } entry) return false;
+        await ReplyAsync(seller, MessageTemplates.Get("order-flow.negativeqty", bad.Value.Trim(), entry.Product.Name), ct);
+        return true;
+    }
 }

@@ -1,0 +1,6 @@
+{
+  "orders-list.001": "\n\nShowing {0}–{1} of {2} · Page {3}/{4}\n📄 Next: orders next · Previous: orders prev · Go to page: orders page 3 · Last: orders last\n🔢 Orders per page: {5} — orders size 25 (5–50)",
+  "orders-list.002": "ℹ️ Show an order list first, then type \"orders next\". For example: \"orders today\", \"pending orders\" or \"search order <name>\".",
+  "orders-list.003": "✅ Each page will now show {0} orders (this is remembered).",
+  "orders-list.004": "ℹ️ A page can hold 5 to 50 orders: set to {0} (this is remembered)."
+}

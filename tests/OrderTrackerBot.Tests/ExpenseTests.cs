@@ -29,6 +29,30 @@ public class ExpenseParserTests
     }
 
     [Theory]
+    [InlineData("expense edit 12 800", 12, 800, "")]
+    [InlineData("expense edit 12 800 courier bag", 12, 800, "courier bag")]
+    [InlineData("expense change #12 Rs 1,200", 12, 1200, "")]
+    public void ParsesExpenseEdit(string message, int id, double amount, string note)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.Equal(CommandKind.ExpenseEdit, parsed!.Kind);
+        Assert.Equal(id, parsed.Number);
+        Assert.Equal((decimal)amount, parsed.Amount);
+        Assert.Equal(note, parsed.Text);
+    }
+
+    [Theory]
+    [InlineData("expense delete 12", 12)]
+    [InlineData("expense remove #12", 12)]
+    [InlineData("kharcha hatao 12", 12)]
+    public void ParsesExpenseDelete(string message, int id)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.Equal(CommandKind.ExpenseDelete, parsed!.Kind);
+        Assert.Equal(id, parsed.Number);
+    }
+
+    [Theory]
     [InlineData("expenses", "month")]
     [InlineData("expenses today", "today")]
     [InlineData("expenses this month", "month")]
@@ -87,7 +111,7 @@ public class ExpenseEngineTests : IDisposable
     private async Task<Seller> OnboardAsync(AppDbContext db)
     {
         var engine = CreateEngine(db);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "10 ke qareeb", "Kurti - 1800", "done" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
         _sent.Clear();
         return await db.Sellers.FirstAsync();
@@ -246,6 +270,67 @@ public class ExpenseEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "monthly net", default);
 
         Assert.Contains(_sent, m => m.Contains("Kharcha: Rs.0 (0)"));
+    }
+
+    [Fact]
+    public async Task ExpenseEdit_ChangesAmountAndNote_AndUndoPutsBothBack()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        var engine = CreateEngine(db);
+        await engine.HandleIncomingMessageAsync(Phone, "expense 500 packaging tape", default);
+        var id = (await db.Expenses.SingleAsync()).Id;
+
+        await engine.HandleIncomingMessageAsync(Phone, $"expense edit {id} 800 courier bag", default);
+
+        var edited = await db.Expenses.SingleAsync();
+        Assert.Equal(800m, edited.Amount);
+        Assert.Equal("courier bag", edited.Note);
+        Assert.Equal("courier", edited.Category);
+
+        await engine.HandleIncomingMessageAsync(Phone, "undo", default);
+
+        var restored = await db.Expenses.SingleAsync();
+        Assert.Equal(500m, restored.Amount);
+        Assert.Equal("packaging tape", restored.Note);
+        Assert.Equal("packaging", restored.Category);
+    }
+
+    [Fact]
+    public async Task ExpenseDelete_RemovesOnlyThatExpense_AndUndoBringsItBackWithItsDate()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        var engine = CreateEngine(db);
+        await engine.HandleIncomingMessageAsync(Phone, "expense 500 packaging", default);
+        await engine.HandleIncomingMessageAsync(Phone, "expense 250 rent", default);
+        var first = await db.Expenses.OrderBy(x => x.Id).FirstAsync();
+
+        await engine.HandleIncomingMessageAsync(Phone, $"expense delete {first.Id}", default);
+
+        var left = await db.Expenses.SingleAsync();
+        Assert.Equal(250m, left.Amount);
+        Assert.Contains(_sent, m => m.Contains("hata diya"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "undo", default);
+
+        var back = await db.Expenses.OrderBy(x => x.Id).ToListAsync();
+        Assert.Equal(2, back.Count);
+        var restored = back.Single(x => x.Category == "packaging");
+        Assert.Equal(500m, restored.Amount);
+        Assert.Equal(first.CreatedAt, restored.CreatedAt);
+    }
+
+    [Fact]
+    public async Task ExpenseEdit_UnknownId_SaysSo()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "expense edit 99999 800", default);
+
+        Assert.Contains(_sent, m => m.Contains("wala kharcha nahi mila"));
     }
 
     public void Dispose() => _dbFactory.Dispose();

@@ -84,7 +84,7 @@ public class TaxTests
             ReceiptNumber = 5, Ntn = "1234567-8", Strn = "17-00-8888-001-37", SalesTaxRate = 18, SalesTaxAmount = 1208.14m
         };
 
-        var pdf = new ReceiptPdfGenerator().Generate(data);
+        var pdf = new ReceiptPdfGenerator().Generate(data).Bytes;
 
         Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString(pdf, 0, 5));
     }

@@ -36,6 +36,13 @@ public class WhatsAppWebhookPayload
         [JsonPropertyName("image")] public InboundMedia? Image { get; set; }
         [JsonPropertyName("audio")] public InboundMedia? Audio { get; set; }
         [JsonPropertyName("document")] public InboundMedia? Document { get; set; }
+        /// <summary>Set when the seller replied to (quoted) an earlier message: that message's id.</summary>
+        [JsonPropertyName("context")] public InboundContext? Context { get; set; }
+    }
+
+    public class InboundContext
+    {
+        [JsonPropertyName("id")] public string? Id { get; set; }
     }
 
     public class InboundMedia
@@ -136,6 +143,16 @@ public class WhatsAppWebhookPayload
         }
     }
 
+    /// <summary>The id of the earlier message this message replies to (WhatsApp "Reply"), or null.</summary>
+    public string? ReplyToIdOf(string messageId)
+    {
+        foreach (var entry in Entries)
+        foreach (var change in entry.Changes)
+        foreach (var message in change.Value?.Messages ?? Enumerable.Empty<InboundMessage>())
+            if (message.Id == messageId) return message.Context?.Id;
+        return null;
+    }
+
     /// <summary>Files (an .xlsx to import customers/products from an old system).</summary>
     public IEnumerable<(string From, string MediaId, string? FileName, string? MimeType, string? MessageId)> ExtractDocumentMessages()
     {
@@ -178,4 +195,11 @@ public static class WhatsAppSignatureValidator
 
         return CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(computedHex), Encoding.UTF8.GetBytes(expectedHex));
     }
+
+    /// <summary>
+    /// Whether a webhook POST may be handled. The unsigned local dev loop (no AppSecret) is allowed only in Development;
+    /// anywhere else a missing secret refuses every call instead of accepting unsigned posts.
+    /// </summary>
+    public static bool IsAllowed(string appSecret, bool isDevelopment, byte[] requestBody, string? signatureHeader) =>
+        string.IsNullOrEmpty(appSecret) ? isDevelopment : IsValid(appSecret, requestBody, signatureHeader);
 }

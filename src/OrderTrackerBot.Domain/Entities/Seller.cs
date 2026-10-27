@@ -87,6 +87,10 @@ public class Product
     public decimal? PriceA { get; set; }
     public decimal? PriceB { get; set; }
     public decimal? PriceC { get; set; }
+    /// <summary>Price group (A, B or C) a new sale uses for this product; null = the regular price.</summary>
+    public string? DefaultPriceGroup { get; set; }
+    /// <summary>sale | service. null = sale.</summary>
+    public string? ItemKind { get; set; }
     /// <summary>The price a buyer in this group pays: the group's level when set, else <see cref="Price"/>.</summary>
     public decimal PriceFor(string? group) => group switch
     {
@@ -166,6 +170,8 @@ public class Customer
     public string? Phone { get; set; }
     public string? Address { get; set; }
     public string? City { get; set; }
+    /// <summary>The buyer's own email, for "email receipt 12 to buyer". Saved with "Sara ka email sara@mail.com".</summary>
+    public string? Email { get; set; }
     public string? PreferredContact { get; set; }
     public string? Notes { get; set; }
     /// <summary>Which price group (A, B or C) this buyer pays; null = regular price.</summary>

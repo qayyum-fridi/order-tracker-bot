@@ -238,18 +238,7 @@ public partial class ConversationEngine
             return;
         }
 
-        _db.Customers.AddRange(plan.NewCustomers);
-        _db.Products.AddRange(plan.NewProducts);
-        await _db.SaveChangesAsync(ct);
-        _db.ActionLogs.Add(new ActionLog
-        {
-            SellerId = seller.Id, ActionType = ActionType.DataImported,
-            PayloadJson = JsonSerializer.Serialize(new
-            {
-                CustomerIds = plan.NewCustomers.Select(c => c.Id).ToList(),
-                ProductIds = plan.NewProducts.Select(p => p.Id).ToList()
-            })
-        });
+        await SaveImportPlanAsync(seller, plan, customers: true, products: true, ct);
 
         var done = new List<string>();
         if (plan.NewCustomers.Count > 0) done.Add($"👥 {plan.NewCustomers.Count} customers");
@@ -295,6 +284,24 @@ public partial class ConversationEngine
             else _db.Products.Remove(product);
         }
 
+        // Imported sales are cancelled rather than deleted, so the day's history stays readable, and their units go back to stock.
+        var orderIds = Ids("OrderIds");
+        if (orderIds.Count > 0)
+        {
+            var orders = await _db.Orders.Include(o => o.Items)
+                .Where(o => o.SellerId == seller.Id && orderIds.Contains(o.Id)).ToListAsync(ct);
+            foreach (var order in orders.Where(o => o.Status is not (OrderStatus.Cancelled or OrderStatus.Returned)))
+            {
+                var stockBefore = StockFootprint(order);
+                order.Status = OrderStatus.Cancelled;
+                order.CancelledAt = DateTime.UtcNow;
+                await ApplyStockChangeAsync(seller, stockBefore, StockFootprint(order), ct);
+            }
+            _stockWarnings.Clear();
+            await _db.SaveChangesAsync(ct);
+            await ReplyAsync(seller, MessageTemplates.Get("import.014", orders.Count), ct);
+        }
+
         await ReplyAsync(seller, MessageTemplates.Get("import.013", customers.Count, products.Count), ct);
     }
 
@@ -320,9 +327,15 @@ public partial class ConversationEngine
     {
         var media = await _media!.DownloadAsync(mediaId, ct);
         if (media is null) return new ImportPlan { Problem = ImportProblem.Download };
-        if (media.Value.Bytes.Length > MaxImportBytes) return new ImportPlan { Problem = ImportProblem.TooBig };
+        return await PlanImportBytesAsync(seller, media.Value.Bytes, fileName, ct);
+    }
 
-        var grid = _importReader!.Read(media.Value.Bytes, fileName);
+    /// <summary>Plans a file's contents. Used by WhatsApp (after download) and by the dashboard upload. Nothing is saved here.</summary>
+    private async Task<ImportPlan> PlanImportBytesAsync(Seller seller, byte[] bytes, string? fileName, CancellationToken ct)
+    {
+        if (bytes.Length > MaxImportBytes) return new ImportPlan { Problem = ImportProblem.TooBig };
+
+        var grid = _importReader!.Read(bytes, fileName);
         if (grid is null) return new ImportPlan { Problem = ImportProblem.Unreadable };
 
         // The seller's own layout is fine: columns are recognised by their headings and renamed to ours before any row is checked.
@@ -419,10 +432,7 @@ public partial class ConversationEngine
                 else problem = $"Cost price sahi nahi (\"{Cell(row, "Cost price")}\")";
             }
             if (problem is null && Cell(row, "Unit").Length > 0)
-            {
-                if (NormalizeImportUnit(Cell(row, "Unit")) is { } parsedUnit) unit = parsedUnit;
-                else problem = $"Unit sahi nahi (\"{Cell(row, "Unit")}\")";
-            }
+                unit = NormalizeImportUnit(Cell(row, "Unit"));
             if (problem is null && Cell(row, "Pack size").Length > 0 && (!TryImportNumber(Cell(row, "Pack size"), out packSize) || packSize <= 0)) problem = $"Pack size sahi nahi (\"{Cell(row, "Pack size")}\")";
             if (problem is null && Cell(row, "Stock").Length > 0)
             {
@@ -537,7 +547,11 @@ public partial class ConversationEngine
         }
     }
 
-    private static string? NormalizeImportUnit(string text) => text.Trim().ToLowerInvariant().TrimEnd('s') switch
+    /// <summary>Known unit words map to their standard name; any other word is kept as typed (lower-cased), so a row is never failed over its unit.</summary>
+    // The shared alias list is tried first: it knows the plurals that trimming a final "s" gets wrong ("Boxes" is not "boxe").
+    private static string NormalizeImportUnit(string text) => CommandParser.NormalizeUnit(text.Trim()) ?? NormalizeImportUnitWord(text);
+
+    private static string NormalizeImportUnitWord(string text) => text.Trim().ToLowerInvariant().TrimEnd('s') switch
     {
         "piece" or "pc" or "pcs" or "pic" => "piece",
         "kg" or "kilo" or "kilogram" => "kg",
@@ -559,6 +573,6 @@ public partial class ConversationEngine
         "bundle" => "bundle",
         "tray" => "tray",
         "plate" => "plate",
-        _ => null
+        var other => other
     };
 }

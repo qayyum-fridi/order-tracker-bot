@@ -39,6 +39,8 @@ public sealed class AiOrderDraft
     /// <summary>Delivery charge in rupees when the order states one ("delivery 250", "free delivery" = 0); null = not mentioned.
     /// Settable so a deterministic match on the seller's own text can override the model.</summary>
     public decimal? DeliveryCharge { get; set; }
+    /// <summary>True when the delivery charge was found in the message text by the deterministic parser (strategy learning).</summary>
+    public bool DeliveryWrittenInText { get; set; }
     /// <summary>Advance the buyer already paid, found in the seller's text (not asked of the model).</summary>
     public decimal? AdvancePaid { get; set; }
     public List<string> MissingRequiredFields { get; init; } = new();
@@ -134,6 +136,24 @@ public interface IAiOrderAssistant
     Task<string?> GenerateInsightAsync(string factsSummary, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// The bot asked the seller a question (<paramref name="situation"/>) and the reply is not a clean answer: what is it? Returns "answer" (it answers the
+    /// question), "new_order" (a fresh order / items, not an answer), "cancel" (drop the current order), "skip" (the asked phone is not known now and will be given later: save without it) or "other"; null when AI is unavailable (callers keep the old behaviour).
+    /// </summary>
+    Task<string?> ClassifyMidFlowReplyAsync(string situation, string message, CancellationToken cancellationToken = default) => Task.FromResult<string?>(null);
+
+    /// <summary>
+    /// A loose rule guessed that the message is the bot command <paramref name="commandKind"/>: does it really ask for that? <c>false</c> = it is something else
+    /// (typically a new order or another request), so the AI order reader should handle it; <c>null</c> = unknown / no AI (keep the rule's answer).
+    /// </summary>
+    Task<bool?> ConfirmCommandMatchAsync(string message, string commandKind, CancellationToken cancellationToken = default) => Task.FromResult<bool?>(null);
+
+    /// <summary>A seller once taught that <paramref name="taughtPhrase"/> means a command; they now wrote <paramref name="newPhrase"/>. Do both ask for the same thing? <c>null</c> = unknown / no AI.</summary>
+    Task<bool?> ConfirmSamePhraseAsync(string taughtPhrase, string newPhrase, CancellationToken cancellationToken = default) => Task.FromResult<bool?>(null);
+
+    /// <summary>Embedding vectors (meaning, not words) for the texts, same order; null when unavailable. Used to find a taught phrase that MEANS the same as a new sentence.</summary>
+    Task<IReadOnlyList<float[]>?> EmbedAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<float[]>?>(null);
+
+    /// <summary>
     /// Translates bot messages from Roman Urdu into <paramref name="targetLanguage"/> (a <c>Lang</c> constant), one result per input in the
     /// same order. Null when AI is unavailable or the result is unusable — callers send the original text instead.
     /// </summary>
@@ -156,6 +176,9 @@ public sealed class AiVoiceInterpretation
     /// <summary>The kind of each step (reply | command | yes | no | choose | edit_step | done | skip | help), same length as <see cref="Steps"/>;
     /// empty when the model gave plain strings. The engine drops any step whose action is not valid in the bot's current state.</summary>
     public List<string> Actions { get; init; } = new();
+    /// <summary>The words of the transcript each step came from ("" when a step comes from the chat context only), same length as <see cref="Steps"/>;
+    /// empty when the model gave no spans. A step with a span is checked against the transcript before it runs.</summary>
+    public List<string> Spans { get; init; } = new();
     public string? Question { get; init; }
     /// <summary>When <see cref="Question"/> has a few known answers (which customer, which order, which status, which period): each is the exact text the bot
     /// receives when the seller taps it. Shown as buttons / a list so the seller can tap instead of speaking again.</summary>

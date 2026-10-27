@@ -1,3 +1,4 @@
+using OrderTrackerBot.Application.Time;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
@@ -26,27 +27,27 @@ public sealed partial class ConversationEngine
         var noCost = products.Count(p => p.CostPrice is null);
         var noCategory = products.Count(p => string.IsNullOrWhiteSpace(p.Category));
         var noStock = products.Count(p => p.StockQty is null);
-        var staleCutoff = DateTime.UtcNow.AddDays(-StaleOrderDays);
+        var staleCutoff = SellerClock.DaysAgoUtc(StaleOrderDays, DateTime.UtcNow);
         var stale = await _db.Orders.AsNoTracking().CountAsync(o => o.SellerId == seller.Id && o.CreatedAt < staleCutoff
             && (o.Status == OrderStatus.Pending || o.Status == OrderStatus.Shipped), ct);
         var orders = await _db.Orders.AsNoTracking().CountAsync(o => o.SellerId == seller.Id, ct);
-        var monthStart = DateTime.UtcNow.AddDays(-30);
+        var monthStart = SellerClock.DaysAgoUtc(30, DateTime.UtcNow);
         var expenses = await _db.Expenses.AsNoTracking().CountAsync(e => e.SellerId == seller.Id && e.CreatedAt >= monthStart, ct);
 
         var rows = new List<(bool Ok, string Line)>
         {
-            (noCost == 0, noCost == 0 ? "Cost price: sab products mein" : $"Cost price nahi: {noCost}/{products.Count} products — profit/margin adhoora. Likhein, jaise: \"{Industry(seller).FullProduct}\""),
-            (noCategory == 0, noCategory == 0 ? "Category: sab products mein" : $"Category nahi: {noCategory}/{products.Count} — category reports adhoori. Likhein, jaise: \"{Industry(seller).FullProduct}\""),
-            (noStock == 0, noStock == 0 ? "Stock: sab products ka track hota hai" : $"Stock track nahi: {noStock}/{products.Count} — reorder/dead stock nahi nikal sakta. Likhein, jaise: \"stock {Industry(seller).SimpleProductName} 20\""),
-            (stale == 0, stale == 0 ? "Purane orders: koi atka hua nahi" : $"{stale} orders {StaleOrderDays}+ din se Pending/Shipped hain — status update karein: \"mark 12 delivered\""),
-            (orders == 0 || expenses > 0, orders == 0 || expenses > 0 ? "Kharcha: pichle 30 din ka likha hua hai" : "30 din mein koi kharcha nahi likha — net/P&L adhoora. Likhein: \"expense 5000 rent\""),
+            (noCost == 0, noCost == 0 ? MessageTemplates.Get("setup-check.006") : MessageTemplates.Get("setup-check.007", noCost, products.Count, Industry(seller).FullProduct)),
+            (noCategory == 0, noCategory == 0 ? MessageTemplates.Get("setup-check.008") : MessageTemplates.Get("setup-check.009", noCategory, products.Count, Industry(seller).FullProduct)),
+            (noStock == 0, noStock == 0 ? MessageTemplates.Get("setup-check.010") : MessageTemplates.Get("setup-check.011", noStock, products.Count, Industry(seller).SimpleProductName)),
+            (stale == 0, stale == 0 ? MessageTemplates.Get("setup-check.013") : MessageTemplates.Get("setup-check.012", stale, StaleOrderDays)),
+            (orders == 0 || expenses > 0, orders == 0 || expenses > 0 ? MessageTemplates.Get("setup-check.014") : MessageTemplates.Get("setup-check.015")),
         };
         if (string.IsNullOrWhiteSpace(seller.BusinessType))
-            rows.Insert(0, (false, "Dukaan ki qism set nahi — examples aur guide aap ki dukaan ke mutabiq nahi. Likhein: \"industry\" (phir list se chunein)"));
+            rows.Insert(0, (false, MessageTemplates.Get("setup-check.016")));
         var done = rows.Count(r => r.Ok);
-        var lines = string.Join("\n", rows.Select(r => (r.Ok ? "✅ " : "⚠️ ") + r.Line));
+        var lines = string.Join("\n", rows.Select(r => r.Line));
         var quality = await DataQualityIssuesAsync(seller, products, ct);
-        var qualityText = quality.Count == 0 ? "" : MessageTemplates.Get("setup-check.003", string.Join("\n", quality.Select(q => "⚠️ " + q)));
+        var qualityText = quality.Count == 0 ? "" : "\n\n" + MessageTemplates.Get("setup-check.003") + "\n" + string.Join("\n", quality);
         var allGood = done == rows.Count && quality.Count == 0;
         var head = allGood ? MessageTemplates.Get("setup-check.004") : MessageTemplates.Get("setup-check.005", done, rows.Count, quality.Count);
         await ReplyAsync(seller, $"{head}\n\n{lines}{qualityText}", ct);
@@ -72,15 +73,15 @@ public sealed partial class ConversationEngine
 
         var loss = products.Where(p => p.CostPrice is { } c && p.Price > 0 && c >= p.Price).ToList();
         if (loss.Count > 0)
-            issues.Add($"Cost price >= sale price ({loss.Count}): {Names(loss.Select(p => $"{p.Name} (cost {p.CostPrice:0.##} / price {p.Price:0.##})"), loss.Count)} — shayad cost ya price ghalat likha. Theek karein: \"edit product: Name - price, cost X\"");
+            issues.Add(MessageTemplates.Get("setup-check.017", loss.Count, Names(loss.Select(p => $"{p.Name} (cost {p.CostPrice:0.##} / price {p.Price:0.##})"), loss.Count)));
 
         var free = products.Where(p => p.Price <= 0).ToList();
         if (free.Count > 0)
-            issues.Add($"Price 0 hai ({free.Count}): {Names(free.Select(p => p.Name), free.Count)} — sales/profit mein 0 ginay jayenge.");
+            issues.Add(MessageTemplates.Get("setup-check.018", free.Count, Names(free.Select(p => p.Name), free.Count)));
 
         var negative = products.Where(p => p.StockQty < 0).ToList();
         if (negative.Count > 0)
-            issues.Add($"Stock minus mein ({negative.Count}): {Names(negative.Select(p => $"{p.Name} ({p.StockQty})"), negative.Count)} — maal aane ka stock likhein: \"stock {Industry(seller).SimpleProductName} +10\"");
+            issues.Add(MessageTemplates.Get("setup-check.019", negative.Count, Names(negative.Select(p => $"{p.Name} ({p.StockQty})"), negative.Count), Industry(seller).SimpleProductName));
 
         static string Key(string name) => new string(name.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
         var dupes = new List<string>();
@@ -100,7 +101,7 @@ public sealed partial class ConversationEngine
                     dupes.Add($"{n1} / {n2}");
             }
         if (dupes.Count > 0)
-            issues.Add($"Milte-julte product naam ({dupes.Count}): {Names(dupes, dupes.Count)} — ek hi product do dafa to nahi? Sales alag alag ginay jayengi.");
+            issues.Add(MessageTemplates.Get("setup-check.020", dupes.Count, Names(dupes, dupes.Count)));
 
         var customers = await _db.Customers.AsNoTracking()
             .Where(c => c.SellerId == seller.Id && c.DeletedAt == null && c.Name != "Walk-in").ToListAsync(ct);
@@ -109,21 +110,21 @@ public sealed partial class ConversationEngine
 
         var badPhone = active.Where(c => !IsPlausiblePhone(c.Phone)).ToList();
         if (badPhone.Count > 0)
-            issues.Add($"Phone ghalat ya khali ({badPhone.Count} customers): {Names(badPhone.Select(c => c.Name), badPhone.Count)} — theek karein: \"Sara ka phone 0300…\"");
+            issues.Add(MessageTemplates.Get("setup-check.021", badPhone.Count, Names(badPhone.Select(c => c.Name), badPhone.Count)));
 
         var sharedPhone = active.Where(c => IsPlausiblePhone(c.Phone)).GroupBy(c => Last10(c.Phone)).Where(g => g.Count() > 1).ToList();
         if (sharedPhone.Count > 0)
-            issues.Add($"Ek phone, kayi naam ({sharedPhone.Count}): {Names(sharedPhone.Select(g => string.Join(" = ", g.Select(c => c.Name))), sharedPhone.Count)} — ek customer do dafa ban gaya? Customer history/churn reports bikhar jati hain.");
+            issues.Add(MessageTemplates.Get("setup-check.022", sharedPhone.Count, Names(sharedPhone.Select(g => string.Join(" = ", g.Select(c => c.Name))), sharedPhone.Count)));
 
         var noCity = active.Where(c => string.IsNullOrWhiteSpace(c.City) && string.IsNullOrWhiteSpace(c.Address)).ToList();
         if (noCity.Count > 0)
-            issues.Add($"Na city na address ({noCity.Count} customers): {Names(noCity.Select(c => c.Name), noCity.Count)} — shehar-wise reports mein nahi ayenge. Likhein: \"Bilal ki city Lahore\"");
+            issues.Add(MessageTemplates.Get("setup-check.023", noCity.Count, Names(noCity.Select(c => c.Name), noCity.Count)));
 
-        var since = DateTime.UtcNow.AddDays(-90);
+        var since = SellerClock.DaysAgoUtc(90, DateTime.UtcNow);
         var noCourier = await _db.Orders.AsNoTracking().CountAsync(o => o.SellerId == seller.Id && o.CreatedAt >= since
             && (o.Status == OrderStatus.Shipped || o.Status == OrderStatus.Delivered) && o.OrderSource != "offline" && string.IsNullOrEmpty(o.TrackingCourier), ct);
         if (noCourier > 0)
-            issues.Add($"{noCourier} shipped/delivered orders mein courier nahi likha (90 din) — courier-wise return/delivery time nahi nikalega. Likhein: \"add tracking: Ayesha, TCS 123456\"");
+            issues.Add(MessageTemplates.Get("setup-check.024", noCourier));
 
         return issues;
     }

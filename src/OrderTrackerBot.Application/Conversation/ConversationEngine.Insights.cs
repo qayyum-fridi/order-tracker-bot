@@ -51,10 +51,12 @@ public partial class ConversationEngine
             case "catproducts": await InsightCategoryProductsAsync(seller, ct); break;
             case "categories": await InsightCategoriesAsync(seller, ct); break;
             case "untracked": await InsightUntrackedStockAsync(seller, ct); break;
+            case "stockvalue": await InsightStockValueAsync(seller, ct); break;
             case "expcat": await InsightExpenseCategoryAsync(seller, text, period, ct); break;
             case "exptop": await InsightTopExpensesAsync(seller, period, ct); break;
             case "vsyesterday": await InsightTodayVsYesterdayAsync(seller, ct); break;
             case "pnl": await InsightProfitOrLossAsync(seller, period, ct); break;
+            case "productprofit": await InsightProductProfitAsync(seller, period, ct); break;
             default:
                 if (!await TryHandleAdvancedInsightAsync(seller, ctx, cmd, period, text, ct))
                     await ReplyAsync(seller, MessageTemplates.Get("insights.001"), ct);
@@ -104,6 +106,10 @@ public partial class ConversationEngine
         var products = await _db.Products.AsNoTracking().Where(p => p.SellerId == seller.Id && p.IsActive).OrderBy(p => p.Id).ToListAsync(ct);
         var hits = products.Where(p => p.Name.Trim().Length >= 2 && HasWord(text, p.Name)).ToList();
         hits = hits.Where(h => !hits.Any(o => o.Name.Length > h.Name.Length && o.Name.Contains(h.Name, StringComparison.OrdinalIgnoreCase))).ToList();
+
+        // A design code or SKU typed as a whole word ("1203", "KRT-001") is that product, whatever its name says.
+        var typed = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(t => t.Trim('?', '.', ',', '!', '#', ':', ';', '(', ')', '"', '؟', '،').ToLowerInvariant()).ToHashSet();
+        hits.AddRange(products.Where(p => hits.All(h => h.Id != p.Id) && ProductCodes(p).Any(typed.Contains)));
 
         // Words not already part of an exact match may still be a misspelt product ("dupatte" for "Dupatta").
         var covered = hits.SelectMany(h => h.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries)).Select(w => w.ToLowerInvariant()).ToHashSet();
@@ -389,7 +395,7 @@ public partial class ConversationEngine
     private async Task InsightInactiveCustomersAsync(Seller seller, SessionContextData ctx, int days, CancellationToken ct)
     {
         days = Math.Clamp(days, 1, 730);
-        var cutoff = DateTime.UtcNow.AddDays(-days);
+        var cutoff = SellerClock.DaysAgoUtc(days, DateTime.UtcNow);
         var rows = await _db.Orders.AsNoTracking()
             .Where(o => o.SellerId == seller.Id && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned && o.Customer!.DeletedAt == null)
             .Select(o => new { o.CustomerId, o.Customer!.Name, o.CreatedAt, o.Total })

@@ -46,7 +46,7 @@ public class DataImportTests : IDisposable
     private async Task OnboardAsync(AppDbContext db)
     {
         var engine = CreateEngine(db);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "10 ke qareeb", "Lawn Suit - 3500", "done" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Lawn Suit - 3500", "done" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
         ClearOutput();
     }
@@ -239,11 +239,10 @@ public class DataImportTests : IDisposable
         Assert.Contains("1 pehle se maujood", summary);
         Assert.Contains("1 file mein dobara", summary);
         Assert.Contains("2 ghalat rows", summary);
-        Assert.Contains("Products: 2 naye", summary);
+        Assert.Contains("Products: 3 naye", summary);
         Assert.Contains("1 pehle se maujood", summary);
         Assert.Contains("Customers row 6: Name khali hai", summary);
         Assert.Contains("Catalog row 5: Price sahi nahi", summary);
-        Assert.Contains("Catalog row 6: Unit sahi nahi", summary);
         Assert.Equal(ConversationState.AwaitingImportConfirmation, (await db.Sessions.FirstAsync()).State);
 
         await engine.HandleIncomingMessageAsync(Phone, "Yes", default);
@@ -264,7 +263,8 @@ public class DataImportTests : IDisposable
         Assert.Equal("kg", sugar.UnitType);
         Assert.Equal(1, await db.Products.CountAsync(p => p.Name == "Lawn Suit"));
         Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
-        Assert.Contains(_texts, t => t.Contains("Import ho gaya") && t.Contains("2 customers") && t.Contains("2 products"));
+        // "Odd Unit" has a unit word we do not list ("furlong"): units are free text, so it is saved too.
+        Assert.Contains(_texts, t => t.Contains("Import ho gaya") && t.Contains("2 customers") && t.Contains("3 products"));
 
         await engine.HandleIncomingMessageAsync(Phone, "undo", default);
 
@@ -413,7 +413,7 @@ public class DataImportTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = CreateEngine(db);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "10 ke qareeb" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
         ClearOutput();
 

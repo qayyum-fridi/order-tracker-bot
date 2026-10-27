@@ -40,10 +40,16 @@ public class MockupFeatureTests : IDisposable
     private ConversationEngine Engine(AppDbContext db, BillingOptions? billing = null) =>
         new(db, _ai.Object, _sender.Object, _founderAlerts.Object, billing, _media.Object);
 
+    // The production setup asks the kind of shop as taps (appsettings: Features:IndustryQuestion).
+    private static readonly FeatureOptions IndustryFeatures = new() { ShortcutButtons = false, IndustryQuestion = true };
+
+    private ConversationEngine IndustryEngine(AppDbContext db) =>
+        new(db, _ai.Object, _sender.Object, _founderAlerts.Object, null, _media.Object, features: IndustryFeatures);
+
     private async Task<ConversationEngine> OnboardAsync(AppDbContext db, BillingOptions? billing = null, params string[] products)
     {
         var engine = Engine(db, billing);
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "10 ke qareeb" })
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         foreach (var p in products.Length == 0 ? new[] { "Lawn Suit - 3500", "Kurti - 1800" } : products)
             await engine.HandleIncomingMessageAsync(Phone, p, default);
@@ -87,18 +93,21 @@ public class MockupFeatureTests : IDisposable
     public async Task Onboarding_SavesOptionalDetails_AndStartsFreeTrial()
     {
         using var db = _dbFactory.CreateContext();
-        var engine = Engine(db);
+        var engine = IndustryEngine(db);
         foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         await engine.HandleIncomingMessageAsync(Phone, "Lahore, Clothing, @ayesha.collections", default);
-        Assert.Contains(_sent, m => m.Contains("Noted — Lahore, Clothing business, @ayesha.collections"));
+        Assert.Contains(_sent, m => m.Contains("dukaan kis qism ki hai"));
 
-        foreach (var m in new[] { "10", "Lawn Suit - 3500", "done" })
+        await engine.HandleIncomingMessageAsync(Phone, "clothing", default);
+        Assert.Contains(_sent, m => m.Contains("Noted — Lahore, Kapray / Lawn / Boutique business, @ayesha.collections"));
+
+        foreach (var m in new[] { "Lawn Suit - 3500", "done" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
 
         var seller = await db.Sellers.FirstAsync();
         Assert.Equal("Lahore", seller.City);
-        Assert.Equal("Clothing", seller.BusinessType);
+        Assert.Equal("Kapray / Lawn / Boutique", seller.BusinessType);
         Assert.Equal("@ayesha.collections", seller.InstagramHandle);
         Assert.NotNull(seller.TrialEndsAt);
         Assert.Contains(_sent, m => m.Contains("14-din FREE trial"));
@@ -157,7 +166,7 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = Engine(db);
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "10 ke qareeb" })
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         // Even if the model wrongly calls this an order, there is no buyer phone, so it must not end setup or start the trial.
         AiReturns(Order("Mere", "lawn suit", 4, phone: null));
@@ -177,7 +186,7 @@ public class MockupFeatureTests : IDisposable
         var engine = await OnboardAsync(db);
 
         await engine.HandleIncomingMessageAsync(Phone, "Sugar 5 kg - 500", default);
-        Assert.Contains(_sent, m => m.Contains("Added: Sugar - 5kg - Rs.500"));
+        Assert.Contains(_sent, m => m.Contains("Added: Sugar (5 kg) - Rs.500"));
         var sugar = await db.Products.FirstAsync(p => p.Name == "Sugar");
         Assert.Equal("kg", sugar.UnitType);
         Assert.Equal(5m, sugar.UnitQty);
@@ -623,7 +632,7 @@ public class MockupFeatureTests : IDisposable
     private async Task<ConversationEngine> VoiceEngineAtAddProductAsync(AppDbContext db, string transcript)
     {
         var setup = Engine(db);
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "10 ke qareeb" })
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections" })
             await setup.HandleIncomingMessageAsync(Phone, m, default);
         _sent.Clear();
         _media.Setup(m => m.DownloadAsync("voice-ctx", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
@@ -679,7 +688,7 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = Engine(db);
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "10 ke qareeb" })
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         AiSaysNewProducts();
 
@@ -1019,13 +1028,13 @@ public class MockupFeatureTests : IDisposable
             p => { Assert.Equal("Wool Dupatta", p.Name); Assert.Equal(800m, p.Price); });
     }
 
-    private ConversationEngine VoiceEngine(AppDbContext db, string transcript, Microsoft.Extensions.Logging.ILogger<ConversationEngine>? logger = null)
+    private ConversationEngine VoiceEngine(AppDbContext db, string transcript, Microsoft.Extensions.Logging.ILogger<ConversationEngine>? logger = null, FeatureOptions? features = null)
     {
         _media.Setup(m => m.DownloadAsync("voice-ctx", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
         var transcriber = new Mock<IAudioTranscriber>();
         transcriber.SetupGet(t => t.IsConfigured).Returns(true);
         transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>())).ReturnsAsync(transcript);
-        return new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object, logger: logger);
+        return new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object, logger: logger, features: features);
     }
 
     [Fact]
@@ -1045,6 +1054,163 @@ public class MockupFeatureTests : IDisposable
         logger.Verify(l => l.Log(Microsoft.Extensions.Logging.LogLevel.Warning, It.IsAny<Microsoft.Extensions.Logging.EventId>(),
             It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("Voice rewrite refused") && !v.ToString()!.Contains("qeemat")),
             It.IsAny<Exception?>(), It.IsAny<Func<It.IsAnyType, Exception?, string>>()), Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task VoiceNote_StepWhoseSpanIsNotInTheTranscript_IsDropped_NotRun()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await SaveSaraKurtiOrderAsync(engine, db);
+        var voice = VoiceEngine(db, "sara ka order cancel kar do");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "cancel 1" }, Actions = { "command" }, Spans = { "cancel teen sau" } });
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        Assert.Equal(1, await db.Orders.CountAsync(o => o.Status == OrderStatus.Pending));
+        Assert.NotEqual(ConversationState.AwaitingVoiceConfirmation, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sent, m => m.Contains("samajh nahi aaya"));
+    }
+
+    [Fact]
+    public async Task VoiceNote_SpanSpelledDifferently_KeepsStepWhenItsAmountWasSaid()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var voice = VoiceEngine(db, "lawn suit 2500 rupay");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "Lawn Suit - 2500" }, Spans = { "pachis sau rupay" } });
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.span");
+
+        Assert.DoesNotContain(_sent, m => m.Contains("awaaz mein saaf nahi thi"));
+    }
+
+    [Fact]
+    public async Task VoiceNote_AmountlessCommand_WithSpellingDifferentSpan_IsKept()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var voice = VoiceEngine(db, "yaar purana order cancel kar do");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "cancel order" }, Spans = { "purana order cancl" } });
+        AiReturns(new AiMessageAnalysis { Intent = "unclear" });
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.amountless");
+
+        Assert.DoesNotContain(_sent, m => m.Contains("awaaz mein saaf nahi thi"));
+    }
+
+    [Fact]
+    public async Task VoiceNote_SameRecordingSentAgain_IsNotRunTwice()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var voice = VoiceEngine(db, "500 packaging ka kharcha");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "expense 500 packaging" }, Spans = { "500 packaging" } });
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.first");
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.again");
+
+        Assert.Equal(1, await db.Expenses.CountAsync());
+        Assert.Contains(_sent, m => m.Contains("dobara nahi chalaya gaya"));
+    }
+
+    [Fact]
+    public async Task VoiceNote_UrduCommandWords_MatchTheEnglishStep()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var voice = VoiceEngine(db, "آرڈر منسوخ کر دو");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "cancel order" }, Spans = { "آرڈر منسوخ" } });
+        AiReturns(new AiMessageAnalysis { Intent = "unclear" });
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.urdu");
+
+        Assert.DoesNotContain(_sent, m => m.Contains("awaaz mein saaf nahi thi"));
+    }
+
+    [Fact]
+    public async Task UndoNote_UndoesEverythingTheLastVoiceNoteDid()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var voice = VoiceEngine(db, "500 packaging ka kharcha likh do");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "expense 500 packaging" }, Spans = { "500 packaging" } });
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.expense");
+        Assert.Equal(1, await db.Expenses.CountAsync());
+
+        await engine.HandleIncomingMessageAsync(Phone, "undo note", default);
+        await engine.HandleIncomingMessageAsync(Phone, "undo note", default);
+
+        Assert.Equal(0, await db.Expenses.CountAsync());
+        Assert.Contains(_sent, m => m.Contains("kaam wapas ho gaye"));
+    }
+
+    [Fact]
+    public async Task VoiceNote_ReplyToAHandledNote_IsNotRunAgain()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var voice = VoiceEngine(db, "orders aaj dikhao");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "orders today" }, Actions = { "command" } });
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.first");
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.second", "wamid.first");
+
+        Assert.Contains(_sent, m => m.Contains("pehle wale voice note ke jawab"));
+        Assert.DoesNotContain(_sent, m => m.Contains("Maine suna"));
+    }
+
+    [Fact]
+    public async Task VoiceNote_RepeatedStepFromTheSameWords_IsSavedOnce()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await SaveSaraKurtiOrderAsync(engine, db);
+        var voice = VoiceEngine(db, "sara ka order cancel kar do");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation
+            {
+                Steps = { "cancel 1", "cancel 1" },
+                Actions = { "command", "command" },
+                Spans = { "cancel", "cancel" }
+            });
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        var session = await db.Sessions.FirstAsync();
+        Assert.Equal(new[] { "cancel 1" }, SessionContextData.FromJson(session.ContextJson).PendingVoiceSteps);
+    }
+
+    [Fact]
+    public async Task VoiceNote_MixedSteps_RunSafeNow_AndParkOnlyRiskyForYes()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await SaveSaraKurtiOrderAsync(engine, db);
+        var voice = VoiceEngine(db, "orders aaj dikhao aur sara ka order cancel kar do");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "orders today", "cancel 1" }, Actions = { "command", "command" } });
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        var session = await db.Sessions.FirstAsync();
+        Assert.Equal(ConversationState.AwaitingVoiceConfirmation, session.State);
+        Assert.Equal(new[] { "cancel 1" }, SessionContextData.FromJson(session.ContextJson).PendingVoiceSteps);
+        Assert.Equal(1, await db.Orders.CountAsync(o => o.Status == OrderStatus.Pending));
     }
 
     [Fact]
@@ -1176,8 +1342,8 @@ public class MockupFeatureTests : IDisposable
     public async Task Guidance_DuringOnboarding_GivesAProductExample_AndStaysOnTheStep()
     {
         using var db = _dbFactory.CreateContext();
-        var engine = Engine(db);
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "10 ke qareeb" })
+        var engine = IndustryEngine(db);
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "clothing" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         _sent.Clear();
 
@@ -1364,16 +1530,55 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task VoiceGreeting_SaysItIsNotUnderstood_AndNeverAsksTheModel()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        var voice = VoiceEngine(db, "Hello bhai, kya hogaya?");
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        Assert.Contains(_sent, m => m.Contains("samajh nahi aaya"));
+        _ai.Verify(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.Equal(0, await db.Orders.CountAsync());
+    }
+
+    [Fact]
+    public async Task VoiceReadOnlyCommand_RunsAsSpoken_WithoutTheRewrite()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        var voice = VoiceEngine(db, "orders today");
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        _ai.Verify(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.Contains(_sent, m => m.Contains("Maine suna"));
+    }
+
+    [Theory]
+    [InlineData("Hello bhai, kya hogaya?", true)]
+    [InlineData("salam", true)]
+    [InlineData("Ayesha ka order", false)]
+    [InlineData("kya 2 kurti hain", false)]
+    [InlineData("Kurti 2 Ayesha", false)]
+    [InlineData("order ho gaya?", false)]
+    public void IsSmallTalkOnly_OnlyGreetingWords(string transcript, bool expected) =>
+        Assert.Equal(expected, ConversationEngine.IsSmallTalkOnly(transcript));
+
+    [Fact]
     public async Task VoiceNote_AtOptionalDetails_SplitIntoSeveralSteps_IsAppliedAsOneAnswer()
     {
         using var db = _dbFactory.CreateContext();
-        var setup = Engine(db);
+        var setup = IndustryEngine(db);
         foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections" })
             await setup.HandleIncomingMessageAsync(Phone, m, default);
         var seller = await db.Sellers.FirstAsync();
         seller.BusinessType = "Food"; // stale value from an earlier attempt
         await db.SaveChangesAsync();
-        var engine = VoiceEngine(db, "سرگودھا کلوتھنگ");
+        var engine = VoiceEngine(db, "سرگودھا کلوتھنگ", features: IndustryFeatures);
         _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiVoiceInterpretation { Steps = { "Sargodha", "Clothing" } });
         _sent.Clear();
@@ -1382,9 +1587,15 @@ public class MockupFeatureTests : IDisposable
 
         seller = await db.Sellers.AsNoTracking().FirstAsync();
         Assert.Equal("Sargodha", seller.City);
-        Assert.Equal("Clothing", seller.BusinessType);
-        Assert.Equal(ConversationState.OnboardingCatalogSize, (await db.Sessions.AsNoTracking().FirstAsync()).State);
-        Assert.Contains(_sent, m => m.Contains("Sargodha, Clothing business"));
+        Assert.Equal(ConversationState.OnboardingIndustry, (await db.Sessions.AsNoTracking().FirstAsync()).State);
+
+        // The kind of shop is picked from the taps, so the stale value is replaced by the tap.
+        await engine.HandleIncomingMessageAsync(Phone, "clothing", default);
+
+        seller = await db.Sellers.AsNoTracking().FirstAsync();
+        Assert.Equal("Kapray / Lawn / Boutique", seller.BusinessType);
+        Assert.Equal(ConversationState.OnboardingAddProduct, (await db.Sessions.AsNoTracking().FirstAsync()).State);
+        Assert.Contains(_sent, m => m.Contains("Sargodha, Kapray / Lawn / Boutique business"));
     }
 
     [Fact]
@@ -1459,6 +1670,75 @@ public class MockupFeatureTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
         Assert.Equal(2, await db.Orders.CountAsync());
         Assert.Contains(_sent, m => m.Contains("2 orders saved"));
+    }
+
+    [Theory]
+    [InlineData("stock ka total value")]
+    [InlineData("stock value")]
+    public async Task StockValue_IsAnsweredFromStockTimesCost(string text)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        db.Products.Add(new Product { SellerId = db.Sellers.First().Id, Name = "Test Kurti", Price = 3600, CostPrice = 2500, StockQty = 4, IsActive = true });
+        await db.SaveChangesAsync();
+        _sent.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, text, default);
+
+        // 4 pieces x Rs.2,500 cost = Rs.10,000; a plain report must not need the AI.
+        Assert.Contains(_sent, m => m.Contains("10,000"));
+        _ai.Verify(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task PaidOrder_EditedAboveWhatWasPaid_BecomesUnpaidWithBalance()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(Order("Ayesha", "Lawn Suit", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Ayesha 1 lawn suit", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        await engine.HandleIncomingMessageAsync(Phone, "mark 1 paid", default);
+
+        await engine.HandleIncomingMessageAsync(Phone, "edit order 1", default);
+        await engine.HandleIncomingMessageAsync(Phone, "1 = 3", default);
+        await engine.HandleIncomingMessageAsync(Phone, "done", default);
+
+        var order = await db.Orders.SingleAsync();
+        Assert.Equal(PaymentStatus.Unpaid, order.PaymentStatus);
+        Assert.True(OrderTrackerBot.Application.Formatting.OrderMoney.Balance(order) > 0);
+    }
+
+    [Fact]
+    public async Task BulkShipped_DoesNotRevive_CancelledOrder()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(Order("Ayesha", "Lawn Suit", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Ayesha 1 lawn suit", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Ayesha 1 lawn suit", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        (await db.Orders.FirstAsync(o => o.Id == 1)).Status = OrderStatus.Cancelled;
+        await db.SaveChangesAsync();
+
+        await engine.HandleIncomingMessageAsync(Phone, "mark 1 2 shipped", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        var cancelled = await db.Orders.FirstAsync(o => o.Id == 1);
+        Assert.Equal(OrderStatus.Cancelled, cancelled.Status);
+    }
+
+    [Fact]
+    public async Task EditOrder_ForMissingOrderNumber_SaysItIsNotFound()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        _sent.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "edit order 1", default);
+
+        Assert.Contains(_sent, m => m.Contains(OrderTrackerBot.Application.Templates.MessageTemplates.Get("commands.028", 1)));
     }
 
     [Fact]
@@ -1596,7 +1876,7 @@ public class MockupFeatureTests : IDisposable
         AiReturns(Order("Sara", "Kurti", 1));
         await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
-        _sender.Setup(s => s.SendTemplateMessageAsync("923001234567", It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _sender.Setup(s => s.SendTemplateMessageAsync("923001234567", It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
         await engine.HandleIncomingMessageAsync(Phone, "naya stock aaya — sab customers ko batao: naye lawn suits available", default);
         Assert.Contains(_buttons, b => b.Body.Contains("Konse channel"));
@@ -1627,6 +1907,28 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task ScheduledSummary_OutsideTheWindow_WaitsForTheSellersNextMessage()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        var seller = await db.Sellers.FirstAsync();
+        seller.CreatedAt = DateTime.UtcNow.AddDays(-20);
+        foreach (var log in db.MessageLogs.Where(m => m.Phone == Phone && m.Direction == "inbound")) log.CreatedAt = DateTime.UtcNow.AddDays(-2);
+        await db.SaveChangesAsync();
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object);
+
+        await engine.RunScheduledJobsAsync(DateTime.UtcNow);
+
+        Assert.DoesNotContain(_sent, m => m.Contains("Weekly Summary — Ayesha Collections"));
+        Assert.Single(SessionContextData.FromJson(seller.Session!.ContextJson).PendingNotices!);
+
+        await engine.HandleIncomingMessageAsync(Phone, "hello", default);
+
+        Assert.Contains(_sent, m => m.Contains("jo WhatsApp ki 24 ghante wali window band") && m.Contains("Weekly Summary — Ayesha Collections"));
+        Assert.Null(SessionContextData.FromJson(seller.Session.ContextJson).PendingNotices);
+    }
+
+    [Fact]
     public async Task ScheduledJobs_OneSellersFailure_DoesNotStopTheOthers_AndIsReported()
     {
         using var db = _dbFactory.CreateContext();
@@ -1639,6 +1941,8 @@ public class MockupFeatureTests : IDisposable
             WhatsAppPhoneNumber = otherPhone, BusinessName = "Second Shop", OnboardingComplete = true, CreatedAt = DateTime.UtcNow.AddDays(-20),
             Session = new OrderTrackerBot.Domain.Entities.ConversationSession { State = ConversationState.Idle }
         });
+        // The second shop wrote to the bot recently, so WhatsApp's 24-hour window is open for its weekly summary.
+        db.MessageLogs.Add(new MessageLog { Phone = otherPhone, Direction = "inbound", RawText = "hello" });
         await db.SaveChangesAsync();
         _sender.Setup(s => s.SendTextMessageAsync(Phone, It.Is<string>(t => t.Contains("Weekly Summary")), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("WhatsApp down"));

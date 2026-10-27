@@ -1,3 +1,4 @@
+using OrderTrackerBot.Application.Time;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
@@ -88,7 +89,7 @@ public partial class ConversationEngine
         if (orders.Count >= threshold) lines.Add("⭐ Status: Loyal customer");
         if (orders.Count > 0)
         {
-            var days = (DateTime.UtcNow.Date - orders[0].CreatedAt.Date).Days;
+            var days = (SellerClock.LocalToday(null, DateTime.UtcNow) - SellerClock.LocalToday(null, orders[0].CreatedAt)).Days;
             lines.Add($"🕐 Last order: {(days == 0 ? "aaj" : $"{days} din pehle")} ({Formatters.Status(orders[0].Status)})");
         }
         if (!string.IsNullOrWhiteSpace(customer.Notes)) lines.Add($"📝 {customer.Notes}");
@@ -165,7 +166,7 @@ public partial class ConversationEngine
     private async Task HandleRestoreCustomerAsync(Seller seller, string name, CancellationToken ct)
     {
         var wanted = name.ToLower();
-        var cutoff = DateTime.UtcNow.AddDays(-RestoreWindowDays);
+        var cutoff = SellerClock.DaysAgoUtc(RestoreWindowDays, DateTime.UtcNow);
         var customer = (await _db.Customers.Include(c => c.Orders)
                 .Where(c => c.SellerId == seller.Id && c.DeletedAt != null && c.DeletedAt >= cutoff).ToListAsync(ct))
             .OrderByDescending(c => c.DeletedAt)
@@ -183,7 +184,7 @@ public partial class ConversationEngine
 
     private async Task PurgeExpiredCustomersAsync(Seller seller, CancellationToken ct)
     {
-        var cutoff = DateTime.UtcNow.AddDays(-RestoreWindowDays);
+        var cutoff = SellerClock.DaysAgoUtc(RestoreWindowDays, DateTime.UtcNow);
         var expired = await _db.Customers.Where(c => c.SellerId == seller.Id && c.DeletedAt != null && c.DeletedAt < cutoff).ToListAsync(ct);
         if (expired.Count == 0) return;
         var ids = expired.Select(c => c.Id).ToList();

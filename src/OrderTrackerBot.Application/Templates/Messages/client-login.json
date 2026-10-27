@@ -1,4 +1,6 @@
 {
   "clientlogin.code": "🔐 Aap ka dashboard login code: *{0}*\n\nYeh code {1} minute tak valid hai. Kisi ke saath share na karein.\nDashboard par apna WhatsApp number aur yeh code likhein.",
-  "clientlogin.wait": "ℹ️ Code abhi bheja ja chuka hai. {0} second baad dobara \"login\" likhein."
+  "clientlogin.wait": "ℹ️ Code abhi bheja ja chuka hai. {0} second baad dobara \"login\" likhein.",
+  "clientlogin.signedin": "🔐 Dashboard par login hua hai. Agar yeh aap nahi the to foran \"dashboard logout\" likhein, sab dashboard sessions band ho jayen gi.",
+  "clientlogin.logout": "✅ Dashboard ke sab sessions band kar diye gaye hain. Dobara dekhne ke liye \"login\" likhein."
 }

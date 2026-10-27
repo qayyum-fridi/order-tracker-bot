@@ -5,6 +5,13 @@ public sealed record MenuRow(string Id, string Title);
 
 public sealed record MenuSection(string Title, IReadOnlyList<MenuRow> Rows);
 
+/// <summary>Ids of the Meta-approved templates in <c>whatsapp-templates.json</c>.</summary>
+public static class WhatsAppTemplateKeys
+{
+    public const string Broadcast = "broadcast";
+    public const string Weekly = "weekly";
+}
+
 public interface IWhatsAppSender
 {
     /// <summary>Sends a list message (max 10 rows total); the tapped row's Id arrives as a normal text message.</summary>
@@ -22,10 +29,10 @@ public interface IWhatsAppSender
     Task SendButtonsMessageAsync(string toPhoneNumber, string bodyText, IReadOnlyList<string> buttonLabels, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Sends a Meta-approved template (the only way to message a customer outside the 24h window, e.g. a broadcast).
-    /// Returns false when no template is configured or Meta rejected it.
+    /// Sends a Meta-approved template (the only way to message a seller or customer outside the 24h window).
+    /// <paramref name="templateKey"/> picks the entry in whatsapp-templates.json. Returns false when that template is not configured or Meta rejected it.
     /// </summary>
-    Task<bool> SendTemplateMessageAsync(string toPhoneNumber, IReadOnlyList<string> bodyParameters, CancellationToken cancellationToken = default);
+    Task<bool> SendTemplateMessageAsync(string toPhoneNumber, IReadOnlyList<string> bodyParameters, string templateKey = WhatsAppTemplateKeys.Broadcast, CancellationToken cancellationToken = default);
 
     /// <summary>Uploads and sends a file (e.g. a PDF receipt) as a WhatsApp document. Returns false when Meta rejected it.</summary>
     Task<bool> SendDocumentAsync(string toPhoneNumber, byte[] content, string fileName, string mimeType, string? caption, CancellationToken cancellationToken = default);

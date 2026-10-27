@@ -5,6 +5,7 @@ using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Ai;
 using OrderTrackerBot.Application.Conversation;
 using OrderTrackerBot.Application.Formatting;
+using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
 using OrderTrackerBot.Infrastructure.Persistence;
 using Xunit;
@@ -73,7 +74,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        await engine.HandleIncomingMessageAsync(Phone, "10 ke qareeb", default);
+        await engine.HandleIncomingMessageAsync(Phone, default);
         await engine.HandleIncomingMessageAsync(Phone, "Lawn Suit - 3500", default);
         await engine.HandleIncomingMessageAsync(Phone, "Kurti - 1800", default);
         await engine.HandleIncomingMessageAsync(Phone, "done", default);
@@ -316,7 +317,7 @@ public class ConversationEngineTests : IDisposable
     [InlineData("نیا ڈسکاؤنٹ بنائیں۔", "create discount: EID10")]
     [InlineData("discount bana do", "create discount: EID10")]
     [InlineData("ڈسکاؤنٹ نیا بنا دیں", "create discount: EID10")]
-    [InlineData("New Product", "Water Bottle - 500")]
+    [InlineData("New Product", "Rice 5 kg - 800")]
     [InlineData("add payment", "add payment: jazzcash")]
     [InlineData("create loyalty", "create loyalty: 5 orders")]
     [InlineData("add tracking", "add tracking: Leopards")]
@@ -674,6 +675,267 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task AddProductHowTo_ShowsTheSellersIndustryExample()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        var seller = await db.Sellers.SingleAsync();
+        var example = IndustryProfiles.Resolve(seller.BusinessType).SimpleProduct;
+
+        await engine.HandleIncomingMessageAsync(Phone, "add product", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains(example));
+    }
+
+    [Fact]
+    public async Task AddedProductReply_lists_the_ways_to_add_products_in_the_same_message()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Lawn Shirt - 2500", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("catalog mein add ho gaya") && m.Contains("Ek line mein:") &&
+            m.Contains("har line mein ek product") && m.Contains("Bol kar") && m.Contains("Excel"));
+    }
+
+    [Fact]
+    public async Task NewOrderGuide_ends_with_a_full_order_example()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "new order", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Ek line mein likhein") && m.Contains(IndustryProfiles.General.OrderExample));
+    }
+
+    [Fact]
+    public async Task Menus_follow_the_shops_kind_not_a_fixed_lawn_example()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var seller = db.Sellers.Single(s => s.WhatsAppPhoneNumber == Phone);
+        var grocery = IndustryProfiles.ByKey("grocery");
+        seller.BusinessType = grocery.Title;
+        await db.SaveChangesAsync();
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "menu catalog", default);
+        await engine.HandleIncomingMessageAsync(Phone, "menu", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains(grocery.SimpleProductName));
+        Assert.Contains(_sentMessages, m => m.Contains(grocery.MenuTip));
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("Lawn"));
+    }
+
+    [Fact]
+    public void Clarification_never_offers_the_draft_buttons_as_choices()
+    {
+        Assert.Equal(new[] { "Lawn Suit", "Kurti" }, ConversationEngine.UsableClarificationOptions(new[] { "✅ Save", "Lawn Suit", "✏️ Edit", "Kurti", "❌ Cancel" }));
+        Assert.Equal(new[] { "Naya order add karna chahte hain", "Kisi order ka status update karna chahte hain" },
+            ConversationEngine.UsableClarificationOptions(new[] { "✅ Save", "❌ Cancel" }));
+    }
+
+    [Fact]
+    public async Task A_stale_order_confirmation_state_with_no_draft_does_not_capture_later_messages()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var session = await db.Sessions.FirstAsync();
+        session.State = ConversationState.AwaitingOrderConfirmation;
+        session.ContextJson = new SessionContextData().ToJson();
+        await db.SaveChangesAsync();
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "help", default);
+
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("Order confirm karne ke liye YES"));
+    }
+
+    [Theory]
+    [InlineData("Kurti 1800, Dupatta 600, Lawn Suit 3500")]
+    [InlineData("Kurti 3000, Lawn Suit 4000")]
+    [InlineData("Lipstick Matte Red - 950")]
+    [InlineData("Kurti 1,800")]
+    [InlineData("Kurti 1800 per kg x2")]
+    [InlineData("🧕 Kurti 2 ✨, 🎀 Dupatta 1")]
+    [InlineData("​Kurti 2, Dupatta 1")]
+    [InlineData("Kurti 2, Dupatta 1,,, Shawl 1,")]
+    [InlineData("`Kurti 2 ; Dupatta 1\nShawl 1 & Chadar 1")]
+    public void A_list_of_names_and_prices_is_not_a_phone_number(string message) =>
+        Assert.True(CommandParser.LooksLikeProductPriceList(message));
+
+    [Theory]
+    [InlineData("03001234567")]
+    [InlineData("Ayesha 03001234567")]
+    [InlineData("Ayesha, 2 suit, 03001234567")]
+    [InlineData("cancel")]
+    public void A_phone_number_or_an_order_line_is_not_a_product_price_list(string message) =>
+        Assert.False(CommandParser.LooksLikeProductPriceList(message));
+
+    [Fact]
+    public async Task A_product_list_sent_where_a_phone_is_expected_is_not_rejected_as_a_bad_phone()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var session = await db.Sessions.FirstAsync();
+        session.State = ConversationState.AwaitingOrderMissingFields;
+        session.ContextJson = new SessionContextData
+        {
+            PendingMissingField = "Phone",
+            PendingOrder = new PendingOrderData
+            {
+                CustomerName = "Ayesha",
+                Items = new List<PendingOrderItemData> { new() { ProductName = "Polo Shirt", UnitPrice = 500 } }
+            }
+        }.ToJson();
+        await db.SaveChangesAsync();
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Kurti 1800, Dupatta 600, Lawn Suit 3500", default);
+
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("Phone number sahi nahi lagta"));
+    }
+
+    [Fact]
+    public async Task OrdersMenu_and_the_order_start_reply_both_show_the_shops_order_example()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        var example = IndustryProfiles.General.OrderExample;
+
+        await engine.HandleIncomingMessageAsync(Phone, "menu orders", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Naya order") && m.Contains(example));
+    }
+
+    [Fact]
+    public async Task ProductPreview_ShowsCostAndCategory_AndLeavesOutWhatWasNotGiven()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, catalogSheets: _catalogSheets.Object,
+            features: new FeatureOptions { ProductConfirmation = true, ShortcutButtons = false, ConfirmButtons = false, SuggestionButtons = false, SetupNudges = false, IndustryQuestion = false });
+
+        await engine.HandleIncomingMessageAsync(Phone, "Lawn Shirt - 2500, cost 1500, stock 100, category: Summer Wear", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Cost: Rs.1,500") && m.Contains("Category: Summer Wear") && m.Contains("Stock: 100"));
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("Rang: -"));
+    }
+
+    [Fact]
+    public async Task ProductPreview_CancelButton_DropsTheWaitingProduct_NotAStaleTap()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, catalogSheets: _catalogSheets.Object,
+            features: new FeatureOptions { ProductConfirmation = true, ShortcutButtons = false, ConfirmButtons = true, SuggestionButtons = false, SetupNudges = false, IndustryQuestion = false });
+
+        await engine.HandleIncomingMessageAsync(Phone, "Chiffon Suit - 3500", default);
+        await engine.HandleIncomingMessageAsync(Phone, "❌ Cancel", default);
+
+        Assert.DoesNotContain(_sentMessages, m => m.Contains(OrderTrackerBot.Application.Templates.MessageTemplates.Get("engine.002")));
+        Assert.False(db.Products.Any(p => p.Name == "Chiffon Suit"));
+    }
+
+    [Fact]
+    public async Task ProductPreview_ShowsSupplierAndWhetherTheProductIsNewOrInCatalog()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        db.Products.Add(new Product { SellerId = db.Sellers.First().Id, Name = "Lawn Suit", Price = 3600 });
+        await db.SaveChangesAsync();
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, catalogSheets: _catalogSheets.Object,
+            features: new FeatureOptions { ProductConfirmation = true, ShortcutButtons = false, ConfirmButtons = true, SuggestionButtons = false, SetupNudges = false, IndustryQuestion = false });
+
+        await engine.HandleIncomingMessageAsync(Phone, "Lawn Suit - 3500, supplier: Shah Alam", default);
+
+        // Onboarding already seeds a "Lawn Suit" at Rs.3,500, so the preview must say it is in the catalog and show the supplier (stored as "vendor", shown as the word typed).
+        Assert.Contains(_sentMessages, m => m.Contains("Catalog mein pehle se hai") && m.Contains("Supplier: Shah Alam"));
+    }
+
+    [Theory]
+    [InlineData("ایکسل اس کی ویرائنٹ ہے اور کیا کہتے ہیں")]
+    [InlineData("lawn shirt ke variants excel mein hain")]
+    [InlineData("size aur colour file mein hain")]
+    public void Voice_saying_variants_are_in_a_sheet_is_recognised(string transcript) =>
+        Assert.Matches(ConversationEngine.VariantsInFile, transcript);
+
+    [Theory]
+    [InlineData("میرے پاس ایک پروڈکٹ ہے لون شرٹ، پچیس سو")]
+    [InlineData("excel report bhejo")]
+    public void Voice_without_variants_or_a_sheet_is_not_treated_as_one(string transcript) =>
+        Assert.DoesNotMatch(ConversationEngine.VariantsInFile, transcript);
+
+    [Fact]
+    public void A_waiting_product_is_described_to_the_voice_model_so_its_correction_is_not_read_as_a_new_product()
+    {
+        var waiting = new[] { new ProductLine("Lawn Shirt", 2500, "piece", 1, new ProductExtras(1500, 100, null, null, null, null, null)) };
+        var ctx = new SessionContextData { PendingProductJson = System.Text.Json.JsonSerializer.Serialize(waiting) };
+
+        var situation = ConversationEngine.PendingProductSituation(ctx);
+
+        Assert.NotNull(situation);
+        Assert.Contains("name \"Lawn Shirt\", price 2500, cost 1500, stock 100", situation);
+        Assert.Contains("Never list that product again", situation);
+        Assert.Null(ConversationEngine.PendingProductSituation(new SessionContextData()));
+    }
+
+    [Fact]
+    public async Task A_number_sent_long_after_a_new_product_price_question_is_not_taken_as_its_price()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var session = await db.Sessions.FirstAsync();
+        session.ContextJson = new SessionContextData { PendingPriceProducts = new List<string> { "Handbag" }, PendingPriceSetAt = DateTime.UtcNow.AddHours(-1) }.ToJson();
+        await db.SaveChangesAsync();
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "unknown" });
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "100", default);
+
+        Assert.False(await db.Products.AnyAsync(p => p.Name == "Handbag"));
+    }
+
+    [Fact]
+    public async Task Tapping_Save_on_the_product_preview_saves_the_product()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, catalogSheets: _catalogSheets.Object,
+            features: new FeatureOptions { ProductConfirmation = true, ShortcutButtons = false, ConfirmButtons = false, SuggestionButtons = false, SetupNudges = false, IndustryQuestion = false });
+        await engine.HandleIncomingMessageAsync(Phone, "Lawn Suit - 2500, stock 100", default);
+
+        await engine.HandleIncomingMessageAsync(Phone, "✅ Save", default);
+
+        Assert.True(await db.Products.AnyAsync(p => p.Name == "Lawn Suit" && p.Price == 2500m));
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("purane order"));
+    }
+
+    [Fact]
+    public async Task A_correction_to_the_product_waiting_for_yes_is_applied_not_read_as_new_products()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, catalogSheets: _catalogSheets.Object,
+            features: new FeatureOptions { ProductConfirmation = true, ShortcutButtons = false, ConfirmButtons = false, SuggestionButtons = false, SetupNudges = false, IndustryQuestion = false });
+        await engine.HandleIncomingMessageAsync(Phone, "Lawn Shirt - 2500, cost 1500, stock 100", default);
+        _sentMessages.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "category is Summer Wear aur jo iska variant hai woh Excel hai.", default);
+
+        Assert.Contains(_sentMessages, m => m.Contains("Naam: Lawn Shirt") && m.Contains("Category: Summer Wear"));
+        Assert.Contains(_sentMessages, m => m.Contains("Excel file mein hain"));
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("naye products"));
+    }
+
+    [Fact]
     public async Task ProductForm_SavesVariantDetails_AndUpdatesSameVariantInsteadOfDuplicating()
     {
         using var db = _dbFactory.CreateContext();
@@ -807,7 +1069,8 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "menu", default);
         await engine.HandleIncomingMessageAsync(Phone, "help", default);
 
-        Assert.Equal(8, lists[0].Sections.SelectMany(s => s.Rows).Count(r => r.Id.StartsWith("menu ")));
+        // Payments, Discounts and Counter Sales are hidden from the menu list (they stay reachable by typing their commands).
+        Assert.Equal(5, lists[0].Sections.SelectMany(s => s.Rows).Count(r => r.Id.StartsWith("menu ")));
         Assert.True(lists[0].Body.Length <= 1024, $"main menu body is {lists[0].Body.Length} chars");
         Assert.InRange(lists[0].Sections.SelectMany(s => s.Rows).Count(), 1, 10);
         Assert.Contains("Main Menu", lists[0].Body);
@@ -839,6 +1102,22 @@ public class ConversationEngineTests : IDisposable
         Assert.Contains("Step 2/4", buttons[2]);
         Assert.Contains("Step 3/4", buttons[3]);
         Assert.Contains(_sentMessages, m => m.Contains("Step 4/4"));
+    }
+
+    [Fact]
+    public async Task GuideTopics_OfferOrdersButNotPayments()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        IReadOnlyList<string>? labels = null;
+        _sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, _, l, _) => labels = l)
+            .Returns(Task.CompletedTask);
+
+        await engine.HandleIncomingMessageAsync(Phone, "guide", default);
+
+        Assert.Equal(new[] { "Poora guide", "Sirf orders" }, labels);
     }
 
     [Fact]
@@ -887,43 +1166,6 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
-    public async Task CatalogSizeStep_OffersButtons_SoUserCanTapInsteadOfTypingWrongInput()
-    {
-        using var db = _dbFactory.CreateContext();
-        var engine = CreateEngine(db);
-        IReadOnlyList<string>? labels = null;
-        _sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
-            .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, _, l, _) => labels = l)
-            .Returns(Task.CompletedTask);
-
-        await engine.HandleIncomingMessageAsync(Phone, "start", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
-        await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-
-        Assert.Equal(new[] { "Chhota (20 se kam)", "Bara (20+)" }, labels);
-        Assert.Equal(ConversationState.OnboardingCatalogSize, (await db.Sessions.FirstAsync()).State);
-    }
-
-    [Fact]
-    public async Task CatalogSizeStep_TappingLargeButton_OffersBulkPaste()
-    {
-        using var db = _dbFactory.CreateContext();
-        var engine = CreateEngine(db);
-        await engine.HandleIncomingMessageAsync(Phone, "start", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
-        await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        _sentMessages.Clear();
-
-        await engine.HandleIncomingMessageAsync(Phone, "Bara (20+)", default);
-
-        Assert.Contains(_sentMessages, m => m.Contains("ek saath kai products"));
-    }
-
-    [Fact]
     public async Task AfterAddingProduct_OffersAddAnotherOrDoneButtons_AndDoneButtonFinishesOnboarding()
     {
         using var db = _dbFactory.CreateContext();
@@ -942,7 +1184,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Chhota (20 se kam)", default);
+        await engine.HandleIncomingMessageAsync(Phone, default);
 
         await engine.HandleIncomingMessageAsync(Phone, "Kurti - 1800", default);
         Assert.Equal(new[] { "➕ Aur product", "📋 Catalog dekhein", "✅ Done" }, labels);
@@ -970,12 +1212,13 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        await engine.HandleIncomingMessageAsync(Phone, "10 ke qareeb", default);
+        await engine.HandleIncomingMessageAsync(Phone, default);
         _sentMessages.Clear();
 
         await engine.HandleIncomingMessageAsync(Phone, "orders today", default);
 
-        Assert.Contains(_sentMessages, m => m.Contains("pehle catalog complete karein"));
+        // "orders today" is a read-only lookup, so it runs during setup and changes nothing.
+        Assert.Contains(_sentMessages, m => m.Contains("Aaj koi order nahi"));
         var orderCount = await db.Orders.CountAsync();
         Assert.Equal(0, orderCount);
     }
@@ -1001,7 +1244,7 @@ public class ConversationEngineTests : IDisposable
 
         // The optional-details step is still open afterward.
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        Assert.Equal(ConversationState.OnboardingCatalogSize, (await db.Sessions.FirstAsync()).State);
+        Assert.Equal(ConversationState.OnboardingAddProduct, (await db.Sessions.FirstAsync()).State);
     }
 
     [Fact]
@@ -1014,7 +1257,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        await engine.HandleIncomingMessageAsync(Phone, "10 ke qareeb", default);
+        await engine.HandleIncomingMessageAsync(Phone, default);
         _sentMessages.Clear();
 
         await engine.HandleIncomingMessageAsync(Phone, "help", default);
@@ -1039,7 +1282,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        await engine.HandleIncomingMessageAsync(Phone, "10 ke qareeb", default);
+        await engine.HandleIncomingMessageAsync(Phone, default);
         await engine.HandleIncomingMessageAsync(Phone, "Kurti - 1800", default);
         _sentMessages.Clear();
 
@@ -1065,10 +1308,11 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Chhota (20 se kam)", default);
+        await engine.HandleIncomingMessageAsync(Phone, default);
 
         var rows = sections!.SelectMany(s => s.Rows).ToList();
-        Assert.Equal(new[] { "add product", "setup", "new order", "guide", "connect instagram" }, rows.Select(r => r.Id));
+        // "connect instagram" is hidden while Features:Instagram is off (the engine default here).
+        Assert.Equal(new[] { "add product", "setup", "new order", "guide" }, rows.Select(r => r.Id));
         Assert.All(rows, r => Assert.NotNull(CommandParser.TryParse(r.Id)));
     }
 
@@ -1082,7 +1326,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Chhota (20 se kam)", default);
+        await engine.HandleIncomingMessageAsync(Phone, default);
         _sentMessages.Clear();
 
         await engine.HandleIncomingMessageAsync(Phone, "setup", default);
@@ -1113,7 +1357,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Setup shuru karein", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha Collections", default);
         await engine.HandleIncomingMessageAsync(Phone, "skip", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Chhota (20 se kam)", default);
+        await engine.HandleIncomingMessageAsync(Phone, default);
         _sentMessages.Clear();
     }
 
@@ -1175,8 +1419,13 @@ public class ConversationEngineTests : IDisposable
         await OnboardSellerAsync(db);
         await SetSellerLanguageAsync(db, Lang.UrduScript);
         var engine = CreateEngine(db);
+        var aiInputs = new List<string>();
         _ai.Setup(a => a.TranslateAsync(It.IsAny<IReadOnlyList<string>>(), Lang.UrduScript, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IReadOnlyList<string> texts, string _, CancellationToken _) => (IReadOnlyList<string>?)texts.Select(t => "UR:" + t).ToList());
+            .ReturnsAsync((IReadOnlyList<string> texts, string _, CancellationToken _) =>
+            {
+                aiInputs.AddRange(texts);
+                return (IReadOnlyList<string>?)texts.Select(t => "UR:" + t).ToList();
+            });
         string? listBody = null;
         IReadOnlyList<MenuSection>? listSections = null;
         _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
@@ -1186,8 +1435,10 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "catalog", default);
         await engine.HandleIncomingMessageAsync(Phone, "naya order", default);
 
-        Assert.Contains(_sentMessages, m => m.StartsWith("UR:"));
-        Assert.StartsWith("UR:", listBody);
+        // A message that matches a template is sent in its hand-written Urdu and never reaches the AI; only unmatched text does.
+        Assert.Contains(_sentMessages, m => m.StartsWith("🛍️ آپ کا کیٹلاگ"));
+        Assert.StartsWith("📦 نیا آرڈر", listBody);
+        Assert.DoesNotContain(aiInputs, t => t.StartsWith("🛍️ آپ کا کیٹلاگ") || t.StartsWith("📦 نیا آرڈر"));
         Assert.All(listSections!.SelectMany(s => s.Rows), r => Assert.NotNull(CommandParser.TryParse(r.Id)));
     }
 
@@ -1419,7 +1670,7 @@ public class ConversationEngineTests : IDisposable
 
         var pdf = new Mock<IReceiptPdfGenerator>();
         ReceiptData? captured = null;
-        pdf.Setup(p => p.Generate(It.IsAny<ReceiptData>())).Callback<ReceiptData>(d => captured = d).Returns(new byte[] { 1, 2, 3 });
+        pdf.Setup(p => p.Generate(It.IsAny<ReceiptData>())).Callback<ReceiptData>(d => captured = d).Returns(new ReceiptPdf(new byte[] { 1, 2, 3 }, false));
         _sender.Setup(s => s.SendDocumentAsync(Phone, It.IsAny<byte[]>(), It.IsAny<string>(), "application/pdf", It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
         var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, receiptPdf: pdf.Object);
@@ -1454,7 +1705,7 @@ public class ConversationEngineTests : IDisposable
         var pdf = new Mock<IReceiptPdfGenerator>();
         pdf.Setup(p => p.CanEmbedImage(logo)).Returns(true);
         ReceiptData? captured = null;
-        pdf.Setup(p => p.Generate(It.IsAny<ReceiptData>())).Callback<ReceiptData>(d => captured = d).Returns(new byte[] { 1 });
+        pdf.Setup(p => p.Generate(It.IsAny<ReceiptData>())).Callback<ReceiptData>(d => captured = d).Returns(new ReceiptPdf(new byte[] { 1 }, false));
         _sender.Setup(s => s.SendDocumentAsync(Phone, It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
         var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: media.Object, receiptPdf: pdf.Object);
 
@@ -1516,7 +1767,7 @@ public class ConversationEngineTests : IDisposable
         db.Orders.Add(new OrderTrackerBot.Domain.Entities.Order { SellerId = seller.Id, CustomerId = customer.Id, Total = 100 });
         await db.SaveChangesAsync();
         var pdf = new Mock<IReceiptPdfGenerator>();
-        pdf.Setup(p => p.Generate(It.IsAny<ReceiptData>())).Returns(new byte[] { 1 });
+        pdf.Setup(p => p.Generate(It.IsAny<ReceiptData>())).Returns(new ReceiptPdf(new byte[] { 1 }, false));
         _sender.Setup(s => s.SendDocumentAsync(Phone, It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
         var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, receiptPdf: pdf.Object);
 
@@ -1609,7 +1860,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "export all", default);
 
         var (_, bytes, _) = Assert.Single(files);
-        Assert.Equal(new[] { "Orders", "Order Items", "Customers", "Catalog", "Discounts", "Loyalty Rules", "Guide" },
+        Assert.Equal(new[] { "Orders", "Order Items", "Customers", "Catalog", "Discounts", "Loyalty Rules", "Expenses", "Guide" },
             MiniExcelLibs.MiniExcel.GetSheetNames(new MemoryStream(bytes)).ToArray());
         var customers = MiniExcelLibs.MiniExcel.Query(new MemoryStream(bytes), useHeaderRow: true, sheetName: "Customers").Cast<IDictionary<string, object>>().ToList();
         Assert.DoesNotContain(customers, c => (string)c["Name"] == "Deleted Dan");
@@ -2080,7 +2331,7 @@ public class ConversationEngineTests : IDisposable
         Assert.Null((await db.Customers.SingleAsync(c => c.Name == "Sara")).PriceGroup);
     }
 
-    private void StatedPriceOrder(decimal? stated)
+    private void StatedPriceOrder(decimal? stated, string customer = "Sara", string phone = "03009876543")
     {
         _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiMessageAnalysis
@@ -2088,8 +2339,8 @@ public class ConversationEngineTests : IDisposable
                 IsOrderAttempt = true,
                 Order = new AiOrderDraft
                 {
-                    CustomerName = "Sara",
-                    Phone = "03009876543",
+                    CustomerName = customer,
+                    Phone = phone,
                     Address = "Gulberg Lahore",
                     Items = { new AiOrderItemDraft { ProductName = "Kurti", MatchedCatalogProductName = "Kurti", Quantity = 1, StatedUnitPrice = stated } }
                 }
@@ -2256,6 +2507,160 @@ public class ConversationEngineTests : IDisposable
         Assert.Equal(7000m, order.Subtotal);
         Assert.Equal(700m, order.DiscountAmount);
         Assert.Equal(6300m, order.Total);
+    }
+
+    private ConversationEngine CreateStrategyEngine(AppDbContext db) => new(db, _ai.Object, _sender.Object, _founderAlerts.Object,
+        features: new FeatureOptions { StrategyLearning = true, ShortcutButtons = false, ConfirmButtons = false, SuggestionButtons = false, SetupNudges = false, IndustryQuestion = false });
+
+    // StrategyPolicy: sixteen identical answers are the first with a lower bound of at least 0.80.
+    private const int AnswersUntilAuto = 16;
+
+    /// <summary>
+    /// An order for a new buyer (one customer per order: a repeat buyer gets the duplicate-order question) whose written price differs from the catalog.
+    /// The seller answers <paramref name="answer"/> to the price question; null = no answer, the bot's next reply is the test's point.
+    /// </summary>
+    private async Task PlaceOrderAsync(ConversationEngine engine, int n, string? answer)
+    {
+        StatedPriceOrder(1500, $"Buyer {n}", $"03001{n:D6}");
+        await engine.HandleIncomingMessageAsync(Phone, $"Buyer {n} ne kurti 1500 ki li, Gulberg Lahore", default);
+        if (answer is not null) await engine.HandleIncomingMessageAsync(Phone, answer, default);
+    }
+
+    /// <summary>Orders <paramref name="count"/> buyers, answers the price question with 2 (catalog rate) each time, and saves.</summary>
+    private async Task PlaceCatalogAnsweredOrdersAsync(ConversationEngine engine, int count)
+    {
+        for (var n = 1; n <= count; n++)
+        {
+            await PlaceOrderAsync(engine, n, "2");
+            await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        }
+    }
+
+    private void CollectSentBodies() =>
+        _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, body, _, _, _) => _sentMessages.Add(body)).Returns(Task.CompletedTask);
+
+    [Fact]
+    public async Task PriceStrategy_SameAnswerEveryTime_IsAppliedWithoutAsking()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateStrategyEngine(db);
+        CollectSentBodies();
+        await PlaceCatalogAnsweredOrdersAsync(engine, AnswersUntilAuto);
+
+        _sentMessages.Clear();
+        await PlaceOrderAsync(engine, AnswersUntilAuto + 1, null);
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("Qeemat mein farq"));
+        Assert.Contains(_sentMessages, m => m.Contains("Confirm order"));
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        Assert.Equal(1800, (int)(await db.Orders.OrderByDescending(o => o.Id).FirstAsync()).Total);
+    }
+
+    [Fact]
+    public async Task PriceStrategy_OneAnswerShortOfTheThreshold_StillAsks()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateStrategyEngine(db);
+        CollectSentBodies();
+        await PlaceCatalogAnsweredOrdersAsync(engine, AnswersUntilAuto - 1);
+
+        _sentMessages.Clear();
+        await PlaceOrderAsync(engine, AnswersUntilAuto, null);
+        Assert.Contains(_sentMessages, m => m.Contains("Qeemat mein farq"));
+    }
+
+    [Fact]
+    public async Task PriceStrategy_AutoAnswerEditedInTheDraft_IsAskedAgain()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateStrategyEngine(db);
+        CollectSentBodies();
+        await PlaceCatalogAnsweredOrdersAsync(engine, AnswersUntilAuto);
+        await PlaceOrderAsync(engine, AnswersUntilAuto + 1, null);
+        await engine.HandleIncomingMessageAsync(Phone, "edit", default);
+
+        _sentMessages.Clear();
+        await PlaceOrderAsync(engine, AnswersUntilAuto + 2, null);
+        Assert.Contains(_sentMessages, m => m.Contains("Qeemat mein farq"));
+    }
+
+    [Fact]
+    public async Task PriceStrategy_AutoAnswerOrderUndone_IsAskedAgain()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateStrategyEngine(db);
+        CollectSentBodies();
+        await PlaceCatalogAnsweredOrdersAsync(engine, AnswersUntilAuto);
+        await PlaceOrderAsync(engine, AnswersUntilAuto + 1, null);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        await engine.HandleIncomingMessageAsync(Phone, "undo", default);
+
+        _sentMessages.Clear();
+        await PlaceOrderAsync(engine, AnswersUntilAuto + 2, null);
+        Assert.Contains(_sentMessages, m => m.Contains("Qeemat mein farq"));
+    }
+
+    [Fact]
+    public async Task PriceStrategy_FlagOff_KeepsAskingEveryTime()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        CollectSentBodies();
+        await PlaceCatalogAnsweredOrdersAsync(engine, AnswersUntilAuto);
+
+        _sentMessages.Clear();
+        await PlaceOrderAsync(engine, AnswersUntilAuto + 1, null);
+        Assert.Contains(_sentMessages, m => m.Contains("Qeemat mein farq"));
+    }
+
+    [Fact]
+    public async Task PriceStrategy_PriceChangedAfterSave_IsAskedAgain()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateStrategyEngine(db);
+        CollectSentBodies();
+        await PlaceCatalogAnsweredOrdersAsync(engine, AnswersUntilAuto);
+        await PlaceOrderAsync(engine, AnswersUntilAuto + 1, null);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        var orderId = (await db.Orders.OrderByDescending(o => o.Id).FirstAsync()).Id;
+        await engine.HandleIncomingMessageAsync(Phone, $"edit order {orderId}", default);
+        await engine.HandleIncomingMessageAsync(Phone, "price 1 = 1600", default);
+        await engine.HandleIncomingMessageAsync(Phone, "done", default);
+
+        _sentMessages.Clear();
+        await PlaceOrderAsync(engine, AnswersUntilAuto + 2, null);
+        Assert.Contains(_sentMessages, m => m.Contains("Qeemat mein farq"));
+    }
+
+    [Fact]
+    public async Task DeliveryStrategy_OftenChangedInTheDraft_IsAskedNextTime()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateStrategyEngine(db);
+        CollectSentBodies();
+        for (var n = 1; n <= 6; n++)
+        {
+            StatedPriceOrder(null, $"Buyer {n}", $"03001{n:D6}");
+            await engine.HandleIncomingMessageAsync(Phone, $"Buyer {n} ne kurti li, delivery 200, Gulberg Lahore", default);
+            await engine.HandleIncomingMessageAsync(Phone, "delivery 350", default);
+            await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        }
+
+        StatedPriceOrder(null, "Buyer 7", "03001000007");
+        _sentMessages.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "Buyer 7 ne kurti li, delivery 200, Gulberg Lahore", default);
+        Assert.Contains(_sentMessages, m => m.Contains("Delivery charge kaunsa"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "1", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        Assert.Equal(2000, (int)(await db.Orders.OrderByDescending(o => o.Id).FirstAsync()).Total);
     }
 
     [Fact]

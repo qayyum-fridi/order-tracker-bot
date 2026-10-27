@@ -1,0 +1,64 @@
+# Cosmetics / Jewellery — poora business. Naya phone number chunein.
+# Chalaane ka tareeqa: scripts/run-scenario.sh docs/scenarios/beauty.txt 923001110103
+# Mutawaqqa nateeja: docs/industry-test-cases.md (cosmetics section).
+
+# --- Setup ---
+start
+Roman Urdu
+Setup shuru karein
+Glam Corner Lahore
+skip
+Chhota (20 se kam)
+industry cosmetics
+
+# --- Catalog ---
+Lipstick Matte Red - 950, cost 600, stock 30, category makeup
+Foundation Shade 3 - 1400, cost 900, stock 12, category makeup
+Eye Liner Black - 350, cost 180, stock 40, category makeup
+Bridal Necklace Set - 8500, cost 6000, stock 3, category jewellery
+Gold Plated Earrings - 1200, cost 500, stock 20, category jewellery
+Hand Bag - 3200, cost 2100, stock 6, category bags
+Perfume Oud 100 ml - 2500, cost 1500, stock 10, category fragrance
+barcode Lipstick Matte Red 8964000123
+barcode Eye Liner Black 8964000456
+catalog
+stock Perfume Oud 100 ml 2
+
+# --- Barcode scanner (scanner code ko message ki tarah bhejta hai) ---
+8964000123
+8964000123
+8964000456
+scan cart
+scan done
+yes
+
+# --- Orders ---
+Sana, 1 lipstick matte red, 03001234567, Johar Town Lahore
+yes
+Maira, 1 bridal necklace set, 2 gold plated earrings, 03451234567, Model Town Lahore
+note 2 gift wrap, dono ek packet mein
+order 2 advance 5000
+customer Sana name Sana Khan
+Sana ka address Johar Town Block C
+Sana ka phone 03009998887
+mark 2 shipped
+mark 2 delivered
+unpaid orders
+orders today
+
+# --- Counter sale aur kharcha ---
+walkin Hand Bag 1, Perfume Oud 100 ml 1 then yes (cash)
+expense 3000 packaging aur tags
+expenses today
+drawer open 4000
+cash sale 2500 walk-in
+drawer close 6500
+
+# --- Reports ---
+summary
+profit
+margin
+category sales
+trending
+data check
+aaj ka hisaab

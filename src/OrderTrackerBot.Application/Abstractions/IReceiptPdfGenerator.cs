@@ -67,9 +67,12 @@ public sealed record BusinessLabelData(
     byte[]? Logo = null,
     string LabelSize = "4x6");
 
+/// <summary>A rendered receipt. <c>ImageSkipped</c> is true when the stored logo or banner could not be drawn and the receipt was made without it.</summary>
+public sealed record ReceiptPdf(byte[] Bytes, bool ImageSkipped);
+
 public interface IReceiptPdfGenerator
 {
-    byte[] Generate(ReceiptData receipt);
+    ReceiptPdf Generate(ReceiptData receipt);
 
     /// <summary>A shipping label ("4x6", "A6"; a "50x30" sticker is too small for an address and falls back to 4x6).</summary>
     byte[] GenerateShippingLabel(ShippingLabelData label);

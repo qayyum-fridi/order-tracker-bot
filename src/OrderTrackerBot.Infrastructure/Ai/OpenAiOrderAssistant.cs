@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -69,10 +70,10 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             : string.Join("\n", context.Catalog.Select(c => $"- {c.Name}: Rs.{c.Price}"));
 
         var systemPrompt =
-            $"You are the order-parsing engine behind a WhatsApp bot used by a small business seller named '{context.BusinessName}'. " +
+            "You are the order-parsing engine behind a WhatsApp bot used by a small business seller (named at the end). " +
             "The seller (never the end customer) sends you freeform messages or screenshots in Roman Urdu, Urdu script, and/or English, often mixed. " +
             "Classify the intent and, for orders, extract structured fields. Never invent data that is not in the message. Match product names loosely " +
-            "(typos, informal names, missing words) against this seller's catalog:\n" + catalogText + "\n\n" +
+            "(typos, informal names, missing words) against this seller's catalog (listed at the end). " +
             "intent values: new_order (a customer order to record), status_update (an order was shipped/delivered etc.), customer_feedback " +
             "(the seller relays how a buyer felt about their order, e.g. \"ayesha bahut khush thi order se\" — fill feedback), off_topic (small talk " +
             "or chatter unrelated to the business, e.g. \"bohat thak gayi hoon aaj\"), support_query (the seller forwards a question a buyer " +
@@ -86,6 +87,8 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "describing it — \"naya discount banain\", \"ye ek naya discount hai jo product ke liye hoga\": not an order, not off_topic; set is_order_attempt=false), unclear. " +
             "For new_order put one entry per customer in orders (two different customers in one message = two entries). Quantity is the number " +
             "of catalog units; for weight-sold items like \"15kg kaju\" use the number of kg (15). " +
+            "A customer's name can be followed by a quantity and an item: in \"Ayesha 2 suit, 03001234567, advance 500\" customer_name is Ayesha, " +
+            "the item is \"suit\" with quantity 2, phone is 03001234567 and advance is 500. The customer name is never part of the product name. " +
             "Fill an item's unit_price only when the seller wrote the price of ONE unit of that item (\"Lawn Suit 3500\", \"Kurti 2 x 1800\"); a line total (\"2 Kurti 3600 total\"), " +
             "a delivery charge, an advance or a phone number is never a unit_price; null when no per-item price was written. " +
             "Required order fields are customer_name and phone; if either is missing, still return the order with what you found and list the " +
@@ -110,6 +113,9 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
                 "that price on every pending product; separate prices (\"chadar 800, dupatte 1200\") = each price on its own product; a product with no price said stays price null. " +
                 "Only treat the message as something else if it clearly is (an order, a command, a different product).";
 
+        // The per-seller part goes last so OpenAI's prompt cache can reuse the long identical prefix across sellers and messages.
+        systemPrompt += $"\n\nSeller business name: '{context.BusinessName}'.\nSeller catalog:\n" + catalogText;
+
         var requestBody = new JsonObject
         {
             ["model"] = _options.Model,
@@ -124,18 +130,13 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
 
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, $"{_options.BaseUrl.TrimEnd('/')}/chat/completions")
-            {
-                Content = JsonContent.Create(requestBody)
-            };
-            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.ApiKey);
-
-            var response = await _httpClient.SendAsync(request, cancellationToken);
-            response.EnsureSuccessStatusCode();
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            using var response = await SendWithRetryAsync("chat/completions", requestBody, cancellationToken);
 
             var payload = await response.Content.ReadFromJsonAsync<JsonObject>(cancellationToken: cancellationToken);
             var content = payload?["choices"]?[0]?["message"]?["content"]?.GetValue<string>();
             if (content is null) throw new InvalidOperationException("Empty OpenAI response");
+            _logger.LogInformation("OpenAI order analysis took {Ms} ms", clock.ElapsedMilliseconds);
 
             return ParseAnalysis(content);
         }
@@ -151,6 +152,108 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
                 ClarificationQuestion = "⚠️ Maaf kijiye, is waqt aapki request poori nahi ho saki. Barae meherbani dobara koshish karein, ya tafseel se likhein.",
                 ClarificationOptions = { "Naya order add karna chahte hain", "Kisi order ka status update karna chahte hain" }
             };
+        }
+    }
+
+    public async Task<IReadOnlyList<float[]>?> EmbedAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default)
+    {
+        if (texts.Count == 0 || string.IsNullOrWhiteSpace(_options.ApiKey)) return null;
+        try
+        {
+            var body = new JsonObject
+            {
+                ["model"] = _options.EmbeddingModel,
+                ["input"] = new JsonArray(texts.Select(t => (JsonNode?)JsonValue.Create(t.Length > 500 ? t[..500] : t)).ToArray())
+            };
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            using var response = await SendWithRetryAsync("embeddings", body, cancellationToken);
+            var payload = await response.Content.ReadFromJsonAsync<JsonObject>(cancellationToken: cancellationToken);
+            if (payload?["data"] is not JsonArray data || data.Count != texts.Count) return null;
+            var vectors = data.Select(d => d?["embedding"] is JsonArray v ? v.Select(x => (float)(x?.GetValue<double>() ?? 0)).ToArray() : Array.Empty<float>()).ToList();
+            _logger.LogInformation("OpenAI embeddings ({Count} texts) took {Ms} ms", texts.Count, clock.ElapsedMilliseconds);
+            return vectors.Any(v => v.Length == 0) ? null : vectors;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "OpenAI embeddings failed — semantic match skipped.");
+            return null;
+        }
+    }
+
+    public async Task<bool?> ConfirmSamePhraseAsync(string taughtPhrase, string newPhrase, CancellationToken cancellationToken = default)
+    {
+        var json = await CompleteTextAsync(
+            "Two messages sent to a WhatsApp shop-assistant bot by the same seller, in Roman Urdu, Urdu script or English (spelling and word forms vary: dikhao / dikha do, sale / sales, aaj / aj). " +
+            "Do they ask for exactly the SAME thing (same request, same subject, same period)? Different subjects, customers, products, periods or amounts mean NO. " +
+            "Return ONLY JSON {\"same\": true|false}. When unsure, answer false.",
+            $"Taught message: {taughtPhrase}\nNew message: {newPhrase}", 0, "phrase similarity", cancellationToken, jsonMode: true);
+        if (json is null) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("same", out var same)) return null;
+            if (same.ValueKind == JsonValueKind.True) return true;
+            if (same.ValueKind == JsonValueKind.False) return false;
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<bool?> ConfirmCommandMatchAsync(string message, string commandKind, CancellationToken cancellationToken = default)
+    {
+        var meaning = commandKind switch
+        {
+            "Insight" => "a business-analysis question about the shop's own data (averages, comparisons, stock, customers, returns, expenses…)",
+            "FuzzyStatusUpdate" => "marking one existing order as shipped / delivered / paid / cancelled",
+            "CustomerOrderLookup" => "showing the existing orders of one named customer",
+            "ProductReport" => "a sales report for one named product",
+            "CustomerSearch" => "finding a saved customer",
+            "HowTo" => "asking how to do something with the bot",
+            _ => commandKind
+        };
+        var json = await CompleteTextAsync(
+            "A rule-based parser of a WhatsApp shop-assistant bot guessed that a seller's message means: " + meaning + ". The seller writes Roman Urdu, Urdu script or English. " +
+            "Decide whether the message REALLY asks for that. It does NOT if it is a new order (customer, products, quantities, phone, address), a product/price list, a statement, small talk, or a different request. " +
+            "Return ONLY JSON {\"fits\": true|false}. When unsure, answer true.",
+            $"Message: {message}", 0, "rule match check", cancellationToken, jsonMode: true);
+        if (json is null) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("fits", out var fits)) return null;
+            if (fits.ValueKind == JsonValueKind.True) return true;
+            if (fits.ValueKind == JsonValueKind.False) return false;
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<string?> ClassifyMidFlowReplyAsync(string situation, string message, CancellationToken cancellationToken = default)
+    {
+        var json = await CompleteTextAsync(
+            "A WhatsApp order-tracking bot for a small shop owner (the seller) just asked the seller a question. The seller's reply may be in Roman Urdu, Urdu script or English. " +
+            "Decide what the reply is. Return ONLY JSON {\"route\": \"answer\"|\"new_order\"|\"cancel\"|\"skip\"|\"other\"}. " +
+            "answer = it answers the bot's question (e.g. a phone number or a customer name when that is what was asked). " +
+            "new_order = it is a new order or a list of items for some customer, not an answer to the question. " +
+            "cancel = the seller wants to stop / drop / forget the order in progress (any wording, e.g. \"chhor do\", \"rehne do\", \"yeh nahi chahiye\", \"cancel kardein\"). " +
+            "skip = the seller was asked for a phone number and says they do not have it now / will add it later (\"abhi number nahi hai, baad mein de dunga\"): the order should be saved without it. other = anything else (a different request or a question). When unsure between answer and another route, choose answer.",
+            $"Bot's question / situation: {situation}\nSeller's reply: {message}", 0, "mid-flow reply routing", cancellationToken, jsonMode: true);
+        if (json is null) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var route = doc.RootElement.TryGetProperty("route", out var r) && r.ValueKind == JsonValueKind.String ? r.GetString() : null;
+            return route is "answer" or "new_order" or "cancel" or "skip" or "other" ? route : null;
+        }
+        catch (JsonException)
+        {
+            return null;
         }
     }
 
@@ -206,6 +309,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             $"Seller's saved customers (name, phone, order history):\n{customers}\n" +
             (context.RecentExchanges.Count == 0 ? "" : $"The last messages in this chat, oldest first (a short spoken answer usually replies to the last bot message):\n{string.Join("\n", context.RecentExchanges)}\n") + "\n" +
             "Rules: (1) Keep every digit of every number, price and phone; turn spoken number words into digits (char = 4, ek = 1, teen hazaar paanch sau = 3500). " +
+            "A spoken word for \"number\" (number, nambar, نمبر) before a figure is not part of the answer: write only the figure, in digits (\"number paanch bola tha\" = 5). " +
             "(2) If a yes/no answer is expected and the transcript clearly agrees (haan, ji, theek hai, kar do) answer exactly \"yes\"; if it clearly refuses " +
             "(nahi, ruko, mat karo) answer exactly \"no\". (3) If a numbered choice is expected, answer only the option number — from a number word " +
             "(pehla/first/ek = 1, dusra/second/do = 2) or from the meaning of the option the seller refers to. (4) When a product mentioned clearly is a catalog " +
@@ -226,6 +330,19 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "\"email receipt 12\", \"email <address>\", \"label 12\" (a parcel label), \"business label\" (the shop's sticker), \"label size a6\", \"printer\" (how to print), " +
             "\"drawer open 5000\", \"cash in 500 <why>\", \"cash out 300 <why>\", \"cash sale 1200\", \"drawer close 18000\", \"drawer\" (the cash drawer / galla), " +
             "\"barcode <product> <code>\", \"scan done\" (a scanned cart becomes an order), \"aaj ka hisaab\" (today's sales, top item, expenses and the cash drawer in one message), \"margin\" (each product's margin and how much discount it can take), \"supplier <product> <supplier name>\" (who supplies a product) and \"courier fee <order id> <amount>\" (what the courier charged for a parcel). "+
+            "(7) A seller who NARRATES a new order in a chatty way (\"ek naya order aaya hai Hamira ka, usne 10 lawn suit mangwaye, 2800 ka lagaya hai, number abhi nahi hai\") " +
+            "gives ONE compact typed order, whatever the bot is waiting for: \"Hamira, 10 Lawn Suit, 2800 each\" (customer, quantity, product, price, then phone / address only if said). " +
+            "(11) If the transcript is only a greeting, small talk, or something unrelated to the shop, its orders or a command, return no steps and a short Roman Urdu question asking what the seller wants: never invent an order, a command or a product from it. " +
+            "Never copy, translate or transliterate the whole transcript into the rewrite; leave out filler and apologies. If the seller said the phone is not available now / will be given later, end the order with \", phone baad mein\"; a phone that was not mentioned at all is simply left out. " +
+            "A rewrite is a short typed message, never a paragraph. " +
+            "(9) SEVERAL customers in one note (\"Ayesha ko do Kurti, Bilal ko ek Dupatta, Sara ka ek lawn suit\"): write ONE message with one line per customer, \"Ayesha, 2 Kurti\\nBilal, 1 Dupatta\\nSara, 1 Lawn Suit\" " +
+            "(add each customer's phone / address on its own line only if said for that customer); never merge customers into one order. " +
+            "(10) SEVERAL separate wishes in one note (\"Hamira ka order likho, aur kal ka hisaab dikhao\") become SEPARATE steps in the order said. " +
+            "A self-correction (\"pehla wala nahi, dusra\", \"Kurti nahi, Lawn Suit\", \"teen nahi, do\") keeps ONLY the corrected version; use the last chat messages to know what \"pehla\" / \"dusra\" / \"wahi\" refers to. " +
+            "\"Cancel the old order and write a new one\" is two steps: the cancel command for that order id (from the latest orders), then the new order. " +
+            "(8) When the bot has just said that a product of the seller's order is NOT in the catalog and asks whether to add it, and the seller then talks about that product " +
+            "(\"chadar daal dein, sale price 10000, cost taqreeban 8500, stock 50\"), write ONE product line for it: \"Chadar - 10000, cost 8500, stock 50\" (only the parts said; " +
+            "an approximate number is written as that number). That line is the answer; do not write a sentence. " +
             "ORDER STATUS: the only statuses are pending, shipped, delivered, returned, cancelled (plus paid for payment). The command is \"mark <order id> <status>\" using the real id from the " +
             "latest orders list above (\"Order #13 Hassan\" -> 13; the numbers in the examples are NOT real). Map the seller's words by meaning: shipped = bhej diya / courier ko de diya / dispatch / ship kar do; " +
             "delivered = complete / completed / mukammal / ho chuka / customer ko mil gaya / pohanch gaya (an order that is \"complete\" is DELIVERED, never shipped); returned = wapas aa gaya; " +
@@ -245,7 +362,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "\"Hassan ka order\" with several orders = ask which). Two or more plausible matches = return a question listing them (\"Hassan Ali (0300…) ya Hassan Raza (0321…)?\"). " +
             "No match = a NEW customer: for a new order keep the spoken name, but for an edit/status/receipt on an existing order ask which customer or order they mean, " +
             "because that customer has no orders. If the seller asks for help or says they do not know what to do or say (\"kya bolun\", \"samajh nahi aa raha\", " +
-            "\"kaise karun\", \"madad chahiye\") return exactly one step: \"kya karun\" (or \"guide\" when they ask for the step-by-step guide). If the seller asks how today went (\"aaj ka hisaab\", \"aaj kitna bika\", \"aaj kitna kaam hua\", \"aaj ki report\", \"aaj kya bika\", \"drawer mein kitne paise hone chahiye\") return exactly one step: \"aaj ka hisaab\". If the seller asks which products have room for a discount, what their profit margin is per product, or how much discount they can give and still earn (an analysis question, not a request to make a code) return exactly one step: \"margin\" — never \"create discount\" unless they clearly want to create a discount code. If the seller asks how much each kind of product sold (\"kapron se kitni sale hui aur grocery se kitni\", \"category wise sale\") return exactly one step: \"sales by category\" followed by the period they said, e.g. \"sales by category this week\" (no period = leave it out) — do not ask which category. If the seller asks how ONE named product sold, or compares its sales this month with last month (\"polo shirt ki sale is mahine behtar hai ya pichle se kam\"), return exactly one step: \"<product as spelled in the catalog> ka report\" — do not ask which period, the report shows both months. If the seller asks a business question about their own numbers (which product is dearest, average daily sale, which customers stopped coming, who owes money, how many orders came from an area, COD against Easypaisa, return rate, delivery time, how many days the stock will last, whether to re-order or raise a price, what a discount does to the margin, spending on one expense type, today against yesterday, profit or loss, what is bought together, a bundle idea, customers about to leave, a price or cost change, courier returns, money stuck outside, capital locked in stock, Ramadan or Eid sales, what a customer is really worth, sales that suddenly fell, a cost spike, failed deliveries by city, cash flow, a discount code's result, or a request to audit the business, month-end behaviour, holding cost of stock, supplier defects, cash needed by a date, paid orders that were cancelled) return exactly one step: the question itself as short plain words in the language they used, keeping product, customer, courier and place names as spelled and any number they said as digits (for example \"sab se mehnga product kaun sa hai\", \"kaun se customers 30 din se nahi aaye\", \"Bilal ka kitna udhaar hai\", \"Model Town se kitne orders aaye\", \"lawn suit par 10% discount do to margin kitna bachega\", \"polo shirt kitne din chalega\", \"kal ke muqable aaj sale kaisi rahi\", \"petrol par ab tak kitna kharcha hua\", \"kurti ke saath kya bikta hai\", \"polo shirt 500 se 550 kar dun to kya asar parega\", \"TCS aur Leopards mein se kis ke return zyada hain\") — never \"create discount\", never an order, and do not ask a follow-up question. Same for PRODUCTS against the catalog: a clear match uses the catalog spelling; an unknown name that is not a plain " +
+            "\"kaise karun\", \"madad chahiye\") return exactly one step: \"kya karun\" (or \"guide\" when they ask for the step-by-step guide). If the seller asks to reset or wipe the whole account (\"mera account reset kar do\", \"میرا اکاؤنٹ ری سیٹ کر دیں\") return exactly one step: \"reset account\" (the bot asks YES before anything is deleted). If the seller asks how today went (\"aaj ka hisaab\", \"aaj kitna bika\", \"aaj kitna kaam hua\", \"aaj ki report\", \"aaj kya bika\", \"drawer mein kitne paise hone chahiye\") return exactly one step: \"aaj ka hisaab\". If the seller asks which products have room for a discount, what their profit margin is per product, or how much discount they can give and still earn (an analysis question, not a request to make a code) return exactly one step: \"margin\" — never \"create discount\" unless they clearly want to create a discount code. If the seller asks how much each kind of product sold (\"kapron se kitni sale hui aur grocery se kitni\", \"category wise sale\") return exactly one step: \"sales by category\" followed by the period they said, e.g. \"sales by category this week\" (no period = leave it out) — do not ask which category. If the seller asks how ONE named product sold, or compares its sales this month with last month (\"polo shirt ki sale is mahine behtar hai ya pichle se kam\"), return exactly one step: \"<product as spelled in the catalog> ka report\" — do not ask which period, the report shows both months. If the seller asks a business question about their own numbers (which product is dearest, average daily sale, which customers stopped coming, who owes money, how many orders came from an area, COD against Easypaisa, return rate, delivery time, how many days the stock will last, whether to re-order or raise a price, what a discount does to the margin, spending on one expense type, today against yesterday, profit or loss, what is bought together, a bundle idea, customers about to leave, a price or cost change, courier returns, money stuck outside, capital locked in stock, Ramadan or Eid sales, what a customer is really worth, sales that suddenly fell, a cost spike, failed deliveries by city, cash flow, a discount code's result, or a request to audit the business, month-end behaviour, holding cost of stock, supplier defects, cash needed by a date, paid orders that were cancelled) return exactly one step: the question itself as short plain words in the language they used, keeping product, customer, courier and place names as spelled and any number they said as digits (for example \"sab se mehnga product kaun sa hai\", \"kaun se customers 30 din se nahi aaye\", \"Bilal ka kitna udhaar hai\", \"Model Town se kitne orders aaye\", \"lawn suit par 10% discount do to margin kitna bachega\", \"polo shirt kitne din chalega\", \"kal ke muqable aaj sale kaisi rahi\", \"petrol par ab tak kitna kharcha hua\", \"kurti ke saath kya bikta hai\", \"polo shirt 500 se 550 kar dun to kya asar parega\", \"TCS aur Leopards mein se kis ke return zyada hain\") — never \"create discount\", never an order, and do not ask a follow-up question. Same for PRODUCTS against the catalog: a clear match uses the catalog spelling; an unknown name that is not a plain " +
             "misspelling is a new product (a new order may keep it — the bot then asks whether to add it); two close matches = ask which. (9) Never invent anything the seller did not say — above all never add a \"done\", \"skip\", \"yes\", \"no\", \"setup\" or \"menu\" step on your own: " +
             "those only when the seller clearly said them (done, khatam, bas, skip, haan, nahi...). If the seller clearly wants a change but a needed value was " +
             "not said (the new price, or which of several matching orders/items), return no steps and a short Roman Urdu question asking exactly that, naming the " +
@@ -256,13 +373,16 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "yes / no = the seller agrees / refuses (text empty); choose = picks a numbered option (text is only the number); edit_step = one edit line while changing an order " +
             "(price 1 = 1500, qty 2 = 3, remove 1, delivery 250...); done = the seller says they are finished (text empty); skip = the seller says skip (text empty); help = kya karun / guide. " +
             $"ALLOWED ACTIONS right now: {allowedActions}. If the seller's words need an action that is not allowed, use reply with their words — never pick another action to make it fit. " +
-            "Return ONLY JSON: {\"steps\": [{\"action\": \"reply\", \"text\": \"...\"}], \"question\": null, \"options\": []}; steps run one after another as separate typed messages " +
-            "(normally just one; at most 4); question is a string only when asking. WHENEVER you are unsure what the seller means, or a detail has a few possible values " +
+            "SPAN: every step also has \"span\": the exact words of the transcript that the step was made from, copied as they were spoken (\"\" only when the step comes from the chat context alone, e.g. yes / no / done). " +
+            "Never write a span that is not in the transcript, and keep every amount of the step inside its span (words such as \"do\" or \"teen\" count, digits too). " +
+            "Return ONLY JSON: {\"steps\": [{\"action\": \"reply\", \"text\": \"...\", \"span\": \"...\"}], \"question\": null, \"options\": []}; steps run one after another as separate typed messages " +
+            "(normally just one; at most 8, one per separate wish in the note); question is a string only when asking. WHENEVER you are unsure what the seller means, or a detail has a few possible values " +
             "(which of two customers, which order, which status, which period, which of several commands), ask a short question AND fill options with up to 5 answers the seller can TAP: " +
             "each option is EXACTLY the message the bot should receive when tapped, written as the typed command or reply (\"mark 13 delivered\", \"orders last week\", \"Hassan Ali\", \"create discount\"), " +
             "at most 40 characters. Use options [] for an open question (a price, a name nobody has said).",
             new JsonObject { ["transcript"] = transcript }.ToJsonString(),
-            0.1, "voice interpretation", cancellationToken, jsonMode: true, model: _options.VoiceModel);
+            0.1, "voice interpretation", cancellationToken, jsonMode: true,
+            model: !string.IsNullOrWhiteSpace(_options.VoiceFastModel) && transcript.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= _options.VoiceFastMaxWords ? _options.VoiceFastModel : _options.VoiceModel);
         if (json is null) return null;
 
         try
@@ -270,8 +390,9 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             using var doc = JsonDocument.Parse(json);
             var steps = new List<string>();
             var actions = new List<string>();
+            var spans = new List<string>();
             if (doc.RootElement.TryGetProperty("steps", out var stepsEl) && stepsEl.ValueKind == JsonValueKind.Array)
-                foreach (var stepEl in stepsEl.EnumerateArray().Take(4))
+                foreach (var stepEl in stepsEl.EnumerateArray().Take(8))
                 {
                     // {"action": "...", "text": "..."}; a bare string is accepted too (no action then, so the engine cannot check it).
                     var action = stepEl.ValueKind == JsonValueKind.Object ? GetNullableString(stepEl, "action")?.Trim().ToLowerInvariant() ?? "" : null;
@@ -281,6 +402,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
                     if (text.Length == 0 && action is not ("yes" or "no" or "done" or "skip")) continue;
                     steps.Add(text);
                     if (action is not null) actions.Add(action);
+                    spans.Add(stepEl.ValueKind == JsonValueKind.Object ? GetNullableString(stepEl, "span")?.Trim() ?? "" : "");
                 }
             if (actions.Count != 0 && actions.Count != steps.Count) actions.Clear();
             var question = GetNullableString(doc.RootElement, "question")?.Trim();
@@ -292,7 +414,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
                     var option = optionEl.ValueKind == JsonValueKind.String ? optionEl.GetString()?.Trim() : null;
                     if (!string.IsNullOrWhiteSpace(option) && option.Length <= 60 && !options.Contains(option, StringComparer.OrdinalIgnoreCase)) options.Add(option);
                 }
-            return steps.Count == 0 && question is null ? null : new AiVoiceInterpretation { Steps = steps, Actions = actions, Question = question, Options = options };
+            return steps.Count == 0 && question is null ? null : new AiVoiceInterpretation { Steps = steps, Actions = actions, Spans = spans, Question = question, Options = options };
         }
         catch (JsonException ex)
         {
@@ -335,6 +457,44 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         }
     }
 
+    /// <summary>
+    /// POSTs a JSON body and returns a successful response. A dropped connection, 429 or 5xx is tried once more after a short pause
+    /// (the seller is waiting, so only one retry); other 4xx and cancellations fail at once.
+    /// </summary>
+    private async Task<HttpResponseMessage> SendWithRetryAsync(string path, JsonObject body, CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Post, $"{_options.BaseUrl.TrimEnd('/')}/{path}")
+                {
+                    Content = JsonContent.Create(body)
+                };
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.ApiKey);
+                var response = await _httpClient.SendAsync(request, cancellationToken);
+                if (response.IsSuccessStatusCode) return response;
+
+                var status = response.StatusCode;
+                var retryable = status == (HttpStatusCode)429 || (int)status >= 500;
+                if (!retryable || attempt >= 2)
+                {
+                    try { response.EnsureSuccessStatusCode(); }
+                    finally { response.Dispose(); }
+                }
+                response.Dispose();
+                _logger.LogWarning("OpenAI {Path} answered {Status} — retrying once.", path, (int)status);
+            }
+            catch (HttpRequestException ex) when (attempt < 2 && ex.StatusCode is null)
+            {
+                _logger.LogWarning(ex, "OpenAI {Path} connection failed — retrying once.", path);
+            }
+            await Task.Delay(RetryDelay, cancellationToken);
+        }
+    }
+
+    internal TimeSpan RetryDelay { get; set; } = TimeSpan.FromMilliseconds(400);
+
     /// <summary>A plain single-turn completion; null when AI is unavailable or fails (every caller has a non-AI fallback).</summary>
     private async Task<string?> CompleteTextAsync(string systemPrompt, string userText, double temperature, string purpose,
         CancellationToken cancellationToken, bool jsonMode = false, string? model = null)
@@ -355,15 +515,10 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             };
             if (jsonMode) requestBody["response_format"] = new JsonObject { ["type"] = "json_object" };
 
-            using var request = new HttpRequestMessage(HttpMethod.Post, $"{_options.BaseUrl.TrimEnd('/')}/chat/completions")
-            {
-                Content = JsonContent.Create(requestBody)
-            };
-            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.ApiKey);
-
-            var response = await _httpClient.SendAsync(request, cancellationToken);
-            response.EnsureSuccessStatusCode();
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            using var response = await SendWithRetryAsync("chat/completions", requestBody, cancellationToken);
             var payload = await response.Content.ReadFromJsonAsync<JsonObject>(cancellationToken: cancellationToken);
+            _logger.LogInformation("OpenAI {Purpose} took {Ms} ms", purpose, clock.ElapsedMilliseconds);
             var text = payload?["choices"]?[0]?["message"]?["content"]?.GetValue<string>()?.Trim();
             return string.IsNullOrWhiteSpace(text) ? null : text;
         }
@@ -373,6 +528,18 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             return null;
         }
     }
+
+    // The model sometimes offers its own intent names as taps ("new_order"); the seller must see words, and a typed command still works.
+    internal static string FriendlyOption(string option) => option.Trim().ToLowerInvariant() switch
+    {
+        "new_order" => "Naya order",
+        "status_update" => "Order ka status",
+        "add_products" => "Naya product",
+        "create_discount" => "Naya discount",
+        "customer_feedback" => "Customer feedback",
+        "support_query" => "Customer ka sawal",
+        _ => option
+    };
 
     internal static AiMessageAnalysis ParseAnalysis(string json)
     {
@@ -434,7 +601,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             IsOrderAttempt = root.TryGetProperty("is_order_attempt", out var isOrder) && isOrder.GetBoolean(),
             IsAmbiguousItemGrouping = root.TryGetProperty("is_ambiguous_item_grouping", out var ambEl) && ambEl.GetBoolean(),
             ClarificationQuestion = GetNullableString(root, "clarification_question"),
-            ClarificationOptions = options,
+            ClarificationOptions = options.Select(FriendlyOption).ToList(),
             Order = orders.FirstOrDefault(),
             AdditionalOrders = orders.Skip(1).ToList(),
             Feedback = feedback,

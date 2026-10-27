@@ -5,15 +5,25 @@ public static class SellerClock
 {
     public const string DefaultTimeZoneId = "Asia/Karachi";
 
+    /// <summary>
+    /// Every seller's day is Pakistan time. The parameter stays so callers read the same, but it is ignored: the bot serves Pakistani
+    /// shops only, and a per-seller zone was never settable by the seller.
+    /// </summary>
     public static TimeZoneInfo Resolve(string? timeZoneId)
     {
-        try { return TimeZoneInfo.FindSystemTimeZoneById(string.IsNullOrWhiteSpace(timeZoneId) ? DefaultTimeZoneId : timeZoneId); }
+        try { return TimeZoneInfo.FindSystemTimeZoneById(DefaultTimeZoneId); }
         catch (Exception e) when (e is TimeZoneNotFoundException or InvalidTimeZoneException)
         {
             // Fixed UTC+5 (PKT, no DST) when tzdata is unavailable, e.g. slim containers.
             return TimeZoneInfo.CreateCustomTimeZone("PKT", TimeSpan.FromHours(5), "PKT", "PKT");
         }
     }
+
+    /// <summary>
+    /// Pakistan midnight <paramref name="days"/> calendar days before today: the cutoff that replaces <c>UtcNow.AddDays(-days)</c>, so a
+    /// window never starts mid-day in UTC.
+    /// </summary>
+    public static DateTime DaysAgoUtc(int days, DateTime utcNow) => StartOfLocalDayUtc(null, utcNow.AddDays(-days));
 
     public static DateTime StartOfLocalDayUtc(string? timeZoneId, DateTime utcNow)
     {

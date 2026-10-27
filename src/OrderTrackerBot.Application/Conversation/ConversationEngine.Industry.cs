@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Application.Templates;
 
@@ -5,6 +6,9 @@ namespace OrderTrackerBot.Application.Conversation;
 
 public sealed partial class ConversationEngine
 {
+    // "number 5 bola tha" (a voice note): the word "number" is required, so a product line such as "Shawl 3 piece" is never a list pick.
+    private static readonly Regex SpokenIndustryNumber = new(@"(?:number|nambar|numbar|نمبر)\s*([1-7])(?![\p{L}\p{N}])", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     /// <summary>The wording profile of this seller's kind of shop (their business type); the general one when not set.</summary>
     private static IndustryProfile Industry(Seller seller) => IndustryProfiles.Resolve(seller.BusinessType);
 
@@ -25,6 +29,10 @@ public sealed partial class ConversationEngine
         if (CommandParser.TryParse(text) is { Kind: CommandKind.Industry, Text: { Length: > 0 } key })
             text = key;
         var all = IndustryProfiles.All.Append(IndustryProfiles.General).ToList();
+        // The list is numbered 1-7 in this order: a typed number picks the same row.
+        if (int.TryParse(text, out var number) && number >= 1 && number <= all.Count) return all[number - 1];
+        if (SpokenIndustryNumber.Match(text) is { Success: true } spoken && int.Parse(spoken.Groups[1].Value) is var row && row <= all.Count)
+            return all[row - 1];
         return all.FirstOrDefault(p => p.Key.Equals(text, StringComparison.OrdinalIgnoreCase))
                ?? all.FirstOrDefault(p => p.Title.Equals(text, StringComparison.OrdinalIgnoreCase))
                ?? IndustryProfiles.All.FirstOrDefault(p => p.Matches(text))

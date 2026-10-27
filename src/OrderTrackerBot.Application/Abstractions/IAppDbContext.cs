@@ -8,6 +8,8 @@ public interface IAppDbContext
     DbSet<Seller> Sellers { get; }
     DbSet<ConversationSession> Sessions { get; }
     DbSet<Product> Products { get; }
+    DbSet<ProductImage> ProductImages { get; }
+    DbSet<CustomerPhoto> CustomerPhotos { get; }
     DbSet<Customer> Customers { get; }
     DbSet<Order> Orders { get; }
     DbSet<OrderItem> OrderItems { get; }
@@ -28,11 +30,13 @@ public interface IAppDbContext
     DbSet<SupportQuery> SupportQueries { get; }
     DbSet<SellerBranding> SellerBrandings { get; }
     DbSet<Expense> Expenses { get; }
+    DbSet<BuyerEnquiry> BuyerEnquiries { get; }
     DbSet<Loss> Losses { get; }
     DbSet<WageEntry> WageEntries { get; }
     DbSet<CashDrawerSession> CashDrawerSessions { get; }
     DbSet<CashMovement> CashMovements { get; }
     DbSet<Payout> Payouts { get; }
+    DbSet<StrategyStat> StrategyStats { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

@@ -344,6 +344,25 @@ public class HyperInsightReportTests : IDisposable
     }
 
     [Fact]
+    public async Task CashForecast_ProjectsPaceOverTheRequestedDays()
+    {
+        await SetupAsync();
+        var sara = await CustomerAsync("Sara");
+        var at = DateTime.UtcNow.AddDays(-9);
+        await SaleAsync(sara, at, price: 3000, payment: PaymentStatus.Paid, paidAt: at);
+        _db.Expenses.Add(new Expense { SellerId = _seller.Id, Amount = 600, Category = "rent", CreatedAt = at });
+        await _db.SaveChangesAsync();
+
+        var reply = await AskAsync("agle 20 din mein kitna cash aayega");
+
+        Assert.Contains("Agle 20 din ka cash andaza", reply);
+        Assert.Contains("Pichle 10 din", reply);
+        Assert.Contains("Wasooli ~Rs.6,000", reply);
+        Assert.Contains("Kharcha ~Rs.1,200", reply);
+        Assert.Contains("Net cash ~Rs.4,800", reply);
+    }
+
+    [Fact]
     public async Task CashPlan_KeepsTheSupplierPaymentPlusDailyExpensesInTheDrawer()
     {
         await SetupAsync();

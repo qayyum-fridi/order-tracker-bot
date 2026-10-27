@@ -4,14 +4,14 @@ services:
       context: .
       args:
         GIT_SHA: ${GIT_SHA:-unknown} # export GIT_SHA=$(git rev-parse HEAD) before docker compose up --build
-    container_name: order-tracker-api
+    container_name: ${APP_NAME:-order-tracker-api}
     restart: unless-stopped
     # Keeps the bot from starving the client dashboard on the shared 1.6 GB VPS. Raise if `docker stats` shows OOM restarts.
     mem_limit: 512m
     ports:
-      - "127.0.0.1:8091:8080" # bind to localhost only — nginx on the host proxies to it
+      - "127.0.0.1:${HOST_PORT:-8091}:8080" # bind to localhost only — nginx on the host proxies to it
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Production}"
       Database__Provider: Sqlite
       ConnectionStrings__Default: "Data Source=/data/ordertrackerbot.db"
       WhatsApp__PhoneNumberId: "${WHATSAPP_PHONE_NUMBER_ID}"
@@ -27,9 +27,12 @@ services:
       WhatsApp__OrderFlowId: "${WHATSAPP_ORDER_FLOW_ID:-}"
       WhatsApp__FlowDraftMode: "${WHATSAPP_FLOW_DRAFT_MODE:-false}"
       Billing__Enabled: "${BILLING_ENABLED:-true}"
-      Billing__FreeSellerLimit: "${BILLING_FREE_SELLER_LIMIT:-100}"
+      Billing__FreeSellerLimit: "${BILLING_FREE_SELLER_LIMIT:-20}"
+      MediaLimits__TextPerHour: "${MEDIA_TEXT_PER_HOUR:-150}"
       MediaLimits__VoicePerHour: "${MEDIA_VOICE_PER_HOUR:-30}"
-      MediaLimits__ImagePerHour: "${MEDIA_IMAGE_PER_HOUR:-10}"
+      MediaLimits__ImagePerHour: "${MEDIA_IMAGE_PER_HOUR:-15}"
+      MediaLimits__FreeUsdPerHour: "${MEDIA_FREE_USD_PER_HOUR:-1.00}"
+      MediaLimits__PaidUsdPerHour: "${MEDIA_PAID_USD_PER_HOUR:-5.00}"
       MerchantEmail__SmtpUser: "${MERCHANT_EMAIL_USER:-}"
       MerchantEmail__SmtpPassword: "${MERCHANT_EMAIL_PASSWORD:-}"
       Billing__PaymentNumber: "${BILLING_PAYMENT_NUMBER:-}"
@@ -50,14 +53,15 @@ services:
       Instagram__PublicBaseUrl: "${PUBLIC_BASE_URL:-}"
       Instagram__VerifyToken: "${INSTAGRAM_VERIFY_TOKEN:-}"
       Admin__ApiKey: "${ADMIN_API_KEY:-}"
+      Features__SemanticLearning: "${FEATURES_SEMANTIC_LEARNING:-false}" # prototype: match a new sentence to taught phrases by meaning (embeddings); set true in .env to try
     volumes:
       - order-tracker-db-data:/data
     networks:
       - order-tracker-net
 
 volumes:
-  order-tracker-db-data:
+  order-tracker-db-data: # no explicit name: compose prefixes it with the project (-p), so a dev project gets its own volume
 
 networks:
   order-tracker-net:
-    name: order-tracker-net
+    name: ${NETWORK_NAME:-order-tracker-net}

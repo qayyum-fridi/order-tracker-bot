@@ -83,8 +83,14 @@ public partial class ConversationEngine
                 return;
             }
             var before = SupplierOf(removing);
+            if (before is null)
+            {
+                await ReplyAsync(seller, MessageTemplates.Get("supplier.011", Formatters.ProductLabel(removing)), ct);
+                return;
+            }
+            LogSupplierChange(seller, new[] { (removing, removing.AttributesJson) });
             removing.AttributesJson = WithSupplier(removing.AttributesJson, null);
-            await ReplyAsync(seller, before is null ? MessageTemplates.Get("supplier.011", Formatters.ProductLabel(removing)) : MessageTemplates.Get("supplier.012", Formatters.ProductLabel(removing), before), ct);
+            await ReplyAsync(seller, MessageTemplates.Get("supplier.012", Formatters.ProductLabel(removing), before), ct);
             return;
         }
 
@@ -156,15 +162,51 @@ public partial class ConversationEngine
         }
 
         var lines = new List<string>();
+        var changed = new List<(Product Product, string? Before)>();
         foreach (var product in targets)
         {
             var old = SupplierOf(product);
+            if (old is null || !old.Equals(supplier, StringComparison.OrdinalIgnoreCase)) changed.Add((product, product.AttributesJson));
             product.AttributesJson = WithSupplier(product.AttributesJson, supplier);
             lines.Add(old is null ? $"• {Formatters.ProductLabel(product)}" : old.Equals(supplier, StringComparison.OrdinalIgnoreCase) ? $"• {Formatters.ProductLabel(product)} (pehle se yehi tha)" : $"• {Formatters.ProductLabel(product)} (pehle: {old})");
         }
+        LogSupplierChange(seller, changed);
         await ReplyAsync(seller,
             MessageTemplates.Get("supplier.006", supplier, string.Join("\n", lines)), ct);
         SuggestNext("suppliers", "catalog");
+    }
+
+    /// <summary>
+    /// One ActionLog with each product's attributes as they were before a supplier change, so "undo" restores them all at once.
+    /// Nothing is logged when no product changed.
+    /// </summary>
+    private void LogSupplierChange(Seller seller, IEnumerable<(Product Product, string? Before)> changes)
+    {
+        var list = changes.ToList();
+        if (list.Count == 0) return;
+        _db.ActionLogs.Add(new ActionLog
+        {
+            SellerId = seller.Id, ActionType = ActionType.SupplierChanged,
+            PayloadJson = JsonSerializer.Serialize(new { Products = list.Select(c => new { ProductId = c.Product.Id, AttributesJson = c.Before }) })
+        });
+    }
+
+    private async Task UndoSupplierChangeAsync(Seller seller, ActionLog log, CancellationToken ct)
+    {
+        var saved = new List<(int ProductId, string? AttributesJson)>();
+        using (var doc = JsonDocument.Parse(log.PayloadJson))
+        {
+            foreach (var item in doc.RootElement.GetProperty("Products").EnumerateArray())
+            {
+                var attributes = item.GetProperty("AttributesJson");
+                saved.Add((item.GetProperty("ProductId").GetInt32(), attributes.ValueKind == JsonValueKind.String ? attributes.GetString() : null));
+            }
+        }
+
+        var ids = saved.Select(s => s.ProductId).ToList();
+        var products = await _db.Products.Where(p => p.SellerId == seller.Id && ids.Contains(p.Id)).ToListAsync(ct);
+        foreach (var product in products) product.AttributesJson = saved.First(s => s.ProductId == product.Id).AttributesJson;
+        await ReplyAsync(seller, MessageTemplates.Get("supplier.015", products.Count), ct);
     }
 
     // ---------- courier fee

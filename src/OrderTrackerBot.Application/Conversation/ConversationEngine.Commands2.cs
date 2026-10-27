@@ -85,18 +85,49 @@ public partial class ConversationEngine
         }
 
         var orders = await _db.Orders.Where(o => ids.Contains(o.Id) && o.SellerId == seller.Id).ToListAsync(ct);
-        foreach (var order in orders)
+        // Cancelled and returned orders are not shipped again (that would revive them without restoring their stock).
+        var changed = 0;
+        foreach (var order in orders.Where(o => o.Status is not (OrderStatus.Cancelled or OrderStatus.Returned)))
         {
+            var stockBefore = StockFootprint(order);
             order.Status = OrderStatus.Shipped;
             order.ShippedAt = DateTime.UtcNow;
+            await ApplyStockChangeAsync(seller, stockBefore, StockFootprint(order), ct);
+            changed++;
         }
 
-        await ReplyAsync(seller, MessageTemplates.Get("commands2.006", orders.Count), ct);
+        await ReplyAsync(seller, MessageTemplates.Get("commands2.006", changed), ct);
     }
 
-    private async Task HandleUndoAsync(Seller seller, CancellationToken ct)
+    /// <summary>Undoes everything the last voice note did, newest first (the range is recorded by HandleAudioMessageAsync).</summary>
+    private async Task HandleUndoNoteAsync(Seller seller, CancellationToken ct)
     {
-        var last = await _db.ActionLogs
+        var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
+        var start = ctx.LastVoiceNoteStartLogId;
+        var end = ctx.LastVoiceNoteEndLogId;
+        var logs = end > start
+            ? await _db.ActionLogs.Where(a => a.SellerId == seller.Id && !a.Undone && a.Id > start && a.Id <= end)
+                .OrderByDescending(a => a.Id).ToListAsync(ct)
+            : new List<ActionLog>();
+        if (logs.Count == 0)
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("voice-undo.001"), ct);
+            return;
+        }
+
+        foreach (var log in logs) await HandleUndoAsync(seller, ct, log);
+
+        // The range is used once: a second "undo note" must not undo the same work again.
+        var latest = SessionContextData.FromJson(seller.Session!.ContextJson);
+        latest.LastVoiceNoteEndLogId = start;
+        if (latest.LastVoiceNoteHash is { } undoneHash) latest.ProcessedVoiceHashes?.Remove(undoneHash);
+        await PersistAsync(seller.Session!, latest, ct);
+        await ReplyAsync(seller, MessageTemplates.Get("voice-undo.002", logs.Count), ct);
+    }
+
+    private async Task HandleUndoAsync(Seller seller, CancellationToken ct, ActionLog? target = null)
+    {
+        var last = target ?? await _db.ActionLogs
             .Where(a => a.SellerId == seller.Id && !a.Undone)
             .OrderByDescending(a => a.Id)
             .FirstOrDefaultAsync(ct);
@@ -115,6 +146,11 @@ public partial class ConversationEngine
             {
                 var order = await _db.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == last.OrderId && o.SellerId == seller.Id, ct);
                 if (order is null) return;
+                if (_turnCtx?.AutoPriceUse is { } autoPrice && autoPrice.OrderId == order.Id)
+                {
+                    await RetractPriceAnswerAsync(seller, autoPrice.Arm, ct); // undoing an order priced without asking is a correction
+                    _turnCtx.AutoPriceUse = null;
+                }
                 var stockBefore = StockFootprint(order);
                 order.Status = OrderStatus.Cancelled;
                 order.CancelledAt = DateTime.UtcNow;
@@ -153,6 +189,12 @@ public partial class ConversationEngine
                 return;
             case ActionType.ExpenseAdded:
                 await UndoExpenseAsync(seller, last, ct);
+                return;
+            case ActionType.ExpenseChanged:
+                await UndoExpenseChangeAsync(seller, last, ct);
+                return;
+            case ActionType.SupplierChanged:
+                await UndoSupplierChangeAsync(seller, last, ct);
                 return;
             case ActionType.LossLogged:
                 await UndoLossAsync(seller, last, ct);
@@ -193,17 +235,14 @@ public partial class ConversationEngine
             return;
         }
 
-        var methods = await _db.PaymentMethods.Where(p => p.SellerId == seller.Id).ToListAsync(ct);
+        // Safepay is saved as a merchant ID only; no hosted checkout exists yet, so it is never
+        // shown to the buyer as a payment number. Only JazzCash / Easypaisa / Bank are listed.
+        var methods = (await _db.PaymentMethods.Where(p => p.SellerId == seller.Id).ToListAsync(ct))
+            .Where(m => m.Type != SellerPaymentMethodType.Safepay)
+            .ToList();
         if (methods.Count == 0)
         {
             await ReplyAsync(seller, MessageTemplates.Get("commands2.014"), ct);
-            return;
-        }
-
-        if (methods.Any(m => m.Type == SellerPaymentMethodType.Safepay))
-        {
-            await ReplyAsync(seller,
-                MessageTemplates.Get("commands2.015", Formatters.Money(order.Total), order.Id), ct);
             return;
         }
 

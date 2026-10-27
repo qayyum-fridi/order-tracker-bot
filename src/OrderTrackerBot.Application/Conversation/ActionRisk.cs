@@ -11,15 +11,17 @@ public static class ActionRisk
 {
     public static readonly IReadOnlySet<CommandKind> RiskyCommands = new HashSet<CommandKind>
     {
-        CommandKind.MarkStatus, CommandKind.MarkAllPendingShipped, CommandKind.FuzzyStatusUpdate, CommandKind.CancelOrder,
+        // Basic operations (mark one order shipped or paid, advance, counter sale, customer phone or address fix) are NOT here:
+        // they run straight away from voice, so the daily work never waits for a YES.
+        CommandKind.MarkAllPendingShipped, CommandKind.FuzzyStatusUpdate, CommandKind.CancelOrder,
         CommandKind.DeleteProduct, CommandKind.DeleteCustomer, CommandKind.EditProduct, CommandKind.PriceTiers,
-        CommandKind.OrderPayment, CommandKind.OrderDeliveryCharge, CommandKind.OrderCourierFee, CommandKind.SupplierSet, CommandKind.CustomerUpdate, CommandKind.Broadcast,
-        CommandKind.CashDrawer, CommandKind.CashMovement, CommandKind.Payout, CommandKind.WalkInSale
+        CommandKind.OrderDeliveryCharge, CommandKind.OrderCourierFee, CommandKind.SupplierSet, CommandKind.Broadcast,
+        CommandKind.CashDrawer, CommandKind.CashMovement, CommandKind.Payout, CommandKind.ExpenseEdit, CommandKind.ExpenseDelete
     };
 
-    // Money or order-state words. A step that is not a parsed command (e.g. "price 5000") still counts as risky when it names one of these.
+    // Money-changing words only. A step that is not a parsed command (e.g. "price 5000") still counts as risky when it names one of these.
     private static readonly Regex RiskyWord = new(
-        @"\b(price|rate|delivery|discount|cancel|edit|paid|advance|payment|cod|shipped|delivered|returned|status|customer|remove|add)\b",
+        @"\b(price|rate|delivery|discount|cancel|edit|returned|remove)\b",
         RegexOptions.IgnoreCase);
 
     /// <summary>Commands whose whole text is the instruction, so a "nahi" / "mat" / "galat" in it means the seller took it back. Not free-text ones (broadcast, names, delivery "nahi").</summary>

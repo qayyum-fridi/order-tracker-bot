@@ -20,14 +20,18 @@ namespace OrderTrackerBot.Api.Controllers;
 public class AdminController : ControllerBase
 {
     private const int MaxPageSize = 100;
+    /// <summary>Highest page that keeps (page - 1) * pageSize inside an int: a larger page overflows and turns into a negative offset.</summary>
+    private const int MaxPage = int.MaxValue / MaxPageSize;
 
     private readonly AppDbContext _db;
     private readonly ILogger<AdminController> _logger;
+    private readonly BillingOptions _billing;
 
-    public AdminController(AppDbContext db, ILogger<AdminController> logger)
+    public AdminController(AppDbContext db, ILogger<AdminController> logger, BillingOptions billing)
     {
         _db = db;
         _logger = logger;
+        _billing = billing;
     }
 
     /// <summary>
@@ -82,7 +86,7 @@ public class AdminController : ControllerBase
         [FromQuery] string? from = null, [FromQuery] string? to = null, CancellationToken ct = default)
     {
         if (!AdminDateRange.TryResolveOptional(from, to, out var range, out var error)) return BadRequest(new { error });
-        page = Math.Max(1, page);
+        page = Math.Clamp(page, 1, MaxPage);
         pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
 
         IQueryable<Seller> query = _db.Sellers.AsNoTracking();
@@ -148,23 +152,29 @@ public class AdminController : ControllerBase
     }
 
     /// <summary>
-    /// Sets a seller's plan and paid-until date (the manual step after a payment is verified; billing trusts this field).
-    /// Trial clears the paid-until date; Basic and Pro require one.
+    /// Moves a seller between trial, paid and free, in either direction, whenever the owner decides.
+    /// Trial clears the paid-until date and, when no trial is running any more, starts a new one of <see cref="BillingOptions.TrialDays"/>.
+    /// Basic and Pro need a paid-until date (the step after a payment is verified; billing trusts this field).
+    /// Free is never billed and has no end date. Sellers among the first <see cref="BillingOptions.FreeSellerLimit"/> ids stay free whatever their plan.
     /// </summary>
     [HttpPut("sellers/{id:int}/subscription")]
     public async Task<ActionResult<SellerDetailDto>> UpdateSubscription(int id, [FromBody] UpdateSubscriptionRequest request, CancellationToken ct)
     {
         if (!Enum.TryParse<SubscriptionPlan>(request.Plan, ignoreCase: true, out var plan) || !Enum.IsDefined(plan))
-            return BadRequest(new { error = "Plan must be one of: Trial, Basic, Pro." });
+            return BadRequest(new { error = "Plan must be one of: Trial, Basic, Pro, Free." });
 
         var seller = await _db.Sellers.FirstOrDefaultAsync(s => s.Id == id, ct);
         if (seller is null) return NotFound(new { error = "Seller not found." });
 
-        if (plan != SubscriptionPlan.Trial && request.SubscriptionActiveUntil is null)
+        var openEnded = plan is SubscriptionPlan.Trial or SubscriptionPlan.Free;
+        if (!openEnded && request.SubscriptionActiveUntil is null)
             return BadRequest(new { error = "Basic and Pro need subscriptionActiveUntil." });
 
+        var now = DateTime.UtcNow;
         seller.Plan = plan;
-        seller.SubscriptionActiveUntil = plan == SubscriptionPlan.Trial ? null : ToUtc(request.SubscriptionActiveUntil!.Value);
+        seller.SubscriptionActiveUntil = openEnded ? null : ToUtc(request.SubscriptionActiveUntil!.Value);
+        if (plan == SubscriptionPlan.Trial && (seller.TrialEndsAt is null || seller.TrialEndsAt.Value <= now))
+            seller.TrialEndsAt = now.Date.AddDays(_billing.TrialDays);
         await _db.SaveChangesAsync(ct);
 
         _logger.LogInformation("Admin set seller {SellerId} to plan {Plan}, paid until {Until}", id, plan, seller.SubscriptionActiveUntil);
@@ -226,7 +236,7 @@ public class AdminController : ControllerBase
         [FromQuery] string? from = null, [FromQuery] string? to = null, CancellationToken ct = default)
     {
         if (!AdminDateRange.TryResolveOptional(from, to, out var range, out var error)) return BadRequest(new { error });
-        page = Math.Max(1, page);
+        page = Math.Clamp(page, 1, MaxPage);
         pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
 
         IQueryable<Order> query = _db.Orders.AsNoTracking();

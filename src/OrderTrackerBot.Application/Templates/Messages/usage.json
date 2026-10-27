@@ -1,0 +1,6 @@
+{
+  "usage.001": "⏳ Is ghante ke {0} text messages poore ho gaye hain.\n{1} minute baad dobara likhein.",
+  "usage.002": "🎤 Ek ghante mein {0} voice notes ki limit poori ho gayi.\n{1} minute baad dobara bhejein, ya abhi text mein likh dein.",
+  "usage.003": "📷 Ek ghante mein {0} screenshots ki limit poori ho gayi.\n{1} minute baad dobara bhejein, ya abhi order text mein likh dein.",
+  "usage.004": "⏳ Is ghante ki AI hadd (${0}) poori ho gayi hai.\n{1} minute baad dobara likhein."
+}

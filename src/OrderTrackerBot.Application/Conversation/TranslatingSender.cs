@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Ai;
 using OrderTrackerBot.Application.Formatting;
+using OrderTrackerBot.Application.Templates;
 using OrderTrackerBot.Domain.Entities;
 
 namespace OrderTrackerBot.Application.Conversation;
@@ -14,6 +15,7 @@ namespace OrderTrackerBot.Application.Conversation;
 /// </summary>
 internal sealed class TranslatingSender : IWhatsAppSender
 {
+    private static readonly TimeSpan TranslationBudget = TimeSpan.FromSeconds(5);
     private const int MaxCachedTranslations = 5000;
     private const int MaxButtonLabel = 20, MaxRowOrSectionTitle = 24, MaxFlowCta = 30;
     // WhatsApp refuses an interactive (buttons / list / flow) body over 1024 characters; a translation is often longer than the Roman Urdu it came from.
@@ -117,8 +119,8 @@ internal sealed class TranslatingSender : IWhatsAppSender
 
     private static string OriginKey(string phone, string label) => $"{phone}\u0001{label}";
 
-    public Task<bool> SendTemplateMessageAsync(string toPhoneNumber, IReadOnlyList<string> bodyParameters, CancellationToken cancellationToken = default) =>
-        _inner.SendTemplateMessageAsync(toPhoneNumber, bodyParameters, cancellationToken);
+    public Task<bool> SendTemplateMessageAsync(string toPhoneNumber, IReadOnlyList<string> bodyParameters, string templateKey = WhatsAppTemplateKeys.Broadcast, CancellationToken cancellationToken = default) =>
+        _inner.SendTemplateMessageAsync(toPhoneNumber, bodyParameters, templateKey, cancellationToken);
 
     // Documents (receipts, exports) are forwarded as-is; their captions are short and often carry order numbers.
     public Task<bool> SendDocumentAsync(string toPhoneNumber, byte[] content, string fileName, string mimeType, string? caption, CancellationToken cancellationToken = default) =>
@@ -135,7 +137,9 @@ internal sealed class TranslatingSender : IWhatsAppSender
         for (var i = 0; i < texts.Count; i++)
         {
             if (string.IsNullOrWhiteSpace(texts[i]) || IsAlreadyInLanguage(texts[i], language)) continue;
-            if (Cache.TryGetValue(CacheKey(language, texts[i]), out var cached)) result[i] = cached;
+            // Hand-written wording first (Templates/Translations): the AI only sees text no template matches.
+            if (MessageTranslations.TryTranslate(texts[i], language, out var written)) result[i] = written;
+            else if (Cache.TryGetValue(CacheKey(language, texts[i]), out var cached)) result[i] = cached;
             else pending.Add(i);
         }
         if (pending.Count == 0) return result;
@@ -143,9 +147,12 @@ internal sealed class TranslatingSender : IWhatsAppSender
         IReadOnlyList<string>? translated = null;
         try
         {
-            translated = await _ai.TranslateAsync(pending.Select(i => texts[i]).ToList(), language, cancellationToken);
+            // A slow translation must not hold the reply back: after the budget the original (Roman Urdu) text is sent.
+            using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            budget.CancelAfter(TranslationBudget);
+            translated = await _ai.TranslateAsync(pending.Select(i => texts[i]).ToList(), language, budget.Token);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             // Translation is a nicety: never lose the message because of it.
         }

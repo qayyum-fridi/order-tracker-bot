@@ -157,7 +157,7 @@ public class RealShopSimulationTests : IDisposable
         var engine = new ConversationEngine(db, _ai.Object, _sender.Object, Mock.Of<IFounderAlertNotifier>());
 
         // ---- 1. onboarding, then ten products typed the way sellers type them, with mistakes -------------------------------------------------------
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Bismillah Cloth House", "skip", "10 ke qareeb" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Bismillah Cloth House", "skip" })
             await SayAsync(engine, "onboarding", step);
 
         var products = new List<(string Say, string Name, bool Mistake)>

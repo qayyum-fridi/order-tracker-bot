@@ -1,0 +1,60 @@
+# Electronics / Mobile — poora business. Naya phone number chunein.
+# Chalaane ka tareeqa: scripts/run-scenario.sh docs/scenarios/electronics.txt 923001110104
+# Mutawaqqa nateeja: docs/industry-test-cases.md (electronics section).
+
+# --- Setup ---
+start
+Roman Urdu
+Setup shuru karein
+Tech Zone Rawalpindi
+skip
+Chhota (20 se kam)
+industry electronics
+
+# --- Catalog ---
+Fast Charger 20W - 1800, cost 1100, stock 25, category charger
+Earbuds Pro - 3500, cost 2300, stock 8, category audio
+Phone Cover Iphone 14 - 600, cost 250, stock 40, category cover
+Power Bank 10000 mAh - 3200, cost 2200, stock 6, category power
+USB Cable Type C 1m - 350, cost 120, stock 60, category cable
+Smart Watch Band - 900, cost 400, stock 15, category watch
+barcode Earbuds Pro 8964000999
+catalog
+stock Power Bank 10000 mAh 2
+
+# --- Orders ---
+Hamza, 1 fast charger 20w, 03001234567, Saddar Rawalpindi
+yes
+Zain, 2 earbuds pro, 1 power bank 10000 mah, 03121234567, Bahria Town Rawalpindi, advance 2000
+yes
+note 1 serial 12345 warranty 1 saal
+mark 1 shipped
+mark 1 delivered
+mark 1 returned
+order 2 courier fee 150
+courier fee report
+return loss
+unpaid orders
+
+# --- Barcode scanner ---
+8964000999
+scan cart
+scan done
+yes
+
+# --- Counter sale, kharcha aur drawer ---
+walkin Phone Cover Iphone 14 2, USB Cable Type C 1m 3 then yes (cash)
+expense 5000 shop ka kiraya
+monthly net
+drawer open 8000
+cash sale 1500 accessory
+drawer status
+drawer close 9500
+
+# --- Reports ---
+summary
+profit
+margin
+stock
+data check
+aaj ka hisaab

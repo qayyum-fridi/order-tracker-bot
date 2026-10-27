@@ -78,7 +78,7 @@ public partial class ConversationEngine
             var extra = order.AmountPaid - order.Total;
             order.AmountPaid = order.Total;
             order.PaymentStatus = PaymentStatus.Paid;
-            order.PaidAt = DateTime.UtcNow;
+            order.PaidAt = RecordTimeUtc();
             await ReplyAsync(seller, MessageTemplates.Get("order-payments.004", order.Id, order.Customer?.Name, Formatters.Money(amount), (extra > 0 ? $"\n⚠️ {Formatters.Money(extra)} total se zyada aaye — wapas karne hon to yaad rakhein." : ""), note), ct);
             return;
         }

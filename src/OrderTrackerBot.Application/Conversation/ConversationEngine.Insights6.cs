@@ -28,6 +28,7 @@ public partial class ConversationEngine
             case "chargeeffect": await InsightDeliveryChargeAsync(seller, text, cmd.Amount ?? 0, ct); break;
             case "cashflow": await InsightCashFlowAsync(seller, period, ct); break;
             case "cashplan": await InsightCashPlanAsync(seller, cmd.Amount, ct); break;
+            case "cashforecast": await InsightCashForecastAsync(seller, (int)(cmd.Amount ?? 30), ct); break;
             case "eidstock": await InsightEidStockAsync(seller, text, ct); break;
             case "breakevendaily": await InsightDailySaleForFixedCostsAsync(seller, ct); break;
             case "declining": await InsightDecliningProductsAsync(seller, ct); break;
@@ -248,7 +249,7 @@ public partial class ConversationEngine
     /// <summary>Products whose current cost is below what recent orders paid, while the shelf price is unchanged: the margin rose on its own.</summary>
     private async Task InsightCostDropAsync(Seller seller, CancellationToken ct)
     {
-        var since = DateTime.UtcNow.AddDays(-60);
+        var since = SellerClock.DaysAgoUtc(60, DateTime.UtcNow);
         var items = await _db.OrderItems.AsNoTracking()
             .Where(i => i.ProductId != null && i.UnitCost != null && i.Order!.SellerId == seller.Id && i.Order.CreatedAt >= since
                         && i.Order.Status != OrderStatus.Cancelled && i.Order.Status != OrderStatus.Returned)
@@ -380,6 +381,30 @@ public partial class ConversationEngine
             : $"Roz ke kharche ~{Formatters.Money(Math.Round(dailyOut))} (pichle 14 din ki average).\nSupplier ko kal kitna dena hai yeh bata dein, jaise: \"kal supplier ko 20000 dene hain\" — phir bataunga kitna rakhna aur kitna jama karwana hai.";
         await ReplyAsync(seller, MessageTemplates.Get("insights6.024", Formatters.Money(summary.Expected), line), ct);
         SuggestNext("drawer", "expenses");
+    }
+
+    /// <summary>Expected cash over the next N days (default 30) from the last 30 days' pace; the open drawer's cash is shown as today's starting point.</summary>
+    private async Task InsightCashForecastAsync(Seller seller, int days, CancellationToken ct)
+    {
+        var now = _clock.GetUtcNow().UtcDateTime;
+        var f = await CashForecaster.ComputeAsync(_db, seller.Id, days, now, ct);
+        if (!f.HasHistory)
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("insights6.039"), ct);
+            return;
+        }
+
+        string Net(decimal v) => (v >= 0 ? "" : "-") + Formatters.Money(Math.Abs(v));
+        var weekly = f.Steps.Count > 1
+            ? "\nHafta war (net, ab tak):\n" + string.Join("\n", f.Steps.Select((s, i) => $"• {(i == 0 ? 1 : f.Steps[i - 1].ToDay + 1)}–{s.ToDay} din: {Net(s.In - s.Out)} → {Net(s.Cumulative)}")) + "\n"
+            : "";
+        var receivables = f.Receivables > 0 ? $"Abhi customers se baqi: {Formatters.Money(f.Receivables)} (yeh wasooli ki raftaar mein pehle se shamil hai)\n" : "";
+        var open = await OpenDrawerAsync(seller, ct);
+        var drawer = open is null ? "" : $"Drawer mein abhi hona chahiye: {Formatters.Money((await SummariseCashAsync(seller, open, now, ct)).Expected)}\n";
+        await ReplyAsync(seller,
+            MessageTemplates.Get("insights6.038", f.Days, f.HistoryDays, Formatters.Money(f.DailyIn), Formatters.Money(f.DailyOut), Formatters.Money(f.ExpectedIn), Formatters.Money(f.ExpectedOut),
+                Net(f.Net), f.Net >= 0 ? "✅" : "⚠️", weekly, receivables, drawer), ct);
+        SuggestNext("expenses", "cash flow");
     }
 
     // ---------- seasons, fixed costs, life cycle, mix, audit

@@ -16,6 +16,8 @@ public static class SellerAccountReset
     {
         db.Orders.RemoveRange(await db.Orders.Where(o => o.SellerId == seller.Id).ToListAsync(ct));
         db.Customers.RemoveRange(await db.Customers.Where(c => c.SellerId == seller.Id).ToListAsync(ct));
+        db.CustomerPhotos.RemoveRange(await db.CustomerPhotos.Where(p => p.SellerId == seller.Id).ToListAsync(ct));
+        db.ProductImages.RemoveRange(await db.ProductImages.Where(i => i.SellerId == seller.Id).ToListAsync(ct));
         db.Products.RemoveRange(await db.Products.Where(p => p.SellerId == seller.Id).ToListAsync(ct));
         db.Discounts.RemoveRange(await db.Discounts.Where(d => d.SellerId == seller.Id).ToListAsync(ct));
         db.LoyaltyRules.RemoveRange(await db.LoyaltyRules.Where(l => l.SellerId == seller.Id).ToListAsync(ct));
@@ -25,6 +27,7 @@ public static class SellerAccountReset
         db.CustomerFeedbacks.RemoveRange(await db.CustomerFeedbacks.Where(f => f.SellerId == seller.Id).ToListAsync(ct));
         db.SellerBrandings.RemoveRange(await db.SellerBrandings.Where(b => b.SellerId == seller.Id).ToListAsync(ct));
         db.Expenses.RemoveRange(await db.Expenses.Where(x => x.SellerId == seller.Id).ToListAsync(ct));
+        db.BuyerEnquiries.RemoveRange(await db.BuyerEnquiries.Where(x => x.SellerId == seller.Id).ToListAsync(ct));
         db.Losses.RemoveRange(await db.Losses.Where(x => x.SellerId == seller.Id).ToListAsync(ct));
         db.WageEntries.RemoveRange(await db.WageEntries.Where(x => x.SellerId == seller.Id).ToListAsync(ct));
         db.Payouts.RemoveRange(await db.Payouts.Where(x => x.SellerId == seller.Id).ToListAsync(ct));

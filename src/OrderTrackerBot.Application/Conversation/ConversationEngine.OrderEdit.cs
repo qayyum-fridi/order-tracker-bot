@@ -90,7 +90,20 @@ public partial class ConversationEngine
         var discardPending = ctx.EditDiscardPending;
         ctx.EditDiscardPending = false;
 
-        if (!CommandParser.TryParseOrderEdit(message, out var change))
+        // A shared customer change waiting for "haan": a yes applies it; a refusal keeps the record as it is; anything else is read as usual.
+        var waitingCustomerChange = ctx.EditPendingCustomerChange;
+        ctx.EditPendingCustomerChange = null;
+        OrderEditInstruction? confirmedCustomerChange = null;
+        if (waitingCustomerChange is not null && CommandParser.IsAffirmative(message.Trim())) confirmedCustomerChange = waitingCustomerChange;
+        else if (waitingCustomerChange is not null && (EditRefusal.IsMatch(message.Trim()) || EditDiscardWords.IsMatch(message.Trim())))
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("order-edit.022"), ct);
+            return;
+        }
+
+        OrderEditInstruction change;
+        if (confirmedCustomerChange is not null) change = confirmedCustomerChange;
+        else if (!CommandParser.TryParseOrderEdit(message, out change))
         {
             // Acknowledgements, refusals and cancels are read before anything else: they must never fall into the help text or leave edit mode by accident.
             if (await TryHandleEditModeWordsAsync(seller, session, ctx, order, message, discardPending, ct)) return;
@@ -119,15 +132,26 @@ public partial class ConversationEngine
             return;
         }
 
+        // Phone, address and name live on the customer record, which every order of that buyer shows. Ask before changing it for all of them.
+        if (confirmedCustomerChange is null && change.Kind is "phone" or "address" or "name"
+            && await _db.Orders.CountAsync(o => o.SellerId == seller.Id && o.CustomerId == order.CustomerId && o.Id != order.Id, ct) is var others and > 0)
+        {
+            ctx.EditPendingCustomerChange = change;
+            var field = change.Kind switch { "phone" => "phone", "address" => "address", _ => "naam" };
+            await ReplyAsync(seller, MessageTemplates.Get("order-edit.021", order.Customer?.Name ?? "", field, others), ct);
+            return;
+        }
+
         var before = Snapshot(order);
         var previousTotal = order.Total;
         var stockBefore = StockFootprint(order);
         var (ok, result) = await ApplyOrderEditAsync(seller, order, change, ct);
         if (!ok)
         {
-            await ReplyAsync(seller, $"⚠️ {result}", ct);
+            await ReplyAsync(seller, result, ct);
             return;
         }
+        await RetractEditedAutoAnswersAsync(seller, order, change.Kind, change.Amount, ct);
 
         if (!ctx.EditSnapshotLogged)
         {
@@ -139,9 +163,13 @@ public partial class ConversationEngine
             ctx.EditSnapshotLogged = true;
         }
 
+        var wasPaid = order.PaymentStatus == PaymentStatus.Paid;
         await RecalculateOrderTotalsAsync(seller, order, ct);
+        // A paid order whose total rose above what was received is no longer fully paid: the difference becomes the balance.
+        // Legacy paid orders with AmountPaid 0 stay Paid, because their history already says fully paid.
+        if (wasPaid && order.AmountPaid > 0 && order.AmountPaid < order.Total) order.PaymentStatus = PaymentStatus.Unpaid;
         await ApplyStockChangeAsync(seller, stockBefore, StockFootprint(order), ct);
-        var paidWarning = order.PaymentStatus == PaymentStatus.Paid && order.Total != previousTotal
+        var paidWarning = wasPaid && order.Total != previousTotal
             ? MessageTemplates.Get("order-edit.018", Formatters.Money(previousTotal))
             : "";
         await ReplyAsync(seller, MessageTemplates.Get("order-edit.005", result, paidWarning, OrderEditSummary(order)), ct);
@@ -149,6 +177,7 @@ public partial class ConversationEngine
 
     private static void EndOrderEdit(ConversationSession session, SessionContextData ctx)
     {
+        ctx.EditPendingCustomerChange = null;
         ctx.EditOrderId = null;
         ctx.EditSnapshotLogged = false;
         ctx.EditDiscardPending = false;
@@ -299,10 +328,10 @@ public partial class ConversationEngine
             case "qty":
             {
                 if (Item(change.Item) is not { } item) return (false, NoItem(change.Item));
-                if (change.Quantity is not > 0) return (false, "Tadaad kam az kam 1 honi chahiye — hatana ho to \"remove " + change.Item + "\".");
+                if (change.Quantity is not > 0) return (false, MessageTemplates.Get("order-edit.030", change.Item));
                 // "1 = 3000" is almost always a price typed as a quantity: ask instead of putting 3000 pieces on the order.
                 if (change.Quantity > MaxEditQuantity)
-                    return (false, $"{change.Quantity} piece bohat zyada lag raha hai, kuch nahi badla. Rate badalna ho to likhein: \"price {change.Item} = {change.Quantity}\".");
+                    return (false, MessageTemplates.Get("order-edit.031", change.Quantity, change.Item));
                 item.Quantity = change.Quantity.Value;
                 return (true, $"{item.ProductNameSnapshot} ki tadaad {item.Quantity} kar di.");
             }
@@ -315,7 +344,7 @@ public partial class ConversationEngine
             case "remove":
             {
                 if (Item(change.Item) is not { } item) return (false, NoItem(change.Item));
-                if (items.Count == 1) return (false, $"Yeh aakhri item hai — poora order hatana ho to \"cancel order {order.Id}\".");
+                if (items.Count == 1) return (false, MessageTemplates.Get("order-edit.032", order.Id));
                 order.Items.Remove(item);
                 _db.OrderItems.Remove(item);
                 return (true, $"{item.ProductNameSnapshot} hata diya.");
@@ -323,13 +352,15 @@ public partial class ConversationEngine
             case "add":
             {
                 var catalog = await LoadCatalogAsync(seller, ct);
+                var variants = ProductVariants.VariantsOf(catalog.Select(c => c.Product), change.Text!);
+                if (variants.Count > 1) return (false, MessageTemplates.Get("variants.001", change.Text!, string.Join(", ", variants.Select(Formatters.ProductMatchLabel)), Formatters.ProductMatchLabel(variants[0])));
                 var entry = FindCatalogEntry(catalog, change.Text!)
                             ?? catalog.FirstOrDefault(c => c.Product.Name.Contains(change.Text!, StringComparison.OrdinalIgnoreCase));
-                if (entry is null) return (false, $"\"{change.Text}\" catalog mein nahi mila. Pehle add karein: \"{change.Text} - price\"");
+                if (entry is null) return (false, MessageTemplates.Get("order-edit.033", change.Text));
                 var line = new PendingOrderItemData { ProductName = entry.Product.Name, Quantity = change.Quantity ?? 1 };
                 ApplyCatalogEntry(line, entry);
-                order.Items.Add(new OrderItem { ProductId = entry.Product.Id, ProductNameSnapshot = entry.Product.Name, UnitPrice = line.UnitPrice, UnitCost = entry.Product.CostPrice, Quantity = line.Quantity });
-                return (true, $"{entry.Product.Name} x{line.Quantity} add kar diya ({Formatters.Money(line.UnitPrice)} each).");
+                order.Items.Add(new OrderItem { ProductId = entry.Product.Id, ProductNameSnapshot = line.ProductName, UnitPrice = line.UnitPrice, UnitCost = entry.Product.CostPrice, Quantity = line.Quantity });
+                return (true, $"{line.ProductName} x{line.Quantity} add kar diya ({Formatters.Money(line.UnitPrice)} each).");
             }
             case "phone":
                 order.Customer!.Phone = change.Text;

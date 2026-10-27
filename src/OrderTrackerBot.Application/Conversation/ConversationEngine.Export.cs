@@ -45,6 +45,25 @@ public partial class ConversationEngine
             return;
         }
 
+        var file = await BuildExportAsync(seller, request, ct);
+        if (file.Bytes is null)
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("export.003", file.Summary), ct);
+            return;
+        }
+        var sent = await _sender.SendDocumentAsync(seller.WhatsAppPhoneNumber, file.Bytes, file.FileName, XlsxMime,
+            $"📊 Export — {file.Summary}", ct);
+        await ReplyAsync(seller, sent
+            ? MessageTemplates.Get("export.004")
+            : MessageTemplates.Get("export.005"), ct);
+    }
+
+    /// <summary>
+    /// The Excel file for one export request, shared by the WhatsApp send and "email export". <c>Bytes</c> is null when no dataset has rows
+    /// (<c>Summary</c> then says what was looked at). Needs the export writer, which the callers check first.
+    /// </summary>
+    private async Task<(byte[]? Bytes, string FileName, string Summary)> BuildExportAsync(Seller seller, ExportRequest request, CancellationToken ct)
+    {
         var tz = SellerClock.Resolve(seller.TimeZoneId);
         DateTime? Local(DateTime? utc) => utc is null ? null : TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc.Value, DateTimeKind.Utc), tz);
 
@@ -58,6 +77,7 @@ public partial class ConversationEngine
                 "orders" => await BuildOrderSheetsAsync(seller, request.Period, Local, ct),
                 "customers" => await BuildCustomerSheetsAsync(seller, Local, ct),
                 "catalog" => await BuildCatalogSheetsAsync(seller, Local, ct),
+                "expenses" => await BuildExpenseSheetsAsync(seller, request.Period, Local, ct),
                 _ => await BuildDiscountSheetsAsync(seller, Local, ct)
             };
             sheets.AddRange(built.Sheets);
@@ -65,22 +85,14 @@ public partial class ConversationEngine
             anyRows |= built.Sheets.Any(s => s.Rows.Count > 0);
         }
 
-        if (!anyRows)
-        {
-            await ReplyAsync(seller, MessageTemplates.Get("export.003", string.Join(", ", summary)), ct);
-            return;
-        }
+        if (!anyRows) return (null, "", string.Join(", ", summary));
 
         // The Guide tab goes last so the file opens on the data; it explains every column of the sheets above.
         sheets.Add(DataExchangeGuide.BuildGuideSheet(sheets.ToList(), template: false));
-        var bytes = _exportWriter.WriteXlsx(sheets);
+        var bytes = _exportWriter!.WriteXlsx(sheets);
         var today = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
         var fileName = $"{SafeFileStem(seller.BusinessName)}-export-{today:yyyy-MM-dd}.xlsx";
-        var sent = await _sender.SendDocumentAsync(seller.WhatsAppPhoneNumber, bytes, fileName, XlsxMime,
-            $"📊 Export — {string.Join(", ", summary)}", ct);
-        await ReplyAsync(seller, sent
-            ? MessageTemplates.Get("export.004")
-            : MessageTemplates.Get("export.005"), ct);
+        return (bytes, fileName, string.Join(", ", summary));
     }
 
     private static string SafeFileStem(string? businessName)
@@ -122,7 +134,7 @@ public partial class ConversationEngine
             Col("Payment method", typeof(string)), Col("Paid on", typeof(DateTime)), Col("Courier", typeof(string)), Col("Tracking #", typeof(string)),
             Col("Source", typeof(string)), Col("Delivery date", typeof(DateTime)), Col("Notes", typeof(string)),
             Col("Receipt #", typeof(int)), Col("Sales tax %", typeof(decimal)), Col("Sales tax", typeof(decimal)),
-            Col("Tax withheld", typeof(decimal)), Col("Net after withholding", typeof(decimal))
+            Col("Tax withheld", typeof(decimal)), Col("Net after withholding", typeof(decimal)), Col("Courier fee", typeof(decimal))
         }, orders.Select(o => new object?[]
         {
             o.Id, local(o.CreatedAt), o.Customer?.Name, o.Customer?.Phone,
@@ -131,7 +143,7 @@ public partial class ConversationEngine
             o.DiscountCode, o.DeliveryCharge, o.Total, Formatters.Status(o.Status), o.PaymentStatus.ToString(), OrderMoney.Received(o), OrderMoney.Balance(o),
             o.PaymentMethod switch { OrderPaymentMethod.Cod => "COD", OrderPaymentMethod.Manual => "Transfer", OrderPaymentMethod.Gateway => "Online", _ => "" },
             local(o.PaidAt), o.TrackingCourier, o.TrackingNumber, o.OrderSource, local(o.DeliveryDate), o.Notes,
-            o.ReceiptNumber, o.SalesTaxRate, SalesTax.Amount(o), o.TaxWithheld, SalesTax.NetOfWithheld(o)
+            o.ReceiptNumber, o.SalesTaxRate, SalesTax.Amount(o), o.TaxWithheld, SalesTax.NetOfWithheld(o), o.CourierFee
         }).ToList());
 
         var itemSheet = new ExportSheet("Order Items", new[]
@@ -141,6 +153,28 @@ public partial class ConversationEngine
         }, orders.SelectMany(o => o.Items.Select(i => new object?[] { o.Id, o.Customer?.Name, i.ProductNameSnapshot, i.Quantity, i.UnitPrice, i.LineTotal })).ToList());
 
         return (label, new List<ExportSheet> { orderSheet, itemSheet });
+    }
+
+    /// <summary>Expenses in the export's period (same period words as the orders sheet; default = all time). Courier fees are on the Orders sheet.</summary>
+    private async Task<(string Label, List<ExportSheet> Sheets)> BuildExpenseSheetsAsync(Seller seller, string? period, Func<DateTime?, DateTime?> local, CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+        var (start, end) = period switch
+        {
+            "today" or "yesterday" or "lastmonth" or "7d" or "30d" => ReportRange(seller, period),
+            not null when ReportPeriods.Resolve(period, seller.TimeZoneId, now) is { } resolved => (resolved.StartUtc, resolved.EndUtc),
+            _ => (DateTime.MinValue, DateTime.MaxValue)
+        };
+        var label = period is null ? "Expenses" : $"Expenses ({PeriodLabel(seller, period).ToLowerInvariant()})";
+
+        var expenses = await _db.Expenses.AsNoTracking()
+            .Where(x => x.SellerId == seller.Id && x.CreatedAt >= start && x.CreatedAt < end)
+            .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).ToListAsync(ct);
+        var sheet = new ExportSheet("Expenses", new[]
+        {
+            Col("Date", typeof(DateTime)), Col("Category", typeof(string)), Col("Note", typeof(string)), Col("Amount", typeof(decimal))
+        }, expenses.Select(x => new object?[] { local(x.CreatedAt), x.Category, x.Note, x.Amount }).ToList());
+        return (label, new List<ExportSheet> { sheet });
     }
 
     private async Task<(string Label, List<ExportSheet> Sheets)> BuildCustomerSheetsAsync(Seller seller, Func<DateTime?, DateTime?> local, CancellationToken ct)

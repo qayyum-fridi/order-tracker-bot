@@ -120,7 +120,8 @@ public partial class ConversationEngine
         var returned = orders.Where(o => o.Status == OrderStatus.Returned).ToList();
         var shippedEver = orders.Count(o => o.ShippedAt != null || o.Status is OrderStatus.Shipped or OrderStatus.Delivered or OrderStatus.Returned);
         var cancelledAfterShip = cancelled.Count(o => o.ShippedAt != null);
-        var lost = cancelled.Sum(o => o.Total) + returned.Sum(o => o.Total);
+        // Money really lost: returned parcels, and orders cancelled after they were shipped. A cancelled order that never left the shop lost only the sale.
+        var lost = returned.Sum(o => o.Total) + cancelled.Where(o => o.ShippedAt != null).Sum(o => o.Total);
 
         await ReplyAsync(seller,
             MessageTemplates.Get("insights2.008", label, orders.Count, cancelled.Count, Pct((decimal)cancelled.Count / orders.Count * 100m), (cancelledAfterShip > 0 ? $" — {cancelledAfterShip} bhejne ke baad" : ""), returned.Count, (shippedEver > 0 ? $" ({Pct((decimal)returned.Count / shippedEver * 100m)} bheje gaye {shippedEver} orders mein se)" : ""), Formatters.Money(lost)), ct);
@@ -159,7 +160,7 @@ public partial class ConversationEngine
             .OrderBy(g => g.Avg).ToList();
         var lines = groups.Select(g => $"• {g.Name}: average {Num((decimal)g.Avg)} din ({g.Orders} orders, sab se der {Num((decimal)g.Max)} din)");
         await ReplyAsync(seller,
-            MessageTemplates.Get("insights2.011", label, string.Join("\n", lines), (fromOrder > 0 ? $"\nℹ️ {fromOrder} order(s) mein \"shipped\" nahi likha tha, un ka waqt order banne se ginta hai (zyada aa sakta hai)." : "")), ct);
+            MessageTemplates.Get("insights2.011", label, string.Join("\n", lines), (fromOrder > 0 ? $"\nℹ️ {fromOrder} order(s) mein \"shipped\" nahi likha tha, un ka waqt order banne se ginta hai (zyada aa sakta hai)." : "")) + await ProductDeliverySectionAsync(seller, text, start, end, ct), ct);
         SuggestNext("orders today", "cod pending");
     }
 
@@ -344,6 +345,21 @@ public partial class ConversationEngine
             sb.Append($"\n\nCategory set karne ke liye likhein, jaise: \"{Industry(seller).FullProduct}\".");
         await ReplyAsync(seller, sb.ToString(), ct);
         SuggestNext("sales by category", "catalog");
+    }
+
+    /// <summary>Money tied up in tracked stock: units x cost price (the selling price when no cost is written). Plain arithmetic.</summary>
+    private async Task InsightStockValueAsync(Seller seller, CancellationToken ct)
+    {
+        var tracked = await _db.Products.AsNoTracking().Where(p => p.SellerId == seller.Id && p.IsActive && p.StockQty != null).ToListAsync(ct);
+        if (tracked.Count == 0)
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("insights2.032"), ct);
+            return;
+        }
+        var total = tracked.Sum(p => (decimal)p.StockQty!.Value * (p.CostPrice ?? p.Price));
+        var noCost = tracked.Count(p => p.CostPrice is null);
+        var note = noCost > 0 ? MessageTemplates.Get("insights2.034", noCost) : "";
+        await ReplyAsync(seller, MessageTemplates.Get("insights2.033", tracked.Count, Formatters.Money(total), note), ct);
     }
 
     private async Task InsightUntrackedStockAsync(Seller seller, CancellationToken ct)

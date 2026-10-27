@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Conversation;
 using OrderTrackerBot.Infrastructure.WhatsApp;
@@ -5,8 +7,8 @@ using OrderTrackerBot.Infrastructure.WhatsApp;
 namespace OrderTrackerBot.Api;
 
 /// <summary>
-/// Handles queued WhatsApp messages outside the webhook request, so a slow AI call can no longer make Meta time out and retry, and
-/// a dropped connection can no longer cancel a message half-way. Each message gets its own scope and its own timeout, and goes
+/// Handles queued WhatsApp messages and Instagram comments outside the webhook request, so a slow AI call can no longer make Meta time
+/// out and retry, and a dropped connection can no longer cancel a message half-way. Each message gets its own scope and its own timeout, and goes
 /// through <see cref="WebhookMessageGate"/> exactly as before (per-sender lock + message-id claim). When a message ends, its
 /// pending row is deleted. At start, rows left over from a crash or restart are recovered: a message that never started is queued
 /// again; one that had already started is NOT re-run (it may have saved an order) — the seller is asked to send it again.
@@ -41,7 +43,7 @@ public sealed class WebhookWorkerService : BackgroundService
             var dropped = await _inbox.DropUnreadableAsync(stoppingToken);
             if (dropped > 0)
                 _logger.LogWarning("Removed {Dropped} unreadable WhatsApp message rows left by an earlier run", dropped);
-            var (requeued, interrupted) = await _inbox.RecoverAsync(AskToResendAsync, stoppingToken);
+            var (requeued, interrupted) = await _inbox.RecoverAsync(HandleInterruptedAsync, stoppingToken);
             if (requeued + interrupted > 0)
                 _logger.LogWarning("Recovered WhatsApp messages from the last run: {Requeued} queued again, {Interrupted} cut off mid-way (sellers asked to resend)", requeued, interrupted);
         }
@@ -51,13 +53,30 @@ public sealed class WebhookWorkerService : BackgroundService
         }
     }
 
-    private async Task AskToResendAsync(WebhookMessage message)
+    private async Task HandleInterruptedAsync(WebhookMessage message)
     {
         try
         {
             using var scope = _scopes.CreateScope();
+            if (message.Kind == WebhookMessageKind.InstagramComment)
+            {
+                // No WhatsApp chat behind a comment (From is the IG account id): nobody to ask, so the founder is told instead.
+                await scope.ServiceProvider.GetRequiredService<IIssueReporter>().ReportAsync(
+                    IssueCodes.InstagramCommentFailed, null, $"IG account {message.From}, comment {message.Id} cut off by a restart; not re-run");
+                return;
+            }
+
+            // The message may have saved an order before it was cut off: say which orders exist from the last minutes, so nothing is saved twice.
+            var db = scope.ServiceProvider.GetRequiredService<OrderTrackerBot.Infrastructure.Persistence.AppDbContext>();
+            var since = DateTime.UtcNow.AddMinutes(-10);
+            var recent = await db.Orders.Where(o => o.Seller!.WhatsAppPhoneNumber == message.From && o.CreatedAt >= since)
+                .OrderByDescending(o => o.Id).Take(5).Select(o => o.Id).ToListAsync();
+            var recentLine = recent.Count > 0
+                ? $"\n\nPichle 10 minute mein yeh order save ho chuke hain: {string.Join(", ", recent.Select(id => "#" + id))}. Inhe dobara mat bhejiye."
+                : "\n\nPichle 10 minute mein koi naya order save nahi hua.";
+            var what = message.Kind == WebhookMessageKind.Audio ? "voice note" : "message";
             await scope.ServiceProvider.GetRequiredService<IWhatsAppSender>().SendTextMessageAsync(message.From,
-                "⚠️ Server restart ki wajah se aapka pichla message poora process nahi ho saka — meherbani karke dobara bhej dein. Kuch delete nahi hua.");
+                $"⚠️ Server restart ki wajah se aapka pichla {what} poora process nahi ho saka. Kuch delete nahi hua. Barae meherbani use dobara bhej dein (voice mushkil ho to likh kar bhi bhej sakte hain).{recentLine}");
             await scope.ServiceProvider.GetRequiredService<IIssueReporter>().ReportAsync(
                 IssueCodes.WebhookMessageInterrupted, message.From, $"{message.Kind} message {message.Id}");
         }
@@ -82,6 +101,19 @@ public sealed class WebhookWorkerService : BackgroundService
         if (left > 0) _logger.LogWarning("Webhook lane {Lane} stopped with {Count} message(s) still queued; they are recovered at the next start", lane, left);
     }
 
+    // A sender who sends several messages while one is still being handled gets the waiting notice once, not once per message.
+    private static readonly TimeSpan WaitingNoticeEvery = TimeSpan.FromSeconds(30);
+    private readonly ConcurrentDictionary<string, DateTime> _lastWaitingNotice = new();
+
+    private bool ShouldSayWaiting(string sender)
+    {
+        var now = DateTime.UtcNow;
+        var last = _lastWaitingNotice.GetOrAdd(sender, DateTime.MinValue);
+        if (now - last < WaitingNoticeEvery) return false;
+        _lastWaitingNotice[sender] = now;
+        return true;
+    }
+
     private async Task ProcessAsync(WebhookWork work)
     {
         // Not tied to the app-stopping token: the message in hand is finished (bounded by its own timeout) before the lane stops.
@@ -89,10 +121,17 @@ public sealed class WebhookWorkerService : BackgroundService
         var ct = timeout.Token;
         using var scope = _scopes.CreateScope();
         var engine = scope.ServiceProvider.GetRequiredService<ConversationEngine>();
+        var clock = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             var gate = scope.ServiceProvider.GetRequiredService<WebhookMessageGate>();
+            if (gate.IsBusy(work.From) && ShouldSayWaiting(work.From))
+                await engine.SendWaitingNoticeAsync(work.From, CancellationToken.None);
             await gate.RunOnceAsync(work.From, work.MessageId, () => work.Handle(engine, ct), ct);
+            if (clock.ElapsedMilliseconds > 3000)
+                _logger.LogWarning("Slow WhatsApp message from {From}: handled in {Ms} ms", work.From, clock.ElapsedMilliseconds);
+            else
+                _logger.LogInformation("WhatsApp message from {From} handled in {Ms} ms", work.From, clock.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {

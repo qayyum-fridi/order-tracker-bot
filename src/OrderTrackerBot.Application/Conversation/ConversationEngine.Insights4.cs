@@ -250,7 +250,7 @@ public partial class ConversationEngine
     private async Task InsightLockedCapitalAsync(Seller seller, int days, CancellationToken ct)
     {
         days = Math.Clamp(days, 7, 730);
-        var since = DateTime.UtcNow.AddDays(-days);
+        var since = SellerClock.DaysAgoUtc(days, DateTime.UtcNow);
         var tracked = await _db.Products.AsNoTracking().Where(p => p.SellerId == seller.Id && p.IsActive && p.StockQty > 0 && p.CreatedAt < since).ToListAsync(ct);
         if (tracked.Count == 0)
         {
@@ -335,23 +335,32 @@ public partial class ConversationEngine
             ? (HijriWindow(9, 1, 0, 29, year))
             : HijriWindow(10, 1, 10, 2, year);
 
-        // This year's season if it has already ended (and "last year" was not said), otherwise last year's.
-        var thisYear = Window(now.Year);
-        var year = lastYear ? now.Year - 1 : thisYear is { } t && t.End <= now ? now.Year : now.Year - 1;
-        var window = Window(year);
-        if (window is not { } w)
+        // A full year of data is not needed: the newest season that has started and has sales is compared. A season still running is
+        // measured up to today ("abhi tak"). "Last year" is only used when it was asked for.
+        var candidates = lastYear ? new[] { now.Year - 1 } : new[] { now.Year, now.Year - 1 };
+        (DateTime Start, DateTime End, int Year)? chosen = null;
+        IReadOnlyList<(decimal Total, int Id)> inSeason = Array.Empty<(decimal, int)>();
+        foreach (var candidate in candidates)
         {
-            await ReplyAsync(seller, MessageTemplates.Get("insights4.023"), ct);
+            if (Window(candidate) is not { } cw || cw.Start > now) continue;
+            var end = cw.End < now ? cw.End : now;
+            var rows = await ActiveOrdersIn(seller, cw.Start, end).Select(o => new { o.Id, o.Total }).ToListAsync(ct);
+            if (rows.Count == 0) continue;
+            chosen = (cw.Start, end, candidate);
+            inSeason = rows.Select(r => (r.Total, r.Id)).ToList();
+            break;
+        }
+
+        if (chosen is not { } w)
+        {
+            var upcoming = Window(now.Year);
+            await ReplyAsync(seller, MessageTemplates.Get("insights4.024", name, $"{upcoming?.Start:d MMM}", $"{upcoming?.End.AddDays(-1):d MMM yyyy}"), ct);
             return;
         }
 
-        var inSeason = await ActiveOrdersIn(seller, w.Start, w.End).Select(o => new { o.Id, o.Total }).ToListAsync(ct);
-        var days = Math.Max(1, (int)(w.End - w.Start).TotalDays);
-        if (inSeason.Count == 0)
-        {
-            await ReplyAsync(seller, MessageTemplates.Get("insights4.024", name, $"{w.Start:d MMM}", $"{w.End.AddDays(-1):d MMM yyyy}"), ct);
-            return;
-        }
+        var fullEnd = Window(w.Year)?.End ?? w.End;
+        var endText = w.End < fullEnd ? "abhi tak" : $"{w.End.AddDays(-1):d MMM yyyy}";
+        var days = Math.Max(1, (int)Math.Ceiling((w.End - w.Start).TotalDays));
 
         var seasonDaily = inSeason.Sum(o => o.Total) / days;
         var baselineStart = w.Start.AddDays(-30);
@@ -361,12 +370,12 @@ public partial class ConversationEngine
         var top = (await _db.OrderItems.AsNoTracking().Where(i => ids.Contains(i.OrderId)).Select(i => new { i.ProductNameSnapshot, i.Quantity }).ToListAsync(ct))
             .GroupBy(i => i.ProductNameSnapshot, StringComparer.OrdinalIgnoreCase).Select(g => (Name: g.Key, Units: g.Sum(i => i.Quantity))).OrderByDescending(x => x.Units).Take(5).ToList();
 
-        var recent = (await ActiveOrdersIn(seller, now.AddDays(-30), DateTime.MaxValue).Select(o => o.Total).ToListAsync(ct)).Sum() / 30m;
+        var recent = (await ActiveOrdersIn(seller, SellerClock.DaysAgoUtc(30, now), DateTime.MaxValue).Select(o => o.Total).ToListAsync(ct)).Sum() / 30m;
         var nextHint = uplift is { } u && recent > 0
             ? $"\n\nAgli baar ke liye andaza: aaj ki roz ki sale {Formatters.Money(Math.Round(recent))} × {Num(u)} guna = taqreeban {Formatters.Money(Math.Round(recent * u))} roz. Top products ka stock isi hisab se barhayein: " + string.Join(", ", top.Take(3).Select(t => t.Name)) + "."
             : "";
         await ReplyAsync(seller,
-            MessageTemplates.Get("insights4.025", name, $"{w.Start:d MMM}", $"{w.End.AddDays(-1):d MMM yyyy}", Formatters.Money(Math.Round(seasonDaily)), inSeason.Count, (uplift is { } up ? $"Is se pehle ke 30 din: {Formatters.Money(Math.Round(baseline))} roz → {Num(up)} guna\n" : "Is se pehle ke 30 din ka data nahi.\n"), string.Join(", ", top.Select(t => $"{t.Name} ({t.Units})")), nextHint), ct);
+            MessageTemplates.Get("insights4.025", name, $"{w.Start:d MMM}", endText, Formatters.Money(Math.Round(seasonDaily)), inSeason.Count, (uplift is { } up ? $"Is se pehle ke 30 din: {Formatters.Money(Math.Round(baseline))} roz → {Num(up)} guna\n" : "Is se pehle ke 30 din ka data nahi.\n"), string.Join(", ", top.Select(t => $"{t.Name} ({t.Units})")), nextHint), ct);
         SuggestNext("stock", "trending products");
     }
 

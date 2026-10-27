@@ -93,6 +93,8 @@ internal static class InsightParser
     private static readonly Regex Compare = W(@"muqable\w*|mukable\w*|muqabla|comparison|compare\w*|vs|versus|behtar|better|worse|kaisi|kaisa|مقابل\w*|بہتر|کیسی|کیسا");
     private static readonly Regex ProfitWord = W(@"faid\w*|fayd\w*|munaf\w*|nafe|nafa|profit|gain|فائد\w*|منافع|نفع");
     private static readonly Regex LossWord = W(@"nuksan|nuqsan|nuqsaan|loss|نقصان");
+    // "profit per product", "product wise munafa", "har product ka profit": the per-product split of profit.
+    private static readonly Regex ProductWise = W(@"product\s*wise|per\s+product|har\s+product|product\s+ke\s+(?:hisab|mutabiq)|products?\s+ke\s+hisab|ہر\s+(?:پروڈکٹ|product)|پروڈکٹ\s+(?:کے\s+حساب|وار)");
 
     private static readonly Regex LowWord = W(@"kam|sab\s+se\s+kam|lowest|least|worst|minimum|کم");
     private static readonly Regex DeadStock = W(@"nahi\s+bik\w*|bilkul\s+nahi|dead\s+stock|not\s+selling|clear\s+kar\w*|phans\w*|نہیں\s+بک\w*|پھنس\w*");
@@ -149,6 +151,7 @@ internal static class InsightParser
 
         if (Discount.IsMatch(text) && CanGive.IsMatch(text) && !Pct.IsMatch(text)) return new ParsedCommand { Kind = CommandKind.Margin };
         if (MarginExplicit.IsMatch(text) && AskWord.IsMatch(text) && !Discount.IsMatch(text)) return new ParsedCommand { Kind = CommandKind.Margin, Text = LowWord.IsMatch(text) ? "low" : null };
+        if (ProfitWord.IsMatch(text) && ProductWise.IsMatch(text) && !LossWord.IsMatch(text)) return Topic("productprofit");
         if (LossWord.IsMatch(text) && Product.IsMatch(text) && (Which.IsMatch(text) || SoldWord.IsMatch(text)) && !ProfitWord.IsMatch(text)) return new ParsedCommand { Kind = CommandKind.Margin, Text = "low" };
         if (ProfitWord.IsMatch(text) && BigWord.IsMatch(text) && (Product.IsMatch(text) || Which.IsMatch(text)) && !LossWord.IsMatch(text) && !Customer.IsMatch(text)) return new ParsedCommand { Kind = CommandKind.Margin };
 
@@ -182,6 +185,9 @@ internal static class InsightParser
         if (LeadSubject.IsMatch(text) && LeadVerb.IsMatch(text) && !How.IsMatch(text) && !Which.IsMatch(text) && DaysNumber.Match(text) is { Success: true } lead
             && int.TryParse(lead.Groups["n"].Value, out var leadDays) && leadDays > 0)
             return Topic("leadtime", leadDays);
+        // Short phrases on their own: "untracked", "stock value", "stock ka total value".
+        if (Regex.IsMatch(text, @"^\s*untracked(\s+(stock|products?))?\s*$", RegexOptions.IgnoreCase)) return Topic("untracked");
+        if (Regex.IsMatch(text, @"^\s*(total\s+)?stock\s+(ka\s+|ki\s+)?(total\s+)?value\s*$", RegexOptions.IgnoreCase)) return Topic("stockvalue");
         if (Track.IsMatch(text) && Not.IsMatch(text) && (Product.IsMatch(text) || StockWord.IsMatch(text))) return Topic("untracked");
         if ((StockWord.IsMatch(text) && Finish.IsMatch(text)) || LowStock.IsMatch(text)) return Topic("stockending", NumberOfDays(text));
         if (Reorder.IsMatch(text) && (StockWord.IsMatch(text) || Product.IsMatch(text) || Need.IsMatch(text))) return Topic("reorder");

@@ -11,6 +11,8 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<Seller> Sellers => Set<Seller>();
     public DbSet<ConversationSession> Sessions => Set<ConversationSession>();
     public DbSet<Product> Products => Set<Product>();
+    public DbSet<ProductImage> ProductImages => Set<ProductImage>();
+    public DbSet<CustomerPhoto> CustomerPhotos => Set<CustomerPhoto>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
@@ -32,6 +34,8 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<SupportQuery> SupportQueries => Set<SupportQuery>();
     public DbSet<SellerBranding> SellerBrandings => Set<SellerBranding>();
     public DbSet<Expense> Expenses => Set<Expense>();
+    public DbSet<BuyerEnquiry> BuyerEnquiries => Set<BuyerEnquiry>();
+    public DbSet<StrategyStat> StrategyStats => Set<StrategyStat>();
     public DbSet<Loss> Losses => Set<Loss>();
     public DbSet<WageEntry> WageEntries => Set<WageEntry>();
     public DbSet<CashDrawerSession> CashDrawerSessions => Set<CashDrawerSession>();
@@ -158,11 +162,18 @@ public class AppDbContext : DbContext, IAppDbContext
         });
         modelBuilder.Entity<SupportQuery>(e => e.HasIndex(q => new { q.SellerId, q.Number }));
         modelBuilder.Entity<SellerBranding>(e => e.HasIndex(b => b.SellerId).IsUnique());
+        modelBuilder.Entity<CustomerPhoto>(e => e.HasIndex(p => new { p.SellerId, p.CustomerId }).IsUnique());
+        modelBuilder.Entity<ProductImage>(e =>
+        {
+            e.HasIndex(i => new { i.SellerId, i.ProductId });
+            e.HasOne(i => i.Product).WithMany().HasForeignKey(i => i.ProductId).OnDelete(DeleteBehavior.NoAction);
+        });
         modelBuilder.Entity<Expense>(e => e.HasIndex(x => new { x.SellerId, x.CreatedAt }));
         modelBuilder.Entity<Loss>(e => e.HasIndex(x => new { x.SellerId, x.CreatedAt }));
         modelBuilder.Entity<WageEntry>(e => e.HasIndex(x => new { x.SellerId, x.CreatedAt }));
         modelBuilder.Entity<CashDrawerSession>(e => e.HasIndex(x => new { x.SellerId, x.OpenedAt }));
         modelBuilder.Entity<Payout>(e => e.HasIndex(x => new { x.SellerId, x.ReceivedAt }));
+        modelBuilder.Entity<StrategyStat>(e => e.HasIndex(x => new { x.SellerId, x.Context, x.Arm }).IsUnique());
         modelBuilder.Entity<CashMovement>(e =>
         {
             e.HasIndex(x => new { x.SellerId, x.CreatedAt });

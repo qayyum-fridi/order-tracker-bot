@@ -32,7 +32,7 @@ public partial class ConversationEngine
             return;
         }
 
-        var since30 = DateTime.UtcNow.AddDays(-30);
+        var since30 = SellerClock.DaysAgoUtc(30, DateTime.UtcNow);
         var last30 = items.Where(i => i.CreatedAt >= since30).ToList();
         var lastOrder = items.Max(i => i.CreatedAt);
         var daysAgo = (int)(DateTime.UtcNow - lastOrder).TotalDays;
@@ -72,7 +72,7 @@ public partial class ConversationEngine
 
         string verdict;
         if (before.Units == 0 && now1.Units == 0) verdict = "dono mahine mein koi sale nahi";
-        else if (before.Units == 0) verdict = "pichle maah isi muddat mein koi sale nahi thi — behtar ✅";
+        else if (before.Units == 0) verdict = "pichle maah isi muddat mein koi sale nahi thi — tulna mumkin nahi.";
         else if (now1.Units > before.Units && now1.Amount >= before.Amount) verdict = $"behtar ✅ (+{(now1.Units - before.Units) * 100 / before.Units}% units)";
         else if (now1.Units < before.Units && now1.Amount <= before.Amount) verdict = $"kam ⚠️ ({(now1.Units - before.Units) * 100 / before.Units}% units)";
         else if (now1.Units == before.Units && now1.Amount == before.Amount) verdict = "barabar";

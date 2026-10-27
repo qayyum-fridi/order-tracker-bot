@@ -22,6 +22,8 @@ public class AdminReportsController : ControllerBase
     private const int DefaultRangeDays = 30;
     private const int MaxRangeDays = 366;
     private const int MaxPageSize = 100;
+    /// <summary>Highest page that keeps (page - 1) * pageSize inside an int: a larger page overflows and turns into a negative offset.</summary>
+    private const int MaxPage = int.MaxValue / MaxPageSize;
     private const int SetupStepCount = 7;
     private static readonly TimeSpan StalledAfter = TimeSpan.FromHours(24);
     private static readonly TimeSpan NoOrderAfter = TimeSpan.FromDays(7);
@@ -33,6 +35,11 @@ public class AdminReportsController : ControllerBase
     {
         _db = db;
     }
+
+    /// <summary>Pilot numbers per seller for the last N days (default 7): orders saved, fixes, not-understood, voice notes, who came back, who pays.</summary>
+    [HttpGet("reports/pilot")]
+    public async Task<ActionResult<PilotReportDto>> Pilot([FromQuery] int days = 7, CancellationToken ct = default) =>
+        Ok(await PilotReport.BuildAsync(_db, days, DateTime.UtcNow, ct));
 
     /// <summary>Per-day sellers, active sellers, messages, orders, revenue, errors and issues for a date range (default: last 30 days).</summary>
     [HttpGet("reports/daily")]
@@ -103,7 +110,7 @@ public class AdminReportsController : ControllerBase
     public async Task<ActionResult<PagedResultDto<SellerSetupDto>>> Setup(
         [FromQuery] string? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default)
     {
-        page = Math.Max(1, page);
+        page = Math.Clamp(page, 1, MaxPage);
         pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
         var now = DateTime.UtcNow;
         var stalledCutoff = now - StalledAfter;
@@ -204,7 +211,7 @@ public class AdminReportsController : ControllerBase
         if (severity is null) return BadRequest(new { error = "kind must be errors or issues." });
         if (!AdminDateRange.TryResolve(from, to, DefaultRangeDays, out var range, out var error)) return BadRequest(new { error });
 
-        page = Math.Max(1, page);
+        page = Math.Clamp(page, 1, MaxPage);
         pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
 
         IQueryable<IssueRecord> query = _db.IssueRecords.AsNoTracking()
