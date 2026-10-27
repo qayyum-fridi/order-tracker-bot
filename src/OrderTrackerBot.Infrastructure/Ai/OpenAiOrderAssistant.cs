@@ -309,6 +309,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             $"Seller's saved customers (name, phone, order history):\n{customers}\n" +
             (context.RecentExchanges.Count == 0 ? "" : $"The last messages in this chat, oldest first (a short spoken answer usually replies to the last bot message):\n{string.Join("\n", context.RecentExchanges)}\n") + "\n" +
             "Rules: (1) Keep every digit of every number, price and phone; turn spoken number words into digits (char = 4, ek = 1, teen hazaar paanch sau = 3500). " +
+            "A spoken word for \"number\" (number, nambar, نمبر) before a figure is not part of the answer: write only the figure, in digits (\"number paanch bola tha\" = 5). " +
             "(2) If a yes/no answer is expected and the transcript clearly agrees (haan, ji, theek hai, kar do) answer exactly \"yes\"; if it clearly refuses " +
             "(nahi, ruko, mat karo) answer exactly \"no\". (3) If a numbered choice is expected, answer only the option number — from a number word " +
             "(pehla/first/ek = 1, dusra/second/do = 2) or from the meaning of the option the seller refers to. (4) When a product mentioned clearly is a catalog " +
