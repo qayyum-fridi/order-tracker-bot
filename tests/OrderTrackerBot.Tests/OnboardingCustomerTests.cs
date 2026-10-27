@@ -204,6 +204,39 @@ public class OnboardingCustomerTests : IDisposable
         _ai.Verify(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    // The exact voice note from the live chat: spoken at the add-product step, transcribed in Urdu script, rewritten by the model.
+    // The speech model and the rewrite are mocked here, so this checks the engine's path, not what the real model says.
+    [Fact]
+    public async Task VoiceNote_NewClientWithoutOrder_AtTheProductStep_IsSavedAsACustomer()
+    {
+        const string transcript = "میرے پاس نا ایک نیا کلائنٹ آیا ٹھیک ہے؟ جس کا نا ابھی آرڈر تو نہیں اس نے دیا لیکن اس نے نا اپنا دیا ہے جس کا ڈیٹیل وغیرہ نا پروفائل۔ تو اس کا نام ہے محمد علی اور فون وہ بعد میں دے گا جبکہ اس نے ایڈریس دیا ہے ماڈل ٹاؤن لاہور کے۔ تو یہ ایڈ کر دیں از کلائنٹ۔";
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+
+        var media = new Mock<IWhatsAppMediaClient>();
+        media.Setup(m => m.DownloadAsync("voice-1", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
+        var transcriber = new Mock<IAudioTranscriber>();
+        transcriber.SetupGet(t => t.IsConfigured).Returns(true);
+        transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>())).ReturnsAsync(transcript);
+        var voice = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: media.Object, transcriber: transcriber.Object);
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "Muhammad Ali, address Model Town Lahore, phone baad mein" }, Actions = { "reply" } });
+        AnalysisIs(new AiMessageAnalysis
+        {
+            Intent = "add_customer",
+            NewCustomer = new AiNewCustomer { Name = "Muhammad Ali", Address = "Model Town Lahore" }
+        });
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-1");
+
+        var saved = await db.Customers.SingleAsync(c => c.Name == "Muhammad Ali");
+        Assert.Equal("Model Town Lahore", saved.Address);
+        Assert.Null(saved.Phone);
+        Assert.Contains(_sent, m => m.Contains("Samjha"));
+        Assert.Contains(_sent, m => m.Contains("Muhammad Ali") && m.Contains("customer list"));
+        Assert.DoesNotContain(_sent, m => m.Contains("samajh nahi aaya"));
+    }
+
     [Fact]
     public async Task OwnStockStatement_AtTheProductStep_IsNotTakenAsAnOrder()
     {
