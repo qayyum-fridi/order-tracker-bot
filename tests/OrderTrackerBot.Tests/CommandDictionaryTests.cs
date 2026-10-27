@@ -92,6 +92,7 @@ public class CommandDictionaryTests
     [InlineData("customer add Sara, Model Town, 03001234567", CommandKind.CustomerAdd)]
     [InlineData("naya client Sara address Model Town phone 03001234567", CommandKind.CustomerAdd)]
     [InlineData("add customer Sara", CommandKind.CustomerAdd)]
+    [InlineData("mera customer hai jiska naam Sara hai, uska address Model Town hai", CommandKind.CustomerAdd)]
     [InlineData("naya product: Kurti - 1800", CommandKind.AddProduct)]
     [InlineData("Polo Shirt - 500, cost 300, stock 10, category: Shirts", CommandKind.AddProduct)]
     [InlineData("create discount: EID10, 10 percent", CommandKind.CreateDiscount)]

@@ -305,15 +305,28 @@ public static class CommandParser
     // "customer add Sara, Model Town, 0300…", "naya client hai Muhammad Ali, address Model Town Lahore, phone baad mein": a buyer saved before any order.
     // Text = name, Text2 = phone, Text3 = address, Text4 = city. Plain rules, no AI: the same words work when the model is not reachable.
     private static readonly Regex CustomerAddPrefix = new(
-        @"^(?:(?:customer|client|gahak|grahak|کسٹمر|کلائنٹ|گاہک)\s+(?:add|jodo|shamil)|(?:add|new|naya|nayi|naye|نیا|نئی)\s+(?:customer|client|gahak|grahak|کسٹمر|کلائنٹ|گاہک))(?:\s+(?:karo|kar\s+do|hai|hain|ye|yeh))?\s*[:\-–,]?\s*(?<rest>.+)$", Opts);
+        @"^(?:(?:customer|client|gahak|grahak|کسٹمر|کلائنٹ|گاہک)\s+(?:add|jodo|shamil)|(?:add|new|naya|nayi|naye|نیا|نئی)\s+(?:customer|client|gahak|grahak|کسٹمر|کلائنٹ|گاہک)(?![\p{L}\p{N}]))(?:\s+(?:karo|kar\s+do|hai|hain|ye|yeh))?\s*[:\-–,]?\s*(?<rest>.+)$", Opts);
+    // The way a seller says it aloud: "mera customer hai jiska naam Bilal hai, ...", "ek naya client aaya hai, uska naam Bilal hai", "میرا کسٹمر ہے جس کا نام محمد علی ہے".
+    private static readonly Regex CustomerAddSentencePrefix = new(
+        @"^(?:(?:mera|meri|mere|میرا|میری|میرے)\s+)?(?:(?:ek\s+)?(?:naya|nayi|naye|new)\s+|(?:ایک\s+)?(?:نیا|نئی)\s+)?(?:customer|client|gahak|grahak|کسٹمر|کلائنٹ|گاہک)(?![\p{L}\p{N}])"
+        + @"(?:\s+(?:aaya|aya|hai|hain|آیا|ہے|ہیں))*\s*[,،]?\s*(?:(?:(?:jis|us|is)\s*(?:ka|ki)|(?:جس|اس)\s*(?:کا|کی)|ka|ki|کا|کی)\s+)?(?:naam|name|نام)\b\s*(?:hai\b|ہے)?\s*[:\-–,،]?\s*(?<rest>.+)$", Opts);
     private static readonly Regex CustomerAddLabel = new(
-        @"(?<![\p{L}\p{N}])(?<k>address|pata|patta|phone|fone|mobile|number|city|shehar|پتہ|فون|نمبر|شہر)(?![\p{L}\p{N}])", Opts);
+        @"(?<![\p{L}\p{N}])(?<k>address|pata|patta|phone|fone|mobile|number|city|shehar|پتہ|ایڈریس|ایڈرس|فون|موبائل|نمبر|شہر)(?![\p{L}\p{N}])", Opts);
     private static readonly Regex CustomerAddPhoneLike = new(@"^\+?\d[\d\s-]{8,16}\d$", Opts);
     private static readonly Regex CustomerAddNameBlocked = new(@"^(?:order|orders|list|report|search|find|phone|number|address|city|summary|catalog|price)\b", Opts);
     private static readonly Regex CustomerAddNameWord = new(@"^[\p{L}\p{M}.'’-]+$", Opts);
-    private static readonly Regex CustomerAddTrailingFiller = new(@"\s+(?:hai|hain)$", Opts);
+    // "Muhammad Ali hai", "ماڈل ٹاؤن لاہور ہے", "address ... uska": spoken filler around a value is not part of it.
+    private static readonly Regex CustomerAddTrailingFiller = new(@"\s+(?:hai|hain|ہے|ہیں|uska|uski|iska|iski|اس\s+کا|اس\s+کی)$", Opts);
+    private static readonly Regex CustomerAddLeadingFiller = new(@"^(?:hai|hain|ہے|ہیں)\s+", Opts);
+    private static readonly char[] CustomerAddEdge = { ',', '،', ':', ';', '=', '-', '–', '—', '.', '!', '۔', ' ' };
 
-    private static string CleanCustomerPart(string text) => CustomerAddTrailingFiller.Replace(text.Trim().Trim(',', '،', ':', ';', '=', '-', '–', '—', '.', '!', '۔', ' '), "").Trim();
+    private static string CleanCustomerPart(string text)
+    {
+        var value = text.Trim().Trim(CustomerAddEdge);
+        value = CustomerAddLeadingFiller.Replace(value, "");
+        value = CustomerAddTrailingFiller.Replace(value, "");
+        return value.Trim().Trim(CustomerAddEdge);
+    }
 
     private static bool ValidCustomerName(string name)
     {
@@ -325,6 +338,7 @@ public static class CommandParser
     private static ParsedCommand? TryParseCustomerAdd(string message)
     {
         var m = CustomerAddPrefix.Match(message.Trim());
+        if (!m.Success) m = CustomerAddSentencePrefix.Match(message.Trim());
         if (!m.Success) return null;
         var rest = m.Groups["rest"].Value.Trim();
         string name;
@@ -1455,6 +1469,8 @@ public static class CommandParser
         if (ShareCatalog.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ShareCatalog };
         if ((m = MenuCategory.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.MenuCategory, Text = m.Groups[1].Value.ToLowerInvariant() };
+        // Before the customer look-ups: "mera customer hai jiska naam ..." would otherwise read as "is there a customer ...?".
+        if (!wasQuestion && TryParseCustomerAdd(message) is { } customerAdd) return customerAdd;
         if (CustomerList.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CustomerList };
         if ((m = CustomerSearch.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.CustomerSearch, Text = m.Groups[1].Value.Trim() };
@@ -1581,7 +1597,6 @@ public static class CommandParser
         if (TryParseForwardedQuery(message, out var asker, out var question))
             return new ParsedCommand { Kind = CommandKind.ForwardedQuery, Text = asker, Text2 = question };
 
-        if (!wasQuestion && TryParseCustomerAdd(message) is { } customerAdd) return customerAdd;
         if (!wasQuestion && TryParseCustomerUpdate(message) is { } customerUpdate) return customerUpdate;
         if ((m = CustomerDetail.Match(message)).Success)
         {
