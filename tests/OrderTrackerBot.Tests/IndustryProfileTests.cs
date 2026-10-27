@@ -369,6 +369,18 @@ public class IndustryQuestionTests : IDisposable
         Assert.Equal(title, (await db.Sellers.FindAsync(seller.Id))!.BusinessType);
     }
 
+    [Theory]
+    [InlineData("5", "Food / Bakery")]
+    [InlineData("Yeh main ne number 5 bola tha", "Food / Bakery")]
+    [InlineData("number 2", "Grocery / Kiryana")]
+    public async Task ANumberFromTheList_IsUnderstood_AndSaved(string typed, string title)
+    {
+        var (db, engine, seller) = await StartAsync();
+        await engine.HandleIncomingMessageAsync(Phone, "Bilal Mart", default);
+        await engine.HandleIncomingMessageAsync(Phone, typed, default);
+        Assert.Equal(title, (await db.Sellers.FindAsync(seller.Id))!.BusinessType);
+    }
+
     [Fact]
     public async Task AnUnknownAnswer_AsksAgain_AndNothingIsSaved()
     {

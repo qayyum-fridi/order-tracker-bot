@@ -276,6 +276,7 @@ public partial class ConversationEngine
                     return;
                 }
                 seller.BusinessType = picked.Title;
+                await _db.SaveChangesAsync(ct);
                 await StartProductStepAsync(seller, session, ct);
                 return;
             }
