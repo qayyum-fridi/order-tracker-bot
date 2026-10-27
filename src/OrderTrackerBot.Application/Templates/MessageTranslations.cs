@@ -23,6 +23,7 @@ public static class MessageTranslations
     private const string IndustryFile = "industry-profiles.json";
     // A template with less fixed text than this would match almost any message, so it is never matched.
     private const int MinFixedLength = 4;
+    private const string ParagraphBreak = "\n\n";
     private static readonly Regex PlaceholderPattern = new(@"\{(\d+)\}", RegexOptions.Compiled);
     // A line of a multi-line argument: its bullet or number ("• ", "1. ") and the text after it.
     private static readonly Regex LinePrefix = new(@"^(\s*(?:[•\-\*]|\d+[.)])?\s*)(.*)$", RegexOptions.Singleline);
@@ -43,6 +44,10 @@ public static class MessageTranslations
         translated = text;
         if (!Texts.TryGetValue(language, out var texts) || !ShopWording.TryGetValue(language, out var shop)) return false;
 
+        // Several rendered templates sent as one message (the guide's steps) are translated paragraph by paragraph.
+        if (text.Contains(ParagraphBreak) && TryTranslateParagraphs(text, language, out translated)) return true;
+        translated = text;
+
         foreach (var matcher in Matchers)
         {
             var match = matcher.Pattern.Match(text);
@@ -52,7 +57,7 @@ public static class MessageTranslations
             var args = new string[matcher.ArgumentCount];
             for (var i = 0; i < matcher.ArgumentSlots.Length; i++)
             {
-                args[matcher.ArgumentSlots[i]] = Localize(match.Groups[i + 1].Value, shop);
+                args[matcher.ArgumentSlots[i]] = TranslateArgument(match.Groups[i + 1].Value, language, shop);
             }
 
             var complete = true;
@@ -69,6 +74,26 @@ public static class MessageTranslations
         }
         return false;
     }
+
+    /// <summary>
+    /// A paragraph-joined message translates only when every paragraph is a template of its own; otherwise the caller matches it as a whole.
+    /// </summary>
+    private static bool TryTranslateParagraphs(string text, string language, out string translated)
+    {
+        translated = text;
+        var parts = text.Split(ParagraphBreak);
+        var result = new string[parts.Length];
+        for (var i = 0; i < parts.Length; i++)
+        {
+            if (!TryTranslate(parts[i], language, out result[i])) return false;
+        }
+        translated = string.Join(ParagraphBreak, result);
+        return true;
+    }
+
+    /// <summary>An argument that is itself a rendered template (a guide step inside a step header) is translated too; anything else is localised as before.</summary>
+    private static string TranslateArgument(string value, string language, IReadOnlyDictionary<string, string> shop) =>
+        TryTranslate(value, language, out var translated) ? translated : Localize(value, shop);
 
     /// <summary>
     /// A shop title or tip passed as an argument is swapped for its translation, alone or one per line behind a bullet ("• tip").
