@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using System.Text.RegularExpressions;
+using OrderTrackerBot.Application.Ai;
 using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
@@ -112,6 +113,27 @@ public partial class ConversationEngine
             MessageTemplates.Get("onboarding.002", TrialStartedText(seller)), ct);
         await HandleAnalysisAsync(seller, session, ctx, analysis, catalog, fromScreenshot: false, ct);
         return true;
+    }
+
+    /// <summary>Saves a buyer named without an order (phone, address and city when said) and returns the reply. An existing customer is left as it is.</summary>
+    private async Task<string> SaveNewCustomerAsync(Seller seller, AiNewCustomer buyer, CancellationToken ct)
+    {
+        var name = buyer.Name.Trim();
+        if (await _db.Customers.AnyAsync(c => c.SellerId == seller.Id && c.Name.ToLower() == name.ToLower(), ct))
+            return MessageTemplates.Get("onboarding.038", name);
+
+
+        var phone = buyer.Phone?.Trim();
+        _db.Customers.Add(new Customer
+        {
+            SellerId = seller.Id,
+            Name = name,
+            Phone = IsPlausiblePhone(phone) ? phone : null,
+            Address = buyer.Address?.Trim(),
+            City = buyer.City?.Trim()
+        });
+        await _db.SaveChangesAsync(ct);
+        return MessageTemplates.Get("onboarding.037", name);
     }
 
     private static readonly string BusinessInfoPrompt =
@@ -416,6 +438,13 @@ public partial class ConversationEngine
 
                 // "teen chadar aur do dupatte naye products hain": the seller is naming products (maybe without prices) — read it and ask for the prices.
                 var stockAnalysis = await _ai.AnalyzeMessageAsync(AiContext(seller, await LoadCatalogAsync(seller, ct), ctx), message, ct);
+                // "naya client Muhammad Ali, address Model Town Lahore": a buyer to save before any order (no items, so not an order).
+                if (stockAnalysis is { Intent: "add_customer", NewCustomer: { } buyer })
+                {
+                    await SendAddProductChoicesAsync(seller, await SaveNewCustomerAsync(seller, buyer, ct), ct);
+                    return;
+                }
+
                 if (stockAnalysis is { Intent: "add_products", NewProducts.Count: > 0 })
                 {
                     await HandleNewProductsAsync(seller, ctx, stockAnalysis.NewProducts, message, ct);

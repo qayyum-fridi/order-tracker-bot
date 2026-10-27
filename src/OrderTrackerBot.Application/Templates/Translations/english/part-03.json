@@ -37,6 +37,8 @@
   "onboarding.034": "ℹ️ Now choose your kind of shop: a number from 1 to 7 from the list below, or type \"General dukaan\". Products will be added in the next part of the setup.",
   "onboarding.035": "ℹ️ Now type the city and Instagram (for example \"Lahore, @ayesha\"), or type \"skip\". Products will be added in the next part of the setup.",
   "onboarding.036": "ℹ️ This command runs after the setup is complete. For now, choose your kind of shop: a number from 1 to 7 from the list below, or type \"General dukaan\".",
+  "onboarding.037": "✅ {0} is saved in your customer list. Now add products, or type \"done\".",
+  "onboarding.038": "ℹ️ {0} is already in your customer list. To change details, type \"{0} ka address ...\".",
   "industry.001": "✅ Kind of shop: {0}\n\n📦 Write the products one per line:\n{1}\n\n🛒 How to write an order:\n\"{2}\"\n\n💡 Tips:\n{3}\n\n🎯 Write this first: {4}.\nSomething missed? Type \"data check\".",
   "industry.002": "🏪 What kind of shop do you have?\nOnce you choose it, all the other examples and the guide will match your shop. Tap one from the list below.",
   "industry.003": "🙏 Sorry, \"{0}\" was not understood. Please choose your kind of shop from the list below (or \"General dukaan\" if none fits).",

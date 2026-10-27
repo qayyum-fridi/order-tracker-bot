@@ -83,7 +83,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "set is_order_attempt=false and list each product in new_products with its price in rupees when the seller said one, else null; the name " +
             "is the product only, without a unit or quantity word such as thaan/gaz/kg. Also fill cost_price (what it cost the seller to buy, \"kharid/cost\"), " +
             "stock_qty (how many they have) and attributes (other facts, each as name+value, e.g. colour, size, fabric) ONLY when the seller said them, else null / an empty list; " +
-            "a number is never copied from the catalog), create_discount (the seller wants to make/add a discount code or offer, in any wording or just " +
+            "a number is never copied from the catalog), add_customer (the seller is saving a new buyer before any order, e.g. \"naya client hai Muhammad Ali, address Model Town Lahore, phone baad mein\": no items and no price, so set is_order_attempt=false and fill new_customer with name, phone (digits only, else null), address and city, null when not said), create_discount (the seller wants to make/add a discount code or offer, in any wording or just " +
             "describing it — \"naya discount banain\", \"ye ek naya discount hai jo product ke liye hoga\": not an order, not off_topic; set is_order_attempt=false), unclear. " +
             "For new_order put one entry per customer in orders (two different customers in one message = two entries). Quantity is the number " +
             "of catalog units; for weight-sold items like \"15kg kaju\" use the number of kg (15). " +
@@ -586,6 +586,17 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
                             : new Dictionary<string, string>()
                     });
 
+        AiNewCustomer? newCustomer = null;
+        if (root.TryGetProperty("new_customer", out var nc) && nc.ValueKind == JsonValueKind.Object
+            && GetNullableString(nc, "name")?.Trim() is { Length: > 0 } buyerName)
+            newCustomer = new AiNewCustomer
+            {
+                Name = buyerName,
+                Phone = GetNullableString(nc, "phone"),
+                Address = GetNullableString(nc, "address"),
+                City = GetNullableString(nc, "city")
+            };
+
         AiPaymentReceipt? receipt = null;
         if (root.TryGetProperty("receipt", out var rc) && rc.ValueKind == JsonValueKind.Object)
             receipt = new AiPaymentReceipt
@@ -607,6 +618,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             Feedback = feedback,
             SupportQuery = supportQuery,
             NewProducts = newProducts,
+            NewCustomer = newCustomer,
             Receipt = receipt
         };
     }
@@ -686,7 +698,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             ["intent"] = new JsonObject
             {
                 ["type"] = "string",
-                ["enum"] = new JsonArray { "new_order", "status_update", "customer_feedback", "support_query", "add_products", "create_discount", "off_topic", "unclear" }
+                ["enum"] = new JsonArray { "new_order", "status_update", "customer_feedback", "support_query", "add_products", "add_customer", "create_discount", "off_topic", "unclear" }
             },
             ["new_products"] = new JsonObject
             {
@@ -708,6 +720,13 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             {
                 ["customer_name"] = NullableString(),
                 ["question"] = NullableString()
+            }, nullable: true),
+            ["new_customer"] = StrictObject(new JsonObject
+            {
+                ["name"] = NullableString(),
+                ["phone"] = NullableString(),
+                ["address"] = NullableString(),
+                ["city"] = NullableString()
             }, nullable: true),
             ["is_order_attempt"] = new JsonObject { ["type"] = "boolean" },
             ["is_ambiguous_item_grouping"] = new JsonObject { ["type"] = "boolean" },
