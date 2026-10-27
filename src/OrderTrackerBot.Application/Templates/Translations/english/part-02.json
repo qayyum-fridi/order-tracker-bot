@@ -97,6 +97,7 @@
   "guidance.006": "Choose your kind of shop (tap a button in the list below), or write one of: kiryana, kapray, cosmetics, electronics, food, hardware.",
   "guidance.007": "Send the city, shop type and Instagram handle together, for example \"Lahore, Clothing, @ayesha.collections\" — or type \"skip\".",
   "guidance.008": "Tell me how many products you have: \"around 10\", or tap a button.",
+  "guidance.product.add": "Send each product's name and price, for example \"{0}\" (several products at once too, one per line). If only a name is sent, I will ask for the price. When finished, type \"done\".",
   "guidance.009": "To confirm the order, write YES. To change it, write \"delivery 300\" or \"advance 500\". To stop, write \"cancel\".",
   "guidance.010": "Send the rest of the order details ({0}). To stop, write \"cancel\".",
   "guidance.011": "Write YES to confirm all orders, or send the number of just one.",

@@ -1105,6 +1105,22 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task GuideTopics_OfferOrdersButNotPayments()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        IReadOnlyList<string>? labels = null;
+        _sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, _, l, _) => labels = l)
+            .Returns(Task.CompletedTask);
+
+        await engine.HandleIncomingMessageAsync(Phone, "guide", default);
+
+        Assert.Equal(new[] { "Poora guide", "Sirf orders" }, labels);
+    }
+
+    [Fact]
     public async Task CustomerList_Detail_AndSearch_ShowOrdersAndSpend()
     {
         using var db = _dbFactory.CreateContext();

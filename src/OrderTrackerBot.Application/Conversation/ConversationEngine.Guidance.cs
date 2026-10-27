@@ -31,8 +31,7 @@ public partial class ConversationEngine
         ConversationState.OnboardingOptionalDetails => MessageTemplates.Get("guidance.007"),
         ConversationState.OnboardingCatalogSize => MessageTemplates.Get("guidance.008"),
         ConversationState.OnboardingAddProduct =>
-            "Har product ka naam aur price bhejein, jaise \"" + IndustryProfiles.Resolve(seller?.BusinessType).MainLine + "\" (kai products ek saath bhi, har line mein ek). " +
-            "Agar sirf naam likha ho to main price daryaft kar loon ga. Mukammal hone par \"done\" likhein.",
+            MessageTemplates.Get("guidance.product.add", IndustryProfiles.Resolve(seller?.BusinessType).MainLine),
         ConversationState.AwaitingOrderConfirmation =>
             MessageTemplates.Get("guidance.009"),
         ConversationState.AwaitingOrderMissingFields =>
