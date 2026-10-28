@@ -211,6 +211,8 @@ public static class CommandParser
     private static readonly Regex OrdersToday = new(@"^(?:orders?\s+today|today\s+orders?|show\s+orders?|today'?s\s+orders?|" + Today + OrdersOfPeriod + @")$", Opts);
     // "orders this week", "orders 7 days", "orders tomorrow", "آرڈرز پچھلے ہفتے": any period the report words understand (checked after the fixed forms).
     private static readonly Regex OrdersWithPeriod = new(@"^(?:orders?|آرڈرز?)\s+(?<p>.+?)\s*[?؟!.]*$", Opts);
+    // "products last month" / "best sellers 7 days" / "trending products yesterday": best sellers in any report period.
+    private static readonly Regex ProductsWithPeriod = new(@"^(?:(?:top|best)\s+)?(?:products?|sellers?|bestsellers?|trending(?:\s+products?)?|پروڈکٹس?|مصنوعات)\s+(?<p>.+?)\s*[?؟!.]*$", Opts);
     private static readonly Regex OrdersYesterday = new(@"^(?:orders?\s+yesterday|yesterday'?s\s+orders?|" + Yesterday + OrdersOfPeriod + @")$", Opts);
     private static readonly Regex OrdersLastMonth = new(@"^(?:orders?\s+last\s+month|last\s+month'?s?\s+orders?|" + LastMonth + OrdersOfPeriod + @")$", Opts);
     // "orders next", "orders prev", "orders last", "orders page 3", "orders size 25": moves through (or sets the size of) the order list last shown.
@@ -1450,6 +1452,8 @@ public static class CommandParser
         if (OrdersLastMonth.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.OrdersToday, Text = "lastmonth" };
         if (OrdersWithPeriod.Match(message) is { Success: true } withPeriod && ReportPeriods.TryParseKey(withPeriod.Groups["p"].Value, DateTime.UtcNow, out var periodKey))
             return new ParsedCommand { Kind = CommandKind.OrdersToday, Text = periodKey };
+        if (ProductsWithPeriod.Match(message) is { Success: true } productsPeriod && ReportPeriods.TryParseKey(productsPeriod.Groups["p"].Value, DateTime.UtcNow, out var productsKey))
+            return new ParsedCommand { Kind = CommandKind.TrendingProducts, Text = productsKey };
         if (PendingOrders.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.PendingOrders };
         if (TodaysSummary.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.TodaysSummary };
         if (YesterdaysSummary.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.TodaysSummary, Text = "yesterday" };
