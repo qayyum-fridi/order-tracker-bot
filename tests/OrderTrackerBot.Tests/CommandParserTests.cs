@@ -107,6 +107,28 @@ public class CommandParserTests
     }
 
     [Theory]
+    [InlineData("Wages Ali ki 5000 dihari", "Ali", 5000)]
+    [InlineData("Ali ko 3 din 1500", "Ali", 4500)]
+    [InlineData("salary Ali 5000", "Ali", 5000)]
+    [InlineData("wages Asif 1200 daily", "Asif", 1200)]
+    public void WageForms_KeepTheWorkerName_AndTheTotal(string message, string worker, decimal total)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.Equal(CommandKind.Wage, parsed!.Kind);
+        Assert.Equal(worker, parsed.Text);
+        Assert.Equal(total, parsed.Amount);
+    }
+
+    [Fact]
+    public void LossReason_StainedIsKeptAsTheReason()
+    {
+        var parsed = CommandParser.TryParse("nuqsan 1 fabric roll stained");
+        Assert.Equal(CommandKind.Loss, parsed!.Kind);
+        Assert.Equal("fabric roll", parsed.Text);
+        Assert.Equal("stained", parsed.Text2);
+    }
+
+    [Theory]
     [InlineData("products this week", "thisweek")]
     [InlineData("products last month", "lastmonth")]
     [InlineData("trending products 7 days", "7d")]

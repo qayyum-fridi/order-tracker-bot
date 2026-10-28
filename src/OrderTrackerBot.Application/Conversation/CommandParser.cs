@@ -649,12 +649,12 @@ public static class CommandParser
     private static readonly Regex MonthlyNetLead = new(@"^(?:(?:monthly|month|mahana|mahaana)\s+net|net|is\s+mahine\s+ka\s+net|ماہانہ\s+نیٹ)(?:\s+(?<last>last\s+month|pichle\s+mahine|pichla\s+mah(?:ina)?))?$|^(?<last>last\s+month|pichle\s+mahine\s+ka)\s+net$", Opts);
 
     // Losses: "loss 2 Kurti damaged", "nuqsan 2 Kurti", "damage 1 Lawn Suit expired". Amount = quantity, Text = product, Text2 = reason (may be null).
-    private static readonly Regex LossLine = new(@"^(?:loss|nuqsan|nuksan|damage)\s*:?\s*(?<q>\d{1,6})\s+(?<name>[^\d].*?)(?:\s+(?<r>damaged|kharab|expired|chori|theft|lost|gum))?$", Opts);
+    private static readonly Regex LossLine = new(@"^(?:loss|nuqsan|nuksan|damage)\s*:?\s*(?<q>\d{1,6})\s+(?<name>[^\d].*?)(?:\s+(?<r>damaged|kharab|expired|chori|theft|lost|gum|stained|torn|broken|faulty|dirty|spoiled|wasted|ruined))?$", Opts);
     // Wages: "Ali ki 5000 dihari" (one day's pay), "Ali ko 3 din 1500" (daily rate x days), "wage Ali 5000" / "salary Ali 5000" (flat).
     // Text = worker, Amount = total paid, Number = days (daily-rate forms only).
-    private static readonly Regex WageDaily = new(@"^(?<name>[^\d,:]{2,40}?)\s+(?:ki|ka|ko|کی)\s+(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d{1,2})?)\s+(?:dihari|daily)$", Opts);
-    private static readonly Regex WageDays = new(@"^(?<name>[^\d,:]{2,40}?)\s+(?:ki|ka|ko|کی)\s+(?<d>\d{1,3})\s+(?:din|days?)\s+(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d{1,2})?)$", Opts);
-    private static readonly Regex WageFlat = new(@"^(?:wage|wages|salary|tankhwah|tankhah|تنخواہ)\s*:?\s*(?<name>[^\d,:]{2,40}?)\s+(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d{1,2})?)$", Opts);
+    private static readonly Regex WageDaily = new(@"^(?:(?:wages?|salary|tankhwah|tankhah|تنخواہ)\s+)?(?<name>[^\d,:]{2,40}?)\s+(?:ki|ka|ko|کی)\s+(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d{1,2})?)\s+(?:dihari|daily)$", Opts);
+    private static readonly Regex WageDays = new(@"^(?:(?:wages?|salary|tankhwah|tankhah|تنخواہ)\s+)?(?<name>[^\d,:]{2,40}?)\s+(?:ki|ka|ko|کی)\s+(?<d>\d{1,3})\s+(?:din|days?)\s+(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d{1,2})?)$", Opts);
+    private static readonly Regex WageFlat = new(@"^(?:wages|wage|salary|tankhwah|tankhah|تنخواہ)\s*:?\s*(?<name>[^\d,:]{2,40}?)\s+(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d{1,2})?)(?:\s+(?:dihari|daily))?$", Opts);
 
     private static ParsedCommand? TryParseLossOrWage(string message)
     {
