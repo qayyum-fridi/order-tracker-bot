@@ -226,6 +226,21 @@ public partial class ConversationEngine
         return MessageTemplates.Get("onboarding.037", name);
     }
 
+    /// <summary>Ends setup: the free trial starts, the seller is idle and gets the menu and the guide offer. "done" / "skip", or a real command once a product is saved.</summary>
+    private async Task CompleteSetupAsync(Seller seller, ConversationSession session, bool skipped, CancellationToken ct)
+    {
+        seller.OnboardingComplete = true;
+        StartTrial(seller);
+        SetState(session, ConversationState.Idle);
+        var reply = skipped
+            ? MessageTemplates.Get("onboarding.024", TrialStartedText(seller))
+            : MessageTemplates.Get("onboarding.025", TrialStartedText(seller));
+        await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("onboarding.013", reply.TrimEnd()),
+            "Options dekhein", AfterSetupSections, ct);
+        await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
+            MessageTemplates.Get("onboarding.014"), GuideOfferButtons, ct);
+    }
+
     private static readonly string BusinessInfoPrompt =
         MessageTemplates.Get("onboarding.022");
 
@@ -347,8 +362,16 @@ public partial class ConversationEngine
             && CommandParser.TryParse(message) is { Kind: CommandKind.CustomerAdd } add
             && (session.State != ConversationState.OnboardingBusinessName || add.Text2 is not null || add.Text3 is not null || add.Text4 is not null))
         {
-            await RepromptOnboardingStepAsync(seller, session,
-                await SaveNewCustomerAsync(seller, new AiNewCustomer { Name = add.Text!, Phone = add.Text2, Address = add.Text3, City = add.Text4 }, ct), ct);
+            var saved = await SaveNewCustomerAsync(seller, new AiNewCustomer { Name = add.Text!, Phone = add.Text2, Address = add.Text3, City = add.Text4 }, ct);
+            // The seller has a product and now a customer: the catalog step is done, so setup ends here (no "done" needed).
+            if (session.State == ConversationState.OnboardingAddProduct
+                && await _db.Products.AnyAsync(p => p.SellerId == seller.Id && p.IsActive, ct))
+            {
+                await ReplyAsync(seller, saved, ct);
+                await CompleteSetupAsync(seller, session, skipped: false, ct);
+                return;
+            }
+            await RepromptOnboardingStepAsync(seller, session, saved, ct);
             return;
         }
 
@@ -437,16 +460,7 @@ public partial class ConversationEngine
             case ConversationState.OnboardingAddProduct:
                 if (DoneOrSkip.IsMatch(message) || ButtonWords(message) == "done")
                 {
-                    seller.OnboardingComplete = true;
-                    StartTrial(seller);
-                    SetState(session, ConversationState.Idle);
-                    var reply = message.Equals("skip", StringComparison.OrdinalIgnoreCase)
-                        ? MessageTemplates.Get("onboarding.024", TrialStartedText(seller))
-                        : MessageTemplates.Get("onboarding.025", TrialStartedText(seller));
-                    await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("onboarding.013", reply.TrimEnd()),
-                        "Options dekhein", AfterSetupSections, ct);
-                    await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
-                        MessageTemplates.Get("onboarding.014"), GuideOfferButtons, ct);
+                    await CompleteSetupAsync(seller, session, skipped: message.Equals("skip", StringComparison.OrdinalIgnoreCase), ct);
                     return;
                 }
 
@@ -506,6 +520,15 @@ public partial class ConversationEngine
                         or CommandKind.TodaysSummary or CommandKind.Profit or CommandKind.Margin or CommandKind.WeeklySummary
                         or CommandKind.CustomerList or CommandKind.MenuCategory or CommandKind.Insight)
                     {
+                        await ExecuteCommandAsync(seller, session, ctx, parsed, ct);
+                        return;
+                    }
+
+                    // A product is already saved, so the catalog step is finished: a real command is the seller moving on. Setup ends here
+                    // (nobody has to type "done") and the command runs. With an empty catalog it still waits, "skip" being the way out.
+                    if (await _db.Products.AnyAsync(p => p.SellerId == seller.Id && p.IsActive, ct))
+                    {
+                        await CompleteSetupAsync(seller, session, skipped: false, ct);
                         await ExecuteCommandAsync(seller, session, ctx, parsed, ct);
                         return;
                     }
