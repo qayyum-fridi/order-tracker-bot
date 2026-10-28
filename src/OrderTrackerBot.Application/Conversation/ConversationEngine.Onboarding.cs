@@ -207,7 +207,6 @@ public partial class ConversationEngine
         }
     }
 
-    /// <summary>Saves a buyer named without an order (phone, address and city when said) and returns the reply. An existing customer is left as it is.</summary>
     /// <summary>
     /// A customer saved while the catalog step waits and a product is already saved: the step is done, so setup ends here (no "done" needed).
     /// Returns false when setup does not end, and the caller keeps its own reply.
@@ -422,7 +421,8 @@ public partial class ConversationEngine
                 }
                 seller.BusinessType = picked.Title;
                 await _db.SaveChangesAsync(ct);
-                await StartProductStepAsync(seller, session, ct);
+                // Setup needs only the shop name and the kind of shop; the rest (city, products, customers) is added later.
+                await CompleteSetupAsync(seller, session, skipped: true, ct);
                 return;
             }
 

@@ -99,11 +99,8 @@ public class MockupFeatureTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Lahore, Clothing, @ayesha.collections", default);
         Assert.Contains(_sent, m => m.Contains("dukaan kis qism ki hai"));
 
+        // The kind of shop is the last required basic: setup is complete, the city and Instagram given above are kept.
         await engine.HandleIncomingMessageAsync(Phone, "clothing", default);
-        Assert.Contains(_sent, m => m.Contains("Noted — Lahore, Kapray / Lawn / Boutique business, @ayesha.collections"));
-
-        foreach (var m in new[] { "Lawn Suit - 3500", "done" })
-            await engine.HandleIncomingMessageAsync(Phone, m, default);
 
         var seller = await db.Sellers.FirstAsync();
         Assert.Equal("Lahore", seller.City);
@@ -1382,7 +1379,7 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
-    public async Task Guidance_DuringOnboarding_GivesAProductExample_AndStaysOnTheStep()
+    public async Task Guidance_AfterTheBasics_GivesTheHelpList()
     {
         using var db = _dbFactory.CreateContext();
         var engine = IndustryEngine(db);
@@ -1392,8 +1389,9 @@ public class MockupFeatureTests : IDisposable
 
         await engine.HandleIncomingMessageAsync(Phone, "?", default);
 
-        Assert.Contains(_sent, m => m.Contains("Lawn Suit - 3500") && m.Contains("done"));
-        Assert.Equal(ConversationState.OnboardingAddProduct, (await db.Sessions.FirstAsync()).State);
+        // Name and kind of shop are done, so setup is complete and "?" is a help request for the idle bot.
+        Assert.Contains(_sent, m => m.Contains("Zaroori Madad"));
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
     }
 
     [Fact]
@@ -1637,8 +1635,8 @@ public class MockupFeatureTests : IDisposable
 
         seller = await db.Sellers.AsNoTracking().FirstAsync();
         Assert.Equal("Kapray / Lawn / Boutique", seller.BusinessType);
-        Assert.Equal(ConversationState.OnboardingAddProduct, (await db.Sessions.AsNoTracking().FirstAsync()).State);
-        Assert.Contains(_sent, m => m.Contains("Sargodha, Kapray / Lawn / Boutique business"));
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.AsNoTracking().FirstAsync()).State);
+        Assert.Contains(_sent, m => m.Contains("Ji theek hai") || m.Contains("setup mukammal"));
     }
 
     [Fact]
