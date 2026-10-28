@@ -116,6 +116,11 @@ public class ConversationEngineTests : IDisposable
         Assert.Null(seller.BusinessName);
         Assert.Equal(ConversationState.OnboardingLanguage, seller.Session!.State);
         Assert.Equal(0, await db.Products.CountAsync());
+        Assert.Equal(0, await db.Orders.CountAsync());
+        Assert.Equal(0, await db.Customers.CountAsync());
+        Assert.Equal(0m, seller.DefaultDeliveryCharge);
+        Assert.Null(SessionContextData.FromJson(seller.Session!.ContextJson).PendingOrder);
+        Assert.Null(SessionContextData.FromJson(seller.Session!.ContextJson).ScanCart);
         Assert.Contains(_sentMessages, m => m.Contains("Order Assistant"));
         _sender.Verify(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(),
             It.Is<IReadOnlyList<string>>(l => l.Count == 3), It.IsAny<CancellationToken>()), Times.AtLeastOnce);
