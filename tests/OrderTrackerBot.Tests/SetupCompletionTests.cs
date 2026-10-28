@@ -58,6 +58,33 @@ public class SetupCompletionTests : IDisposable
     }
 
     [Fact]
+    public async Task ACustomerAfterAProduct_EndsSetup_WithoutDone()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await AtTheProductStepAsync(db, "Kurti - 1800");
+
+        await engine.HandleIncomingMessageAsync(Phone, "customer add Sara, Model Town, 03001234567", default);
+
+        Assert.True((await db.Sellers.SingleAsync()).OnboardingComplete);
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.SingleAsync()).State);
+        Assert.True(await db.Customers.AnyAsync(c => c.Name == "Sara"));
+        Assert.Contains(_sent, m => m.Contains("customer list"));
+        Assert.Contains(_sent, m => m.Contains("setup mukammal"));
+    }
+
+    [Fact]
+    public async Task ACustomerBeforeAnyProduct_KeepsSetupOpen()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await AtTheProductStepAsync(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "customer add Sara, Model Town, 03001234567", default);
+
+        Assert.False((await db.Sellers.SingleAsync()).OnboardingComplete);
+        Assert.True(await db.Customers.AnyAsync(c => c.Name == "Sara"));
+    }
+
+    [Fact]
     public async Task ARealCommand_WithNoProductYet_StillWaits_AndSkipIsTheWayOut()
     {
         using var db = _dbFactory.CreateContext();

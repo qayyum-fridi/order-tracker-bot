@@ -362,8 +362,16 @@ public partial class ConversationEngine
             && CommandParser.TryParse(message) is { Kind: CommandKind.CustomerAdd } add
             && (session.State != ConversationState.OnboardingBusinessName || add.Text2 is not null || add.Text3 is not null || add.Text4 is not null))
         {
-            await RepromptOnboardingStepAsync(seller, session,
-                await SaveNewCustomerAsync(seller, new AiNewCustomer { Name = add.Text!, Phone = add.Text2, Address = add.Text3, City = add.Text4 }, ct), ct);
+            var saved = await SaveNewCustomerAsync(seller, new AiNewCustomer { Name = add.Text!, Phone = add.Text2, Address = add.Text3, City = add.Text4 }, ct);
+            // The seller has a product and now a customer: the catalog step is done, so setup ends here (no "done" needed).
+            if (session.State == ConversationState.OnboardingAddProduct
+                && await _db.Products.AnyAsync(p => p.SellerId == seller.Id && p.IsActive, ct))
+            {
+                await ReplyAsync(seller, saved, ct);
+                await CompleteSetupAsync(seller, session, skipped: false, ct);
+                return;
+            }
+            await RepromptOnboardingStepAsync(seller, session, saved, ct);
             return;
         }
 
