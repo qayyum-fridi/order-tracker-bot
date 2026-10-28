@@ -102,4 +102,41 @@ public partial class ConversationEngine
         _db.WageEntries.Remove(wage);
         await ReplyAsync(seller, MessageTemplates.Get("losses.006", wage.WorkerName, Formatters.Money(wage.Amount)), ct);
     }
+
+    /// <summary>"losses" / "losses last month" / "nuqsan 7 din": the losses recorded in the period, with their value.</summary>
+    private async Task HandleLossListAsync(Seller seller, string? period, CancellationToken ct)
+    {
+        var (start, end, label) = ExpensePeriod(seller, period);
+        var losses = await _db.Losses.AsNoTracking()
+            .Where(x => x.SellerId == seller.Id && x.CreatedAt >= start && x.CreatedAt < end)
+            .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).ToListAsync(ct);
+        if (losses.Count == 0)
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("data-lists.001", label), ct);
+            return;
+        }
+
+        var lines = losses.Take(15).Select(x =>
+            $"• {x.Quantity} × {x.ProductName}{(string.IsNullOrWhiteSpace(x.Reason) ? "" : " (" + x.Reason + ")")} — {Formatters.Money(x.Quantity * x.UnitCost)}");
+        var total = losses.Sum(x => x.Quantity * x.UnitCost);
+        await ReplyAsync(seller, MessageTemplates.Get("data-lists.002", label, string.Join("\n", lines), Formatters.Money(total)), ct);
+    }
+
+    /// <summary>"wages" / "wages last month" / "tankhwah 7 din": the wages recorded in the period, per worker and in total.</summary>
+    private async Task HandleWageListAsync(Seller seller, string? period, CancellationToken ct)
+    {
+        var (start, end, label) = ExpensePeriod(seller, period);
+        var wages = await _db.WageEntries.AsNoTracking()
+            .Where(x => x.SellerId == seller.Id && x.CreatedAt >= start && x.CreatedAt < end)
+            .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).ToListAsync(ct);
+        if (wages.Count == 0)
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("data-lists.003", label), ct);
+            return;
+        }
+
+        var lines = wages.Take(15).Select(x =>
+            $"• {x.WorkerName}{(x.Days is { } d ? " (" + d + " din)" : "")} — {Formatters.Money(x.Amount)}");
+        await ReplyAsync(seller, MessageTemplates.Get("data-lists.004", label, string.Join("\n", lines), Formatters.Money(wages.Sum(x => x.Amount))), ct);
+    }
 }

@@ -83,6 +83,8 @@ public enum CommandKind
     Stock,
     Expense,
     ExpenseList,
+    LossList,
+    WageList,
     BuyerEnquiry,
     EnquiryReport,
     ExpenseEdit,
@@ -640,6 +642,8 @@ public static class CommandParser
     // "expense delete 12", "expense edit 12 800 packaging" (amount and/or note). The number is the id the "expenses" list shows (#12).
     private static readonly Regex ExpenseDeleteCmd = new(@"^" + ExpenseWord + @"\s+(?:delete|remove|hatao|hata\s+do|mita\s+do)\s+#?(?<id>\d{1,9})$", Opts);
     private static readonly Regex ExpenseEditCmd = new(@"^" + ExpenseWord + @"\s+(?:edit|update|change|badlo|badlein)\s+#?(?<id>\d{1,9})(?:\s+(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d{1,2})?))?(?:\s+(?<note>[^\d].*))?$", Opts);
+    // "expenses this week", "wages last 7 days", "losses yesterday": any report period after the word (no period = this month).
+    private static readonly Regex ListWithPeriod = new(@"^(?<w>expenses?|kharche|kharcha|اخراجات|losses?|nuqsan|nuksan|نقصان|wages?|tankhwah|tankhah|تنخواہ)(?:\s+(?<p>.+?))?\s*[?؟!.]*$", Opts);
     private static readonly Regex ExpenseListLead =new(@"^(?:expenses?|total\s+expenses|kharche|kharcha|اخراجات)(?:\s+(?<p>today|aaj|آج|this\s+month|month|is\s+mahine|last\s+month|pichle\s+mahine|pichla\s+mah(?:ina)?))?$", Opts);
     // "monthly net", "net", "is mahine ka net", "last month net".
     private static readonly Regex MonthlyNetLead = new(@"^(?:(?:monthly|month|mahana|mahaana)\s+net|net|is\s+mahine\s+ka\s+net|ماہانہ\s+نیٹ)(?:\s+(?<last>last\s+month|pichle\s+mahine|pichla\s+mah(?:ina)?))?$|^(?<last>last\s+month|pichle\s+mahine\s+ka)\s+net$", Opts);
@@ -1510,6 +1514,17 @@ public static class CommandParser
         // Before TryParseExpense: "expense edit 12 800" would otherwise read as an expense note "edit 12" of Rs.800.
         if (TryParseExpenseChange(message) is { } expenseChange) return expenseChange;
         if (TryParseExpense(message) is { } expense) return expense;
+        if (ListWithPeriod.Match(message) is { Success: true } listed && (!listed.Groups["p"].Success || ReportPeriods.TryParseKey(listed.Groups["p"].Value, DateTime.UtcNow, out _)))
+        {
+            var word = listed.Groups["w"].Value.ToLowerInvariant();
+            var key = listed.Groups["p"].Success && ReportPeriods.TryParseKey(listed.Groups["p"].Value, DateTime.UtcNow, out var found) ? found : null;
+            if (word is "expenses" or "expense" or "kharche" or "kharcha" or "اخراجات")
+                return new ParsedCommand { Kind = CommandKind.ExpenseList, Text = key };
+            if (word is "losses" or "loss" or "nuqsan" or "nuksan" or "نقصان")
+                return new ParsedCommand { Kind = CommandKind.LossList, Text = key };
+            if (word is "wages" or "wage" or "tankhwah" or "tankhah" or "تنخواہ")
+                return new ParsedCommand { Kind = CommandKind.WageList, Text = key };
+        }
         if (TryParseLossOrWage(message) is { } lossOrWage) return lossOrWage;
         if (StockList.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Stock };
         if ((m = StockOff.Match(message)).Success) return new ParsedCommand { Kind = CommandKind.Stock, Text = m.Groups["name"].Value.Trim(), Text2 = "off" };
