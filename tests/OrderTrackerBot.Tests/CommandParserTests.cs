@@ -31,6 +31,8 @@ public class CommandParserTests
     [Theory]
     [InlineData("orders today", CommandKind.OrdersToday)]
     [InlineData("Orders Today", CommandKind.OrdersToday)]
+    [InlineData("today orders", CommandKind.OrdersToday)]
+    [InlineData("Today Orders?", CommandKind.OrdersToday)]
     [InlineData("pending orders", CommandKind.PendingOrders)]
     [InlineData("catalog", CommandKind.Catalog)]
     [InlineData("undo", CommandKind.Undo)]
