@@ -138,7 +138,8 @@
   "voice-confirm.008": "⚠️ This statement was not clear in the voice note, so it was not run: \"{0}\". Send a short sentence in writing.",
   "voice-confirm.009": "⚠️ This voice note was sent as a reply to an earlier voice note. The orders of the earlier note were not created again. If this is a change, first type \"undo\" (only the last action is undone), then send the new note.",
   "voice-confirm.010": "⚠️ The remaining steps of the earlier voice note did not run because they are out of date: {0}. Send again if needed.",
-  "voice-confirm.011": "⚠️ Sorry, the word \"{0}\" in the amount was not understood, so nothing was run. Please send the amount in digits (like 75000).",
+  "voice-confirm.012": "🧾 Do you want to see your orders? Today's or yesterday's? Pick below, or type it.",
+  "voice-confirm.011":"⚠️ Sorry, the word \"{0}\" in the amount was not understood, so nothing was run. Please send the amount in digits (like 75000).",
   "voice-undo.001": "ℹ️ Nothing was found to undo for this voice note.",
   "voice-undo.002": "✅ The {0} actions of this voice note were undone.",
   "voice-undo.003": "⚠️ This is the same voice note that already ran, so it was not run again. To run it again, first write \"undo note\", or send a new note."

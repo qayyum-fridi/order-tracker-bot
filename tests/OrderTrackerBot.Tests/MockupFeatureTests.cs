@@ -629,6 +629,49 @@ public class MockupFeatureTests : IDisposable
         Assert.Contains(_sent, m => m.Contains("Voice message mila") && m.Contains("TEXT"));
     }
 
+    // The live note at 11:05: "مجھے نا کل جو ہے آرسرز وہ دکھائیے". The speech model read it as a request for help, and every step was dropped
+    // as "not clear". A note that names orders asks today or yesterday instead.
+    [Fact]
+    public async Task VoiceNote_NamingOrders_WhenEveryStepIsDropped_AsksTodayOrYesterday()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        _media.Setup(m => m.DownloadAsync("voice-4", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
+        var transcriber = new Mock<IAudioTranscriber>();
+        transcriber.SetupGet(t => t.IsConfigured).Returns(true);
+        transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("مجھے نا کل جو ہے آرسرز وہ دکھائیے");
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object);
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "kya karun" }, Actions = { "reply" }, Spans = { "آج کے آرسرز" } });
+
+        await engine.HandleAudioMessageAsync(Phone, "voice-4");
+
+        Assert.DoesNotContain(_sent, m => m.Contains("saaf nahi thi"));
+        Assert.Contains(_sent, m => m.Contains("Aap ke orders dekhne hain"));
+    }
+
+    // The live note: the seller asked for today's orders, the rewrite said "orders yesterday". A note that asks to see orders asks the day instead.
+    [Fact]
+    public async Task VoiceNote_AskingForOrders_WithYesterdayRewrite_AsksTheDayInsteadOfRunningIt()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        _media.Setup(m => m.DownloadAsync("voice-5", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
+        var transcriber = new Mock<IAudioTranscriber>();
+        transcriber.SetupGet(t => t.IsConfigured).Returns(true);
+        transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("مجھے آج کے آرڈرز وہ دکھائیے");
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object);
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "orders yesterday" }, Actions = { "command" }, Spans = { "مجھے آج کے آرڈرز وہ دکھائیے" } });
+
+        await engine.HandleAudioMessageAsync(Phone, "voice-5");
+
+        Assert.Contains(_sent, m => m.Contains("Aap ke orders dekhne hain"));
+        Assert.DoesNotContain(_sent, m => m.Contains("Yesterday") || m.Contains("kal ke orders dikhaye"));
+    }
+
     private async Task<ConversationEngine> VoiceEngineAtAddProductAsync(AppDbContext db, string transcript)
     {
         var setup = Engine(db);
