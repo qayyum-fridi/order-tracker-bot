@@ -314,10 +314,22 @@ public partial class ConversationEngine
             // A step must come from the words actually spoken (its span) and carry only amounts said in those words; anything else is dropped.
             var known = KnownVoiceNumbers(recent, catalog, lastMessages.Select(m => m.RawText));
             result = KeepSpokenSteps(transcript, result, known);
+            // Every step was dropped and the note asks to see orders: ask today or yesterday instead of refusing the note as unclear.
+            if (result.Steps.Count == 0 && _droppedVoiceSteps.Count > 0 && AsksToSeeOrders(transcript))
+            {
+                _droppedVoiceSteps.Clear();
+                return TurnDecision.Clarify(MessageTemplates.Get("voice-confirm.012"), new[] { "orders today", "orders yesterday" });
+            }
             // The model may only pick actions that make sense right now; anything else it made up is dropped (and the transcript is used if nothing is left).
             var steps = result.Actions.Count == result.Steps.Count
                 ? ValidateVoiceSteps(seller.Session!.State, seller, result.Steps, result.Actions)
                 : result.Steps.Select(s => s.Trim()).ToList();
+            // "Yesterday's orders" is never run from a note that asks for orders: the speech model writes today's day word as "کل" often enough.
+            if (steps.Any(s => s.Trim().Equals("orders yesterday", StringComparison.OrdinalIgnoreCase)) && AsksToSeeOrders(transcript))
+            {
+                _droppedVoiceSteps.Clear();
+                return TurnDecision.Clarify(MessageTemplates.Get("voice-confirm.012"), new[] { "orders today", "orders yesterday" });
+            }
             if (steps.Count > 0)
             {
                 // Waiting for dates: nothing here is money or an order, and dates legitimately add digits (a day, a year) the seller spoke as words ("yakum", "do hazar chhabees").
@@ -422,6 +434,18 @@ public partial class ConversationEngine
         var said = SpeechWords(spoken).Split(' ', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
         var words = SpeechWords(step).Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(w => w.Length >= 3 && !w.All(char.IsDigit)).ToList();
         return words.Count == 0 || words.Count(said.Contains) * 2 >= words.Count;
+    }
+
+    /// <summary>
+    /// True when the note asks to see orders ("orders dikhao", "آرڈرز دکھائیں") and does not act on one (cancel, mark, paid, delete, undo).
+    /// The "today or yesterday" question is asked for these, since the speech model often gets the day word wrong.
+    /// </summary>
+    private static bool AsksToSeeOrders(string transcript)
+    {
+        var spoken = SpeechWords(UrduCommandWords.Aggregate(transcript, (text, pair) => text.Replace(pair.Key, pair.Value)));
+        return System.Text.RegularExpressions.Regex.IsMatch(spoken, @"\borders?\b")
+            && System.Text.RegularExpressions.Regex.IsMatch(spoken + transcript, @"dikh|dekh|show|batao|list|دکھ|دیکھ|بتا")
+            && !System.Text.RegularExpressions.Regex.IsMatch(spoken, @"cancel|mark|ship|paid|pay|delete|hata|undo|wapas|منسوخ|کینسل|ادا");
     }
 
     /// <summary>Lower-case words separated by single spaces, padded on both sides, so a span can be matched as whole words.</summary>

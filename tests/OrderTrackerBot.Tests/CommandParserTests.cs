@@ -91,6 +91,22 @@ public class CommandParserTests
     [InlineData("Dupatta - 600")]
     public void OnboardingExampleLines_AreProductLines(string line) => Assert.Equal(CommandKind.AddProduct, CommandParser.TryParse(line)!.Kind);
 
+    [Theory]
+    [InlineData("orders this week", "thisweek")]
+    [InlineData("orders last week", "lastweek")]
+    [InlineData("orders this month", "thismonth")]
+    [InlineData("orders tomorrow", "tomorrow")]
+    [InlineData("orders 7 days", "7d")]
+    [InlineData("orders kal", "yesterday")]
+    [InlineData("آرڈرز پچھلے ہفتے", "lastweek")]
+    public void OrdersWithAnyPeriod_ParsesToTheOrderList(string message, string period)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.NotNull(parsed);
+        Assert.Equal(CommandKind.OrdersToday, parsed!.Kind);
+        Assert.Equal(period, parsed.Text);
+    }
+
     [Fact]
     public void FillerIsStrippedBeforeACustomerName()
     {
