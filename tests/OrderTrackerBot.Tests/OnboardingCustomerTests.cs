@@ -333,6 +333,30 @@ public class OnboardingCustomerTests : IDisposable
         AiMustNotBeAsked();
     }
 
+    // The live note at 11:03: "آج کے روزل آرسرز دکھائیں" (the speech model wrote "روزل آرسرز" for "آرڈرز"). The rewrite was a "command" step "orders today",
+    // which the setup add-product state did not allow, so the step was dropped and the note answered "not clear".
+    [Fact]
+    public async Task SpokenTodaysOrders_AtTheProductStep_RunsTheReadOnlyCommand_NotRefusedAsUnclear()
+    {
+        const string transcript = "آج کے روزل آرسرز دکھائیں";
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        var media = new Mock<IWhatsAppMediaClient>();
+        media.Setup(m => m.DownloadAsync("voice-2", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
+        var transcriber = new Mock<IAudioTranscriber>();
+        transcriber.SetupGet(t => t.IsConfigured).Returns(true);
+        transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>())).ReturnsAsync(transcript);
+        var voice = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: media.Object, transcriber: transcriber.Object);
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "orders today" }, Actions = { "command" }, Spans = { "آج کے آرسرز دکھائیں" } });
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-2");
+
+        Assert.DoesNotContain(_sent, m => m.Contains("saaf nahi thi"));
+        Assert.DoesNotContain(_sent, m => m.Contains("order darj nahi ho sakta"));
+        Assert.Contains(_sent, m => m.Contains("Samjha") && m.Contains("orders today"));
+    }
+
     [Fact]
     public async Task OwnStockStatement_AtTheProductStep_IsNotTakenAsAnOrder()
     {
