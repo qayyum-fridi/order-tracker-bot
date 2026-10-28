@@ -353,8 +353,9 @@ public class IndustryQuestionTests : IDisposable
         _sent.Clear();
         await engine.HandleIncomingMessageAsync(Phone, "industry grocery", default);
         Assert.Equal("Grocery / Kiryana", (await db.Sellers.FindAsync(seller.Id))!.BusinessType);
-        Assert.Equal(ConversationState.OnboardingAddProduct, (await db.Sessions.FirstAsync()).State);
-        Assert.Contains("Grocery / Kiryana business", string.Join("\n", _sent));
+        // Name and kind of shop are the required basics: setup is complete now.
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+        Assert.True((await db.Sellers.FindAsync(seller.Id))!.OnboardingComplete);
     }
 
     [Theory]
@@ -403,7 +404,6 @@ public class IndustryQuestionTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "Bilal Mart", default);
         await engine.HandleIncomingMessageAsync(Phone, "Karachi", default);
         await engine.HandleIncomingMessageAsync(Phone, "industry grocery", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Karachi, Clothing, @bilal.mart", default);
         var saved = await db.Sellers.FindAsync(seller.Id);
         Assert.Equal("Grocery / Kiryana", saved!.BusinessType);
         Assert.Equal("Karachi", saved.City);

@@ -73,6 +73,20 @@ public class SetupCompletionTests : IDisposable
     }
 
     [Fact]
+    public async Task ACustomerInLooserWords_AfterAProduct_EndsSetup_WithoutDone()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await AtTheProductStepAsync(db, "Kurti - 1800");
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "add_customer", NewCustomer = new AiNewCustomer { Name = "Sara", Address = "Model Town" } });
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara naam ki client hai, Model Town mein rehti hai", default);
+
+        Assert.True((await db.Sellers.SingleAsync()).OnboardingComplete);
+        Assert.True(await db.Customers.AnyAsync(c => c.Name == "Sara"));
+    }
+
+    [Fact]
     public async Task ACustomerBeforeAnyProduct_KeepsSetupOpen()
     {
         using var db = _dbFactory.CreateContext();

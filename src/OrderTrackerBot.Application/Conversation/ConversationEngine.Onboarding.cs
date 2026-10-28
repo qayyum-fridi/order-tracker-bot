@@ -109,7 +109,9 @@ public partial class ConversationEngine
         // A buyer named without an order: "naya client Muhammad Ali, address Model Town Lahore".
         if (analysis is { Intent: "add_customer", NewCustomer: { } buyer })
         {
-            await RepromptOnboardingStepAsync(seller, session, await SaveNewCustomerAsync(seller, buyer, ct), ct);
+            var savedBuyer = await SaveNewCustomerAsync(seller, buyer, ct);
+            if (!await EndSetupAfterCustomerAsync(seller, session, savedBuyer, ct))
+                await RepromptOnboardingStepAsync(seller, session, savedBuyer, ct);
             return true;
         }
 
@@ -205,7 +207,18 @@ public partial class ConversationEngine
         }
     }
 
-    /// <summary>Saves a buyer named without an order (phone, address and city when said) and returns the reply. An existing customer is left as it is.</summary>
+    /// <summary>
+    /// A customer saved while the catalog step waits and a product is already saved: the step is done, so setup ends here (no "done" needed).
+    /// Returns false when setup does not end, and the caller keeps its own reply.
+    /// </summary>
+    private async Task<bool> EndSetupAfterCustomerAsync(Seller seller, ConversationSession session, string saved, CancellationToken ct)
+    {
+        if (session.State != ConversationState.OnboardingAddProduct || !await _db.Products.AnyAsync(p => p.SellerId == seller.Id && p.IsActive, ct)) return false;
+        await ReplyAsync(seller, saved, ct);
+        await CompleteSetupAsync(seller, session, skipped: false, ct);
+        return true;
+    }
+
     private async Task<string> SaveNewCustomerAsync(Seller seller, AiNewCustomer buyer, CancellationToken ct)
     {
         var name = buyer.Name.Trim();
@@ -363,14 +376,7 @@ public partial class ConversationEngine
             && (session.State != ConversationState.OnboardingBusinessName || add.Text2 is not null || add.Text3 is not null || add.Text4 is not null))
         {
             var saved = await SaveNewCustomerAsync(seller, new AiNewCustomer { Name = add.Text!, Phone = add.Text2, Address = add.Text3, City = add.Text4 }, ct);
-            // The seller has a product and now a customer: the catalog step is done, so setup ends here (no "done" needed).
-            if (session.State == ConversationState.OnboardingAddProduct
-                && await _db.Products.AnyAsync(p => p.SellerId == seller.Id && p.IsActive, ct))
-            {
-                await ReplyAsync(seller, saved, ct);
-                await CompleteSetupAsync(seller, session, skipped: false, ct);
-                return;
-            }
+            if (await EndSetupAfterCustomerAsync(seller, session, saved, ct)) return;
             await RepromptOnboardingStepAsync(seller, session, saved, ct);
             return;
         }
@@ -415,7 +421,8 @@ public partial class ConversationEngine
                 }
                 seller.BusinessType = picked.Title;
                 await _db.SaveChangesAsync(ct);
-                await StartProductStepAsync(seller, session, ct);
+                // Setup needs only the shop name and the kind of shop; the rest (city, products, customers) is added later.
+                await CompleteSetupAsync(seller, session, skipped: true, ct);
                 return;
             }
 
@@ -554,7 +561,9 @@ public partial class ConversationEngine
                 // "naya client Muhammad Ali, address Model Town Lahore": a buyer to save before any order (no items, so not an order).
                 if (stockAnalysis is { Intent: "add_customer", NewCustomer: { } buyer })
                 {
-                    await SendAddProductChoicesAsync(seller, await SaveNewCustomerAsync(seller, buyer, ct), ct);
+                    var savedBuyer = await SaveNewCustomerAsync(seller, buyer, ct);
+                    if (await EndSetupAfterCustomerAsync(seller, session, savedBuyer, ct)) return;
+                    await SendAddProductChoicesAsync(seller, savedBuyer, ct);
                     return;
                 }
 
