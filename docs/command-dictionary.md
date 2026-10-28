@@ -21,7 +21,7 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 | Task | Write | Also works |
 |---|---|---|
 | New order | `new order` · `naya order banao` · forward the customer's message, send a 🎤 voice note or a 📷 screenshot | `Ayesha, 2 suit, 03001234567` |
-| Orders of a day / period | `orders today` | `show orders` · `orders yesterday` · `orders 30 days` · `aaj ke orders` |
+| Orders of a day / period | `orders today` | `show orders` · `today orders` · `orders yesterday` · `orders 30 days` · `aaj ke orders` |
 | Next / previous page of the last order list | `orders next` | `orders prev` · `orders last` · `orders page 3` · `orders size 25` (also sets the catalog page size) |
 | Pending / unpaid / COD owed | `pending orders` · `unpaid orders` · `cod pending` | `pending` · `active orders` · `pending payments` · `payment due list` (unpaid) |
 | One order in full | `order 12` | `#12` · `order 12 details` |

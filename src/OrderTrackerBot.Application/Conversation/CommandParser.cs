@@ -208,7 +208,7 @@ public static class CommandParser
     private const string LastMonth = @"(?:(?:pichle|pichhle|pichlay|پچھلے)\s+(?:mahine|mahinay|maheene|mahiny|مہینے))";
     // "kal ke orders" / "kal ke kitne orders the?" / "aaj kitne orders aaye": the period word, optional ka/ke, optional "kitne", the word orders, optional question tail.
     private const string OrdersOfPeriod = @"(?:\s+" + Of + @")?(?:\s+(?:kitne|kitnay|کتنے))?\s+" + OrdersWord + @"(?:\s+(?:the|thay|tha|hain|hai|aaye|aae|hue|تھے|تھا|ہیں|ہے|آئے|ہوئے))*\s*[?؟]?";
-    private static readonly Regex OrdersToday = new(@"^(?:orders?\s+today|show\s+orders?|today'?s\s+orders?|" + Today + OrdersOfPeriod + @")$", Opts);
+    private static readonly Regex OrdersToday = new(@"^(?:orders?\s+today|today\s+orders?|show\s+orders?|today'?s\s+orders?|" + Today + OrdersOfPeriod + @")$", Opts);
     private static readonly Regex OrdersYesterday = new(@"^(?:orders?\s+yesterday|yesterday'?s\s+orders?|" + Yesterday + OrdersOfPeriod + @")$", Opts);
     private static readonly Regex OrdersLastMonth = new(@"^(?:orders?\s+last\s+month|last\s+month'?s?\s+orders?|" + LastMonth + OrdersOfPeriod + @")$", Opts);
     // "orders next", "orders prev", "orders last", "orders page 3", "orders size 25": moves through (or sets the size of) the order list last shown.

@@ -45,7 +45,9 @@ public partial class ConversationEngine
         {
             var action = actions[i].Trim().ToLowerInvariant();
             var text = steps[i].Trim();
-            var valid = allowed.Contains(action) || (inEdit && action is "edit_step" or "done");
+            // A read-only lookup ("orders today") is valid in every state: setup can show it, and the engine answers it without changing anything.
+            var readOnly = action == "command" && CommandParser.TryParse(text) is { } lookup && ReadOnlyVoiceCommands.Contains(lookup.Kind);
+            var valid = allowed.Contains(action) || readOnly || (inEdit && action is "edit_step" or "done");
             if (!valid) continue;
 
             switch (action)
