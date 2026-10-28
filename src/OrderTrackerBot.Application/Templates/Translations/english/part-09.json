@@ -143,5 +143,9 @@
   "voice-undo.001": "ℹ️ Nothing was found to undo for this voice note.",
   "voice-undo.002": "✅ The {0} actions of this voice note were undone.",
   "voice-undo.003": "⚠️ This is the same voice note that already ran, so it was not run again. To run it again, first write \"undo note\", or send a new note.",
-  "entry-help.001": "📋 How to add data\n\n💸 Expense: expense 500 packaging\n👷 Wage: Ali ki 5000 dihari · Ali ko 3 din 1500 · salary Ali 5000\n📉 Loss: loss 2 Kurti damaged\n🧾 Receipt design: type receipt design, then color blue, title Invoice, logo on, done\n🖼️ Logo / banner: send a picture with the caption logo or banner\n\n📦 Products, 4 ways:\n✍️ One line: Kurti - 1800, stock 10\n📝 Many products: one product per line\n🎤 Voice note: say the name and price\n📄 File: Excel (.xlsx / .xls), CSV or ODS. The first row is the heading (Name, Price, Stock)\n\nFor a template, type \"import\"."
+  "entry-help.001": "📋 How to add data\n\n💸 Expense: expense 500 packaging\n👷 Wage: Ali ki 5000 dihari · Ali ko 3 din 1500 · salary Ali 5000\n📉 Loss: loss 2 Kurti damaged\n🧾 Receipt design: type receipt design, then color blue, title Invoice, logo on, done\n🖼️ Logo / banner: send a picture with the caption logo or banner\n\n📦 Products, 4 ways:\n✍️ One line: Kurti - 1800, stock 10\n📝 Many products: one product per line\n🎤 Voice note: say the name and price\n📄 File: Excel (.xlsx / .xls), CSV or ODS. The first row is the heading (Name, Price, Stock)\n\nFor a template, type \"import\".",
+  "data-lists.001": "ℹ️ No losses recorded for {0}.",
+  "data-lists.002": "📉 Losses ({0}):\n{1}\n\nTotal loss: {2}",
+  "data-lists.003": "ℹ️ No wages recorded for {0}.",
+  "data-lists.004": "👷 Wages ({0}):\n{1}\n\nTotal: {2}"
 }

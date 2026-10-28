@@ -143,5 +143,9 @@
   "voice-undo.001": "ℹ️ اس وائس نوٹ کا کوئی کام واپس کرنے کے لیے نہیں ملا۔",
   "voice-undo.002": "✅ اس وائس نوٹ کے {0} کام واپس ہو گئے۔",
   "voice-undo.003": "⚠️ یہ وہی وائس نوٹ ہے جو پہلے چل چکا ہے، اس لیے دوبارہ نہیں چلایا گیا۔ دوبارہ چلانے کے لیے پہلے \"undo note\" لکھیں، یا نیا نوٹ بھیجیں۔",
-  "entry-help.001": "📋 ڈیٹا کیسے ڈالیں\n\n💸 خرچہ: expense 500 packaging\n👷 تنخواہ: Ali ki 5000 dihari · Ali ko 3 din 1500 · salary Ali 5000\n📉 نقصان: loss 2 Kurti damaged\n🧾 رسید کا ڈیزائن: receipt design لکھیں، پھر color blue، title Invoice، logo on، done\n🖼️ لوگو / بینر: تصویر بھیجیں جس کے کیپشن میں logo یا banner لکھا ہو\n\n📦 پروڈکٹ، 4 طریقے:\n✍️ ایک لائن: Kurti - 1800, stock 10\n📝 کئی پروڈکٹ: ہر لائن میں ایک پروڈکٹ\n🎤 وائس نوٹ: نام اور قیمت بول کر\n📄 فائل: Excel (.xlsx / .xls)، CSV یا ODS۔ پہلی لائن میں ہیڈنگ ہو (Naam، Price، Stock)\n\nٹیمپلیٹ کے لیے \"import\" لکھیں۔"
+  "entry-help.001": "📋 ڈیٹا کیسے ڈالیں\n\n💸 خرچہ: expense 500 packaging\n👷 تنخواہ: Ali ki 5000 dihari · Ali ko 3 din 1500 · salary Ali 5000\n📉 نقصان: loss 2 Kurti damaged\n🧾 رسید کا ڈیزائن: receipt design لکھیں، پھر color blue، title Invoice، logo on، done\n🖼️ لوگو / بینر: تصویر بھیجیں جس کے کیپشن میں logo یا banner لکھا ہو\n\n📦 پروڈکٹ، 4 طریقے:\n✍️ ایک لائن: Kurti - 1800, stock 10\n📝 کئی پروڈکٹ: ہر لائن میں ایک پروڈکٹ\n🎤 وائس نوٹ: نام اور قیمت بول کر\n📄 فائل: Excel (.xlsx / .xls)، CSV یا ODS۔ پہلی لائن میں ہیڈنگ ہو (Naam، Price، Stock)\n\nٹیمپلیٹ کے لیے \"import\" لکھیں۔",
+  "data-lists.001": "ℹ️ {0} کوئی نقصان درج نہیں۔",
+  "data-lists.002": "📉 نقصان ({0}):\n{1}\n\nکل نقصان: {2}",
+  "data-lists.003": "ℹ️ {0} کوئی تنخواہ درج نہیں۔",
+  "data-lists.004": "👷 تنخواہ ({0}):\n{1}\n\nکل: {2}"
 }

@@ -92,6 +92,21 @@ public class CommandParserTests
     public void OnboardingExampleLines_AreProductLines(string line) => Assert.Equal(CommandKind.AddProduct, CommandParser.TryParse(line)!.Kind);
 
     [Theory]
+    [InlineData("expenses this week", CommandKind.ExpenseList, "thisweek")]
+    [InlineData("expenses yesterday", CommandKind.ExpenseList, "yesterday")]
+    [InlineData("losses last month", CommandKind.LossList, "lastmonth")]
+    [InlineData("nuqsan 7 din", CommandKind.LossList, "7d")]
+    [InlineData("wages last week", CommandKind.WageList, "lastweek")]
+    [InlineData("tankhwah pichle mahine", CommandKind.WageList, "lastmonth")]
+    public void ExpensesLossesWagesTakeAnyPeriod(string message, CommandKind kind, string period)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.NotNull(parsed);
+        Assert.Equal(kind, parsed!.Kind);
+        Assert.Equal(period, parsed.Text);
+    }
+
+    [Theory]
     [InlineData("products this week", "thisweek")]
     [InlineData("products last month", "lastmonth")]
     [InlineData("trending products 7 days", "7d")]

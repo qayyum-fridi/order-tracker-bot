@@ -240,6 +240,12 @@ public partial class ConversationEngine
             case CommandKind.Loss:
                 await HandleLossAsync(seller, cmd, ct);
                 return;
+            case CommandKind.LossList:
+                await HandleLossListAsync(seller, cmd.Text, ct);
+                return;
+            case CommandKind.WageList:
+                await HandleWageListAsync(seller, cmd.Text, ct);
+                return;
             case CommandKind.Wage:
                 await HandleWageAsync(seller, cmd, ct);
                 return;
