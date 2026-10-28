@@ -145,6 +145,8 @@ public class CommandDictionaryTests
     [InlineData("shortcut off", CommandKind.Shortcuts)]
     [InlineData("shortcut on", CommandKind.Shortcuts)]
     [InlineData("version", CommandKind.Version)]
+    [InlineData("data help", CommandKind.DataEntryHelp)]
+    [InlineData("how to add", CommandKind.DataEntryHelp)]
     [InlineData("feedback: acha hai", CommandKind.Feedback)]
     [InlineData("reset account", CommandKind.ResetAccount)]
     [InlineData("discount performance", CommandKind.DiscountPerformance)]

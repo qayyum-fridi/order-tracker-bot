@@ -408,6 +408,9 @@ public partial class ConversationEngine
             case CommandKind.Version:
                 await ReplyAsync(seller, _build.Describe(), ct);
                 break;
+            case CommandKind.DataEntryHelp:
+                await ReplyAsync(seller, MessageTemplates.Get("entry-help.001"), ct);
+                break;
             case CommandKind.ClientLogout:
                 await HandleClientLogoutAsync(seller, ct);
                 break;

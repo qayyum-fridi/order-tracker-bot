@@ -103,6 +103,7 @@ public enum CommandKind
     NewOrderHelp,
     Guide,
     Version,
+    DataEntryHelp,
     ClientLogin,
     ClientLogout,
     SetupCheck,
@@ -181,6 +182,8 @@ public static class CommandParser
     private static readonly Regex IndustryCmd = new(@"^(?:industry|business\s+type|shop\s+type|dukaan\s+(?:ki\s+)?(?:qism|type)|کاروبار\s+کی\s+قسم)(?:\s*[:=]?\s+(?<v>.+))?$", Opts);
     private static readonly Regex SetupCheckCmd = new(@"^(?:data\s+check|setup\s+check|data\s+checklist|checklist|setup\s+status|data\s+theek\s*hai|ڈیٹا\s*چیک|چیک\s*لسٹ)$", Opts);
     private static readonly Regex VersionCmd = new(@"^(?:bot\s+)?(?:version|build|ورژن)$", Opts);
+    // "data help" / "how to add" / "kaise dalein": the formats and the typed commands for every kind of data.
+    private static readonly Regex DataEntryHelpCmd = new(@"^(?:data\s+(?:entry|help)|entry\s+help|how\s+to\s+add|kaise\s+(?:dalein|daalein)|ڈیٹا\s+کیسے\s+(?:ڈالیں|ڈالوں)|ڈیٹا\s+کا\s+طریقہ)$", Opts);
     private static readonly Regex ClientLoginCmd = new(@"^(?:dashboard\s+)?(?:login|log\s+in|لاگ\s*ان)$", Opts);
     private static readonly Regex ClientLogoutCmd = new(@"^(?:dashboard\s+)?(?:logout|log\s+out|sign\s*out)(?:\s+all)?$", Opts);
     // "margin last month", "margin 7 days", "profit margin this week": the margin each product made in that period. Text2 = period key.
@@ -1430,6 +1433,7 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.Industry, Text = industry.Groups["v"].Success ? industry.Groups["v"].Value.Trim() : null };
         if (SetupCheckCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.SetupCheck };
         if (VersionCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Version };
+        if (DataEntryHelpCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DataEntryHelp };
         if (ClientLoginCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ClientLogin };
         if (ClientLogoutCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ClientLogout };
         if (GuideLater.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.GuideLater };
