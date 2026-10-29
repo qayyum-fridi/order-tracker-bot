@@ -105,6 +105,12 @@ gated by `Database:AutoMigrate`).
 (`WhatsApp:AccessToken`, `OpenAi:ApiKey`, `FounderAlerts:WebhookUrl`) is absent, rather
 than throwing — this is what makes the credential-free local dev loop possible.
 
+**Intent catalog (`src/OrderTrackerBot.Application/Intents/intents.json`, `IntentCatalog`):** a message the order reader cannot place (idle text or
+voice) goes to `IAiOrderAssistant.RouteIntentAsync`, which picks one intent id and fills its slots. The engine builds the typed command from the
+entry's `template` and runs it through the normal parser, so the model never writes a command. Entries with a missing required slot get their
+`help` how-to. Add a feature as an entry (examples in Roman Urdu / English / Urdu script), not as a new phrase branch; `IntentCatalogTests` fails
+when a template stops parsing. Risky commands are never routed.
+
 **Bot wording lives in templates.** Every seller-facing message is a keyed entry in `src/OrderTrackerBot.Application/Templates/Messages/*.json` (embedded; keys unique across files; the file name only groups them), written in Roman Urdu. English / Urdu-script sellers get hand-written text from `Templates/Translations/<language>/*.json` (`MessageTranslations`, same keys and placeholders; `MessageTranslationsTests` fails on a missing key, an extra key or changed placeholders); the AI translates only text no template matches. Code sends `MessageTemplates.Get("key", args...)` with `{0}`, `{1}` placeholders; the caller formats numbers and money. Add a new message as a key, never as a prose literal in a send call: `TemplateGuardTests` fails on the usual form. Button labels the engine matches on stay in code. Industry shop wording lives in `Templates/Industries/*.json`.
 
 ## Deployment

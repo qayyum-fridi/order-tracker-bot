@@ -121,6 +121,15 @@ public partial class ConversationEngine
         var decision = joined.All(c => char.IsDigit(c) || c == '+') && IsPlausiblePhone(joined)
             ? TurnDecision.Execute(new[] { joined })
             : await InterpretVoiceAsync(seller, text, ct);
+        // The rewrite left nothing to run while idle ("naya product" said aloud): the intent catalog may still place the sentence.
+        if (decision.Steps.Count == 0 && decision.Kind != DecisionKind.Reject && seller.Session!.State == ConversationState.Idle
+            && await RouteIntentAsync(text, ct) is { } routed)
+        {
+            _droppedVoiceSteps.Clear();
+            decision = routed.Command is not null
+                ? TurnDecision.Execute(new[] { routed.Command })
+                : TurnDecision.Clarify(MessageTemplates.Get(routed.Help!));
+        }
         if (decision.Kind != DecisionKind.Execute) LogNotUnderstood("voice-" + decision.Kind.ToString().ToLowerInvariant(), seller.Session!.State, text);
         // Steps the AI made up or that do not match the words spoken are not run; the seller is told which ones, so nothing vanishes silently.
         // Shown on every reply path (clarify, refuse and run), not only the run path.

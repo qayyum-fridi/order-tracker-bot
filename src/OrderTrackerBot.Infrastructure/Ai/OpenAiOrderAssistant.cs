@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Ai;
+using OrderTrackerBot.Application.Intents;
 
 namespace OrderTrackerBot.Infrastructure.Ai;
 
@@ -250,6 +251,39 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             using var doc = JsonDocument.Parse(json);
             var route = doc.RootElement.TryGetProperty("route", out var r) && r.ValueKind == JsonValueKind.String ? r.GetString() : null;
             return route is "answer" or "new_order" or "cancel" or "skip" or "other" ? route : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<IntentRoute?> RouteIntentAsync(string message, IReadOnlyList<IntentDefinition> catalog, CancellationToken cancellationToken = default)
+    {
+        if (catalog.Count == 0) return null;
+        var menu = string.Join("\n", catalog.Select(i =>
+            $"- {i.Id}: {i.Description} Examples: {string.Join(" | ", i.Examples)}. " +
+            $"Slots: {string.Join(", ", i.Slots.Select(s => s.Name + (s.Required ? " (required)" : " (optional)")))}"));
+        var json = await CompleteTextAsync(
+            "You route a message from a small shop owner (Pakistan; Roman Urdu, Urdu script or English; spelling and word order vary) to ONE action from this list:\n" + menu + "\n" +
+            "Return ONLY JSON {\"intent\": \"<id from the list, or none>\", \"slots\": {\"<slot name>\": \"<value>\"}, \"confidence\": <0 to 1>}. " +
+            "Slot values are the seller's own words (a number as digits). Never invent a name, number or code that is not in the message; leave the slot out when it is not said. " +
+            "Use none for a new order (customer plus items), a question about an existing order, small talk, or anything not in the list. When unsure, use none.",
+            message, 0, "intent routing", cancellationToken, jsonMode: true);
+        if (json is null) return null;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("intent", out var intent) || intent.ValueKind != JsonValueKind.String) return null;
+            var slots = new Dictionary<string, string>(StringComparer.Ordinal);
+            if (root.TryGetProperty("slots", out var slotObject) && slotObject.ValueKind == JsonValueKind.Object)
+                foreach (var slot in slotObject.EnumerateObject())
+                    if (slot.Value.ValueKind is JsonValueKind.String or JsonValueKind.Number)
+                        slots[slot.Name] = slot.Value.ValueKind == JsonValueKind.String ? slot.Value.GetString() ?? "" : slot.Value.GetRawText();
+            var confidence = root.TryGetProperty("confidence", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetDouble() : 0;
+            return new IntentRoute(intent.GetString() ?? "none", slots, confidence);
         }
         catch (JsonException)
         {

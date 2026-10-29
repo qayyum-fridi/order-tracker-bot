@@ -1,0 +1,114 @@
+{
+  "intents": [
+    {
+      "id": "product.create",
+      "entity": "product",
+      "action": "create",
+      "description": "The seller wants to add a product to the catalog and gives its name and price.",
+      "examples": ["naya product", "ye cheez bhi rakhni hai", "naya item add karo", "نیا پروڈکٹ"],
+      "slots": { "name": { "required": true }, "price": { "required": true, "type": "number" } },
+      "template": "{name} - {price}",
+      "help": "howto.product"
+    },
+    {
+      "id": "product.show",
+      "entity": "product",
+      "action": "show",
+      "description": "The seller wants to see the products in the catalog.",
+      "examples": ["products dikhao", "meri catalog dikhao", "show my products", "کیٹلاگ دکھاؤ"],
+      "slots": {},
+      "template": "catalog",
+      "help": null
+    },
+    {
+      "id": "discount.create",
+      "entity": "discount",
+      "action": "create",
+      "description": "The seller wants to make a discount code. The code name and the value (a percent like 10% or a flat amount) are needed.",
+      "examples": ["discount banana hai", "EID ke liye 10 percent ka code", "naya discount", "ڈسکاؤنٹ بنائیں"],
+      "slots": { "code": { "required": true }, "value": { "required": true } },
+      "template": "create discount: {code} {value}",
+      "help": "howto.discount"
+    },
+    {
+      "id": "customer.create",
+      "entity": "customer",
+      "action": "create",
+      "description": "The seller wants to save a new buyer (customer) by name, before or without any order.",
+      "examples": ["naya client hai", "naya customer save karo", "ایک نیا کسٹمر لکھیں", "add a new customer"],
+      "slots": { "name": { "required": true } },
+      "template": "customer add {name}",
+      "help": "howto.customer"
+    },
+    {
+      "id": "customer.show",
+      "entity": "customer",
+      "action": "show",
+      "description": "The seller wants to see the saved customers.",
+      "examples": ["customers dikhao", "meri customer list", "show customers"],
+      "slots": {},
+      "template": "customers",
+      "help": null
+    },
+    {
+      "id": "expense.create",
+      "entity": "expense",
+      "action": "create",
+      "description": "The seller spent money on the shop (packaging, petrol, rent...). The amount and what it was for are needed.",
+      "examples": ["aaj 500 ka petrol kharcha hua", "packaging pe 300 lagaye", "kharcha 800 petrol", "expense 500 packaging"],
+      "slots": { "amount": { "required": true, "type": "number" }, "note": { "required": true } },
+      "template": "expense {amount} {note}",
+      "help": "howto.expense"
+    },
+    {
+      "id": "expense.show",
+      "entity": "expense",
+      "action": "show",
+      "description": "The seller wants to see the expenses recorded.",
+      "examples": ["kharche dikhao", "is mahine ke expenses", "show expenses"],
+      "slots": {},
+      "template": "expenses",
+      "help": null
+    },
+    {
+      "id": "wage.create",
+      "entity": "wage",
+      "action": "create",
+      "description": "The seller paid a worker's wage. The worker's name and the amount are needed.",
+      "examples": ["Ali ko 5000 tankhwah di", "Ali ki 5000 dihari", "mulazim ko paisay diye"],
+      "slots": { "name": { "required": true }, "amount": { "required": true, "type": "number" } },
+      "template": "wage {name} {amount}",
+      "help": "howto.wage"
+    },
+    {
+      "id": "report.today",
+      "entity": "report",
+      "action": "summary",
+      "description": "The seller wants today's sales and account summary.",
+      "examples": ["aaj kitna bika", "aaj ki report", "aaj ka hisaab", "today's sales"],
+      "slots": {},
+      "template": "aaj ka hisaab",
+      "help": null
+    },
+    {
+      "id": "report.profit",
+      "entity": "report",
+      "action": "profit",
+      "description": "The seller wants the profit (sales minus product cost) for the last 30 days.",
+      "examples": ["is mahine ka munafa", "profit kitna hua", "show profit"],
+      "slots": {},
+      "template": "profit",
+      "help": null
+    },
+    {
+      "id": "stock.show",
+      "entity": "stock",
+      "action": "show",
+      "description": "The seller wants to see the stock left for tracked products.",
+      "examples": ["stock dikhao", "kitna maal bacha hai", "show stock"],
+      "slots": {},
+      "template": "stock",
+      "help": null
+    }
+  ]
+}

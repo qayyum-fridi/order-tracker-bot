@@ -9,6 +9,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Intents\*.json" LogicalName="Intents.%(Filename)%(Extension)" />
     <EmbeddedResource Include="Templates\Industries\*.json" LogicalName="Templates.Industries.%(Filename)%(Extension)" />
     <EmbeddedResource Include="Templates\Messages\*.json" LogicalName="Templates.Messages.%(Filename)%(Extension)" />
     <EmbeddedResource Include="Templates\Translations\english\*.json" LogicalName="Templates.Translations.english.%(Filename)%(Extension)" />
