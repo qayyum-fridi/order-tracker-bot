@@ -45,7 +45,7 @@ public class IntentRoutingTests : IDisposable
         using var db = _dbFactory.CreateContext();
         await SeedAsync(db);
         _ai.Setup(a => a.RouteIntentAsync("aaj 500 ka petrol kharcha hua", It.IsAny<IReadOnlyList<IntentDefinition>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IntentRoute("expense.create", new Dictionary<string, string> { ["amount"] = "500", ["note"] = "petrol" }, 0.9));
+            .ReturnsAsync(new IntentRoute("expense.add", new Dictionary<string, string> { ["amount"] = "500", ["note"] = "petrol" }, 0.9));
 
         await Engine(db).HandleIncomingMessageAsync(Phone, "aaj 500 ka petrol kharcha hua", default);
 
@@ -58,13 +58,27 @@ public class IntentRoutingTests : IDisposable
         using var db = _dbFactory.CreateContext();
         await SeedAsync(db);
         _ai.Setup(a => a.RouteIntentAsync("naya client hai", It.IsAny<IReadOnlyList<IntentDefinition>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IntentRoute("customer.create", new Dictionary<string, string>(), 0.9));
+            .ReturnsAsync(new IntentRoute("customer.add", new Dictionary<string, string>(), 0.9));
 
         await Engine(db).HandleIncomingMessageAsync(Phone, "naya client hai", default);
 
         var saved = await db.Customers.Select(c => c.Name).ToListAsync();
         Assert.True(saved.Count == 0, "saved: " + string.Join(" | ", saved) + " ; replies: " + string.Join(" || ", _text));
-        Assert.Contains(_text, t => t.Contains("Naya customer save karne ke liye"));
+        Assert.Contains(_text, t => t.Contains("customer add [name]"));
+    }
+
+    [Fact]
+    public async Task RoutedResetAccount_OnlyStartsTheConfirmation_AndDeletesNothing()
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+        _ai.Setup(a => a.RouteIntentAsync("sab data mita do", It.IsAny<IReadOnlyList<IntentDefinition>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IntentRoute("account.reset", new Dictionary<string, string>(), 0.95));
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, "sab data mita do", default);
+
+        Assert.Contains(_text, t => t.Contains("poora data"));
+        Assert.Equal(1, await db.Sellers.CountAsync());
     }
 
     [Fact]
@@ -73,7 +87,7 @@ public class IntentRoutingTests : IDisposable
         using var db = _dbFactory.CreateContext();
         await SeedAsync(db);
         _ai.Setup(a => a.RouteIntentAsync("500 petrol", It.IsAny<IReadOnlyList<IntentDefinition>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new IntentRoute("expense.create", new Dictionary<string, string> { ["amount"] = "500", ["note"] = "petrol" }, 0.4));
+            .ReturnsAsync(new IntentRoute("expense.add", new Dictionary<string, string> { ["amount"] = "500", ["note"] = "petrol" }, 0.4));
 
         await Engine(db).HandleIncomingMessageAsync(Phone, "500 petrol", default);
 

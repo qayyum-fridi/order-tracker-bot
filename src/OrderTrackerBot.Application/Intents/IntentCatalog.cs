@@ -1,22 +1,23 @@
-using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using OrderTrackerBot.Application.Conversation;
 
 namespace OrderTrackerBot.Application.Intents;
 
 /// <summary>
 /// One thing a seller can ask for, described as data (<c>Intents/intents.json</c>). The AI only picks <see cref="Id"/> and fills the slots;
 /// the engine builds the typed command from <see cref="Template"/> and runs it through the same deterministic parser as typed text.
+/// <see cref="Kind"/> is the <see cref="CommandKind"/> the built command must parse to, so a template that drifts cannot run another action.
 /// </summary>
 public sealed record IntentDefinition(
     string Id,
     string Entity,
     string Action,
+    string Kind,
     string Description,
     IReadOnlyList<string> Examples,
     IReadOnlyList<IntentSlot> Slots,
-    string Template,
-    string? Help);
+    string Template);
 
 /// <summary>A value the command needs. <see cref="IsNumber"/> slots are checked as plain numbers before they go into the command.</summary>
 public sealed record IntentSlot(string Name, bool Required, bool IsNumber);
@@ -37,6 +38,9 @@ public static class IntentCatalog
     public static IReadOnlyList<IntentDefinition> All { get; } = Load();
 
     public static IntentDefinition? Find(string id) => All.FirstOrDefault(i => string.Equals(i.Id, id, StringComparison.Ordinal));
+
+    /// <summary>The command as the seller would type it, with each value shown as [slot name]: the how-to for a missing or risky one.</summary>
+    public static string Example(IntentDefinition intent) => Placeholder.Replace(intent.Template, m => $"[{m.Groups[1].Value}]");
 
     /// <summary>Fills the template from the slot values. Values that are blank, multi-line, too long or not a number (for number slots) count as missing.</summary>
     public static BuiltIntent Build(IntentDefinition intent, IReadOnlyDictionary<string, string> slots)
@@ -81,11 +85,11 @@ public static class IntentCatalog
                 item.GetProperty("id").GetString()!,
                 item.GetProperty("entity").GetString()!,
                 item.GetProperty("action").GetString()!,
+                item.GetProperty("kind").GetString()!,
                 item.GetProperty("description").GetString()!,
                 item.GetProperty("examples").EnumerateArray().Select(e => e.GetString()!).ToList(),
                 slots,
-                item.GetProperty("template").GetString()!,
-                item.TryGetProperty("help", out var help) ? help.GetString() : null);
+                item.GetProperty("template").GetString()!);
             Validate(intent);
             intents.Add(intent);
         }
@@ -99,6 +103,7 @@ public static class IntentCatalog
     private static void Validate(IntentDefinition intent)
     {
         if (intent.Examples.Count == 0) throw new InvalidOperationException($"Intent \"{intent.Id}\" has no examples.");
+        if (!Enum.TryParse<CommandKind>(intent.Kind, out _)) throw new InvalidOperationException($"Intent \"{intent.Id}\" names unknown kind \"{intent.Kind}\".");
         var declared = intent.Slots.Select(s => s.Name).ToHashSet(StringComparer.Ordinal);
         foreach (Match m in Placeholder.Matches(intent.Template))
             if (!declared.Contains(m.Groups[1].Value))

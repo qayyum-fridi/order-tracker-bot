@@ -128,7 +128,7 @@ public partial class ConversationEngine
             _droppedVoiceSteps.Clear();
             decision = routed.Command is not null
                 ? TurnDecision.Execute(new[] { routed.Command })
-                : TurnDecision.Clarify(MessageTemplates.Get(routed.Help!));
+                : TurnDecision.Clarify(MessageTemplates.Get("intent.howto", routed.Help!));
         }
         if (decision.Kind != DecisionKind.Execute) LogNotUnderstood("voice-" + decision.Kind.ToString().ToLowerInvariant(), seller.Session!.State, text);
         // Steps the AI made up or that do not match the words spoken are not run; the seller is told which ones, so nothing vanishes silently.

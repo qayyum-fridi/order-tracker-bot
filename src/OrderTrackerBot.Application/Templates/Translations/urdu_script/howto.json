@@ -8,7 +8,5 @@
   "change-help.expense": "✏️ خرچہ بدلنے کے لیے پہلے نمبر دیکھیں (expenses لکھیں)، پھر لکھیں:\n\nexpense edit 12 800 packaging\n\nحذف کرنے کے لیے:\nexpense delete 12",
   "change-help.wage": "ℹ️ تنخواہ بدلنے یا حذف کرنے کا کمانڈ ابھی نہیں ہے۔ غلط اندراج کی جگہ درست اندراج دوبارہ لکھیں۔\n\nتنخواہیں دیکھنے کے لیے: wages",
   "change-help.loss": "ℹ️ نقصان بدلنے یا حذف کرنے کا کمانڈ ابھی نہیں ہے۔ غلط اندراج کی جگہ درست اندراج دوبارہ لکھیں۔\n\nنقصان دیکھنے کے لیے: losses",
-  "howto.product": "🛍️ نیا پروڈکٹ محفوظ کرنے کے لیے لکھیں:\n\nKurti - 1800\nLawn Suit - 3500, cost 2400, stock 10\n\nپروڈکٹس دیکھنے کے لیے: catalog",
-  "howto.discount": "🏷️ ڈسکاؤنٹ کوڈ بنانے کے لیے لکھیں:\n\ncreate discount: EID10 10%\ncreate discount: SAVE200 200 off\n\nمینو کے لیے: menu",
-  "howto.customer": "👤 نیا customer محفوظ کرنے کے لیے لکھیں:\n\ncustomer add Sara\ncustomer add Sara, Model Town, 03001234567\n\nCustomers دیکھنے کے لیے: customers"
+  "intent.howto": "✏️ یہ کام اس طرح لکھیں:\n\n{0}\n\nمینو کے لیے: menu"
 }

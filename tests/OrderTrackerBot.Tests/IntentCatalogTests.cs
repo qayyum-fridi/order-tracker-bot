@@ -5,12 +5,20 @@ using Xunit;
 
 namespace OrderTrackerBot.Tests;
 
-// The intent catalog (Intents/intents.json): every template must become a command the deterministic parser reads, and nothing risky.
+// The intent catalog (Intents/intents.json): every template must become a command the deterministic parser reads, as the kind it declares.
 public class IntentCatalogTests
 {
+    // One realistic value for every slot name used in the catalog. A new slot without a sample fails EveryIntent_HasSampleValues_ForEverySlot.
     private static readonly Dictionary<string, string> SampleSlots = new()
     {
-        ["name"] = "Sara", ["price"] = "1500", ["code"] = "EID10", ["value"] = "10%", ["amount"] = "500", ["note"] = "petrol"
+        ["order"] = "12", ["order_ids"] = "1 2 3", ["status"] = "shipped", ["amount"] = "500", ["note"] = "gift wrap", ["qty"] = "2",
+        ["product"] = "Kurti", ["reason"] = "damaged", ["method"] = "jazzcash", ["account"] = "03001234567", ["tracking_no"] = "TCS123",
+        ["query"] = "1203", ["customer"] = "Sara", ["name"] = "Sara", ["price"] = "1500", ["cost"] = "300", ["stock"] = "10",
+        ["category"] = "Shirts", ["supplier"] = "Shah Alam", ["code"] = "EID10", ["value"] = "10%", ["tier_price"] = "450", ["group"] = "B",
+        ["size"] = "25", ["page"] = "2", ["phone"] = "03001234567", ["address"] = "Model Town", ["city"] = "Lahore",
+        ["email"] = "sara@mail.com", ["message"] = "naya stock aaya", ["courier"] = "TCS", ["id"] = "12", ["text"] = "Lahore Branch",
+        ["paper"] = "80mm", ["label_size"] = "a6", ["industry"] = "kiryana", ["days"] = "30", ["old_price"] = "500", ["new_price"] = "550",
+        ["percent"] = "10", ["period"] = "last week", ["place"] = "Model Town",
     };
 
     public static IEnumerable<object[]> Intents() => IntentCatalog.All.Select(i => new object[] { i.Id });
@@ -22,9 +30,16 @@ public class IntentCatalogTests
         Assert.All(IntentCatalog.All, i => Assert.NotEmpty(i.Examples));
     }
 
+    [Fact]
+    public void EveryIntent_HasSampleValues_ForEverySlot()
+    {
+        var missing = IntentCatalog.All.SelectMany(i => i.Slots.Select(s => s.Name)).Where(n => !SampleSlots.ContainsKey(n)).Distinct().ToList();
+        Assert.Empty(missing);
+    }
+
     [Theory]
     [MemberData(nameof(Intents))]
-    public void EveryIntent_BuildsACommandThatTheParserReads(string id)
+    public void EveryIntent_BuildsACommandThatTheParserReadsAsItsKind(string id)
     {
         var intent = IntentCatalog.Find(id)!;
         var built = IntentCatalog.Build(intent, SampleSlots);
@@ -32,25 +47,25 @@ public class IntentCatalogTests
         Assert.NotNull(built.Command);
         var parsed = CommandParser.TryParse(built.Command!);
         Assert.True(parsed is not null, $"{id} built \"{built.Command}\", which the parser does not read");
-        Assert.DoesNotContain(parsed!.Kind, ActionRisk.RiskyCommands);
+        Assert.True(parsed!.Kind.ToString() == intent.Kind, $"{id} built \"{built.Command}\" parsed as {parsed.Kind}, declared {intent.Kind}");
     }
 
     [Theory]
     [MemberData(nameof(Intents))]
-    public void EveryIntentWithAHelp_HasItsHowToReply(string id)
+    public void EveryIntent_CanBeShownAsAHowTo(string id)
     {
-        var help = IntentCatalog.Find(id)!.Help;
-        if (help is not null) Assert.False(string.IsNullOrWhiteSpace(MessageTemplates.Get(help)));
+        var example = IntentCatalog.Example(IntentCatalog.Find(id)!);
+        Assert.False(string.IsNullOrWhiteSpace(MessageTemplates.Get("intent.howto", example)));
     }
 
     [Fact]
     public void MissingRequiredSlot_GivesNoCommand_AndNamesTheSlot()
     {
-        var product = IntentCatalog.Find("product.create")!;
-        var built = IntentCatalog.Build(product, new Dictionary<string, string> { ["name"] = "Kurti" });
+        var built = IntentCatalog.Build(IntentCatalog.Find("product.create")!, new Dictionary<string, string> { ["name"] = "Kurti" });
 
         Assert.Null(built.Command);
         Assert.Equal(new[] { "price" }, built.Missing);
+        Assert.Equal("[name] - [price]", IntentCatalog.Example(IntentCatalog.Find("product.create")!));
     }
 
     [Theory]
@@ -80,9 +95,17 @@ public class IntentCatalogTests
     [InlineData("Sara\nDelete all")]
     public void TextSlot_WithBracesOrLineBreaks_IsRefused(string name)
     {
-        var built = IntentCatalog.Build(IntentCatalog.Find("customer.create")!, new Dictionary<string, string> { ["name"] = name });
+        var built = IntentCatalog.Build(IntentCatalog.Find("customer.add")!, new Dictionary<string, string> { ["name"] = name });
 
         Assert.Null(built.Command);
+    }
+
+    [Fact]
+    public void OptionalSlot_LeftOut_DoesNotLeaveAGap()
+    {
+        var built = IntentCatalog.Build(IntentCatalog.Find("ask.avg_daily")!, new Dictionary<string, string>());
+
+        Assert.Equal("roz ki average bikri", built.Command);
     }
 
     [Fact]
