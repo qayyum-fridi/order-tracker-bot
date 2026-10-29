@@ -1,0 +1,6 @@
+{
+  "howto.expense": "💸 خرچہ محفوظ کرنے کے لیے لکھیں:\n\nexpense 500 packaging\nkharcha 800 petrol\n\nخرچے دیکھنے کے لیے: expenses\nاس ہفتے کے: expenses this week",
+  "howto.wage": "👷 ملازم کی تنخواہ محفوظ کرنے کے لیے لکھیں:\n\nAli ki 5000 dihari\nAli ko 3 din 1500\nwage Ali 5000\n\nتنخواہیں دیکھنے کے لیے: wages",
+  "howto.loss": "📉 نقصان (خراب / گم شدہ مال) محفوظ کرنے کے لیے لکھیں:\n\nloss 2 Kurti damaged\n\nنقصان دیکھنے کے لیے: losses",
+  "howto.report": "📊 رپورٹ دیکھنے کے لیے لکھیں:\n\naaj ka hisaab\nweekly summary\nprofit\nmargin\n\nپورے مینیو کے لیے: menu"
+}

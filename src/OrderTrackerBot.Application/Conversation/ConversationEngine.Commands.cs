@@ -853,6 +853,10 @@ public partial class ConversationEngine
             "add payment: jazzcash, 0300-1234567\nadd payment: easypaisa, 0300-1234567",
         "loyalty" =>
             MessageTemplates.Get("commands.039"),
+        "expense" => MessageTemplates.Get("howto.expense"),
+        "wage" => MessageTemplates.Get("howto.wage"),
+        "loss" => MessageTemplates.Get("howto.loss"),
+        "report" => MessageTemplates.Get("howto.report"),
         _ =>
             MessageTemplates.Get("commands.040")
     };

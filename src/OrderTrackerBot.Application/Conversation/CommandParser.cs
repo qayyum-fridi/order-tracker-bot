@@ -323,7 +323,7 @@ public static class CommandParser
     private static readonly Regex CustomerAddLabel = new(
         @"(?<![\p{L}\p{N}])(?<k>address|pata|patta|phone|fone|mobile|number|city|shehar|پتہ|ایڈریس|ایڈرس|فون|موبائل|نمبر|شہر)(?![\p{L}\p{N}])", Opts);
     private static readonly Regex CustomerAddPhoneLike = new(@"^\+?\d[\d\s-]{8,16}\d$", Opts);
-    private static readonly Regex CustomerAddNameBlocked = new(@"^(?:order|orders|list|report|search|find|phone|number|address|city|summary|catalog|price)\b", Opts);
+    private static readonly Regex CustomerAddNameBlocked = new(@"^(?:order|orders|list|report|search|find|phone|number|address|city|summary|catalog|price|bana\p{L}*|create|make|naya|nayi)\b", Opts);
     private static readonly Regex CustomerAddNameWord = new(@"^[\p{L}\p{M}.'’-]+$", Opts);
     // "Muhammad Ali hai", "ماڈل ٹاؤن لاہور ہے", "address ... uska": spoken filler around a value is not part of it.
     private static readonly Regex CustomerAddTrailingFiller = new(@"\s+(?:hai|hain|ہے|ہیں|uska|uski|iska|iski|اس\s+کا|اس\s+کی)$", Opts);
@@ -1213,6 +1213,41 @@ public static class CommandParser
     // "add discount" / "new product" with no details: show the exact format instead of guessing via the AI.
     private static readonly Regex DetailedForm = new(@"^(?:add\s+)?(product|customer|order)\s*\(\s*detailed\s*\)$|^new\s+(order)\s*\(\s*detailed\s*\)$", Opts);
     private static readonly Regex NewOrderHelp = new(@"^(?:new|naya|nya|add|create|make)\s+orders?$|^(?:naya\s+order\s+banao|order\s+bana\s+do)$|^نیا\s+آرڈر$|^(?:naya\s+)?orders?\s+(?:add|darj|likhna|karna|dalna)(?:\s+(?:karna|karni|hai|karein|krna))*$", Opts);
+    // Any wording that asks to start a new order with no order details ("naya order bana dein", "aaj ki tareekh ka naya order bana do",
+    // "یہ ایک نیا آرڈر بنا دیں"): an order noun + a create verb, and nothing that makes it another command (a number, a question,
+    // edit / cancel / report words, a buyer or product word). Extra words such as a date are ignored.
+    private static readonly Regex NewOrderNoun = new(@"(?<!\p{L})orders?(?!\p{L})|آرڈر|اڈر", Opts);
+    private static readonly Regex NewOrderVerb = new(@"(?<!\p{L})(?:bana\p{L}*|bnao|bna\p{L}*|create|make|add|naya|nayi|nya|new|likh\p{L}*|darj\p{L}*|daal\p{L}*|dal\s*(?:do|dein|den|o|ein)|kar\s*(?:do|dein|den|o|ein)|karein|start|shuru\p{L}*)(?!\p{L})|بنا\p{L}*|بنائ\p{L}*|بناو\p{L}*|لکھ\p{L}*|درج|ڈال\p{L}*|کر\s*دیں|کریں|کر\s*دو|شروع", Opts);
+    // Words that make a create-sentence into another command (a question, a lookup, an edit, a status change, a number).
+    private const string NotActionWords = @"\p{Nd}|[?؟]|(?<!\p{L})(?:edit|cancel|mark|status|delete|undo|receipt|label|summary|list|kitn\p{L}*|kya|kab|kaun\p{L}*|show|dikhao|dekh\p{L}*|search|find|remove|hata\p{L}*|track\p{L}*|return\p{L}*|wapas|shipped|delivered|paid|advance|bhej\p{L}*|forward|export|total|courier|payout)(?!\p{L})|(?<!\p{L})(?:chahte|chahti|chahta|chahiye|hain|kehna|kehte)(?!\p{L})|ترمیم|منسوخ|حذف|دکھ|کیا|کتن|کب|کون|رسید|لیبل|خلاصہ|فہرست|ختم";
+    // A short request to start something ("naya expense bana do", "expense add karna hai"), not a statement about it ("ek naya product hai").
+    private static readonly Regex NotCreateHelpRequest = new(NotActionWords + @"|(?<!\p{L})(?:ye|yeh|jo|ke|ki|ek)(?!\p{L})|(?<!(?:karna|karni|karne|likhna|likhni|likhein|likho) )(?<!\p{L})hai(?!\p{L})", Opts);
+    // Nouns that belong to another command when they are the subject of an order sentence.
+    private static readonly Regex NotNewOrderRequest = new(NotActionWords + @"|(?<!\p{L})hai(?!\p{L})|(?<!\p{L})(?:report|reports|expenses?|stock|discount|profit|munafa|margin|cost|products?|catalog|customers?|walk-?in|counter)(?!\p{L})|رپورٹ|کسٹمر|گاہک", Opts);
+    private static bool IsNewOrderRequest(string message) =>
+        message.Length <= 120 && NewOrderNoun.IsMatch(message) && NewOrderVerb.IsMatch(message) && !NotNewOrderRequest.IsMatch(message);
+
+    // "naya customer bana dein", "expense add karna hai", "wages ka form", "losses likhni hain" with no details: the how-to for that noun.
+    private static readonly (string Topic, Regex Noun)[] CreateHelpNouns =
+    {
+        ("customer", new(@"(?<!\p{L})(?:customers?|clients?|grahak\p{L}*)(?!\p{L})|کسٹمر|گاہک|کلائنٹ", Opts)),
+        ("product", new(@"(?<!\p{L})(?:products?|items?)(?!\p{L})|پروڈکٹ|آئٹم", Opts)),
+        ("expense", new(@"(?<!\p{L})(?:expenses?|kharch\p{L}*|kharcha)(?!\p{L})|خرچ\p{L}*", Opts)),
+        ("wage", new(@"(?<!\p{L})(?:wages?|salary|salaries|tankhwah|tankhah)(?!\p{L})|تنخواہ", Opts)),
+        ("loss", new(@"(?<!\p{L})(?:loss|losses|nuqsan|nuksan|damage)(?!\p{L})|نقصان", Opts)),
+        ("report", new(@"(?<!\p{L})reports?(?!\p{L})|رپورٹ", Opts)),
+        ("payment", new(@"(?<!\p{L})payments?(?!\p{L})|پیمنٹ|ادائیگی", Opts)),
+    };
+    private static ParsedCommand? TryParseCreateHelp(string message)
+    {
+        if (message.Length > 60 || NotCreateHelpRequest.IsMatch(message) || !NewOrderVerb.IsMatch(message) || NewOrderNoun.IsMatch(message)) return null;
+        var topics = CreateHelpNouns.Where(n => n.Noun.IsMatch(message)).Select(n => n.Topic).Distinct().ToList();
+        if (topics.Count != 1) return null;
+        return topics[0] == "customer"
+            ? new ParsedCommand { Kind = CommandKind.DetailedForm, Text = "customer" }
+            : new ParsedCommand { Kind = CommandKind.HowTo, Text = topics[0] };
+    }
+
     private static readonly Regex HowTo =new(@"^(?:add|new|create|make)\s+(discount|product|payment|loyalty|tracking)s?$", Opts);
     // Spoken/Roman Urdu "[ek HBL 50 ka] discount naya bana dein" / "ڈسکاؤنٹ نیا بنا دیں": same as "create discount" with no details.
     private static readonly Regex NaturalCreateDiscount = new(
@@ -1708,7 +1743,8 @@ public static class CommandParser
         if ((m = DetailedForm.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.DetailedForm, Text = (m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value).ToLowerInvariant() };
 
-        if (NewOrderHelp.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.NewOrderHelp };
+        if (NewOrderHelp.IsMatch(message) || IsNewOrderRequest(message)) return new ParsedCommand { Kind = CommandKind.NewOrderHelp };
+        if (TryParseCreateHelp(message) is { } createHelp) return createHelp;
 
         if ((m = HowTo.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.HowTo, Text = m.Groups[1].Value.ToLowerInvariant() };

@@ -1,0 +1,6 @@
+{
+  "howto.expense": "💸 Kharcha save karne ke liye likhein:\n\nexpense 500 packaging\nkharcha 800 petrol\n\nKharche dekhne ke liye: expenses\nHafte ka: expenses this week",
+  "howto.wage": "👷 Mulazim ki tankhwah save karne ke liye likhein:\n\nAli ki 5000 dihari\nAli ko 3 din 1500\nwage Ali 5000\n\nTankhwahein dekhne ke liye: wages",
+  "howto.loss": "📉 Nuqsan (kharab / gum maal) save karne ke liye likhein:\n\nloss 2 Kurti damaged\n\nNuqsan dekhne ke liye: losses",
+  "howto.report": "📊 Report dekhne ke liye likhein:\n\naaj ka hisaab\nweekly summary\nprofit\nmargin\n\nPura menu ke liye: menu"
+}

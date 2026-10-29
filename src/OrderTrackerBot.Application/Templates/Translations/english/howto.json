@@ -1,0 +1,6 @@
+{
+  "howto.expense": "💸 To save an expense, type:\n\nexpense 500 packaging\nkharcha 800 petrol\n\nTo see expenses: expenses\nFor this week: expenses this week",
+  "howto.wage": "👷 To save a staff member's wage, type:\n\nAli ki 5000 dihari\nAli ko 3 din 1500\nwage Ali 5000\n\nTo see wages: wages",
+  "howto.loss": "📉 To save a loss (damaged / lost stock), type:\n\nloss 2 Kurti damaged\n\nTo see losses: losses",
+  "howto.report": "📊 To see a report, type:\n\naaj ka hisaab\nweekly summary\nprofit\nmargin\n\nFor the full menu: menu"
+}
