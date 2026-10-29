@@ -857,6 +857,11 @@ public partial class ConversationEngine
         "wage" => MessageTemplates.Get("howto.wage"),
         "loss" => MessageTemplates.Get("howto.loss"),
         "report" => MessageTemplates.Get("howto.report"),
+        "change-customer" => MessageTemplates.Get("change-help.customer"),
+        "change-product" => MessageTemplates.Get("change-help.product"),
+        "change-expense" => MessageTemplates.Get("change-help.expense"),
+        "change-wage" => MessageTemplates.Get("change-help.wage"),
+        "change-loss" => MessageTemplates.Get("change-help.loss"),
         _ =>
             MessageTemplates.Get("commands.040")
     };

@@ -2,5 +2,10 @@
   "howto.expense": "💸 To save an expense, type:\n\nexpense 500 packaging\nkharcha 800 petrol\n\nTo see expenses: expenses\nFor this week: expenses this week",
   "howto.wage": "👷 To save a staff member's wage, type:\n\nAli ki 5000 dihari\nAli ko 3 din 1500\nwage Ali 5000\n\nTo see wages: wages",
   "howto.loss": "📉 To save a loss (damaged / lost stock), type:\n\nloss 2 Kurti damaged\n\nTo see losses: losses",
-  "howto.report": "📊 To see a report, type:\n\naaj ka hisaab\nweekly summary\nprofit\nmargin\n\nFor the full menu: menu"
+  "howto.report": "📊 To see a report, type:\n\naaj ka hisaab\nweekly summary\nprofit\nmargin\n\nFor the full menu: menu",
+  "change-help.customer": "✏️ To change a customer's details, type:\n\nSara ka phone 03001234567\nSara ka address Model Town\nBilal ki city Lahore\n\nTo delete a customer: delete customer Sara",
+  "change-help.product": "✏️ To change a product's price, type:\n\nedit product: Kurti - 1900\n\nTo delete a product:\ndelete product: Kurti\n\nTo see products: products",
+  "change-help.expense": "✏️ To change an expense, first find its number (type expenses), then:\n\nexpense edit 12 800 packaging\n\nTo delete it:\nexpense delete 12",
+  "change-help.wage": "ℹ️ Changing or deleting a wage is not a command yet. Write the correct entry again instead.\n\nTo see wages: wages",
+  "change-help.loss": "ℹ️ Changing or deleting a loss is not a command yet. Write the correct entry again instead.\n\nTo see losses: losses"
 }

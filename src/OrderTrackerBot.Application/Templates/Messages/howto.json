@@ -2,5 +2,10 @@
   "howto.expense": "💸 Kharcha save karne ke liye likhein:\n\nexpense 500 packaging\nkharcha 800 petrol\n\nKharche dekhne ke liye: expenses\nHafte ka: expenses this week",
   "howto.wage": "👷 Mulazim ki tankhwah save karne ke liye likhein:\n\nAli ki 5000 dihari\nAli ko 3 din 1500\nwage Ali 5000\n\nTankhwahein dekhne ke liye: wages",
   "howto.loss": "📉 Nuqsan (kharab / gum maal) save karne ke liye likhein:\n\nloss 2 Kurti damaged\n\nNuqsan dekhne ke liye: losses",
-  "howto.report": "📊 Report dekhne ke liye likhein:\n\naaj ka hisaab\nweekly summary\nprofit\nmargin\n\nPura menu ke liye: menu"
+  "howto.report": "📊 Report dekhne ke liye likhein:\n\naaj ka hisaab\nweekly summary\nprofit\nmargin\n\nPura menu ke liye: menu",
+  "change-help.customer": "✏️ Customer ki detail badalne ke liye likhein:\n\nSara ka phone 03001234567\nSara ka address Model Town\nBilal ki city Lahore\n\nCustomer hatane ke liye: delete customer Sara",
+  "change-help.product": "✏️ Product ka price badalne ke liye:\n\nedit product: Kurti - 1900\n\nProduct hatane ke liye:\ndelete product: Kurti\n\nProducts dekhne ke liye: products",
+  "change-help.expense": "✏️ Kharcha badalne ke liye pehle number dekhein (expenses likhein), phir:\n\nexpense edit 12 800 packaging\n\nHatane ke liye:\nexpense delete 12",
+  "change-help.wage": "ℹ️ Tankhwah badalne ya hatane ka command abhi nahi hai. Galat entry ki jagah sahi entry likhein.\n\nTankhwahein dekhne ke liye: wages",
+  "change-help.loss": "ℹ️ Nuqsan badalne ya hatane ka command abhi nahi hai. Galat entry ki jagah sahi entry likhein.\n\nNuqsan dekhne ke liye: losses"
 }

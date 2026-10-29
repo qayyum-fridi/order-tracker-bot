@@ -44,6 +44,47 @@ public class NewOrderRequestTests
         Assert.Equal(topic, parsed.Text);
     }
 
+    [Theory]
+    [InlineData("customers dikhao", CommandKind.CustomerList)]
+    [InlineData("show customers", CommandKind.CustomerList)]
+    [InlineData("products dikhao", CommandKind.Catalog)]
+    [InlineData("expenses dikhao", CommandKind.ExpenseList)]
+    [InlineData("show expenses", CommandKind.ExpenseList)]
+    [InlineData("wages list", CommandKind.WageList)]
+    [InlineData("losses dikhao", CommandKind.LossList)]
+    public void NounWithViewVerb_RunsItsListCommand(string text, CommandKind kind)
+    {
+        var parsed = CommandParser.TryParse(text) ?? throw new Xunit.Sdk.XunitException($"not a command: {text}");
+        Assert.Equal(kind, parsed.Kind);
+    }
+
+    [Theory]
+    [InlineData("product edit karna hai", "change-product")]
+    [InlineData("customer edit karna hai", "change-customer")]
+    [InlineData("expense delete", "change-expense")]
+    [InlineData("expense delete karna hai", "change-expense")]
+    [InlineData("wage edit karna hai", "change-wage")]
+    [InlineData("loss delete karo", "change-loss")]
+    [InlineData("product hatao", "change-product")]
+    [InlineData("پروڈکٹ تبدیل کرنا ہے", "change-product")]
+    public void NounWithEditOrDeleteVerb_ShowsItsChangeHelp(string text, string topic)
+    {
+        var parsed = CommandParser.TryParse(text) ?? throw new Xunit.Sdk.XunitException($"not a command: {text}");
+        Assert.Equal(CommandKind.HowTo, parsed.Kind);
+        Assert.Equal(topic, parsed.Text);
+    }
+
+    [Theory]
+    [InlineData("delete customer Sara")]
+    [InlineData("edit product: Kurti - 1900")]
+    [InlineData("expense delete 12")]
+    [InlineData("customers kitne hain")]
+    public void NounWithDetails_IsNotTheHelpRule(string text)
+    {
+        var parsed = CommandParser.TryParse(text);
+        Assert.False(parsed is { Kind: CommandKind.HowTo, Text: var t } && t.StartsWith("change-", StringComparison.Ordinal), $"unexpected change help for: {text}");
+    }
+
     [Fact]
     public void NewCustomerWithoutName_ShowsCustomerForm()
     {
@@ -58,7 +99,6 @@ public class NewOrderRequestTests
     [InlineData("loss 2 Kurti damaged")]
     [InlineData("expenses today")]
     [InlineData("losses")]
-    [InlineData("naya report dikhao")]
     public void NounWithoutCreateVerbOrWithDetails_IsNotHowTo(string text)
     {
         var parsed = CommandParser.TryParse(text);

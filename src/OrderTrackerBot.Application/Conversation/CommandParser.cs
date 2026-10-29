@@ -243,7 +243,7 @@ public static class CommandParser
     // "search customer Sara", "customer search Sara", "find orders 12": the same searches written without the colon. Checked before the catalog search.
     private static readonly Regex CustomerSearchWords = new(@"^(?:(?:search|find|dhoondo|dhundo|talash|ڈھونڈو|تلاش)\s+customers?|customers?\s+(?:search|find|talash))\s*:?\s+(?<q>.{1,60})$", Opts);
     private static readonly Regex OrderSearchWords = new(@"^(?:(?:search|find|dhoondo|dhundo|talash|ڈھونڈو|تلاش)\s+(?:orders?|آرڈر)|(?:orders?|آرڈر)\s+(?:search|find|talash))\s*:?\s+(?<q>.{1,60})$", Opts);
-    private static readonly Regex CustomerDetail = new(@"^customer\s+(?!list$|feedback$)(.+)$", Opts);
+    private static readonly Regex CustomerDetail = new(@"^customer\s+(?!list$|feedback$|(?:edit|update|change|delete|remove|hatao|dikhao|dikhayen|show|view|display|dekho)(?!\p{L}))(.+)$", Opts);
     private static readonly Regex DeleteCustomer = new(@"^(?:delete|remove)\s+customer:?\s*(.+)$", Opts);
     private static readonly Regex RestoreCustomer = new(@"^restore\s+customer:?\s*(.+)$", Opts);
     private static readonly Regex MoreCustomers = new(@"^(more|aur|next)$", Opts);
@@ -1760,7 +1760,45 @@ public static class CommandParser
         if (lines.Length == 1 && TryParseInlineProducts(lines[0]) is { } inlineProducts)
             return new ParsedCommand { Kind = CommandKind.AddProductsBulk, Text = inlineProducts };
 
+        if (TryParseNounAction(message) is { } nounAction) return nounAction;
+
         return FuzzyCommand(message);
+    }
+
+    // "customers dikhao", "product edit karna hai", "expense delete", "wages list": a view / edit / delete verb with one noun and no details.
+    // View runs the noun's list command; edit and delete show the exact format (or say the command does not exist yet).
+    private static readonly Regex NounViewVerb = new(@"(?<!\p{L})(?:show|list|view|display|see|dikhao|dikhayen|dikhaen|dekho|dekhna|dekhein|dekhen|dekhni|dekh|saare|sare|sab|all)(?!\p{L})|دکھا\p{L}*|دکھائ\p{L}*|دیکھ\p{L}*|لسٹ|فہرست|سب", Opts);
+    private static readonly Regex NounEditVerb = new(@"(?<!\p{L})(?:edit|update|change|modify|badlo|badlein|badalna|badal\p{L}*|theek|sudhar\p{L}*|tabdeel\p{L}*|tabdil\p{L}*)(?!\p{L})|ترمیم\p{L}*|تبدیل\p{L}*|بدل\p{L}*|اپڈیٹ|درست\p{L}*|ٹھیک|سدھار\p{L}*", Opts);
+    private static readonly Regex NounDeleteVerb = new(@"(?<!\p{L})(?:delete|remove|hatao|hata\p{L}*|mitao|mita\p{L}*|khatam|nikal\p{L}*|nikalo)(?!\p{L})|حذف|ہٹا\p{L}*|مٹا\p{L}*|نکال\p{L}*|خارج\p{L}*", Opts);
+    // A question, a statement about the noun, or a number: not a plain request, so it goes to the AI or another rule.
+    private static readonly Regex NotNounActionRequest = new(@"\p{Nd}|[?؟]|(?<!\p{L})(?:kitn\p{L}*|kya|kab|kaun\p{L}*|ye|yeh|jo|ke|ki|ek|hain|kehna|kehte|chahte|chahti|chahta|chahiye)(?!\p{L})|(?<!(?:karna|karni|karne|karein|karo|dikhao|dikhayen|likhna|likhni|likhein|likho|dekhna|dekhni|dekhein|dekho|hatana|hatani|badalna|badalni|edit|delete) )(?<!\p{L})hai(?!\p{L})", Opts);
+
+    private static ParsedCommand? TryParseNounAction(string message)
+    {
+        if (message.Length > 60 || NotNounActionRequest.IsMatch(message) || NewOrderNoun.IsMatch(message)) return null;
+        var topics = CreateHelpNouns.Where(n => n.Noun.IsMatch(message)).Select(n => n.Topic).Distinct().ToList();
+        if (topics.Count != 1) return null;
+        var topic = topics[0];
+        if (NounViewVerb.IsMatch(message))
+        {
+            var listing = topic switch
+            {
+                "customer" => "customers",
+                "product" => "products",
+                "expense" => "expenses",
+                "wage" => "wages",
+                "loss" => "losses",
+                "report" => null,
+                _ => null,
+            };
+            return listing is null
+                ? (topic == "report" ? new ParsedCommand { Kind = CommandKind.HowTo, Text = "report" } : null)
+                : TryParse(listing);
+        }
+        if (topic == "payment") return null;
+        if (NounEditVerb.IsMatch(message) || NounDeleteVerb.IsMatch(message))
+            return topic == "report" ? null : new ParsedCommand { Kind = CommandKind.HowTo, Text = "change-" + topic };
+        return null;
     }
 
     // "Shirt 200 and pants 800" / "Shirt - 300, pant - 500": several products on one line, with or without dashes.
