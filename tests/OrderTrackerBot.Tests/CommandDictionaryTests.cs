@@ -191,7 +191,7 @@ public class CommandDictionaryTests
     [InlineData("low stock items", CommandKind.Stock)]
     [InlineData("low inventory", CommandKind.Stock)]
     [InlineData("stock kam hai", CommandKind.Stock)]
-    [InlineData("stock khatam", CommandKind.Stock)]
+    [InlineData("stock khatam", CommandKind.Insight)]
     [InlineData("restock list", CommandKind.Stock)]
     [InlineData("stock kitna hai", CommandKind.Stock)]
     [InlineData("maal kitna hai", CommandKind.Stock)]

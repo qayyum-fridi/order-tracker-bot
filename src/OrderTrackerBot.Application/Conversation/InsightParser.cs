@@ -130,9 +130,11 @@ internal static class InsightParser
 
     public static ParsedCommand? TryParse(string message)
     {
-        if (message.Contains('\n') || message.Length < 8 || message.Length > 240) return null;
+        // "reorder" and "restock" are 7 letters: the one-word forms are allowed through the length check.
+        var bareReorder = Regex.IsMatch(message.Trim(), @"^(re-?order|restock)$", RegexOptions.IgnoreCase);
+        if (message.Contains('\n') || (message.Length < 8 && !bareReorder) || message.Length > 240) return null;
         var text = Regex.Replace(Regex.Replace(message.Trim().Trim(Trim), @"(?<=\p{L})['’]s\b", ""), @"\s+", " ");
-        if (text.Length < 8) return null;
+        if (text.Length < 8 && !bareReorder) return null;
 
         var (period, rest) = ExtractPeriod(text);
         ParsedCommand Topic(string topic, decimal? amount = null, string? periodKey = null, string? subject = null) =>
@@ -188,6 +190,10 @@ internal static class InsightParser
         // Short phrases on their own: "untracked", "stock value", "stock ka total value".
         if (Regex.IsMatch(text, @"^\s*untracked(\s+(stock|products?))?\s*$", RegexOptions.IgnoreCase)) return Topic("untracked");
         if (Regex.IsMatch(text, @"^\s*(total\s+)?stock\s+(ka\s+|ki\s+)?(total\s+)?value\s*$", RegexOptions.IgnoreCase)) return Topic("stockvalue");
+        // One-word forms: "stockending", "stockdays", "reorder" (the word alone is the whole question).
+        if (Regex.IsMatch(text, @"^\s*stock\s*(ending|khatam)\s*$", RegexOptions.IgnoreCase)) return Topic("stockending", NumberOfDays(text));
+        if (Regex.IsMatch(text, @"^\s*stock\s*days\s*$", RegexOptions.IgnoreCase)) return Topic("stockdays");
+        if (Regex.IsMatch(text, @"^\s*(re-?order|restock)\s*$", RegexOptions.IgnoreCase)) return Topic("reorder");
         if (Track.IsMatch(text) && Not.IsMatch(text) && (Product.IsMatch(text) || StockWord.IsMatch(text))) return Topic("untracked");
         if ((StockWord.IsMatch(text) && Finish.IsMatch(text)) || LowStock.IsMatch(text)) return Topic("stockending", NumberOfDays(text));
         if (Reorder.IsMatch(text) && (StockWord.IsMatch(text) || Product.IsMatch(text) || Need.IsMatch(text))) return Topic("reorder");

@@ -432,7 +432,7 @@ public static class CommandParser
     }
 
     // "stock" lists tracked stock; "stock Kurti 20" sets, "stock Kurti +10" adds, "stock Kurti off" stops tracking. Text = product, Text2 = set|add|off.
-    private static readonly Regex StockList = new(@"^(?:stock|stocks|inventory|stock\s+list|low\s+stock(?:\s+items)?|low\s+inventory|show\s+stock|current\s+stock|available\s+stock|stock\s+report|restock\s+list|stock\s+(?:kitna\s+hai|kam\s+hai|khatam)|maal\s+kitna\s+hai|short\s+stock|kam\s+stock|out\s+of\s+stock|khatam\s+maal|stock\s+check|اسٹاک)$", Opts);
+    private static readonly Regex StockList = new(@"^(?:stock|stocks|inventory|stock\s+list|low\s+stock(?:\s+items)?|low\s+inventory|show\s+stock|current\s+stock|available\s+stock|stock\s+report|restock\s+list|stock\s+(?:kitna\s+hai|kam\s+hai)|maal\s+kitna\s+hai|short\s+stock|kam\s+stock|out\s+of\s+stock|khatam\s+maal|stock\s+check|اسٹاک)$", Opts);
     private static readonly Regex StockOff = new(@"^(?:stock|اسٹاک)\s*:?\s*(?<name>[^\d].*?)\s+(?:off|band|remove|hatao)$", Opts);
     private static readonly Regex StockSet = new(@"^(?:stock|اسٹاک)\s*:?\s*(?<name>[^\d].*?)\s*[=:]?\s*(?<sign>\+)?\s*(?<![\d])(?<n>\d{1,6})$|^(?<name>[^\d].*?)\s+(?:ka\s+|ki\s+)?(?:stock|اسٹاک)\s*[=:]?\s*(?<sign>\+)?\s*(?<![\d])(?<n>\d{1,6})$", Opts);
 
