@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using OrderTrackerBot.Api.Admin;
 using OrderTrackerBot.Api.Client;
 using OrderTrackerBot.Application.Conversation;
@@ -27,11 +28,14 @@ public class AdminController : ControllerBase
     private readonly ILogger<AdminController> _logger;
     private readonly BillingOptions _billing;
 
-    public AdminController(AppDbContext db, ILogger<AdminController> logger, BillingOptions billing)
+    private readonly string _unplacedSalt;
+
+    public AdminController(AppDbContext db, ILogger<AdminController> logger, BillingOptions billing, IOptions<FeatureOptions> features)
     {
         _db = db;
         _logger = logger;
         _billing = billing;
+        _unplacedSalt = features.Value.UnplacedCaptureSalt;
     }
 
     /// <summary>
@@ -211,7 +215,7 @@ public class AdminController : ControllerBase
         if (!string.Equals(request.ConfirmPhone?.Trim(), seller.WhatsAppPhoneNumber, StringComparison.Ordinal))
             return BadRequest(new { error = "Type the seller's phone number exactly to confirm the reset." });
 
-        await SellerAccountReset.ResetAsync(_db, seller, ct);
+        await SellerAccountReset.ResetAsync(_db, seller, ct, _unplacedSalt);
 
         var session = await _db.Sessions.FirstOrDefaultAsync(x => x.SellerId == id, ct);
         if (session is not null)

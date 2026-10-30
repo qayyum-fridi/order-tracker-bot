@@ -669,6 +669,31 @@ public class MockupFeatureTests : IDisposable
         Assert.DoesNotContain(_sent, m => m.Contains("Yesterday") || m.Contains("kal ke orders dikhaye"));
     }
 
+    // The live note: the bot asked "Kaun sa client?" with buttons, and a tap on one was then read as a new message. The buttons must be a question the bot waits on.
+    [Fact]
+    public async Task VoiceClarificationButtons_AreAWaitingQuestion_SoATapIsReadAsAChoice()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        _media.Setup(m => m.DownloadAsync("voice-6", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
+        var transcriber = new Mock<IAudioTranscriber>();
+        transcriber.SetupGet(t => t.IsConfigured).Returns(true);
+        transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("کون سا کلائنٹ ہو گیا میں نے تو کچھ کیا ہی نہیں");
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object);
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Question = "Kaun sa client?", Options = { "امتیاز", "نئے کلائنٹ" } });
+
+        await engine.HandleAudioMessageAsync(Phone, "voice-6");
+
+        var session = await db.Sessions.FirstAsync();
+        Assert.Equal(ConversationState.AwaitingClarificationChoice, session.State);
+
+        await engine.HandleIncomingMessageAsync(Phone, "1", default);
+
+        Assert.DoesNotContain(_sent, m => m.Contains("Aap kya kehna chahte hain"));
+    }
+
     private async Task<ConversationEngine> VoiceEngineAtAddProductAsync(AppDbContext db, string transcript)
     {
         var setup = Engine(db);

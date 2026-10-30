@@ -131,6 +131,7 @@ public partial class ConversationEngine
                 : TurnDecision.Clarify(MessageTemplates.Get("intent.howto", routed.Help!));
         }
         if (decision.Kind != DecisionKind.Execute) LogNotUnderstood("voice-" + decision.Kind.ToString().ToLowerInvariant(), seller.Session!.State, text);
+        if (decision.Kind != DecisionKind.Execute) await RecordUnplacedAsync(seller, "voice_" + decision.Kind.ToString().ToLowerInvariant(), text, null, null, ct);
         // Steps the AI made up or that do not match the words spoken are not run; the seller is told which ones, so nothing vanishes silently.
         // Shown on every reply path (clarify, refuse and run), not only the run path.
         foreach (var (step, template) in _droppedVoiceSteps)
@@ -140,8 +141,20 @@ public partial class ConversationEngine
             // Clear intent but a detail is missing (which order, the new price): ask for it instead of guessing or failing.
             // When the answers are a few known choices they come as tap buttons, so the seller need not speak again.
             var options = decision.Options ?? Array.Empty<string>();
-            var choices = options.Any() ? options.Select(o => new ChoiceOption(o, o)).ToList() : VoiceFallbackChoices.ToList();
-            await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n❓ {decision.Message}", choices, ct);
+            if (options.Count > 0)
+            {
+                // The taps stand for a question the bot is now waiting on, the same as a typed clarification: store them, so a tap
+                // is read as its number. Sent as plain buttons, a tap was only a new message and got the generic fallback.
+                var voiceSession = seller.Session!;
+                var voiceCtx = SessionContextData.FromJson(voiceSession.ContextJson);
+                voiceCtx.ClarificationOptions = options.ToList();
+                SetState(voiceSession, ConversationState.AwaitingClarificationChoice);
+                voiceSession.ContextJson = voiceCtx.ToJson();
+                await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n❓ {decision.Message}", options.Select(o => new ChoiceOption(o, o)).ToList(), ct);
+                await _db.SaveChangesAsync(ct);
+                return;
+            }
+            await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n❓ {decision.Message}", VoiceFallbackChoices.ToList(), ct);
             await _db.SaveChangesAsync(ct);
             return;
         }

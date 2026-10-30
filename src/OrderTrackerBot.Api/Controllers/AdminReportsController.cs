@@ -41,6 +41,11 @@ public class AdminReportsController : ControllerBase
     public async Task<ActionResult<PilotReportDto>> Pilot([FromQuery] int days = 7, CancellationToken ct = default) =>
         Ok(await PilotReport.BuildAsync(_db, days, DateTime.UtcNow, ct));
 
+    /// <summary>Messages the bot could not place in the last N days (default 7), masked. Input for the learning review.</summary>
+    [HttpGet("reports/unplaced")]
+    public async Task<ActionResult<UnplacedReportDto>> Unplaced([FromQuery] int days = 7, CancellationToken ct = default) =>
+        Ok(await UnplacedReport.BuildAsync(_db, Math.Clamp(days, 1, 90), DateTime.UtcNow, ct));
+
     /// <summary>Per-day sellers, active sellers, messages, orders, revenue, errors and issues for a date range (default: last 30 days).</summary>
     [HttpGet("reports/daily")]
     public async Task<ActionResult<DailyReportDto>> Daily([FromQuery] string? from, [FromQuery] string? to, CancellationToken ct)
