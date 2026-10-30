@@ -1958,6 +1958,32 @@ public class MockupFeatureTests : IDisposable
         Assert.Equal(0, await db.Campaigns.CountAsync());
     }
 
+    [Theory]
+    [InlineData("All")]
+    [InlineData("7 days")]
+    [InlineData("WhatsApp")]
+    [InlineData("Sirf orders")]
+    public async Task StalePickerTap_WithNoQuestionOpen_SaysSo(string tap)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, tap, default);
+
+        Assert.Contains(_sent, m => m.Contains("purane sawal ka tha"));
+    }
+
+    [Fact]
+    public async Task StalePickerTap_DoesNotStopARealCommand()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "menu", default);
+
+        Assert.Contains(_sent, m => m.Contains("Main Menu"));
+    }
+
     [Fact]
     public async Task ScheduledJobs_SendWeeklySummaryOnce_AndTrialReminder()
     {
