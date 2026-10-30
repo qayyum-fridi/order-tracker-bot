@@ -73,10 +73,12 @@ def main():
     ap.add_argument("--quiet", type=float, default=1.2, help="seconds without a new reply before moving on")
     ap.add_argument("--max-wait", type=float, default=12.0)
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--start", type=int, default=0, help="skip this many cases first (used after setup is finished by hand)")
     args = ap.parse_args()
 
     with open(args.csv, encoding="utf-8") as f:
         cases = list(csv.DictReader(f))
+    cases = cases[args.start:]
     if args.limit:
         cases = cases[: args.limit]
 
@@ -92,7 +94,7 @@ def main():
             writer.writerow({**{k: case.get(k, "") for k in fields if k not in ("http", "bot_reply")},
                              "http": status, "bot_reply": reply})
             out.flush()
-            print(f"[{i}/{len(cases)}] {case['id']} http={status} replies={len(rows)}", flush=True)
+            print(f"[{i + args.start}/{len(cases) + args.start}] {case['id']} http={status} replies={len(rows)}", flush=True)
 
 
 if __name__ == "__main__":
