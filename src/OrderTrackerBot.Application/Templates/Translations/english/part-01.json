@@ -29,6 +29,7 @@
   "commands.028": "Order #{0} not found. To see your orders, type \"orders today\".",
   "commands.029": "ℹ️ \"{0}\" was the number in your last list (Order #{1}). For a new number, look at the list again first.",
   "commands.030": "✅ Order #{0} marked as PAID.",
+  "sale-record.001": "ℹ️ If this sale already happened, record it by typing: \"walkin Lawn Suit 1\" (shop sale) or \"Sara, Lawn Suit 1\" (customer order). For a question, type it plainly, e.g. \"aaj kitna bika\".",
   "commands.031": "There is no unpaid order.",
   "commands.032": "💸 Unpaid Orders ({0}):\n\n{1}\n\nTotal pending: {2}\n\nYou can send the link with \"payment link 1\".",
   "commands.033": "✅ {0} price updated: {1}{2}",

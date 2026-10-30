@@ -1984,6 +1984,34 @@ public class MockupFeatureTests : IDisposable
         Assert.Contains(_sent, m => m.Contains("Main Menu"));
     }
 
+    [Theory]
+    [InlineData("pichle hafte kitna bika dekho")]
+    [InlineData("aaj kitna bika")]
+    [InlineData("kya becha is mahine")]
+    public async Task SalesQuestion_IsNotTakenForAPaidOrder(string question)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis { Intent = "unclear" });
+
+        await engine.HandleIncomingMessageAsync(Phone, question, default);
+
+        Assert.DoesNotContain(_sent, m => m.Contains("marked as PAID") || m.Contains("{0}"));
+    }
+
+    [Fact]
+    public async Task SaleStatement_GetsTheHowToToRecordIt()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis { Intent = "unclear" });
+
+        await engine.HandleIncomingMessageAsync(Phone, "Lawn Suit bech diya Sara ko", default);
+
+        Assert.Contains(_sent, m => m.Contains("walkin Lawn Suit 1"));
+        Assert.DoesNotContain(_sent, m => m.Contains("marked as PAID"));
+    }
+
     [Fact]
     public async Task ScheduledJobs_SendWeeklySummaryOnce_AndTrialReminder()
     {

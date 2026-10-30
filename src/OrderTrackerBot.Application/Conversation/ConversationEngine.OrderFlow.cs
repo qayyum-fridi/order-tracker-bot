@@ -70,9 +70,9 @@ public partial class ConversationEngine
         var catalog = await LoadCatalogAsync(seller, ct);
         var analysis = await _ai.AnalyzeMessageAsync(AiContext(seller, catalog, ctx), message, ct);
         // "Lawn Suit bech diya Sara ko" is a sale already made, not a new order: say how to record it, instead of a guess.
-        if (analysis.Intent == "unclear" && SaleVerbWords.IsMatch(message))
+        if (analysis.Intent == "unclear" && SaleVerbWords.IsMatch(message) && !SaleQuestionWords.IsMatch(message))
         {
-            await ReplyAsync(seller, MessageTemplates.Get("commands.030"), ct);
+            await ReplyAsync(seller, MessageTemplates.Get("sale-record.001"), ct);
             return;
         }
         // The order reader found no order: the intent catalog may place it ("aaj kitna bika", "naya client hai"). Idle only: mid-flow replies belong to their step.
@@ -89,6 +89,11 @@ public partial class ConversationEngine
             one.AdvancePaid = advance;
         await HandleAnalysisAsync(seller, session, ctx, analysis, catalog, fromScreenshot: false, ct, message);
     }
+
+    // "aaj kitna bika", "kya becha?" are questions about sales, not a sale to record.
+    private static readonly System.Text.RegularExpressions.Regex SaleQuestionWords = new(
+        @"\?|\b(?:kitn[aeiy]\w*|kya|kab|kaun\w*|dikhao|dekho|batao|hisaab|report|summary|kaisi|kaisa|how\s+much|what)\b|کتنا|کتنی|کتنے|کیا|دکھاو|دیکھو|بتاو",
+        System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
     private static readonly System.Text.RegularExpressions.Regex SaleVerbWords = new(
         @"\b(?:bech\w*|bika|bikay\w*|bik\s+gaya|sold|becha)\b|بیچ\w*|بکا|بکے|بیچا",
