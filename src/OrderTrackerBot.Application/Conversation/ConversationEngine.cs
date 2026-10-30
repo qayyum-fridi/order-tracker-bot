@@ -495,8 +495,22 @@ public partial class ConversationEngine
             return;
         }
 
+        // A reply button of a question that is no longer open ("All" after the COD question was answered): say so, do not guess what it meant.
+        if (PickerLabels.Contains(message.Trim()))
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("engine.001"), ct);
+            return;
+        }
+
         await HandleFreeformMessageAsync(seller, session, ctx, message, ct);
     }
+
+    // Labels of the bot's pick-lists (COD age, slow-mover days, broadcast channel and audience, guide choice). They are only
+    // meaningful while their question is open, and that question is not held in state, so a tap later is just text.
+    private static readonly IReadOnlySet<string> PickerLabels = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "All", "3+ days", "7+ days", "7 days", "14 days", "30 days", "WhatsApp", "SMS", "Dono", "Poora guide", "Sirf orders"
+    };
 
     /// <summary>The text of a loose-rule match that was RUN (confirmed by the AI, unknown, or too short to check), for reviewing false positives. Same switch as <c>NotUnderstood</c>.</summary>
     private void LogRuleText(string tag, CommandKind kind, bool? fits, string text)
