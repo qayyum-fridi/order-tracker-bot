@@ -1,3 +1,5 @@
+using OrderTrackerBot.Application.Intents;
+
 namespace OrderTrackerBot.Application.Ai;
 
 public sealed class AiCatalogItem
@@ -160,6 +162,13 @@ public interface IAiOrderAssistant
 
     /// <summary>A seller once taught that <paramref name="taughtPhrase"/> means a command; they now wrote <paramref name="newPhrase"/>. Do both ask for the same thing? <c>null</c> = unknown / no AI.</summary>
     Task<bool?> ConfirmSamePhraseAsync(string taughtPhrase, string newPhrase, CancellationToken cancellationToken = default) => Task.FromResult<bool?>(null);
+
+    /// <summary>
+    /// Picks ONE action from <paramref name="catalog"/> for a message the order reader could not place, and fills its slots from the words said.
+    /// Null when AI is unavailable or the answer is unusable. The engine re-checks the id and the slots; the model never writes a command.
+    /// </summary>
+    Task<IntentRoute?> RouteIntentAsync(string message, IReadOnlyList<IntentDefinition> catalog, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IntentRoute?>(null);
 
     /// <summary>Embedding vectors (meaning, not words) for the texts, same order; null when unavailable. Used to find a taught phrase that MEANS the same as a new sentence.</summary>
     Task<IReadOnlyList<float[]>?> EmbedAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<float[]>?>(null);

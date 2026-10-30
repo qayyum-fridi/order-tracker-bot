@@ -23,3 +23,7 @@ obj/
 *.db.bak*
 *.db-wal
 *.db-shm
+
+# Live run result files: local only
+live-results*.csv
+__pycache__/

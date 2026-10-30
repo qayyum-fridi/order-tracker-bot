@@ -324,6 +324,7 @@ public static class CommandParser
         @"(?<![\p{L}\p{N}])(?<k>address|pata|patta|phone|fone|mobile|number|city|shehar|پتہ|ایڈریس|ایڈرس|فون|موبائل|نمبر|شہر)(?![\p{L}\p{N}])", Opts);
     private static readonly Regex CustomerAddPhoneLike = new(@"^\+?\d[\d\s-]{8,16}\d$", Opts);
     private static readonly Regex CustomerAddNameBlocked = new(@"^(?:order|orders|list|report|search|find|phone|number|address|city|summary|catalog|price|bana\p{L}*|create|make|naya|nayi)\b", Opts);
+    private static readonly Regex CustomerAddFillerOnly = new(@"^(?:hai|hain|ہے|ہیں)$", Opts);
     private static readonly Regex CustomerAddNameWord = new(@"^[\p{L}\p{M}.'’-]+$", Opts);
     // "Muhammad Ali hai", "ماڈل ٹاؤن لاہور ہے", "address ... uska": spoken filler around a value is not part of it.
     private static readonly Regex CustomerAddTrailingFiller = new(@"\s+(?:hai|hain|ہے|ہیں|uska|uski|iska|iski|اس\s+کا|اس\s+کی)$", Opts);
@@ -340,7 +341,8 @@ public static class CommandParser
 
     private static bool ValidCustomerName(string name)
     {
-        if (name.Length is < 2 or > 40 || CustomerAddNameBlocked.IsMatch(name)) return false;
+        // "naya client hai" leaves only "hai" as the name: a spoken filler word alone is not a buyer's name.
+        if (name.Length is < 2 or > 40 || CustomerAddNameBlocked.IsMatch(name) || CustomerAddFillerOnly.IsMatch(name)) return false;
         var words = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         return words.Length is >= 1 and <= 4 && words.All(w => CustomerAddNameWord.IsMatch(w));
     }

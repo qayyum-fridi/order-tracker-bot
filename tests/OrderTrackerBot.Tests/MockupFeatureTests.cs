@@ -1931,6 +1931,34 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task Broadcast_AudienceQuestion_RealCommandLeavesIt_AndSendsNothing()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await engine.HandleIncomingMessageAsync(Phone, "sab customers ko batao: naya stock aaya", default);
+        await engine.HandleIncomingMessageAsync(Phone, "WhatsApp", default);
+
+        await engine.HandleIncomingMessageAsync(Phone, "menu", default);
+
+        Assert.Contains(_sent, m => m.Contains("Main Menu"));
+        Assert.Equal(0, await db.Campaigns.CountAsync());
+    }
+
+    [Fact]
+    public async Task Broadcast_AudienceQuestion_NonCommandStillCancels()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await engine.HandleIncomingMessageAsync(Phone, "sab customers ko batao: naya stock aaya", default);
+        await engine.HandleIncomingMessageAsync(Phone, "WhatsApp", default);
+
+        await engine.HandleIncomingMessageAsync(Phone, "hmm", default);
+
+        Assert.Contains(_sent, m => m.Contains("promotion nahi bheja"));
+        Assert.Equal(0, await db.Campaigns.CountAsync());
+    }
+
+    [Fact]
     public async Task ScheduledJobs_SendWeeklySummaryOnce_AndTrialReminder()
     {
         using var db = _dbFactory.CreateContext();

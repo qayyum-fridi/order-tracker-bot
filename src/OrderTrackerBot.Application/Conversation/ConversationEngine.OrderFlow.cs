@@ -75,6 +75,10 @@ public partial class ConversationEngine
             await ReplyAsync(seller, MessageTemplates.Get("commands.030"), ct);
             return;
         }
+        // The order reader found no order: the intent catalog may place it ("aaj kitna bika", "naya client hai"). Idle only: mid-flow replies belong to their step.
+        if (analysis.Intent is "unclear" or "off_topic" && analysis.Order is null && session.State == ConversationState.Idle
+            && await TryRunRoutedIntentAsync(seller, session, ctx, message, ct))
+            return;
         // The seller's own words beat the model: "delivery 300" in a single order is that order's delivery charge.
         if (analysis.Order is { } single && analysis.AdditionalOrders.Count == 0 && CommandParser.TryFindDeliveryInOrderText(message, out var delivery))
         {

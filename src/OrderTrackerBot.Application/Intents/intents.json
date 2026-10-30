@@ -1,0 +1,3423 @@
+{
+  "intents": [
+    {
+      "id": "order.show",
+      "entity": "order",
+      "action": "show",
+      "kind": "OrderDetail",
+      "description": "Show one saved order in full: items, payment, status.",
+      "examples": [
+        "order 12 dikhao",
+        "#12",
+        "12 number ka order batao"
+      ],
+      "slots": {
+        "order": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "order {order}"
+    },
+    {
+      "id": "order.list_today",
+      "entity": "order",
+      "action": "list_today",
+      "kind": "OrdersToday",
+      "description": "List today's orders.",
+      "examples": [
+        "aaj ke orders",
+        "aaj kitne orders aaye",
+        "orders today"
+      ],
+      "slots": {},
+      "template": "orders today"
+    },
+    {
+      "id": "order.list_period",
+      "entity": "order",
+      "action": "list_period",
+      "kind": "OrdersToday",
+      "description": "List orders for a period: yesterday, this week, last month, or N days.",
+      "examples": [
+        "pichle hafte ke orders",
+        "is mahine ke orders dikhao",
+        "orders last month"
+      ],
+      "slots": {
+        "period": {
+          "required": true
+        }
+      },
+      "template": "orders {period}"
+    },
+    {
+      "id": "order.next_page",
+      "entity": "order",
+      "action": "next_page",
+      "kind": "OrderPage",
+      "description": "Next page of the last order list.",
+      "examples": [
+        "agla page",
+        "orders next",
+        "next orders dikhao"
+      ],
+      "slots": {},
+      "template": "orders next"
+    },
+    {
+      "id": "order.pending",
+      "entity": "order",
+      "action": "pending",
+      "kind": "PendingOrders",
+      "description": "Orders not delivered yet.",
+      "examples": [
+        "pending orders",
+        "abhi kaun se orders baqi hain",
+        "active orders"
+      ],
+      "slots": {},
+      "template": "pending orders"
+    },
+    {
+      "id": "order.unpaid",
+      "entity": "order",
+      "action": "unpaid",
+      "kind": "UnpaidOrders",
+      "description": "Orders with money still to be received.",
+      "examples": [
+        "unpaid orders",
+        "kin orders ka paisa baqi hai",
+        "payment due list"
+      ],
+      "slots": {},
+      "template": "unpaid orders"
+    },
+    {
+      "id": "order.cod_pending",
+      "entity": "order",
+      "action": "cod_pending",
+      "kind": "CodPending",
+      "description": "COD money still to be collected from buyers.",
+      "examples": [
+        "COD pending",
+        "COD ka kitna paisa aana hai"
+      ],
+      "slots": {},
+      "template": "cod pending"
+    },
+    {
+      "id": "order.mark_status",
+      "entity": "order",
+      "action": "mark_status",
+      "kind": "MarkStatus",
+      "description": "Change one order's status: shipped, delivered, returned, paid.",
+      "examples": [
+        "12 bhej diya",
+        "order 12 deliver ho gaya",
+        "12 returned"
+      ],
+      "slots": {
+        "order": {
+          "required": true,
+          "type": "number"
+        },
+        "status": {
+          "required": true
+        }
+      },
+      "template": "mark {order} {status}"
+    },
+    {
+      "id": "order.mark_all_shipped",
+      "entity": "order",
+      "action": "mark_all_shipped",
+      "kind": "MarkAllPendingShipped",
+      "description": "Mark every pending order as shipped.",
+      "examples": [
+        "sab pending orders bhej diye",
+        "sab ko shipped mark karo"
+      ],
+      "slots": {},
+      "template": "mark all pending as shipped"
+    },
+    {
+      "id": "order.cancel",
+      "entity": "order",
+      "action": "cancel",
+      "kind": "CancelOrder",
+      "description": "Cancel one order.",
+      "examples": [
+        "12 cancel karo",
+        "order 12 cancel kar do",
+        "12 ko mansookh karo"
+      ],
+      "slots": {
+        "order": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "cancel {order}"
+    },
+    {
+      "id": "order.undo",
+      "entity": "order",
+      "action": "undo",
+      "kind": "Undo",
+      "description": "Undo the last action.",
+      "examples": [
+        "undo",
+        "pichla kaam wapas karo",
+        "ulta kar do"
+      ],
+      "slots": {},
+      "template": "undo"
+    },
+    {
+      "id": "order.undo_note",
+      "entity": "order",
+      "action": "undo_note",
+      "kind": "UndoNote",
+      "description": "Undo everything the last voice note did.",
+      "examples": [
+        "voice wala kaam wapas karo",
+        "undo note"
+      ],
+      "slots": {},
+      "template": "undo note"
+    },
+    {
+      "id": "order.edit",
+      "entity": "order",
+      "action": "edit",
+      "kind": "EditOrder",
+      "description": "Open one saved order for changes.",
+      "examples": [
+        "order 12 mein tabdeeli karni hai",
+        "order 12 edit karna hai"
+      ],
+      "slots": {
+        "order": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "edit order {order}"
+    },
+    {
+      "id": "order.edit_latest",
+      "entity": "order",
+      "action": "edit_latest",
+      "kind": "EditOrder",
+      "description": "Open the latest order for changes.",
+      "examples": [
+        "aakhri order edit karo",
+        "latest order mein change"
+      ],
+      "slots": {},
+      "template": "edit order"
+    },
+    {
+      "id": "order.payment_link",
+      "entity": "order",
+      "action": "payment_link",
+      "kind": "PaymentLink",
+      "description": "Send the payment link or account numbers to the buyer.",
+      "examples": [
+        "payment link bhejo",
+        "buyer ko account number bhejna hai"
+      ],
+      "slots": {},
+      "template": "payment link"
+    },
+    {
+      "id": "order.add_payment_method",
+      "entity": "order",
+      "action": "add_payment_method",
+      "kind": "AddPaymentMethod",
+      "description": "Save a payment method (JazzCash, Easypaisa, bank) and its number.",
+      "examples": [
+        "jazzcash number save karo 03001234567",
+        "add payment: jazzcash, 03001234567"
+      ],
+      "slots": {
+        "method": {
+          "required": true
+        },
+        "account": {
+          "required": true
+        }
+      },
+      "template": "add payment: {method}, {account}"
+    },
+    {
+      "id": "order.advance",
+      "entity": "order",
+      "action": "advance",
+      "kind": "OrderPayment",
+      "description": "Record a part payment (advance) on an order.",
+      "examples": [
+        "12 pe 500 advance mile",
+        "order 12 advance 500"
+      ],
+      "slots": {
+        "order": {
+          "required": true,
+          "type": "number"
+        },
+        "amount": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "order {order} advance {amount}"
+    },
+    {
+      "id": "order.delivery_charge",
+      "entity": "order",
+      "action": "delivery_charge",
+      "kind": "OrderDeliveryCharge",
+      "description": "Change one order's delivery charge.",
+      "examples": [
+        "12 ki delivery 300 kar do",
+        "order 12 delivery 300"
+      ],
+      "slots": {
+        "order": {
+          "required": true,
+          "type": "number"
+        },
+        "amount": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "order {order} delivery {amount}"
+    },
+    {
+      "id": "order.default_delivery",
+      "entity": "order",
+      "action": "default_delivery",
+      "kind": "DeliveryCharge",
+      "description": "Set the default delivery charge for new orders.",
+      "examples": [
+        "delivery 200 default rakho",
+        "delivery charge 200"
+      ],
+      "slots": {
+        "amount": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "delivery {amount}"
+    },
+    {
+      "id": "order.free_delivery",
+      "entity": "order",
+      "action": "free_delivery",
+      "kind": "DeliveryCharge",
+      "description": "New orders carry no delivery charge.",
+      "examples": [
+        "free delivery",
+        "delivery free rakho"
+      ],
+      "slots": {},
+      "template": "free delivery"
+    },
+    {
+      "id": "order.note",
+      "entity": "order",
+      "action": "note",
+      "kind": "OrderNote",
+      "description": "Add a note to an order (printed on its receipt).",
+      "examples": [
+        "12 par note likh do: gift wrap",
+        "note 12 gift wrap"
+      ],
+      "slots": {
+        "order": {
+          "required": true,
+          "type": "number"
+        },
+        "note": {
+          "required": true
+        }
+      },
+      "template": "note {order} {note}"
+    },
+    {
+      "id": "order.note_clear",
+      "entity": "order",
+      "action": "note_clear",
+      "kind": "OrderNote",
+      "description": "Remove an order's note.",
+      "examples": [
+        "12 ka note hata do",
+        "note 12 off"
+      ],
+      "slots": {
+        "order": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "note {order} off"
+    },
+    {
+      "id": "order.courier_fee",
+      "entity": "order",
+      "action": "courier_fee",
+      "kind": "OrderCourierFee",
+      "description": "Record what the courier charged for a parcel.",
+      "examples": [
+        "courier ko 250 diye order 12",
+        "courier fee 12 250"
+      ],
+      "slots": {
+        "order": {
+          "required": true,
+          "type": "number"
+        },
+        "amount": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "courier fee {order} {amount}"
+    },
+    {
+      "id": "order.tracking_add",
+      "entity": "order",
+      "action": "tracking_add",
+      "kind": "AddTracking",
+      "description": "Save a courier tracking number on an order.",
+      "examples": [
+        "12 ka tracking TCS123 hai",
+        "add tracking: 12, TCS123"
+      ],
+      "slots": {
+        "order": {
+          "required": true,
+          "type": "number"
+        },
+        "tracking_no": {
+          "required": true
+        }
+      },
+      "template": "add tracking: {order}, {tracking_no}"
+    },
+    {
+      "id": "order.tracking_find",
+      "entity": "order",
+      "action": "tracking_find",
+      "kind": "TrackingLookup",
+      "description": "Find the order that has this tracking number.",
+      "examples": [
+        "12 ka tracking dikhao"
+      ],
+      "slots": {
+        "order": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "{order} ka tracking"
+    },
+    {
+      "id": "order.search",
+      "entity": "order",
+      "action": "search",
+      "kind": "OrderSearch",
+      "description": "Find orders by number, customer, phone, product or design code.",
+      "examples": [
+        "order dhoondo Sara",
+        "search order Sara",
+        "order search 1203"
+      ],
+      "slots": {
+        "query": {
+          "required": true
+        }
+      },
+      "template": "search order {query}"
+    },
+    {
+      "id": "order.by_customer",
+      "entity": "order",
+      "action": "by_customer",
+      "kind": "CustomerOrderLookup",
+      "description": "Orders of one saved customer.",
+      "examples": [
+        "Sara ka order",
+        "Ayesha ke orders dikhao"
+      ],
+      "slots": {
+        "customer": {
+          "required": true
+        }
+      },
+      "template": "{customer} ka order"
+    },
+    {
+      "id": "order.for_customer",
+      "entity": "order",
+      "action": "for_customer",
+      "kind": "OrderForCustomer",
+      "description": "Start a new order draft for a saved customer.",
+      "examples": [
+        "Sara ke liye order",
+        "order for Sara"
+      ],
+      "slots": {
+        "customer": {
+          "required": true
+        }
+      },
+      "template": "order for {customer}"
+    },
+    {
+      "id": "order.counter_sale",
+      "entity": "order",
+      "action": "counter_sale",
+      "kind": "WalkInSale",
+      "description": "Record a shop (counter) sale with no buyer details.",
+      "examples": [
+        "counter sale 1500",
+        "dukan par 1500 ki sale hui"
+      ],
+      "slots": {
+        "amount": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "counter sale {amount}"
+    },
+    {
+      "id": "order.receipt_latest",
+      "entity": "order",
+      "action": "receipt_latest",
+      "kind": "Receipt",
+      "description": "Send the PDF receipt of the latest order.",
+      "examples": [
+        "receipt",
+        "receipt bhejo"
+      ],
+      "slots": {},
+      "template": "receipt"
+    },
+    {
+      "id": "order.receipt",
+      "entity": "order",
+      "action": "receipt",
+      "kind": "Receipt",
+      "description": "Send the PDF receipt of one order.",
+      "examples": [
+        "receipt 12",
+        "order 12 ki receipt"
+      ],
+      "slots": {
+        "order": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "receipt {order}"
+    },
+    {
+      "id": "order.receipt_duplicate",
+      "entity": "order",
+      "action": "receipt_duplicate",
+      "kind": "Receipt",
+      "description": "Send a duplicate copy of the receipt.",
+      "examples": [
+        "duplicate receipt",
+        "dobara receipt bhejo"
+      ],
+      "slots": {},
+      "template": "duplicate receipt"
+    },
+    {
+      "id": "order.email_receipt",
+      "entity": "order",
+      "action": "email_receipt",
+      "kind": "EmailReceipt",
+      "description": "Email one order's receipt.",
+      "examples": [
+        "12 ki receipt email karo",
+        "email receipt 12"
+      ],
+      "slots": {
+        "order": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "email receipt {order}"
+    },
+    {
+      "id": "order.label",
+      "entity": "order",
+      "action": "label",
+      "kind": "ShippingLabel",
+      "description": "Send the parcel label of one order.",
+      "examples": [
+        "12 ka label",
+        "label 12"
+      ],
+      "slots": {
+        "order": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "label {order}"
+    },
+    {
+      "id": "order.label_ask",
+      "entity": "order",
+      "action": "label_ask",
+      "kind": "ShippingLabel",
+      "description": "Ask which label to print.",
+      "examples": [
+        "label chahiye",
+        "print label"
+      ],
+      "slots": {},
+      "template": "print label"
+    },
+    {
+      "id": "order.business_label",
+      "entity": "order",
+      "action": "business_label",
+      "kind": "BusinessLabel",
+      "description": "Shop sticker label.",
+      "examples": [
+        "business label",
+        "dukan ka sticker"
+      ],
+      "slots": {},
+      "template": "business label"
+    },
+    {
+      "id": "order.label_size",
+      "entity": "order",
+      "action": "label_size",
+      "kind": "LabelSize",
+      "description": "Set the label paper size: 4x6, A6 or 50x30.",
+      "examples": [
+        "label size a6",
+        "label size 50x30"
+      ],
+      "slots": {
+        "label_size": {
+          "required": true
+        }
+      },
+      "template": "label size {label_size}"
+    },
+    {
+      "id": "order.scan_cart",
+      "entity": "order",
+      "action": "scan_cart",
+      "kind": "Scan",
+      "description": "Show the barcode scan cart.",
+      "examples": [
+        "scan cart",
+        "scan cart dikhao"
+      ],
+      "slots": {},
+      "template": "scan cart"
+    },
+    {
+      "id": "order.scan_done",
+      "entity": "order",
+      "action": "scan_done",
+      "kind": "Scan",
+      "description": "Turn the scan cart into an order draft.",
+      "examples": [
+        "scan done",
+        "scan khatam"
+      ],
+      "slots": {},
+      "template": "scan done"
+    },
+    {
+      "id": "order.scan_clear",
+      "entity": "order",
+      "action": "scan_clear",
+      "kind": "Scan",
+      "description": "Empty the scan cart.",
+      "examples": [
+        "scan clear",
+        "scan cart khali karo"
+      ],
+      "slots": {},
+      "template": "scan clear"
+    },
+    {
+      "id": "loss.add",
+      "entity": "loss",
+      "action": "add",
+      "kind": "Loss",
+      "description": "Record damaged, lost or stained stock.",
+      "examples": [
+        "2 Kurti kharab ho gayi",
+        "loss 2 Kurti damaged"
+      ],
+      "slots": {
+        "qty": {
+          "required": true,
+          "type": "number"
+        },
+        "product": {
+          "required": true
+        },
+        "reason": {
+          "required": true
+        }
+      },
+      "template": "loss {qty} {product} {reason}"
+    },
+    {
+      "id": "loss.list",
+      "entity": "loss",
+      "action": "list",
+      "kind": "LossList",
+      "description": "List recorded losses.",
+      "examples": [
+        "losses",
+        "nuqsan dikhao"
+      ],
+      "slots": {},
+      "template": "losses"
+    },
+    {
+      "id": "receipt.design",
+      "entity": "receipt",
+      "action": "design",
+      "kind": "ReceiptDesign",
+      "description": "Open live receipt design mode.",
+      "examples": [
+        "receipt design karna hai",
+        "receipt ka design badlo"
+      ],
+      "slots": {},
+      "template": "receipt design"
+    },
+    {
+      "id": "receipt.size",
+      "entity": "receipt",
+      "action": "size",
+      "kind": "ReceiptSize",
+      "description": "Set receipt paper size: 80mm, 58mm, A5 or A4.",
+      "examples": [
+        "receipt 80mm kar do",
+        "receipt size A4"
+      ],
+      "slots": {
+        "paper": {
+          "required": true
+        }
+      },
+      "template": "receipt size {paper}"
+    },
+    {
+      "id": "receipt.header",
+      "entity": "receipt",
+      "action": "header",
+      "kind": "ReceiptHeader",
+      "description": "Set the line under the shop name on receipts.",
+      "examples": [
+        "receipt header Lahore Branch"
+      ],
+      "slots": {
+        "text": {
+          "required": true
+        }
+      },
+      "template": "receipt header {text}"
+    },
+    {
+      "id": "receipt.contact",
+      "entity": "receipt",
+      "action": "contact",
+      "kind": "ReceiptContact",
+      "description": "Set the contact line printed on receipts.",
+      "examples": [
+        "receipt contact 03001234567"
+      ],
+      "slots": {
+        "text": {
+          "required": true
+        }
+      },
+      "template": "receipt contact {text}"
+    },
+    {
+      "id": "receipt.footer",
+      "entity": "receipt",
+      "action": "footer",
+      "kind": "ReceiptFooter",
+      "description": "Set the footer printed at the bottom of receipts.",
+      "examples": [
+        "receipt footer Shukriya"
+      ],
+      "slots": {
+        "text": {
+          "required": true
+        }
+      },
+      "template": "receipt footer {text}"
+    },
+    {
+      "id": "receipt.settings",
+      "entity": "receipt",
+      "action": "settings",
+      "kind": "ReceiptSettings",
+      "description": "Show the current receipt settings.",
+      "examples": [
+        "receipt settings",
+        "receipt ki settings dikhao"
+      ],
+      "slots": {},
+      "template": "receipt settings"
+    },
+    {
+      "id": "branding.logo",
+      "entity": "branding",
+      "action": "logo",
+      "kind": "BrandingHelp",
+      "description": "Add a logo to receipts (then send the picture).",
+      "examples": [
+        "logo lagana hai",
+        "receipt par logo"
+      ],
+      "slots": {},
+      "template": "logo"
+    },
+    {
+      "id": "branding.banner",
+      "entity": "branding",
+      "action": "banner",
+      "kind": "BrandingHelp",
+      "description": "Add a banner to receipts (then send the picture).",
+      "examples": [
+        "banner lagana hai"
+      ],
+      "slots": {},
+      "template": "banner"
+    },
+    {
+      "id": "branding.remove",
+      "entity": "branding",
+      "action": "remove",
+      "kind": "RemoveBranding",
+      "description": "Remove the receipt logo.",
+      "examples": [
+        "logo hata do",
+        "remove logo"
+      ],
+      "slots": {},
+      "template": "remove logo"
+    },
+    {
+      "id": "printer.help",
+      "entity": "printer",
+      "action": "help",
+      "kind": "PrinterHelp",
+      "description": "How to print a receipt or a label.",
+      "examples": [
+        "printer kaise chalaun",
+        "print kaise karun"
+      ],
+      "slots": {},
+      "template": "printer"
+    },
+    {
+      "id": "email.set",
+      "entity": "email",
+      "action": "set",
+      "kind": "SetEmail",
+      "description": "Save the shop's email address.",
+      "examples": [
+        "mera email ali@shop.com hai"
+      ],
+      "slots": {
+        "email": {
+          "required": true
+        }
+      },
+      "template": "email {email}"
+    },
+    {
+      "id": "email.summary",
+      "entity": "email",
+      "action": "summary",
+      "kind": "EmailSummary",
+      "description": "Email the account summary.",
+      "examples": [
+        "summary email karo",
+        "email summary"
+      ],
+      "slots": {},
+      "template": "email summary"
+    },
+    {
+      "id": "email.export",
+      "entity": "email",
+      "action": "export",
+      "kind": "EmailExport",
+      "description": "Email the Excel export of orders for a period.",
+      "examples": [
+        "orders ki excel email karo"
+      ],
+      "slots": {
+        "period": {
+          "required": true
+        }
+      },
+      "template": "email export orders {period}"
+    },
+    {
+      "id": "product.create",
+      "entity": "product",
+      "action": "create",
+      "kind": "AddProduct",
+      "description": "Add a product with its sale price: name and price.",
+      "examples": [
+        "naya product",
+        "Kurti 1800 wala product add karo",
+        "Kurti - 1800 rakh do"
+      ],
+      "slots": {
+        "name": {
+          "required": true
+        },
+        "price": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "{name} - {price}"
+    },
+    {
+      "id": "product.create_detailed",
+      "entity": "product",
+      "action": "create_detailed",
+      "kind": "AddProduct",
+      "description": "Add a product with cost, stock and category.",
+      "examples": [
+        "Lawn Suit 3500, cost 2400, stock 10, category Lawn"
+      ],
+      "slots": {
+        "name": {
+          "required": true
+        },
+        "price": {
+          "required": true,
+          "type": "number"
+        },
+        "cost": {
+          "required": true,
+          "type": "number"
+        },
+        "stock": {
+          "required": true,
+          "type": "number"
+        },
+        "category": {
+          "required": true
+        }
+      },
+      "template": "{name} - {price}, cost {cost}, stock {stock}, category: {category}"
+    },
+    {
+      "id": "product.show",
+      "entity": "product",
+      "action": "show",
+      "kind": "Catalog",
+      "description": "Show the product catalog.",
+      "examples": [
+        "products dikhao",
+        "catalog dikhao",
+        "mera saman dikhao"
+      ],
+      "slots": {},
+      "template": "catalog"
+    },
+    {
+      "id": "product.search",
+      "entity": "product",
+      "action": "search",
+      "kind": "Catalog",
+      "description": "Search the catalog by any word.",
+      "examples": [
+        "catalog mein lawn dhoondo",
+        "find lawn suit"
+      ],
+      "slots": {
+        "query": {
+          "required": true
+        }
+      },
+      "template": "catalog search {query}"
+    },
+    {
+      "id": "product.share",
+      "entity": "product",
+      "action": "share",
+      "kind": "ShareCatalog",
+      "description": "Share the catalog with buyers.",
+      "examples": [
+        "catalog share karo",
+        "share catalog"
+      ],
+      "slots": {},
+      "template": "share catalog"
+    },
+    {
+      "id": "product.add_help",
+      "entity": "product",
+      "action": "add_help",
+      "kind": "HowTo",
+      "description": "How to add a product: shows the example lines.",
+      "examples": [
+        "product kaise add karun",
+        "add product"
+      ],
+      "slots": {},
+      "template": "add product"
+    },
+    {
+      "id": "product.page_next",
+      "entity": "product",
+      "action": "page_next",
+      "kind": "Catalog",
+      "description": "Next catalog page.",
+      "examples": [
+        "agla catalog page",
+        "catalog next"
+      ],
+      "slots": {},
+      "template": "catalog next"
+    },
+    {
+      "id": "product.page_prev",
+      "entity": "product",
+      "action": "page_prev",
+      "kind": "Catalog",
+      "description": "Previous catalog page.",
+      "examples": [
+        "pichla catalog page",
+        "catalog prev"
+      ],
+      "slots": {},
+      "template": "catalog prev"
+    },
+    {
+      "id": "product.page_go",
+      "entity": "product",
+      "action": "page_go",
+      "kind": "Catalog",
+      "description": "Go to a catalog page number.",
+      "examples": [
+        "catalog page 3 dikhao"
+      ],
+      "slots": {
+        "page": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "catalog page {page}"
+    },
+    {
+      "id": "product.sort_az",
+      "entity": "product",
+      "action": "sort_az",
+      "kind": "Catalog",
+      "description": "Sort the catalog A to Z.",
+      "examples": [
+        "catalog a-z"
+      ],
+      "slots": {},
+      "template": "catalog a-z"
+    },
+    {
+      "id": "product.sort_latest",
+      "entity": "product",
+      "action": "sort_latest",
+      "kind": "Catalog",
+      "description": "Show the newest products first.",
+      "examples": [
+        "catalog latest"
+      ],
+      "slots": {},
+      "template": "catalog latest"
+    },
+    {
+      "id": "product.view_reset",
+      "entity": "product",
+      "action": "view_reset",
+      "kind": "Catalog",
+      "description": "Reset catalog paging, search and sort.",
+      "examples": [
+        "catalog reset"
+      ],
+      "slots": {},
+      "template": "catalog reset"
+    },
+    {
+      "id": "product.page_size",
+      "entity": "product",
+      "action": "page_size",
+      "kind": "Catalog",
+      "description": "Set how many products per catalog page (5 to 50).",
+      "examples": [
+        "catalog size 25"
+      ],
+      "slots": {
+        "size": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "catalog size {size}"
+    },
+    {
+      "id": "product.edit_price",
+      "entity": "product",
+      "action": "edit_price",
+      "kind": "EditProduct",
+      "description": "Change a product's sale price.",
+      "examples": [
+        "Kurti ka rate 1900 kar do",
+        "edit product: Kurti - 1900"
+      ],
+      "slots": {
+        "name": {
+          "required": true
+        },
+        "price": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "edit product: {name} - {price}"
+    },
+    {
+      "id": "product.delete",
+      "entity": "product",
+      "action": "delete",
+      "kind": "DeleteProduct",
+      "description": "Remove a product from the catalog.",
+      "examples": [
+        "Kurti hata do",
+        "delete product: Kurti"
+      ],
+      "slots": {
+        "name": {
+          "required": true
+        }
+      },
+      "template": "delete product: {name}"
+    },
+    {
+      "id": "product.price_group",
+      "entity": "product",
+      "action": "price_group",
+      "kind": "AddProduct",
+      "description": "Set a price for a customer group (A, B or C).",
+      "examples": [
+        "Polo Shirt ka group B rate 450"
+      ],
+      "slots": {
+        "name": {
+          "required": true
+        },
+        "price": {
+          "required": true,
+          "type": "number"
+        },
+        "group": {
+          "required": true
+        },
+        "tier_price": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "{name} - {price}, price {group} {tier_price}"
+    },
+    {
+      "id": "product.by_category",
+      "entity": "product",
+      "action": "by_category",
+      "kind": "CatalogFilter",
+      "description": "Products in one category.",
+      "examples": [
+        "Shirts category ke products",
+        "products category Shirts"
+      ],
+      "slots": {
+        "category": {
+          "required": true
+        }
+      },
+      "template": "products category {category}"
+    },
+    {
+      "id": "product.by_supplier",
+      "entity": "product",
+      "action": "by_supplier",
+      "kind": "CatalogFilter",
+      "description": "Products from one supplier.",
+      "examples": [
+        "Ali ke products",
+        "products vendor Ali"
+      ],
+      "slots": {
+        "supplier": {
+          "required": true
+        }
+      },
+      "template": "products vendor {supplier}"
+    },
+    {
+      "id": "product.report",
+      "entity": "product",
+      "action": "report",
+      "kind": "ProductReport",
+      "description": "One product's sales this month against last month.",
+      "examples": [
+        "Polo Shirt ka report",
+        "Kurti ki sale is mahine"
+      ],
+      "slots": {
+        "product": {
+          "required": true
+        }
+      },
+      "template": "{product} ka report"
+    },
+    {
+      "id": "product.enquiry_add",
+      "entity": "product",
+      "action": "enquiry_add",
+      "kind": "BuyerEnquiry",
+      "description": "Write down a buyer's question about a product.",
+      "examples": [
+        "enquiry Kurti blue",
+        "buyer ne pucha Lawn Suit"
+      ],
+      "slots": {
+        "product": {
+          "required": true
+        }
+      },
+      "template": "enquiry {product}"
+    },
+    {
+      "id": "product.enquiry_report",
+      "entity": "product",
+      "action": "enquiry_report",
+      "kind": "EnquiryReport",
+      "description": "Buyer questions against sales, per product.",
+      "examples": [
+        "enquiries dikhao",
+        "enquiries last month"
+      ],
+      "slots": {},
+      "template": "enquiries"
+    },
+    {
+      "id": "product.barcode_set",
+      "entity": "product",
+      "action": "barcode_set",
+      "kind": "BarcodeSet",
+      "description": "Save a product's barcode for the scanner.",
+      "examples": [
+        "Kurti ka barcode 8961234567890"
+      ],
+      "slots": {
+        "product": {
+          "required": true
+        },
+        "code": {
+          "required": true
+        }
+      },
+      "template": "barcode {product} {code}"
+    },
+    {
+      "id": "product.barcode_remove",
+      "entity": "product",
+      "action": "barcode_remove",
+      "kind": "BarcodeSet",
+      "description": "Remove a product's barcode.",
+      "examples": [
+        "barcode remove Kurti"
+      ],
+      "slots": {
+        "product": {
+          "required": true
+        }
+      },
+      "template": "barcode remove {product}"
+    },
+    {
+      "id": "product.supplier_set",
+      "entity": "product",
+      "action": "supplier_set",
+      "kind": "SupplierSet",
+      "description": "Save the supplier of a product.",
+      "examples": [
+        "Lawn Suit ka supplier Shah Alam",
+        "supplier Lawn Suit Shah Alam"
+      ],
+      "slots": {
+        "product": {
+          "required": true
+        },
+        "supplier": {
+          "required": true
+        }
+      },
+      "template": "supplier {product} {supplier}"
+    },
+    {
+      "id": "product.supplier_remove",
+      "entity": "product",
+      "action": "supplier_remove",
+      "kind": "SupplierSet",
+      "description": "Remove a product's supplier.",
+      "examples": [
+        "supplier remove Lawn Suit"
+      ],
+      "slots": {
+        "product": {
+          "required": true
+        }
+      },
+      "template": "supplier remove {product}"
+    },
+    {
+      "id": "product.suppliers_report",
+      "entity": "product",
+      "action": "suppliers_report",
+      "kind": "Insight",
+      "description": "Sales and profit per supplier.",
+      "examples": [
+        "suppliers",
+        "supplier report"
+      ],
+      "slots": {},
+      "template": "suppliers"
+    },
+    {
+      "id": "stock.show",
+      "entity": "stock",
+      "action": "show",
+      "kind": "Stock",
+      "description": "Show stock levels of tracked products.",
+      "examples": [
+        "stock dikhao",
+        "kitna maal bacha hai",
+        "stock report"
+      ],
+      "slots": {},
+      "template": "stock"
+    },
+    {
+      "id": "stock.low",
+      "entity": "stock",
+      "action": "low",
+      "kind": "Stock",
+      "description": "Products running low or out of stock.",
+      "examples": [
+        "low stock",
+        "kam stock",
+        "khatam maal"
+      ],
+      "slots": {},
+      "template": "low stock"
+    },
+    {
+      "id": "stock.set",
+      "entity": "stock",
+      "action": "set",
+      "kind": "Stock",
+      "description": "Set a product's stock count.",
+      "examples": [
+        "Kurti ka stock 20",
+        "stock Kurti 20"
+      ],
+      "slots": {
+        "product": {
+          "required": true
+        },
+        "qty": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "stock {product} {qty}"
+    },
+    {
+      "id": "stock.add",
+      "entity": "stock",
+      "action": "add",
+      "kind": "Stock",
+      "description": "Add units to a product's stock.",
+      "examples": [
+        "Kurti mein 10 aur aaye",
+        "stock Kurti +10"
+      ],
+      "slots": {
+        "product": {
+          "required": true
+        },
+        "qty": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "stock {product} +{qty}"
+    },
+    {
+      "id": "stock.untrack",
+      "entity": "stock",
+      "action": "untrack",
+      "kind": "Stock",
+      "description": "Stop tracking a product's stock.",
+      "examples": [
+        "Kurti ka stock band karo",
+        "stock Kurti off"
+      ],
+      "slots": {
+        "product": {
+          "required": true
+        }
+      },
+      "template": "stock {product} off"
+    },
+    {
+      "id": "stock.restock_list",
+      "entity": "stock",
+      "action": "restock_list",
+      "kind": "Stock",
+      "description": "Products to re-order now.",
+      "examples": [
+        "restock list",
+        "kya mangwana hai"
+      ],
+      "slots": {},
+      "template": "restock list"
+    },
+    {
+      "id": "money.today",
+      "entity": "money",
+      "action": "today",
+      "kind": "TodaysSummary",
+      "description": "Today's account: sales, top item, expenses, cash drawer.",
+      "examples": [
+        "aaj ka hisaab",
+        "aaj kitna bika",
+        "today's summary"
+      ],
+      "slots": {},
+      "template": "aaj ka hisaab"
+    },
+    {
+      "id": "money.yesterday",
+      "entity": "money",
+      "action": "yesterday",
+      "kind": "TodaysSummary",
+      "description": "Yesterday's account.",
+      "examples": [
+        "kal ka hisaab",
+        "kal kitna bika"
+      ],
+      "slots": {},
+      "template": "kal ka hisaab"
+    },
+    {
+      "id": "money.weekly",
+      "entity": "money",
+      "action": "weekly",
+      "kind": "WeeklySummary",
+      "description": "Weekly summary.",
+      "examples": [
+        "weekly summary",
+        "is hafte ka summary"
+      ],
+      "slots": {},
+      "template": "weekly summary"
+    },
+    {
+      "id": "money.profit",
+      "entity": "money",
+      "action": "profit",
+      "kind": "Profit",
+      "description": "Profit: sales minus product cost, last 30 days.",
+      "examples": [
+        "profit",
+        "munafa kitna hua"
+      ],
+      "slots": {},
+      "template": "profit"
+    },
+    {
+      "id": "money.profit_period",
+      "entity": "money",
+      "action": "profit_period",
+      "kind": "Profit",
+      "description": "Profit for a period.",
+      "examples": [
+        "profit last month",
+        "munafa pichle mahine"
+      ],
+      "slots": {
+        "period": {
+          "required": true
+        }
+      },
+      "template": "profit {period}"
+    },
+    {
+      "id": "money.profit_per_product",
+      "entity": "money",
+      "action": "profit_per_product",
+      "kind": "Insight",
+      "description": "Products ranked by profit.",
+      "examples": [
+        "profit per product",
+        "product wise profit"
+      ],
+      "slots": {},
+      "template": "profit per product"
+    },
+    {
+      "id": "money.margin",
+      "entity": "money",
+      "action": "margin",
+      "kind": "Margin",
+      "description": "Margin per product and the discount it can take.",
+      "examples": [
+        "margin",
+        "discount room",
+        "kitna discount de sakta hoon"
+      ],
+      "slots": {},
+      "template": "margin"
+    },
+    {
+      "id": "money.margin_list",
+      "entity": "money",
+      "action": "margin_list",
+      "kind": "Margin",
+      "description": "Full margin list, best first.",
+      "examples": [
+        "margin list"
+      ],
+      "slots": {},
+      "template": "margin list"
+    },
+    {
+      "id": "money.margin_period",
+      "entity": "money",
+      "action": "margin_period",
+      "kind": "Margin",
+      "description": "Margin actually made in a period.",
+      "examples": [
+        "margin last month",
+        "margin 7 days"
+      ],
+      "slots": {
+        "period": {
+          "required": true
+        }
+      },
+      "template": "margin {period}"
+    },
+    {
+      "id": "money.category_sales",
+      "entity": "money",
+      "action": "category_sales",
+      "kind": "CategorySales",
+      "description": "Sales split by product category.",
+      "examples": [
+        "category wise sales",
+        "kapron se kitni sale hui"
+      ],
+      "slots": {},
+      "template": "sales by category"
+    },
+    {
+      "id": "money.category_sales_period",
+      "entity": "money",
+      "action": "category_sales_period",
+      "kind": "CategorySales",
+      "description": "Sales split by category for a period.",
+      "examples": [
+        "sales by category this week"
+      ],
+      "slots": {
+        "period": {
+          "required": true
+        }
+      },
+      "template": "sales by category {period}"
+    },
+    {
+      "id": "expense.add",
+      "entity": "expense",
+      "action": "add",
+      "kind": "Expense",
+      "description": "Record a shop expense: amount and what it was for.",
+      "examples": [
+        "expense 500 packaging",
+        "kharcha 800 petrol",
+        "aaj 500 ka petrol kharcha hua"
+      ],
+      "slots": {
+        "amount": {
+          "required": true,
+          "type": "number"
+        },
+        "note": {
+          "required": true
+        }
+      },
+      "template": "expense {amount} {note}"
+    },
+    {
+      "id": "expense.list",
+      "entity": "expense",
+      "action": "list",
+      "kind": "ExpenseList",
+      "description": "List expenses.",
+      "examples": [
+        "expenses",
+        "kharche dikhao"
+      ],
+      "slots": {},
+      "template": "expenses"
+    },
+    {
+      "id": "expense.list_period",
+      "entity": "expense",
+      "action": "list_period",
+      "kind": "ExpenseList",
+      "description": "List expenses for a period.",
+      "examples": [
+        "expenses this week",
+        "is mahine ke kharche"
+      ],
+      "slots": {
+        "period": {
+          "required": true
+        }
+      },
+      "template": "expenses {period}"
+    },
+    {
+      "id": "expense.monthly_net",
+      "entity": "expense",
+      "action": "monthly_net",
+      "kind": "MonthlyNet",
+      "description": "This month's sales minus expenses.",
+      "examples": [
+        "monthly net",
+        "is mahine ka net"
+      ],
+      "slots": {},
+      "template": "monthly net"
+    },
+    {
+      "id": "expense.edit",
+      "entity": "expense",
+      "action": "edit",
+      "kind": "ExpenseEdit",
+      "description": "Change an expense by its number.",
+      "examples": [
+        "expense 12 ko 800 packaging kar do"
+      ],
+      "slots": {
+        "id": {
+          "required": true,
+          "type": "number"
+        },
+        "amount": {
+          "required": true,
+          "type": "number"
+        },
+        "note": {
+          "required": true
+        }
+      },
+      "template": "expense edit {id} {amount} {note}"
+    },
+    {
+      "id": "expense.delete",
+      "entity": "expense",
+      "action": "delete",
+      "kind": "ExpenseDelete",
+      "description": "Delete an expense by its number.",
+      "examples": [
+        "expense 12 hata do"
+      ],
+      "slots": {
+        "id": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "expense delete {id}"
+    },
+    {
+      "id": "wage.add",
+      "entity": "wage",
+      "action": "add",
+      "kind": "Wage",
+      "description": "Record a worker's wage.",
+      "examples": [
+        "Ali ko 5000 tankhwah di",
+        "wage Ali 5000"
+      ],
+      "slots": {
+        "name": {
+          "required": true
+        },
+        "amount": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "wage {name} {amount}"
+    },
+    {
+      "id": "wage.list",
+      "entity": "wage",
+      "action": "list",
+      "kind": "WageList",
+      "description": "List wages.",
+      "examples": [
+        "wages",
+        "tankhwahein dikhao"
+      ],
+      "slots": {},
+      "template": "wages"
+    },
+    {
+      "id": "courier.fee_report",
+      "entity": "courier",
+      "action": "fee_report",
+      "kind": "Insight",
+      "description": "Courier fees written down against delivery charged.",
+      "examples": [
+        "courier fee report",
+        "courier ko kitna diya"
+      ],
+      "slots": {},
+      "template": "courier fee report"
+    },
+    {
+      "id": "drawer.open",
+      "entity": "drawer",
+      "action": "open",
+      "kind": "CashDrawer",
+      "description": "Open the cash drawer with the opening cash.",
+      "examples": [
+        "drawer open 5000",
+        "galla khola 5000 se"
+      ],
+      "slots": {
+        "amount": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "drawer open {amount}"
+    },
+    {
+      "id": "drawer.status",
+      "entity": "drawer",
+      "action": "status",
+      "kind": "CashDrawer",
+      "description": "Show the drawer's expected cash.",
+      "examples": [
+        "drawer",
+        "galla kitna hai",
+        "drawer status"
+      ],
+      "slots": {},
+      "template": "drawer"
+    },
+    {
+      "id": "drawer.cash_in",
+      "entity": "drawer",
+      "action": "cash_in",
+      "kind": "CashMovement",
+      "description": "Cash put into the drawer.",
+      "examples": [
+        "cash in 500 float"
+      ],
+      "slots": {
+        "amount": {
+          "required": true,
+          "type": "number"
+        },
+        "note": {
+          "required": true
+        }
+      },
+      "template": "cash in {amount} {note}"
+    },
+    {
+      "id": "drawer.cash_out",
+      "entity": "drawer",
+      "action": "cash_out",
+      "kind": "CashMovement",
+      "description": "Cash taken out of the drawer.",
+      "examples": [
+        "cash out 300 chai"
+      ],
+      "slots": {
+        "amount": {
+          "required": true,
+          "type": "number"
+        },
+        "note": {
+          "required": true
+        }
+      },
+      "template": "cash out {amount} {note}"
+    },
+    {
+      "id": "drawer.cash_sale",
+      "entity": "drawer",
+      "action": "cash_sale",
+      "kind": "CashMovement",
+      "description": "A cash sale put into the drawer.",
+      "examples": [
+        "cash sale 750"
+      ],
+      "slots": {
+        "amount": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "cash sale {amount}"
+    },
+    {
+      "id": "drawer.close",
+      "entity": "drawer",
+      "action": "close",
+      "kind": "CashDrawer",
+      "description": "Close the drawer with the counted cash.",
+      "examples": [
+        "drawer close 12000"
+      ],
+      "slots": {
+        "amount": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "drawer close {amount}"
+    },
+    {
+      "id": "drawer.history",
+      "entity": "drawer",
+      "action": "history",
+      "kind": "CashDrawer",
+      "description": "Past drawer sessions.",
+      "examples": [
+        "drawer history",
+        "galla history"
+      ],
+      "slots": {},
+      "template": "drawer history"
+    },
+    {
+      "id": "drawer.undo",
+      "entity": "drawer",
+      "action": "undo",
+      "kind": "CashMovement",
+      "description": "Undo the last cash movement.",
+      "examples": [
+        "cash undo"
+      ],
+      "slots": {},
+      "template": "cash undo"
+    },
+    {
+      "id": "payout.pending",
+      "entity": "payout",
+      "action": "pending",
+      "kind": "Payout",
+      "description": "Courier or gateway COD money still to be paid out.",
+      "examples": [
+        "payout pending",
+        "courier payout"
+      ],
+      "slots": {},
+      "template": "payout pending"
+    },
+    {
+      "id": "payout.list",
+      "entity": "payout",
+      "action": "list",
+      "kind": "Payout",
+      "description": "Recorded payouts.",
+      "examples": [
+        "payout list"
+      ],
+      "slots": {},
+      "template": "payout list"
+    },
+    {
+      "id": "payout.record",
+      "entity": "payout",
+      "action": "record",
+      "kind": "Payout",
+      "description": "Record a courier payout against orders.",
+      "examples": [
+        "payout 11700 TCS orders 1 2 3"
+      ],
+      "slots": {
+        "amount": {
+          "required": true,
+          "type": "number"
+        },
+        "courier": {
+          "required": true
+        },
+        "order_ids": {
+          "required": true
+        }
+      },
+      "template": "payout {amount} {courier} orders {order_ids}"
+    },
+    {
+      "id": "payout.skip",
+      "entity": "payout",
+      "action": "skip",
+      "kind": "Payout",
+      "description": "Mark orders as paid directly in cash, with no payout.",
+      "examples": [
+        "payout skip 12 13"
+      ],
+      "slots": {
+        "order_ids": {
+          "required": true
+        }
+      },
+      "template": "payout skip {order_ids}"
+    },
+    {
+      "id": "payout.undo",
+      "entity": "payout",
+      "action": "undo",
+      "kind": "Payout",
+      "description": "Undo the last payout.",
+      "examples": [
+        "payout undo"
+      ],
+      "slots": {},
+      "template": "payout undo"
+    },
+    {
+      "id": "customer.add",
+      "entity": "customer",
+      "action": "add",
+      "kind": "CustomerAdd",
+      "description": "Save a new buyer by name.",
+      "examples": [
+        "naya client hai",
+        "naya customer save karo"
+      ],
+      "slots": {
+        "name": {
+          "required": true
+        }
+      },
+      "template": "customer add {name}"
+    },
+    {
+      "id": "customer.add_full",
+      "entity": "customer",
+      "action": "add_full",
+      "kind": "CustomerAdd",
+      "description": "Save a new buyer with address and phone.",
+      "examples": [
+        "naya client Sara address Model Town phone 03001234567"
+      ],
+      "slots": {
+        "name": {
+          "required": true
+        },
+        "address": {
+          "required": true
+        },
+        "phone": {
+          "required": true
+        }
+      },
+      "template": "customer add {name}, {address}, {phone}"
+    },
+    {
+      "id": "customer.list",
+      "entity": "customer",
+      "action": "list",
+      "kind": "CustomerList",
+      "description": "List saved customers.",
+      "examples": [
+        "customers dikhao",
+        "meri customer list"
+      ],
+      "slots": {},
+      "template": "customers"
+    },
+    {
+      "id": "customer.list_period",
+      "entity": "customer",
+      "action": "list_period",
+      "kind": "CustomerList",
+      "description": "Customers who bought in a period.",
+      "examples": [
+        "customers this week",
+        "customers last month"
+      ],
+      "slots": {
+        "period": {
+          "required": true
+        }
+      },
+      "template": "customers {period}"
+    },
+    {
+      "id": "customer.detail",
+      "entity": "customer",
+      "action": "detail",
+      "kind": "CustomerDetail",
+      "description": "One customer's details by number.",
+      "examples": [
+        "customer 1 dikhao"
+      ],
+      "slots": {
+        "id": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "customer {id}"
+    },
+    {
+      "id": "customer.search",
+      "entity": "customer",
+      "action": "search",
+      "kind": "CustomerSearch",
+      "description": "Find a saved customer by name.",
+      "examples": [
+        "search customer Sara",
+        "Sara dhoondo"
+      ],
+      "slots": {
+        "name": {
+          "required": true
+        }
+      },
+      "template": "search customer {name}"
+    },
+    {
+      "id": "customer.update_phone",
+      "entity": "customer",
+      "action": "update_phone",
+      "kind": "CustomerUpdate",
+      "description": "Correct a customer's phone number.",
+      "examples": [
+        "Sara ka phone 03001234567"
+      ],
+      "slots": {
+        "name": {
+          "required": true
+        },
+        "phone": {
+          "required": true
+        }
+      },
+      "template": "{name} ka phone {phone}"
+    },
+    {
+      "id": "customer.update_address",
+      "entity": "customer",
+      "action": "update_address",
+      "kind": "CustomerUpdate",
+      "description": "Correct a customer's address.",
+      "examples": [
+        "Sara ka address Model Town"
+      ],
+      "slots": {
+        "name": {
+          "required": true
+        },
+        "address": {
+          "required": true
+        }
+      },
+      "template": "{name} ka address {address}"
+    },
+    {
+      "id": "customer.update_city",
+      "entity": "customer",
+      "action": "update_city",
+      "kind": "CustomerUpdate",
+      "description": "Correct a customer's city.",
+      "examples": [
+        "Bilal ki city Lahore"
+      ],
+      "slots": {
+        "name": {
+          "required": true
+        },
+        "city": {
+          "required": true
+        }
+      },
+      "template": "{name} ki city {city}"
+    },
+    {
+      "id": "customer.update_email",
+      "entity": "customer",
+      "action": "update_email",
+      "kind": "CustomerUpdate",
+      "description": "Save a customer's email address.",
+      "examples": [
+        "Sara ka email sara@mail.com"
+      ],
+      "slots": {
+        "name": {
+          "required": true
+        },
+        "email": {
+          "required": true
+        }
+      },
+      "template": "{name} ka email {email}"
+    },
+    {
+      "id": "customer.update_group",
+      "entity": "customer",
+      "action": "update_group",
+      "kind": "CustomerUpdate",
+      "description": "Put a customer in a price group (A, B, C or none).",
+      "examples": [
+        "Sara ka group B"
+      ],
+      "slots": {
+        "name": {
+          "required": true
+        },
+        "group": {
+          "required": true
+        }
+      },
+      "template": "{name} ka group {group}"
+    },
+    {
+      "id": "customer.delete",
+      "entity": "customer",
+      "action": "delete",
+      "kind": "DeleteCustomer",
+      "description": "Remove a customer.",
+      "examples": [
+        "delete customer Sara"
+      ],
+      "slots": {
+        "name": {
+          "required": true
+        }
+      },
+      "template": "delete customer {name}"
+    },
+    {
+      "id": "customer.restore",
+      "entity": "customer",
+      "action": "restore",
+      "kind": "RestoreCustomer",
+      "description": "Restore a removed customer.",
+      "examples": [
+        "restore customer Sara"
+      ],
+      "slots": {
+        "name": {
+          "required": true
+        }
+      },
+      "template": "restore customer {name}"
+    },
+    {
+      "id": "customer.more",
+      "entity": "customer",
+      "action": "more",
+      "kind": "MoreCustomers",
+      "description": "Next page of the customer list.",
+      "examples": [
+        "aur customers",
+        "more"
+      ],
+      "slots": {},
+      "template": "more"
+    },
+    {
+      "id": "customer.broadcast",
+      "entity": "customer",
+      "action": "broadcast",
+      "kind": "Broadcast",
+      "description": "Message all customers with the same text.",
+      "examples": [
+        "sab customers ko batao: naya stock aaya"
+      ],
+      "slots": {
+        "message": {
+          "required": true
+        }
+      },
+      "template": "sab customers ko batao: {message}"
+    },
+    {
+      "id": "discount.create",
+      "entity": "discount",
+      "action": "create",
+      "kind": "CreateDiscount",
+      "description": "Make a discount code: code and value (10% or a flat amount).",
+      "examples": [
+        "EID ke liye 10 percent ka code",
+        "discount banana hai"
+      ],
+      "slots": {
+        "code": {
+          "required": true
+        },
+        "value": {
+          "required": true
+        }
+      },
+      "template": "create discount: {code} {value}"
+    },
+    {
+      "id": "discount.list",
+      "entity": "discount",
+      "action": "list",
+      "kind": "DiscountList",
+      "description": "List discount codes.",
+      "examples": [
+        "discount list",
+        "codes dikhao"
+      ],
+      "slots": {},
+      "template": "discount list"
+    },
+    {
+      "id": "discount.performance",
+      "entity": "discount",
+      "action": "performance",
+      "kind": "DiscountPerformance",
+      "description": "Sales and profit per discount code.",
+      "examples": [
+        "discount performance",
+        "code kitna chala"
+      ],
+      "slots": {},
+      "template": "discount performance"
+    },
+    {
+      "id": "loyalty.create",
+      "entity": "loyalty",
+      "action": "create",
+      "kind": "HowTo",
+      "description": "Set up the loyalty rule.",
+      "examples": [
+        "loyalty banana hai"
+      ],
+      "slots": {},
+      "template": "create loyalty"
+    },
+    {
+      "id": "loyalty.list",
+      "entity": "loyalty",
+      "action": "list",
+      "kind": "LoyalCustomers",
+      "description": "Loyal customers.",
+      "examples": [
+        "loyal customers",
+        "wafadar customers"
+      ],
+      "slots": {},
+      "template": "loyal customers"
+    },
+    {
+      "id": "campaign.status",
+      "entity": "campaign",
+      "action": "status",
+      "kind": "CampaignStatus",
+      "description": "Status of the last broadcast.",
+      "examples": [
+        "campaign status"
+      ],
+      "slots": {},
+      "template": "campaign status"
+    },
+    {
+      "id": "feedback.send",
+      "entity": "feedback",
+      "action": "send",
+      "kind": "Feedback",
+      "description": "Send a feedback message to the bot team.",
+      "examples": [
+        "feedback: app mein naya feature chahiye"
+      ],
+      "slots": {
+        "message": {
+          "required": true
+        }
+      },
+      "template": "feedback: {message}"
+    },
+    {
+      "id": "feedback.list",
+      "entity": "feedback",
+      "action": "list",
+      "kind": "CustomerFeedbackList",
+      "description": "Feedback buyers gave on orders.",
+      "examples": [
+        "customer feedback",
+        "buyers ka feedback"
+      ],
+      "slots": {},
+      "template": "customer feedback"
+    },
+    {
+      "id": "support.list",
+      "entity": "support",
+      "action": "list",
+      "kind": "SupportQueries",
+      "description": "Buyer questions forwarded from Instagram.",
+      "examples": [
+        "support queries",
+        "instagram sawal"
+      ],
+      "slots": {},
+      "template": "support queries"
+    },
+    {
+      "id": "instagram.comment_leads",
+      "entity": "instagram",
+      "action": "comment_leads",
+      "kind": "CommentLeads",
+      "description": "Leads from Instagram comments.",
+      "examples": [
+        "comment leads",
+        "instagram leads"
+      ],
+      "slots": {},
+      "template": "comment leads"
+    },
+    {
+      "id": "instagram.connect",
+      "entity": "instagram",
+      "action": "connect",
+      "kind": "ConnectInstagram",
+      "description": "Connect the Instagram account.",
+      "examples": [
+        "connect instagram"
+      ],
+      "slots": {},
+      "template": "connect instagram"
+    },
+    {
+      "id": "instagram.disconnect",
+      "entity": "instagram",
+      "action": "disconnect",
+      "kind": "DisconnectInstagram",
+      "description": "Disconnect the Instagram account.",
+      "examples": [
+        "disconnect instagram"
+      ],
+      "slots": {},
+      "template": "disconnect instagram"
+    },
+    {
+      "id": "report.trending",
+      "entity": "report",
+      "action": "trending",
+      "kind": "TrendingProducts",
+      "description": "Products selling fastest now.",
+      "examples": [
+        "trending products",
+        "kya tez bik raha hai"
+      ],
+      "slots": {},
+      "template": "trending products"
+    },
+    {
+      "id": "report.slow",
+      "entity": "report",
+      "action": "slow",
+      "kind": "SlowMovers",
+      "description": "Products not selling.",
+      "examples": [
+        "slow movers",
+        "kaun sa maal nahi bik raha"
+      ],
+      "slots": {},
+      "template": "slow movers"
+    },
+    {
+      "id": "account.help",
+      "entity": "account",
+      "action": "help",
+      "kind": "Help",
+      "description": "Help list of commands.",
+      "examples": [
+        "help",
+        "madad chahiye",
+        "commands"
+      ],
+      "slots": {},
+      "template": "help"
+    },
+    {
+      "id": "account.menu",
+      "entity": "account",
+      "action": "menu",
+      "kind": "Menu",
+      "description": "Main menu.",
+      "examples": [
+        "menu",
+        "menu dikhao"
+      ],
+      "slots": {},
+      "template": "menu"
+    },
+    {
+      "id": "account.guide",
+      "entity": "account",
+      "action": "guide",
+      "kind": "Guide",
+      "description": "Step-by-step guide.",
+      "examples": [
+        "guide"
+      ],
+      "slots": {},
+      "template": "guide"
+    },
+    {
+      "id": "account.language",
+      "entity": "account",
+      "action": "language",
+      "kind": "ChangeLanguage",
+      "description": "Change the bot language.",
+      "examples": [
+        "change language",
+        "zaban badlo"
+      ],
+      "slots": {},
+      "template": "change language"
+    },
+    {
+      "id": "account.business_info",
+      "entity": "account",
+      "action": "business_info",
+      "kind": "UpdateBusinessInfo",
+      "description": "Update the shop name, city and type.",
+      "examples": [
+        "business info badlo",
+        "update business info"
+      ],
+      "slots": {},
+      "template": "update business info"
+    },
+    {
+      "id": "account.subscribe",
+      "entity": "account",
+      "action": "subscribe",
+      "kind": "Subscribe",
+      "description": "Subscription and plans.",
+      "examples": [
+        "subscribe",
+        "plan kya hai"
+      ],
+      "slots": {},
+      "template": "subscribe"
+    },
+    {
+      "id": "account.shortcut_off",
+      "entity": "account",
+      "action": "shortcut_off",
+      "kind": "Shortcuts",
+      "description": "Hide the quick buttons under replies.",
+      "examples": [
+        "shortcut off"
+      ],
+      "slots": {},
+      "template": "shortcut off"
+    },
+    {
+      "id": "account.shortcut_on",
+      "entity": "account",
+      "action": "shortcut_on",
+      "kind": "Shortcuts",
+      "description": "Show the quick buttons under replies.",
+      "examples": [
+        "shortcut on"
+      ],
+      "slots": {},
+      "template": "shortcut on"
+    },
+    {
+      "id": "account.export",
+      "entity": "account",
+      "action": "export",
+      "kind": "Export",
+      "description": "Excel export of all data.",
+      "examples": [
+        "export",
+        "excel nikalo"
+      ],
+      "slots": {},
+      "template": "export"
+    },
+    {
+      "id": "account.export_orders",
+      "entity": "account",
+      "action": "export_orders",
+      "kind": "Export",
+      "description": "Excel export of orders for a period.",
+      "examples": [
+        "orders ki excel do pichle 30 din"
+      ],
+      "slots": {
+        "period": {
+          "required": true
+        }
+      },
+      "template": "export orders {period}"
+    },
+    {
+      "id": "account.export_expenses",
+      "entity": "account",
+      "action": "export_expenses",
+      "kind": "Export",
+      "description": "Excel export of expenses.",
+      "examples": [
+        "expenses ki excel"
+      ],
+      "slots": {},
+      "template": "export expenses"
+    },
+    {
+      "id": "account.import",
+      "entity": "account",
+      "action": "import",
+      "kind": "ImportHelp",
+      "description": "How to bring data from an old system.",
+      "examples": [
+        "purana data lana hai",
+        "import"
+      ],
+      "slots": {},
+      "template": "import"
+    },
+    {
+      "id": "account.version",
+      "entity": "account",
+      "action": "version",
+      "kind": "Version",
+      "description": "The running bot version.",
+      "examples": [
+        "version",
+        "build"
+      ],
+      "slots": {},
+      "template": "version"
+    },
+    {
+      "id": "account.login",
+      "entity": "account",
+      "action": "login",
+      "kind": "ClientLogin",
+      "description": "Get a login code for the web dashboard.",
+      "examples": [
+        "login",
+        "dashboard login"
+      ],
+      "slots": {},
+      "template": "login"
+    },
+    {
+      "id": "account.logout",
+      "entity": "account",
+      "action": "logout",
+      "kind": "ClientLogout",
+      "description": "End every dashboard session.",
+      "examples": [
+        "dashboard logout",
+        "sign out"
+      ],
+      "slots": {},
+      "template": "dashboard logout"
+    },
+    {
+      "id": "account.data_help",
+      "entity": "account",
+      "action": "data_help",
+      "kind": "DataEntryHelp",
+      "description": "How to enter data (formats).",
+      "examples": [
+        "data help",
+        "kaise dalein"
+      ],
+      "slots": {},
+      "template": "data help"
+    },
+    {
+      "id": "account.data_check",
+      "entity": "account",
+      "action": "data_check",
+      "kind": "SetupCheck",
+      "description": "List what data is still missing or looks wrong.",
+      "examples": [
+        "data check",
+        "checklist"
+      ],
+      "slots": {},
+      "template": "data check"
+    },
+    {
+      "id": "account.industry",
+      "entity": "account",
+      "action": "industry",
+      "kind": "Industry",
+      "description": "Pick the kind of shop.",
+      "examples": [
+        "industry",
+        "dukan ki qism"
+      ],
+      "slots": {},
+      "template": "industry"
+    },
+    {
+      "id": "account.industry_set",
+      "entity": "account",
+      "action": "industry_set",
+      "kind": "Industry",
+      "description": "Set the kind of shop.",
+      "examples": [
+        "business type kiryana"
+      ],
+      "slots": {
+        "industry": {
+          "required": true
+        }
+      },
+      "template": "business type {industry}"
+    },
+    {
+      "id": "account.reset",
+      "entity": "account",
+      "action": "reset",
+      "kind": "ResetAccount",
+      "description": "Wipe all data of the account (asks to confirm).",
+      "examples": [
+        "reset account"
+      ],
+      "slots": {},
+      "template": "reset account"
+    },
+    {
+      "id": "ask.top_seller",
+      "entity": "ask",
+      "action": "top_seller",
+      "kind": "TrendingProducts",
+      "description": "Best-selling products.",
+      "examples": [
+        "kaun sa product sab se zyada bika",
+        "top selling products"
+      ],
+      "slots": {},
+      "template": "kaun sa product sab se zyada bika"
+    },
+    {
+      "id": "ask.slow_sellers",
+      "entity": "ask",
+      "action": "slow_sellers",
+      "kind": "SlowMovers",
+      "description": "Products that are not selling.",
+      "examples": [
+        "kaun sa maal nahi bik raha",
+        "slow moving products"
+      ],
+      "slots": {},
+      "template": "kaun sa maal nahi bik raha"
+    },
+    {
+      "id": "ask.avg_daily",
+      "entity": "ask",
+      "action": "avg_daily",
+      "kind": "Insight",
+      "description": "Average daily sale and the best day.",
+      "examples": [
+        "roz ki average bikri",
+        "pichle 30 din ki average sale"
+      ],
+      "slots": {
+        "period": {
+          "required": false
+        }
+      },
+      "template": "roz ki average bikri {period}"
+    },
+    {
+      "id": "ask.price_review",
+      "entity": "ask",
+      "action": "price_review",
+      "kind": "Insight",
+      "description": "Products whose price should go up.",
+      "examples": [
+        "price review",
+        "dupatte ki qeemat barhani chahiye"
+      ],
+      "slots": {},
+      "template": "price review"
+    },
+    {
+      "id": "ask.discount_margin",
+      "entity": "ask",
+      "action": "discount_margin",
+      "kind": "Insight",
+      "description": "What a discount does to a product's margin.",
+      "examples": [
+        "lawn suit par 10% discount do to margin kitna bachega"
+      ],
+      "slots": {
+        "product": {
+          "required": true
+        },
+        "percent": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "{product} par {percent}% discount do to margin kitna bachega"
+    },
+    {
+      "id": "ask.discount_given",
+      "entity": "ask",
+      "action": "discount_given",
+      "kind": "Insight",
+      "description": "Discount given in a period.",
+      "examples": [
+        "pichle mahine kitna discount diya"
+      ],
+      "slots": {},
+      "template": "pichle mahine kitna discount diya"
+    },
+    {
+      "id": "ask.lowest_margin",
+      "entity": "ask",
+      "action": "lowest_margin",
+      "kind": "Margin",
+      "description": "Products with the lowest margin.",
+      "examples": [
+        "sab se kam margin kis item par hai"
+      ],
+      "slots": {},
+      "template": "sab se kam margin kis item par hai"
+    },
+    {
+      "id": "ask.best_margin",
+      "entity": "ask",
+      "action": "best_margin",
+      "kind": "Margin",
+      "description": "Products with the best profit.",
+      "examples": [
+        "kis product par sab se zyada munafa"
+      ],
+      "slots": {},
+      "template": "kis product par sab se zyada munafa"
+    },
+    {
+      "id": "ask.stopped_customers",
+      "entity": "ask",
+      "action": "stopped_customers",
+      "kind": "Insight",
+      "description": "Customers who stopped coming back.",
+      "examples": [
+        "kaun se customers pichle ek mahine se wapas nahi aaye"
+      ],
+      "slots": {},
+      "template": "kaun se customers pichle ek mahine se wapas nahi aaye"
+    },
+    {
+      "id": "ask.top_customer",
+      "entity": "ask",
+      "action": "top_customer",
+      "kind": "Insight",
+      "description": "The biggest customer by spend.",
+      "examples": [
+        "mera sab se bada customer kaun hai"
+      ],
+      "slots": {},
+      "template": "mera sab se bada customer kaun hai"
+    },
+    {
+      "id": "ask.repeat_customers",
+      "entity": "ask",
+      "action": "repeat_customers",
+      "kind": "Insight",
+      "description": "Customers who come back again and again.",
+      "examples": [
+        "bar bar aane wale customers"
+      ],
+      "slots": {},
+      "template": "bar bar aane wale customers"
+    },
+    {
+      "id": "ask.new_customers",
+      "entity": "ask",
+      "action": "new_customers",
+      "kind": "Insight",
+      "description": "New customers in a period.",
+      "examples": [
+        "naye customers kitne aaye"
+      ],
+      "slots": {
+        "period": {
+          "required": false
+        }
+      },
+      "template": "naye customers kitne aaye {period}"
+    },
+    {
+      "id": "ask.balance_all",
+      "entity": "ask",
+      "action": "balance_all",
+      "kind": "Insight",
+      "description": "Who still owes money (unpaid and part-paid orders).",
+      "examples": [
+        "kis kis ka udhaar baqi hai",
+        "outstanding payments"
+      ],
+      "slots": {},
+      "template": "kis kis ka udhaar baqi hai"
+    },
+    {
+      "id": "ask.balance_one",
+      "entity": "ask",
+      "action": "balance_one",
+      "kind": "Insight",
+      "description": "How much one customer still owes.",
+      "examples": [
+        "Bilal ka kitna udhaar hai"
+      ],
+      "slots": {
+        "customer": {
+          "required": true
+        }
+      },
+      "template": "{customer} ka kitna udhaar hai"
+    },
+    {
+      "id": "ask.last_purchase",
+      "entity": "ask",
+      "action": "last_purchase",
+      "kind": "Insight",
+      "description": "What one customer bought last time.",
+      "examples": [
+        "Sara ne pichli baar kya kharida"
+      ],
+      "slots": {
+        "customer": {
+          "required": true
+        }
+      },
+      "template": "{customer} ne pichli baar kya kharida"
+    },
+    {
+      "id": "ask.customer_pattern",
+      "entity": "ask",
+      "action": "customer_pattern",
+      "kind": "Insight",
+      "description": "One customer's buying pattern.",
+      "examples": [
+        "Sara Khan ki kharidari ka pattern"
+      ],
+      "slots": {
+        "customer": {
+          "required": true
+        }
+      },
+      "template": "{customer} ki kharidari ka pattern"
+    },
+    {
+      "id": "ask.customer_worth",
+      "entity": "ask",
+      "action": "customer_worth",
+      "kind": "Profit",
+      "description": "What one customer is really worth after discounts and returns.",
+      "examples": [
+        "Bilal Khan ne pichle saal kitna khalis munafa diya"
+      ],
+      "slots": {
+        "customer": {
+          "required": true
+        }
+      },
+      "template": "{customer} ne pichle saal kitna khalis munafa diya"
+    },
+    {
+      "id": "ask.payment_split",
+      "entity": "ask",
+      "action": "payment_split",
+      "kind": "Insight",
+      "description": "Cash on delivery against Easypaisa and bank.",
+      "examples": [
+        "payment method split",
+        "COD zyada lete hain ya easypaisa"
+      ],
+      "slots": {},
+      "template": "payment method split"
+    },
+    {
+      "id": "ask.city_orders",
+      "entity": "ask",
+      "action": "city_orders",
+      "kind": "Insight",
+      "description": "Orders from one place.",
+      "examples": [
+        "Model Town se kitne orders aaye"
+      ],
+      "slots": {
+        "place": {
+          "required": true
+        }
+      },
+      "template": "{place} se kitne orders aaye"
+    },
+    {
+      "id": "ask.returns",
+      "entity": "ask",
+      "action": "returns",
+      "kind": "Insight",
+      "description": "Cancelled and returned orders.",
+      "examples": [
+        "kitne orders cancel ya return hue",
+        "return rate"
+      ],
+      "slots": {},
+      "template": "kitne orders cancel ya return hue"
+    },
+    {
+      "id": "ask.courier_speed",
+      "entity": "ask",
+      "action": "courier_speed",
+      "kind": "Insight",
+      "description": "Average delivery time of a courier.",
+      "examples": [
+        "TCS ka average delivery time"
+      ],
+      "slots": {
+        "courier": {
+          "required": true
+        }
+      },
+      "template": "{courier} ka average delivery time"
+    },
+    {
+      "id": "ask.runout",
+      "entity": "ask",
+      "action": "runout",
+      "kind": "Insight",
+      "description": "Stock that will run out soon.",
+      "examples": [
+        "kaun sa stock agle 3 din mein khatam hoga"
+      ],
+      "slots": {},
+      "template": "kaun sa stock agle 3 din mein khatam hoga"
+    },
+    {
+      "id": "ask.stock_days",
+      "entity": "ask",
+      "action": "stock_days",
+      "kind": "Insight",
+      "description": "How many days a product's stock will last.",
+      "examples": [
+        "polo shirt kitne din chalega"
+      ],
+      "slots": {
+        "product": {
+          "required": true
+        }
+      },
+      "template": "{product} kitne din chalega"
+    },
+    {
+      "id": "ask.reorder",
+      "entity": "ask",
+      "action": "reorder",
+      "kind": "Insight",
+      "description": "Whether a product needs a new batch.",
+      "examples": [
+        "lawn suit ka naya batch mangwana chahiye"
+      ],
+      "slots": {
+        "product": {
+          "required": true
+        }
+      },
+      "template": "{product} ka naya batch mangwana chahiye"
+    },
+    {
+      "id": "ask.untracked",
+      "entity": "ask",
+      "action": "untracked",
+      "kind": "Insight",
+      "description": "Products whose stock is not tracked.",
+      "examples": [
+        "kitne products ka stock track nahi kiya"
+      ],
+      "slots": {},
+      "template": "kitne products ka stock track nahi kiya"
+    },
+    {
+      "id": "ask.days_of_stock",
+      "entity": "ask",
+      "action": "days_of_stock",
+      "kind": "Insight",
+      "description": "How long all the stock will take to sell.",
+      "examples": [
+        "mera sara stock kitne din mein saaf hoga"
+      ],
+      "slots": {},
+      "template": "mera sara stock kitne din mein saaf hoga"
+    },
+    {
+      "id": "ask.fast_movers",
+      "entity": "ask",
+      "action": "fast_movers",
+      "kind": "Insight",
+      "description": "Fastest-moving products.",
+      "examples": [
+        "kaun sa maal fast moving hai"
+      ],
+      "slots": {},
+      "template": "kaun sa maal fast moving hai"
+    },
+    {
+      "id": "ask.out_but_selling",
+      "entity": "ask",
+      "action": "out_but_selling",
+      "kind": "Insight",
+      "description": "Products out of stock that were selling.",
+      "examples": [
+        "out of stock magar bikta tha"
+      ],
+      "slots": {},
+      "template": "out of stock magar bikta tha"
+    },
+    {
+      "id": "ask.locked_stock",
+      "entity": "ask",
+      "action": "locked_stock",
+      "kind": "Insight",
+      "description": "Money stuck in stock that has not sold for 90 days.",
+      "examples": [
+        "kitna sarmaya 90 din se na bikne wale stock mein phansa hai"
+      ],
+      "slots": {},
+      "template": "kitna sarmaya 90 din se na bikne wale stock mein phansa hai"
+    },
+    {
+      "id": "ask.categories",
+      "entity": "ask",
+      "action": "categories",
+      "kind": "Insight",
+      "description": "How many categories the catalog has.",
+      "examples": [
+        "mere paas kitni categories hain"
+      ],
+      "slots": {},
+      "template": "mere paas kitni categories hain"
+    },
+    {
+      "id": "ask.drawer_short",
+      "entity": "ask",
+      "action": "drawer_short",
+      "kind": "CashDrawer",
+      "description": "Cash short or over in the drawer.",
+      "examples": [
+        "aaj galle mein kitna cash short ya zyada hai"
+      ],
+      "slots": {},
+      "template": "aaj galle mein kitna cash short ya zyada hai"
+    },
+    {
+      "id": "ask.drawer_mismatch",
+      "entity": "ask",
+      "action": "drawer_mismatch",
+      "kind": "Insight",
+      "description": "Worst drawer mismatch days.",
+      "examples": [
+        "pichle 30 din drawer ka cash mismatch kis din sab se zyada"
+      ],
+      "slots": {},
+      "template": "pichle 30 din drawer ka cash mismatch kis din sab se zyada"
+    },
+    {
+      "id": "ask.profit_or_loss",
+      "entity": "ask",
+      "action": "profit_or_loss",
+      "kind": "Insight",
+      "description": "Whether the shop is in profit or loss.",
+      "examples": [
+        "kya main faide mein hoon ya nuksan mein"
+      ],
+      "slots": {},
+      "template": "kya main faide mein hoon ya nuksan mein"
+    },
+    {
+      "id": "ask.product_vs_last",
+      "entity": "ask",
+      "action": "product_vs_last",
+      "kind": "Insight",
+      "description": "One product's sales against last month.",
+      "examples": [
+        "polo shirt ki sale pichle mahine se behtar hai ya kam"
+      ],
+      "slots": {
+        "product": {
+          "required": true
+        }
+      },
+      "template": "{product} ki sale pichle mahine se behtar hai ya kam"
+    },
+    {
+      "id": "ask.day_vs_yesterday",
+      "entity": "ask",
+      "action": "day_vs_yesterday",
+      "kind": "Insight",
+      "description": "Today's sales against the same time yesterday.",
+      "examples": [
+        "kal ke muqable aaj sale kaisi rahi"
+      ],
+      "slots": {},
+      "template": "kal ke muqable aaj sale kaisi rahi"
+    },
+    {
+      "id": "ask.month_vs_last",
+      "entity": "ask",
+      "action": "month_vs_last",
+      "kind": "Insight",
+      "description": "This month's sales against last month.",
+      "examples": [
+        "is mahine ki sale pichle mahine se kaisi hai"
+      ],
+      "slots": {},
+      "template": "is mahine ki sale pichle mahine se kaisi hai"
+    },
+    {
+      "id": "ask.expense_share",
+      "entity": "ask",
+      "action": "expense_share",
+      "kind": "Insight",
+      "description": "Expenses as a share of sales.",
+      "examples": [
+        "kharche meri sale ka kitne fisad hain"
+      ],
+      "slots": {},
+      "template": "kharche meri sale ka kitne fisad hain"
+    },
+    {
+      "id": "ask.biggest_expense",
+      "entity": "ask",
+      "action": "biggest_expense",
+      "kind": "Insight",
+      "description": "Where the most money goes.",
+      "examples": [
+        "sab se zyada kharcha kis cheez par"
+      ],
+      "slots": {},
+      "template": "sab se zyada kharcha kis cheez par"
+    },
+    {
+      "id": "ask.expense_item",
+      "entity": "ask",
+      "action": "expense_item",
+      "kind": "Insight",
+      "description": "Total spent on one expense item.",
+      "examples": [
+        "petrol par ab tak kitna kharcha hua"
+      ],
+      "slots": {
+        "note": {
+          "required": true
+        }
+      },
+      "template": "{note} par ab tak kitna kharcha hua"
+    },
+    {
+      "id": "ask.net_sale",
+      "entity": "ask",
+      "action": "net_sale",
+      "kind": "TodaysSummary",
+      "description": "Net sale or net profit for a period.",
+      "examples": [
+        "pichle hafte ki net sale kitni thi"
+      ],
+      "slots": {},
+      "template": "pichle hafte ki net sale kitni thi"
+    },
+    {
+      "id": "ask.sells_with",
+      "entity": "ask",
+      "action": "sells_with",
+      "kind": "Insight",
+      "description": "What sells together with one product.",
+      "examples": [
+        "kurti ke saath kya bikta hai"
+      ],
+      "slots": {
+        "product": {
+          "required": true
+        }
+      },
+      "template": "{product} ke saath kya bikta hai"
+    },
+    {
+      "id": "ask.never_alone",
+      "entity": "ask",
+      "action": "never_alone",
+      "kind": "Insight",
+      "description": "Products that never sell alone.",
+      "examples": [
+        "kaun se products akele nahi bikte"
+      ],
+      "slots": {},
+      "template": "kaun se products akele nahi bikte"
+    },
+    {
+      "id": "ask.bundle",
+      "entity": "ask",
+      "action": "bundle",
+      "kind": "Insight",
+      "description": "A bundle offer idea from the best pair.",
+      "examples": [
+        "bundle offer suggest karo"
+      ],
+      "slots": {},
+      "template": "bundle offer suggest karo"
+    },
+    {
+      "id": "ask.audit",
+      "entity": "ask",
+      "action": "audit",
+      "kind": "Insight",
+      "description": "One-message check of the whole shop.",
+      "examples": [
+        "business audit",
+        "mere business ka audit karo"
+      ],
+      "slots": {},
+      "template": "business audit"
+    },
+    {
+      "id": "ask.cost_change",
+      "entity": "ask",
+      "action": "cost_change",
+      "kind": "Insight",
+      "description": "New price after a cost increase.",
+      "examples": [
+        "lawn suit ki cost 300 barh gayi nayi price kya ho"
+      ],
+      "slots": {
+        "product": {
+          "required": true
+        },
+        "amount": {
+          "required": true,
+          "type": "number"
+        }
+      },
+      "template": "{product} ki cost {amount} barh gayi nayi price kya ho"
+    },
+    {
+      "id": "ask.margin_drop",
+      "entity": "ask",
+      "action": "margin_drop",
+      "kind": "Margin",
+      "description": "Products whose margin fell the most.",
+      "examples": [
+        "kaun se products ka margin sab se zyada gira"
+      ],
+      "slots": {},
+      "template": "kaun se products ka margin sab se zyada gira"
+    },
+    {
+      "id": "ask.supplier_sales",
+      "entity": "ask",
+      "action": "supplier_sales",
+      "kind": "Insight",
+      "description": "Sales per supplier.",
+      "examples": [
+        "kis supplier ka maal zyada bika"
+      ],
+      "slots": {},
+      "template": "kis supplier ka maal zyada bika"
+    },
+    {
+      "id": "ask.courier_returns",
+      "entity": "ask",
+      "action": "courier_returns",
+      "kind": "Insight",
+      "description": "Which courier returns the most parcels.",
+      "examples": [
+        "kis courier ke orders zyada return hote hain"
+      ],
+      "slots": {},
+      "template": "kis courier ke orders zyada return hote hain"
+    },
+    {
+      "id": "ask.delivered_unpaid",
+      "entity": "ask",
+      "action": "delivered_unpaid",
+      "kind": "Insight",
+      "description": "Delivered orders not paid yet.",
+      "examples": [
+        "delivered orders ka paisa jama nahi"
+      ],
+      "slots": {},
+      "template": "delivered orders ka paisa jama nahi"
+    },
+    {
+      "id": "ask.stuck_money",
+      "entity": "ask",
+      "action": "stuck_money",
+      "kind": "Insight",
+      "description": "Money stuck with customers and couriers.",
+      "examples": [
+        "mera kitna paisa phansa hua hai"
+      ],
+      "slots": {},
+      "template": "mera kitna paisa phansa hua hai"
+    },
+    {
+      "id": "ask.receivables",
+      "entity": "ask",
+      "action": "receivables",
+      "kind": "Insight",
+      "description": "Money still to be collected from customers and couriers.",
+      "examples": [
+        "mera kitna sarmaya customers aur courier se wasool hona baqi hai"
+      ],
+      "slots": {},
+      "template": "mera kitna sarmaya customers aur courier se wasool hona baqi hai"
+    },
+    {
+      "id": "ask.fail_cities",
+      "entity": "ask",
+      "action": "fail_cities",
+      "kind": "Insight",
+      "description": "Cities where parcels fail.",
+      "examples": [
+        "kaun se shehar mein parcel fail hote hain"
+      ],
+      "slots": {},
+      "template": "kaun se shehar mein parcel fail hote hain"
+    },
+    {
+      "id": "ask.loss_total",
+      "entity": "ask",
+      "action": "loss_total",
+      "kind": "Insight",
+      "description": "Money lost to cancellations, returns and wastage.",
+      "examples": [
+        "pichle 30 din cancellation return aur wastage se kitna nuqsan"
+      ],
+      "slots": {},
+      "template": "pichle 30 din cancellation return aur wastage se kitna nuqsan"
+    },
+    {
+      "id": "ask.cash_forecast",
+      "entity": "ask",
+      "action": "cash_forecast",
+      "kind": "Insight",
+      "description": "Expected cash in the next days.",
+      "examples": [
+        "agle 30 din mein kitna cash aayega",
+        "cash forecast"
+      ],
+      "slots": {
+        "days": {
+          "required": false,
+          "type": "number"
+        }
+      },
+      "template": "next {days} days cash forecast"
+    },
+    {
+      "id": "ask.cash_flow",
+      "entity": "ask",
+      "action": "cash_flow",
+      "kind": "Insight",
+      "description": "Cash sales against expenses: is the cash flow positive.",
+      "examples": [
+        "kharche cash sales se zyada hain? net cash flow"
+      ],
+      "slots": {},
+      "template": "kharche cash sales se zyada hain? net cash flow"
+    },
+    {
+      "id": "ask.eid_stock",
+      "entity": "ask",
+      "action": "eid_stock",
+      "kind": "Insight",
+      "description": "Stock to add before Eid.",
+      "examples": [
+        "eid par grocery ka stock kitna barhana chahiye"
+      ],
+      "slots": {},
+      "template": "eid par grocery ka stock kitna barhana chahiye"
+    },
+    {
+      "id": "ask.busiest_time",
+      "entity": "ask",
+      "action": "busiest_time",
+      "kind": "Insight",
+      "description": "Busiest weekday and part of the day.",
+      "examples": [
+        "hafte ke kis din aur kis waqt sab se zyada orders book hote hain"
+      ],
+      "slots": {},
+      "template": "hafte ke kis din aur kis waqt sab se zyada orders book hote hain"
+    },
+    {
+      "id": "ask.ramadan",
+      "entity": "ask",
+      "action": "ramadan",
+      "kind": "Insight",
+      "description": "Sales in Ramadan last year.",
+      "examples": [
+        "pichle saal ramazan mein roz ki sale"
+      ],
+      "slots": {},
+      "template": "pichle saal ramazan mein roz ki sale"
+    }
+  ]
+}
