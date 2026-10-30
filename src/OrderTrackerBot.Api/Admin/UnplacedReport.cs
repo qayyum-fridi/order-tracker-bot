@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Infrastructure.Persistence;
 
 namespace OrderTrackerBot.Api.Admin;
@@ -14,6 +15,9 @@ public sealed record UnplacedReportDto(
 public static class UnplacedReport
 {
     private const int TopTexts = 50;
+
+    /// <summary>Captured messages are kept this long, then deleted by the scheduler.</summary>
+    public const int RetentionDays = 30;
 
     public static async Task<UnplacedReportDto> BuildAsync(AppDbContext db, int days, DateTime nowUtc, CancellationToken ct)
     {
@@ -32,9 +36,9 @@ public static class UnplacedReport
             "Masked text only: names, phones and amounts are removed before storage. Rows older than the retention window are purged.");
     }
 
-    /// <summary>Deletes captured rows older than the window. Returns how many were removed.</summary>
-    public static Task<int> PurgeOlderThanAsync(AppDbContext db, int days, DateTime nowUtc, CancellationToken ct) =>
-        db.UnplacedUtterances.Where(u => u.CreatedAt < nowUtc.AddDays(-days)).ExecuteDeleteAsync(ct);
+    /// <summary>Deletes captured rows older than the retention window. Returns how many were removed.</summary>
+    public static Task<int> PurgeOlderThanAsync(IAppDbContext db, DateTime nowUtc, CancellationToken ct) =>
+        db.UnplacedUtterances.Where(u => u.CreatedAt < nowUtc.AddDays(-RetentionDays)).ExecuteDeleteAsync(ct);
 
     private static IReadOnlyList<UnplacedCountDto> Top(IEnumerable<string> keys, int take) =>
         keys.GroupBy(k => k).Select(g => new UnplacedCountDto(g.Key, g.Count()))

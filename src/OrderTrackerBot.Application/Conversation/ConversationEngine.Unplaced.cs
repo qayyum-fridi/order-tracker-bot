@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Domain.Entities;
 
@@ -11,7 +9,7 @@ public partial class ConversationEngine
     private async Task RecordUnplacedAsync(Seller seller, string stage, string? text, string? routerIntent, double? routerConfidence, CancellationToken ct)
     {
         if (!_features.UnplacedCapture || string.IsNullOrWhiteSpace(text)) return;
-        var hash = UnplacedSellerHash(seller);
+        var hash = UnplacedSellerHash.For(_features.UnplacedCaptureSalt, seller.Id);
         if (hash is null) return;
 
         var customerNames = await _db.Customers.AsNoTracking()
@@ -32,11 +30,4 @@ public partial class ConversationEngine
         await _db.SaveChangesAsync(ct);
     }
 
-    /// <summary>A keyed hash of the seller id. Null when no salt is configured: nothing is captured without one.</summary>
-    private string? UnplacedSellerHash(Seller seller)
-    {
-        if (string.IsNullOrEmpty(_features.UnplacedCaptureSalt)) return null;
-        var mac = HMACSHA256.HashData(Encoding.UTF8.GetBytes(_features.UnplacedCaptureSalt), Encoding.UTF8.GetBytes(seller.Id.ToString()));
-        return Convert.ToHexString(mac)[..16];
-    }
 }

@@ -100,8 +100,27 @@ public class UnplacedCaptureTests : IDisposable
         Assert.Equal(2, report.Stages.Single(s => s.Key == "freeform_unclear").Count);
         Assert.Equal("menu dikhao", report.TopMaskedTexts[0].Key);
 
-        var purged = await UnplacedReport.PurgeOlderThanAsync(db, 30, now, default);
+        var purged = await UnplacedReport.PurgeOlderThanAsync(db, now, default);
         Assert.Equal(1, purged);
+    }
+
+    [Fact]
+    public async Task Reset_RemovesOnlyThisSellersCapturedRows()
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+        var seller = await db.Sellers.SingleAsync();
+        var mine = UnplacedSellerHash.For("test-salt", seller.Id)!;
+        db.UnplacedUtterances.Add(new UnplacedUtterance { SellerHash = mine, MaskedText = "chai pani", Stage = "freeform_unclear" });
+        db.UnplacedUtterances.Add(new UnplacedUtterance { SellerHash = "someone-else", MaskedText = "stock dikhao", Stage = "voice_reject" });
+        await db.SaveChangesAsync();
+
+        await SellerAccountReset.ResetAsync(db, seller, default, "test-salt");
+        await db.SaveChangesAsync();
+
+        var left = await db.UnplacedUtterances.ToListAsync();
+        Assert.Single(left);
+        Assert.Equal("someone-else", left[0].SellerHash);
     }
 
     public void Dispose() => _dbFactory.Dispose();

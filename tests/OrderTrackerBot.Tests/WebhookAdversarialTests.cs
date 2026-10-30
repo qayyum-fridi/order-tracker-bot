@@ -219,7 +219,7 @@ public class WebhookAdversarialTests : IDisposable
         db.Sellers.Add(new Seller { WhatsAppPhoneNumber = Phone, BusinessName = "Ayesha Collections" });
         await db.SaveChangesAsync();
 
-        var controller = new AdminController(db, NullLogger<AdminController>.Instance, new BillingOptions());
+        var controller = new AdminController(db, NullLogger<AdminController>.Instance, new BillingOptions(), Microsoft.Extensions.Options.Options.Create(new FeatureOptions()));
         var result = await controller.ListSellers(search: null, page: 85_899_348, pageSize: 25);
 
         var page = Assert.IsType<PagedResultDto<SellerListItemDto>>(Assert.IsType<OkObjectResult>(result.Result).Value);

@@ -12,8 +12,11 @@ namespace OrderTrackerBot.Application.Conversation;
 /// </summary>
 public static class SellerAccountReset
 {
-    public static async Task ResetAsync(IAppDbContext db, Seller seller, CancellationToken ct)
+    public static async Task ResetAsync(IAppDbContext db, Seller seller, CancellationToken ct, string unplacedSalt = "")
     {
+        // Captured (masked) messages of this seller, found by the same keyed hash they were stored under.
+        if (UnplacedSellerHash.For(unplacedSalt, seller.Id) is { } utteranceHash)
+            db.UnplacedUtterances.RemoveRange(await db.UnplacedUtterances.Where(u => u.SellerHash == utteranceHash).ToListAsync(ct));
         // Everything the seller made or set, so the account starts fresh. Identity and billing (phone, trial, plan, login) stay.
         db.OrderItems.RemoveRange(await db.OrderItems.Where(i => db.Orders.Any(o => o.Id == i.OrderId && o.SellerId == seller.Id)).ToListAsync(ct));
         db.PriceTiers.RemoveRange(await db.PriceTiers.Where(t => db.Products.Any(p => p.Id == t.ProductId && p.SellerId == seller.Id)).ToListAsync(ct));
