@@ -26,3 +26,4 @@ obj/
 
 # Live run result files: local only
 live-results*.csv
+__pycache__/
