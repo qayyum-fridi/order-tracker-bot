@@ -24,6 +24,31 @@ public class CoreIntentResolverTests
     }
 
     [Fact]
+    public void CreateProduct_WithoutOptionalFields_LeavesNoGap()
+    {
+        var r = CoreIntentResolver.Resolve(new RouterOutput(CoreIntent.CATALOG_MANAGE, new Dictionary<string, string>
+        { ["action"] = "create", ["product"] = "Kurti", ["price"] = "1800", ["cost"] = "", ["stock"] = "", ["category"] = "" }));
+        Assert.Equal("Kurti - 1800", r.Command);
+        Assert.Equal("AddProduct", CommandParser.TryParse(r.Command!)!.Kind.ToString());
+    }
+
+    [Fact]
+    public void CreateProduct_WithoutPrice_IsAGapWithAUserMessage()
+    {
+        var r = CoreIntentResolver.Resolve(new RouterOutput(CoreIntent.CATALOG_MANAGE, new Dictionary<string, string>
+        { ["action"] = "create", ["product"] = "Kurti" }));
+        Assert.Null(r.Command);
+        Assert.False(string.IsNullOrWhiteSpace(r.Gap));
+    }
+
+    [Fact]
+    public void RouterOutput_ResolvesLikeTheStringForm()
+    {
+        var r = CoreIntentResolver.Resolve(new RouterOutput(CoreIntent.ORDER_QUERY, new Dictionary<string, string> { ["status"] = "pending" }));
+        Assert.Equal("pending orders", r.Command);
+    }
+
+    [Fact]
     public void OrderQuery_StatusWithPeriod_IsAGapNotAGuess()
     {
         var r = CoreIntentResolver.Resolve("ORDER_QUERY", new Dictionary<string, string> { ["status"] = "pending", ["period"] = "today" });

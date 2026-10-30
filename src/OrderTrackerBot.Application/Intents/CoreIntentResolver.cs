@@ -4,9 +4,24 @@ namespace OrderTrackerBot.Application.Intents;
 /// Turns one of the five core intents (core-intents.json) and its slots into the typed command the deterministic parser already reads.
 /// A combination with no command yet returns <see cref="CoreResolution.Gap"/>, which says so; it never guesses a number.
 /// </summary>
+/// <summary>The five core intents the router can choose.</summary>
+public enum CoreIntent
+{
+    ORDER_QUERY,
+    CATALOG_MANAGE,
+    BUSINESS_ANALYTICS,
+    STOCK,
+    CUSTOMER
+}
+
+/// <summary>What the router returned: one core intent and its slots, names as in core-intents.json.</summary>
+public sealed record RouterOutput(CoreIntent Intent, IReadOnlyDictionary<string, string> Slots);
+
 public static class CoreIntentResolver
 {
     public sealed record CoreResolution(string? Command, string? Gap);
+
+    public static CoreResolution Resolve(RouterOutput output) => Resolve(output.Intent.ToString(), output.Slots);
 
     public static CoreResolution Resolve(string coreIntent, IReadOnlyDictionary<string, string> slots)
     {
