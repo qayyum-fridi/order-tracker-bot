@@ -72,6 +72,12 @@ public partial class ConversationEngine
         ctx.BroadcastChannel = null;
 
         var filter = message.Trim() switch { "1" => "all", "2" => "repeat_customers", "3" => "inactive_30d", _ => null };
+        // A real command ("menu", "orders today") leaves the audience question and runs, the same as the other questions do.
+        if (filter is null && CommandParser.TryParse(message) is { } command)
+        {
+            await ExecuteCommandAsync(seller, session, ctx, command, ct);
+            return;
+        }
         if (filter is null || text is null)
         {
             await ReplyAsync(seller, MessageTemplates.Get("campaigns.004"), ct);
