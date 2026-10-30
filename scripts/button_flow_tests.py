@@ -98,10 +98,19 @@ FLOWS = [
         ("Kurti 1, Dupatta 2", "Kurti"),
         ("Kurti Rs.2000", None),
     ]),
-    ("language: start, then English, then Roman Urdu", [
-        ("start", "Roman Urdu"),
-        ("English", None),
-        ("Roman Urdu", None),
+    ("language: change language, tap English (switch)", [
+        ("change language", "Konsi language"),
+        ("English", "switching to English"),
+    ]),
+    ("language: English then back to Roman Urdu", [
+        ("change language", "[Roman Urdu | English | اردو]"),
+        ("English", "switching to English"),
+        ("change language", "[Roman Urdu | English | اردو]"),
+        ("Roman Urdu", "Roman Urdu mein baat hogi"),
+    ]),
+    ("language: wrong button (Guide) while language is asked", [
+        ("change language", "Konsi language"),
+        ("📖 Guide", None),
     ]),
 ]
 
@@ -122,10 +131,13 @@ def main():
     ap.add_argument("--db", default="src/OrderTrackerBot.Api/ordertrackerbot.dev.db")
     ap.add_argument("--quiet", type=float, default=1.2)
     ap.add_argument("--max-wait", type=float, default=12.0)
+    ap.add_argument("--only", default="", help="run only flows whose name contains this text")
     args = ap.parse_args()
 
     failures = 0
     for name, steps in FLOWS:
+        if args.only and args.only.lower() not in name.lower():
+            continue
         print(f"\n=== {name}")
         for text in RESET:
             send(args.url, args.db, text, args.quiet, args.max_wait)
