@@ -98,7 +98,8 @@ FLOWS = [
         ("Kurti 1, Dupatta 2", "Kurti"),
         ("Kurti Rs.2000", None),
     ]),
-    ("language: English then Roman Urdu", [
+    ("language: start, then English, then Roman Urdu", [
+        ("start", "Roman Urdu"),
         ("English", None),
         ("Roman Urdu", None),
     ]),
