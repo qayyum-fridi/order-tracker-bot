@@ -6,6 +6,10 @@ dev database's MessageLogs table (outbound rows), so no WhatsApp token is needed
 Usage:
   python3 scripts/run_live_cases.py --url http://localhost:5237 \
       --db src/OrderTrackerBot.Api/ordertrackerbot.dev.db --out results.csv
+
+Start the bot with the per-seller text limit off, or the run stops being a test after about 150 messages an hour:
+  MediaLimits__TextPerHour=0 MediaLimits__FreeUsdPerHour=10000 MediaLimits__PaidUsdPerHour=10000 dotnet run
+Rows whose reply is the rate-limit notice are marked in the "flag" column and counted at the end.
 """
 import argparse
 import csv
@@ -82,7 +86,7 @@ def main():
     if args.limit:
         cases = cases[: args.limit]
 
-    fields = ["id", "section", "noun", "verb", "message", "expected", "http", "bot_reply"]
+    fields = ["id", "section", "noun", "verb", "message", "expected", "http", "bot_reply", "flag"]
     with open(args.out, "w", newline="", encoding="utf-8") as out:
         writer = csv.DictWriter(out, fieldnames=fields)
         writer.writeheader()
@@ -91,10 +95,11 @@ def main():
             status = post(args.url, args.phone, case["message"])
             rows = wait_for_reply(args.db, args.phone, last, args.quiet, args.max_wait)
             reply = " || ".join(text for _, text in rows).replace("\n", " / ")
-            writer.writerow({**{k: case.get(k, "") for k in fields if k not in ("http", "bot_reply")},
-                             "http": status, "bot_reply": reply})
+            flag = "RATE_LIMITED" if "text messages poore ho gaye" in reply else ""
+            writer.writerow({**{k: case.get(k, "") for k in fields if k not in ("http", "bot_reply", "flag")},
+                             "http": status, "bot_reply": reply, "flag": flag})
             out.flush()
-            print(f"[{i + args.start}/{len(cases) + args.start}] {case['id']} http={status} replies={len(rows)}", flush=True)
+            print(f"[{i + args.start}/{len(cases) + args.start}] {case['id']} http={status} replies={len(rows)} {flag}", flush=True)
 
 
 if __name__ == "__main__":
