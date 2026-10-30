@@ -131,6 +131,7 @@ public partial class ConversationEngine
                 : TurnDecision.Clarify(MessageTemplates.Get("intent.howto", routed.Help!));
         }
         if (decision.Kind != DecisionKind.Execute) LogNotUnderstood("voice-" + decision.Kind.ToString().ToLowerInvariant(), seller.Session!.State, text);
+        if (decision.Kind != DecisionKind.Execute) await RecordUnplacedAsync(seller, "voice_" + decision.Kind.ToString().ToLowerInvariant(), text, null, null, ct);
         // Steps the AI made up or that do not match the words spoken are not run; the seller is told which ones, so nothing vanishes silently.
         // Shown on every reply path (clarify, refuse and run), not only the run path.
         foreach (var (step, template) in _droppedVoiceSteps)
