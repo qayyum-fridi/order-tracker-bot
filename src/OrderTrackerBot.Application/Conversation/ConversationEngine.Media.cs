@@ -286,6 +286,32 @@ public partial class ConversationEngine
         return Regex.Split(transcript, @"[^\p{L}]+").Where(w => w.Length > 0).All(SmallTalkWords.Contains);
     }
 
+    private static readonly System.Text.RegularExpressions.Regex SpokenYesWords = new(
+        @"(?<![\p{L}\p{N}])(?:yes|yeah|yep|haan|han|hanji|ha|ji|jee|ok|okay|theek|thik|bilkul|sahi|ہاں|جی|ٹھیک|بالکل|صحیح)(?![\p{L}\p{N}])",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    private static readonly System.Text.RegularExpressions.Regex SpokenNoWords = new(
+        @"(?<![\p{L}\p{N}])(?:no|nope|nahi|nahin|nhi|nai|mat|cancel|stop|ruko|rukiye|نہیں|نہ|مت|رکو|رکیں|کینسل)(?![\p{L}\p{N}])",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// "yes" / "no" for a short spoken answer, while the question on screen is a yes / no one. Only when exactly one of the two is said, there is
+    /// no digit, no other command in it and it is at most 8 words; anything else is left to the rewrite.
+    /// </summary>
+    internal static string? SpokenYesNo(string transcript, IReadOnlyList<string> allowedActions)
+    {
+        if (!allowedActions.Contains("yes") || !allowedActions.Contains("no")) return null;
+        var text = transcript.Trim();
+        if (text.Length == 0 || text.Any(char.IsDigit)) return null;
+        var words = System.Text.RegularExpressions.Regex.Split(text, @"[\s,.!?،۔؟]+").Count(w => w.Length > 0);
+        if (words > 8) return null;
+        if (CommandParser.TryParse(text) is not null) return null;
+        var yes = SpokenYesWords.IsMatch(text);
+        var no = SpokenNoWords.IsMatch(text);
+        if (yes == no) return null;
+        // "nahi" sits in many sentences ("samajh nahi aa raha"): a NO is read only from a very short answer, since a wrong NO drops the draft.
+        return yes ? "yes" : words <= 3 ? "no" : null;
+    }
+
     private async Task<TurnDecision> InterpretVoiceAsync(Seller seller, string transcript, CancellationToken ct)
     {
         if (NumberedChoiceStates.Contains(seller.Session!.State) && SpokenNumbers.ChoiceNumber(transcript) is { } pick)
@@ -299,6 +325,9 @@ public partial class ConversationEngine
         // "setup mein abhi kya baqi hai?", "ab kya karna hai": a request for the next step is answered with the tip for the current step, as typed.
         if (CommandParser.IsGuidanceRequest(transcript))
             return TurnDecision.Execute(new[] { transcript });
+        // While the bot waits for yes / no, a short spoken answer with filler ("او بھائی میں نے ہاں بولا تھا") is the answer: no model call, so no model can turn it into something else.
+        if (SpokenYesNo(transcript, AllowedVoiceActions(seller, seller.Session!.State)) is { } yesNo)
+            return TurnDecision.Execute(new[] { yesNo });
         var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
         var catalog = await LoadCatalogAsync(seller, ct);
         var recent = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
