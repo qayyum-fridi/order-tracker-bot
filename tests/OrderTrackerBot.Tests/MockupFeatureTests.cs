@@ -1449,6 +1449,42 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task VoiceNote_YesNoAnswerInAnyWords_IsReadByMeaning_NotByTheRewrite()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(Order("Sara", "Kurti", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
+        // No yes word at all ("oye pakka kar de yaar"): only the meaning says it is a yes.
+        var voice = VoiceEngine(db, "oye pakka kar de yaar");
+        _ai.Setup(a => a.ClassifyYesNoAsync(It.IsAny<string>(), "oye pakka kar de yaar", It.IsAny<CancellationToken>())).ReturnsAsync("yes");
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        Assert.Equal(1, await db.Orders.CountAsync());
+        _ai.Verify(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task VoiceNote_YesNoQuestion_OtherAnswer_GoesOnToTheRewrite()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(Order("Sara", "Kurti", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
+        var voice = VoiceEngine(db, "pehle yeh batao ke delivery kab hogi");
+        _ai.Setup(a => a.ClassifyYesNoAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync("other");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "kya karun" } });
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        Assert.Equal(0, await db.Orders.CountAsync());
+        _ai.Verify(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task VoiceNote_SafeReads_RunWithoutConfirmation()
     {
         using var db = _dbFactory.CreateContext();
