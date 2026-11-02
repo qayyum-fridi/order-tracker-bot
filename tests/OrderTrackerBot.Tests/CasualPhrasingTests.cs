@@ -51,6 +51,15 @@ public class CasualPhrasingTests
     }
 
     [Fact]
+    public void ProductRemoval_IsTheDeleteProductCommand()
+    {
+        var parsed = CommandParser.TryParse("Bag hata do");
+        Assert.NotNull(parsed);
+        Assert.Equal(CommandKind.DeleteProduct, parsed!.Kind);
+        Assert.Equal("Bag", parsed.Text);
+    }
+
+    [Fact]
     public void EmailChange_KeepsTheAddress()
     {
         var parsed = CommandParser.TryParse("email badlo ali@shop.com");
@@ -78,7 +87,6 @@ public class CasualPhrasingTests
     }
 
     [Theory]
-    [InlineData("Bag hata do")]
     [InlineData("Sara ko message bhejo")]
     [InlineData("reset account ko cancel karo")]
     [InlineData("email badlo")]

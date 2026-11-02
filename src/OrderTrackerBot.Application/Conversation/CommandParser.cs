@@ -1381,6 +1381,8 @@ public static class CommandParser
         (new Regex(@"^pichle\s+hafte\s+kitna\s+(?:bika|bikri|sale)(?:\s+(?:dekho|dikhao|batao|bata\s+do))?$", CasualOpts), "pichle hafte ka hisaab"),
         (new Regex(@"^sab\s+se\s+(?:mehnga|mehngi|mehnge)(?:\s+(?:kya(?:\s+hai)?|product|item|kaun\s+sa))?$", CasualOpts), "mehnga product"),
         (new Regex(@"^(?<name>.{2,}?)\s+(?:dhoondo|dhundo|dhoondho|talash\s+karo)$", CasualOpts), "search customer: ${name}"),
+        // A product is switched off (soft delete: old orders keep it), so "Bag hata do" is the delete command.
+        (new Regex(@"^(?<name>.{2,}?)\s+(?:hata\s+do|hata\s+dein|hatao|hatado)$", CasualOpts), "delete product ${name}"),
         // "catalog bhejo", "aaj ka hisaab dikhao": the trailing verb is a request to show it; the command is the rest.
         (new Regex(@"^(?<rest>.+?)\s+(?:bhejo|bhej\s+do|dikhao|dikhayein|batao)$", CasualOpts), "${rest}"),
     };
