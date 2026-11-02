@@ -1350,12 +1350,50 @@ public static class CommandParser
         // "cancel 3 (confirm)": a note in brackets at the end is a remark, not part of the command. The bot still asks before cancelling.
         text = TrailingRemark.Replace(text, "").TrimEnd();
 
-        var parsed = ParseCore(text, wasQuestion: false);
+        var parsed = ParseCore(text, wasQuestion: false) ?? ParseCasual(text);
         if (parsed is not null) return parsed;
 
         var bare = TrailingPunctuation.Replace(text, "");
         if (bare.Length == 0 || bare.Length == text.Length) return null;
-        return ParseCore(bare, wasQuestion: text[bare.Length..].Contains('?') || text[bare.Length..].Contains('؟'));
+        return ParseCore(bare, wasQuestion: text[bare.Length..].Contains('?') || text[bare.Length..].Contains('؟'))
+            ?? ParseCasual(bare);
+    }
+
+    private const RegexOptions CasualOpts = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant;
+
+    // Everyday phrasing that stands for a command the parser already has ("2 ka status shipped karo" = "mark 2 shipped").
+    // Only tried when the message parsed to nothing, so every phrase that already works keeps its meaning.
+    private static readonly (Regex Pattern, string Replacement)[] CasualRewrites =
+    {
+        (new Regex(@"^(?<n>\d+)\s+ka\s+status\s+(?<s>shipped|delivered|returned)(?:\s+kar\s*do|\s+karo|\s+kardo|\s+kar\s*dein)?$", CasualOpts), "mark ${n} ${s}"),
+        (new Regex(@"^(?<n>\d+)\s+ka\s+status\s+(?:cancelled|canceled)(?:\s+kar\s*do|\s+karo|\s+kardo)?$", CasualOpts), "cancel ${n}"),
+        (new Regex(@"^(?<n>\d+)\s+(?:cancel|cancelled)\s+(?:karo|kar\s*do|kardo)$", CasualOpts), "cancel ${n}"),
+        (new Regex(@"^(?<n>\d+)\s+wapas\s+(?:aa\s+gaya|aa\s+gayi|aa\s+gaye|aaya)$", CasualOpts), "mark ${n} returned"),
+        (new Regex(@"^(?:order\s+|#)?(?<n>\d+)\s+ki\s+(?:details?|tafseel)(?:\s+(?:dikhao|batao|bata\s+do))?$", CasualOpts), "order ${n}"),
+        (new Regex(@"^(?<name>.{2,}?)\s+(?:mein|me)\s+(?<q>\d+)\s+(?:aur\s+)?(?:aaye|aayi|aa\s+gaye|aa\s+gaya|aana\s+hai|aaye\s+hain)$", CasualOpts), "stock ${name} +${q}"),
+        (new Regex(@"^(?<name>.{2,}?)\s+(?:ka|ki|ke)\s+(?:rate|price)\s+(?<p>\d+(?:\.\d+)?)\s+(?:kar\s*do|karo|kardo|kar\s*dein)$", CasualOpts), "edit product: ${name} - ${p}"),
+        (new Regex(@"^email\s+(?:badlo|badal\s+do|change\s+karo|change\s+kar\s+do)\s+(?<a>\S+@\S+)$", CasualOpts), "email ${a}"),
+        (new Regex(@"^(?<name>.{2,}?)\s+ka\s+record$", CasualOpts), "customer ${name}"),
+        (new Regex(@"^(?:aaj|aj)\s+kitna\s+(?:bika|bikri\s+hui|sale\s+hui)$", CasualOpts), "aaj ka hisaab"),
+        (new Regex(@"^kal\s+wala\s+hisaab$", CasualOpts), "kal ka hisaab"),
+        (new Regex(@"^sab\s+se\s+zyada\s+kya\s+bika$", CasualOpts), "sab se zyada bika"),
+        (new Regex(@"^shortcut\s+band(?:\s+karo|\s+kar\s*do|\s+kardo)?$", CasualOpts), "shortcut off"),
+        // "catalog bhejo", "aaj ka hisaab dikhao": the trailing verb is a request to show it; the command is the rest.
+        (new Regex(@"^(?<rest>.+?)\s+(?:bhejo|bhej\s+do|dikhao|dikhayein|batao)$", CasualOpts), "${rest}"),
+    };
+
+    // A rewritten phrase can need one more rewrite ("Sara ka record dikhao" -> "Sara ka record" -> "customer Sara"), so depth is capped.
+    private static ParsedCommand? ParseCasual(string text, int depth = 0)
+    {
+        foreach (var (pattern, replacement) in CasualRewrites)
+        {
+            var match = pattern.Match(text);
+            if (!match.Success) continue;
+            var rewritten = match.Result(replacement).Trim();
+            if (ParseCore(rewritten, wasQuestion: false) is { } direct) return direct;
+            if (depth < 2 && ParseCasual(rewritten, depth + 1) is { } chained) return chained;
+        }
+        return null;
     }
 
     private static ParsedCommand? ParseCore(string rawMessage, bool wasQuestion)
