@@ -117,6 +117,17 @@ public class CasualPhrasingTests
         Assert.Equal(5000m, parsed.Amount);
     }
 
+    [Fact]
+    public void WageKarDo_IsASetNotAPayment()
+    {
+        var parsed = CommandParser.TryParse("Ali ki tankhwah 6000 kar do");
+        Assert.NotNull(parsed);
+        Assert.Equal(CommandKind.Wage, parsed!.Kind);
+        Assert.Equal("Ali", parsed.Text);
+        Assert.Equal(6000m, parsed.Amount);
+        Assert.Equal("set", parsed.Text2);
+    }
+
     [Theory]
     [InlineData("cancel 1 cancel 2 cancel 3", true)]
     [InlineData("cancel #1 cancel #2", true)]

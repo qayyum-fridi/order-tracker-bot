@@ -67,14 +67,43 @@ public partial class ConversationEngine
         await ReplyAsync(seller, MessageTemplates.Get("losses.003", loss.Quantity, loss.ProductName), ct);
     }
 
+    private static readonly HashSet<string> NotAWorkerName = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "delete", "undo", "cancel", "remove", "reset", "hata", "hatao", "loss", "expense", "wage", "salary", "tankhwah"
+    };
+
     private async Task HandleWageAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
     {
         var amount = cmd.Amount ?? 0;
         var worker = cmd.Text?.Trim() ?? "";
-        if (worker.Length == 0 || amount <= 0 || amount > MaxWageAmount)
+        // Command words are never a worker: "loss delete 1" once became a wage named "delete".
+        if (worker.Length == 0 || amount <= 0 || amount > MaxWageAmount || NotAWorkerName.Contains(worker))
         {
             await ReplyAsync(seller, MessageTemplates.Get("losses.004"), ct);
             return;
+        }
+
+        // "Ali ki tankhwah 6000 kar do": a correction of this month's wage, not a second payment. The latest entry is changed.
+        if (cmd.Text2 == "set")
+        {
+            var (monthStart, monthEnd, _) = ExpensePeriod(seller, "month");
+            var latest = (await LoadWagesAsync(seller, monthStart, monthEnd, ct))
+                .Where(x => string.Equals(x.WorkerName, worker, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(x => x.Id).FirstOrDefault();
+            if (latest is not null)
+            {
+                var previous = latest.Amount;
+                latest.Amount = amount;
+                _db.ActionLogs.Add(new ActionLog
+                {
+                    SellerId = seller.Id, ActionType = ActionType.WageLogged,
+                    PayloadJson = JsonSerializer.Serialize(new { WageId = latest.Id, PreviousAmount = previous })
+                });
+                await _db.SaveChangesAsync(ct);
+                var monthSum = (await LoadWagesAsync(seller, monthStart, monthEnd, ct)).Sum(x => x.Amount);
+                await ReplyAsync(seller, MessageTemplates.Get("losses.005", latest.WorkerName, Formatters.Money(amount), "", Formatters.Money(monthSum)), ct);
+                return;
+            }
         }
 
         var wage = new WageEntry { SellerId = seller.Id, WorkerName = worker, Amount = amount, Days = cmd.Number };
@@ -99,6 +128,13 @@ public partial class ConversationEngine
         var id = doc.RootElement.GetProperty("WageId").GetInt32();
         var wage = await _db.WageEntries.FirstOrDefaultAsync(x => x.Id == id && x.SellerId == seller.Id, ct);
         if (wage is null) return;
+        // A correction ("set") is undone by putting the previous amount back; the entry itself stays.
+        if (doc.RootElement.TryGetProperty("PreviousAmount", out var previous))
+        {
+            wage.Amount = previous.GetDecimal();
+            await ReplyAsync(seller, MessageTemplates.Get("losses.006", wage.WorkerName, Formatters.Money(wage.Amount)), ct);
+            return;
+        }
         _db.WageEntries.Remove(wage);
         await ReplyAsync(seller, MessageTemplates.Get("losses.006", wage.WorkerName, Formatters.Money(wage.Amount)), ct);
     }
