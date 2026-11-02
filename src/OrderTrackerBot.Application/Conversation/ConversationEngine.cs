@@ -632,6 +632,12 @@ public sealed class FeatureOptions
     /// <summary>Quick-action buttons (Guide / New order / Menu) after finished replies.</summary>
     public bool ShortcutButtons { get; set; } = true;
 
+    /// <summary>Store masked messages the bot could not place, for the learning report (P1). Changes no reply.</summary>
+    public bool UnplacedCapture { get; set; } = false;
+
+    /// <summary>Secret for the seller hash of captured messages. Empty means nothing is captured.</summary>
+    public string UnplacedCaptureSalt { get; set; } = "";
+
     /// <summary>Save / Edit / Cancel as tap buttons under an order draft (typed YES / EDIT / cancel keep working).</summary>
     public bool ConfirmButtons { get; set; } = true;
 

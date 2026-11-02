@@ -1,0 +1,66 @@
+{
+  "intents": [
+    {
+      "id": "ORDER_QUERY",
+      "description": "The seller wants to see orders: one order, one customer's orders, or orders filtered by status and period.",
+      "examples": ["aaj ke orders", "pending orders dikhao", "Sara ka order", "order 12 dikhao", "pichle hafte ke orders", "unpaid orders kaun se hain", "COD ka kitna baqi hai"],
+      "slots": {
+        "status": { "values": ["pending", "unpaid", "cod"] },
+        "period": { "values": ["today", "yesterday", "this week", "last month", "N days"] },
+        "order": { "type": "number" },
+        "customer": { "type": "text" }
+      }
+    },
+    {
+      "id": "CATALOG_MANAGE",
+      "description": "The seller wants to see, search, add, re-price, remove or group products in the catalog.",
+      "examples": ["catalog dikhao", "Kurti dhoondo", "Kurti 1800 ka add karo", "Kurti ka rate 2000 kar do", "Kurti hata do", "Polo Shirt group B 450"],
+      "slots": {
+        "action": { "values": ["show", "share", "search", "create", "edit_price", "delete", "price_group"] },
+        "product": { "type": "text" },
+        "price": { "type": "number" },
+        "cost": { "type": "number" },
+        "stock": { "type": "number" },
+        "category": { "type": "text" },
+        "query": { "type": "text" },
+        "group": { "values": ["A", "B", "C"] },
+        "tier_price": { "type": "number" }
+      }
+    },
+    {
+      "id": "BUSINESS_ANALYTICS",
+      "description": "The seller asks a business number: sales, profit, margin, net, expenses, best or slow sellers, or a discount's effect on a product.",
+      "examples": ["aaj kitna bika", "is mahine ka munafa", "category wise sale", "kaun sa maal nahi bik raha", "Lawn Suit par 10% discount do to margin kitna bachega", "monthly net kya hai", "kharcha kitna hua"],
+      "slots": {
+        "metric": { "values": ["sales", "profit", "margin", "net", "expense", "top_seller", "slow_seller"] },
+        "period": { "values": ["today", "yesterday", "this week", "last month", "N days"] },
+        "group_by": { "values": ["product", "category", "customer", "city", "courier", "supplier"] },
+        "product": { "type": "text" },
+        "customer": { "type": "text" },
+        "percent": { "type": "number" }
+      }
+    },
+    {
+      "id": "STOCK",
+      "description": "The seller wants to see stock, low stock, set or change a product's stock, or stop tracking it.",
+      "examples": ["stock dikhao", "kya kam hai", "Kurti ka stock 20", "Kurti mein 10 aur aaye", "Kurti ka stock band karo", "restock list"],
+      "slots": {
+        "action": { "values": ["show", "low", "set", "add", "untrack", "restock"] },
+        "product": { "type": "text" },
+        "qty": { "type": "number" }
+      }
+    },
+    {
+      "id": "CUSTOMER",
+      "description": "The seller wants to see, find, add, correct, remove or restore a customer, or see what a customer owes.",
+      "examples": ["customers dikhao", "Sara dhoondo", "naya client Ali", "Sara ka phone 0300...", "Bilal ka udhaar kitna hai", "Sara ko hata do"],
+      "slots": {
+        "action": { "values": ["list", "detail", "search", "add", "update", "delete", "restore", "balance"] },
+        "customer": { "type": "text" },
+        "id": { "type": "number" },
+        "field": { "values": ["phone", "address", "city", "email", "group"] },
+        "value": { "type": "text" }
+      }
+    }
+  ]
+}

@@ -76,9 +76,11 @@ public partial class ConversationEngine
             return;
         }
         // The order reader found no order: the intent catalog may place it ("aaj kitna bika", "naya client hai"). Idle only: mid-flow replies belong to their step.
-        if (analysis.Intent is "unclear" or "off_topic" && analysis.Order is null && session.State == ConversationState.Idle
-            && await TryRunRoutedIntentAsync(seller, session, ctx, message, ct))
-            return;
+        if ((analysis.AiUnavailable || analysis.Intent is "unclear" or "off_topic") && analysis.Order is null && session.State == ConversationState.Idle)
+        {
+            if (await TryRunRoutedIntentAsync(seller, session, ctx, message, ct)) return;
+            await RecordUnplacedAsync(seller, "freeform_" + (analysis.Intent == "" ? "ai_unavailable" : analysis.Intent), message, analysis.Intent, null, ct);
+        }
         // The seller's own words beat the model: "delivery 300" in a single order is that order's delivery charge.
         if (analysis.Order is { } single && analysis.AdditionalOrders.Count == 0 && CommandParser.TryFindDeliveryInOrderText(message, out var delivery))
         {
@@ -1458,11 +1460,15 @@ public partial class ConversationEngine
             return;
         }
 
-        if (int.TryParse(message.Trim(), out var idx) && idx >= 1 && idx <= options.Count)
+        // A number, or the option's own text (a tap on a voice question's button sends its text).
+        var pick = int.TryParse(message.Trim(), out var typedNumber) && typedNumber >= 1 && typedNumber <= options.Count
+            ? typedNumber
+            : options.FindIndex(o => string.Equals(o, message.Trim(), StringComparison.OrdinalIgnoreCase)) + 1;
+        if (pick >= 1)
         {
             ctx.ClarificationOptions = null;
             SetState(session, ConversationState.Idle);
-            var chosen = options[idx - 1];
+            var chosen = options[pick - 1];
             // Keyword-clarification options are typed commands: run the one picked.
             if ((CommandParser.TryParse(chosen) ?? CommandParser.TryParse(ClarificationOptionCommand(chosen) ?? "")) is { } chosenCommand)
             {

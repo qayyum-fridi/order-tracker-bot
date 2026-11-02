@@ -1307,6 +1307,42 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     b.ToTable("SupportQueries");
                 });
 
+            modelBuilder.Entity("OrderTrackerBot.Domain.Entities.UnplacedUtterance", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("MaskedText")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<double?>("RouterConfidence")
+                        .HasColumnType("float");
+
+                    b.Property<string>("RouterIntent")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SellerHash")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Stage")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.ToTable("UnplacedUtterances");
+                });
+
             modelBuilder.Entity("OrderTrackerBot.Domain.Entities.WageEntry", b =>
                 {
                     b.Property<int>("Id")
