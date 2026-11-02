@@ -431,6 +431,9 @@ public partial class ConversationEngine
             case CommandKind.GuideLater:
                 await ReplyAsync(seller, MessageTemplates.Get("commands.003"), ct);
                 return;
+            case CommandKind.Notice:
+                await ReplyAsync(seller, MessageTemplates.Get(cmd.Text!), ct);
+                return;
             case CommandKind.Greeting:
                 // A bare "hi" gets no reply: the stats greeting was sent unprompted. The kind stays so "hi" never reaches the AI path.
                 return;

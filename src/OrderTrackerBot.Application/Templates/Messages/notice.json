@@ -1,0 +1,5 @@
+{
+  "notice.buyer.001": "ℹ️ Bot buyer ko message nahi bhejta. Buyer ko receipt dene ke liye \"receipt 12\" likhein, phir PDF unhe forward karein.",
+  "notice.undo.001": "ℹ️ Abhi sirf aakhri kaam wapas kiya ja sakta hai. \"undo\" likhein. Kisi ek order ke liye alag undo abhi nahi hai.",
+  "notice.phone.001": "⚠️ Phone sahi nahi hai. 11 digit likhein, jaise: \"Sara ka phone 03001234567\"."
+}

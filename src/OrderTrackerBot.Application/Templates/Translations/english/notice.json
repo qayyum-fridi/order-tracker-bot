@@ -1,0 +1,5 @@
+{
+  "notice.buyer.001": "ℹ️ The bot does not message buyers. To send a buyer a receipt, type \"receipt 12\" and forward the PDF to them.",
+  "notice.undo.001": "ℹ️ Only the last action can be undone right now. Type \"undo\". Undo for a single order is not available yet.",
+  "notice.phone.001": "⚠️ That phone number is not valid. Type 11 digits, for example: \"Sara ka phone 03001234567\"."
+}

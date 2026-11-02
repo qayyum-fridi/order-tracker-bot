@@ -138,7 +138,9 @@ public enum CommandKind
     CashMovement,
     Payout,
     WalkInSale,
-    OrderForCustomer
+    OrderForCustomer,
+    /// <summary>A short reply chosen by the parser: Text is the message template key to send (buyer messages, undo, invalid phone).</summary>
+    Notice
 }
 
 /// <summary>What to export: any of "orders", "customers", "catalog", "discounts" (empty = ask), and an optional orders period (today/yesterday/7d/30d/lastmonth).</summary>
@@ -1350,13 +1352,13 @@ public static class CommandParser
         // "cancel 3 (confirm)": a note in brackets at the end is a remark, not part of the command. The bot still asks before cancelling.
         text = TrailingRemark.Replace(text, "").TrimEnd();
 
-        var parsed = ParseCore(text, wasQuestion: false) ?? ParseCasual(text);
+        var parsed = ParseCore(text, wasQuestion: false) ?? ParseCasual(text) ?? ParseNotice(text);
         if (parsed is not null) return parsed;
 
         var bare = TrailingPunctuation.Replace(text, "");
         if (bare.Length == 0 || bare.Length == text.Length) return null;
         return ParseCore(bare, wasQuestion: text[bare.Length..].Contains('?') || text[bare.Length..].Contains('؟'))
-            ?? ParseCasual(bare);
+            ?? ParseCasual(bare) ?? ParseNotice(bare);
     }
 
     private const RegexOptions CasualOpts = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant;
@@ -1381,11 +1383,29 @@ public static class CommandParser
         (new Regex(@"^pichle\s+hafte\s+kitna\s+(?:bika|bikri|sale)(?:\s+(?:dekho|dikhao|batao|bata\s+do))?$", CasualOpts), "pichle hafte ka hisaab"),
         (new Regex(@"^sab\s+se\s+(?:mehnga|mehngi|mehnge)(?:\s+(?:kya(?:\s+hai)?|product|item|kaun\s+sa))?$", CasualOpts), "mehnga product"),
         (new Regex(@"^(?<name>.{2,}?)\s+(?:dhoondo|dhundo|dhoondho|talash\s+karo)$", CasualOpts), "search customer: ${name}"),
+        (new Regex(@"^kitna\s+bacha\s+hai(?:\s+dukan\s+(?:mein|me))?$", CasualOpts), "monthly net"),
         // A product is switched off (soft delete: old orders keep it), so "Bag hata do" is the delete command.
         (new Regex(@"^(?<name>.{2,}?)\s+(?:hata\s+do|hata\s+dein|hatao|hatado)$", CasualOpts), "delete product ${name}"),
         // "catalog bhejo", "aaj ka hisaab dikhao": the trailing verb is a request to show it; the command is the rest.
         (new Regex(@"^(?<rest>.+?)\s+(?:bhejo|bhej\s+do|dikhao|dikhayein|batao)$", CasualOpts), "${rest}"),
     };
+
+    // Phrases the bot cannot act on safely, answered with a short template (CommandKind.Notice): a buyer message (the bot never
+    // messages buyers), an undo for one order (undo only covers the last action), a phone with letters in it.
+    private static readonly (Regex Pattern, string TemplateKey)[] NoticePhrases =
+    {
+        (new Regex(@"^.{2,}?\s+ko\s+(?:message|msg|sms|text)\s+(?:bhejo|bhej\s+do|bhejen|send\s+karo)$", CasualOpts), "notice.buyer.001"),
+        (new Regex(@"^order\s+\d+\s+undo$", CasualOpts), "notice.undo.001"),
+        (new Regex(@"^(?:last|pichla|aakhri)\s+(?:expense|kharcha)\s+(?:wapas|undo)(?:\s+karo|\s+kar\s*do)?$", CasualOpts), "notice.undo.001"),
+        (new Regex(@"^[^\d,:]{2,40}?\s+(?:ka|ki)\s+(?:phone|number|mobile)\s+[^\s\d]+$", CasualOpts), "notice.phone.001"),
+    };
+
+    private static ParsedCommand? ParseNotice(string text)
+    {
+        foreach (var (pattern, key) in NoticePhrases)
+            if (pattern.IsMatch(text)) return new ParsedCommand { Kind = CommandKind.Notice, Text = key };
+        return null;
+    }
 
     // A rewritten phrase can need one more rewrite ("Sara ka record dikhao" -> "Sara ka record" -> "customer Sara"), so depth is capped.
     private static ParsedCommand? ParseCasual(string text, int depth = 0)
