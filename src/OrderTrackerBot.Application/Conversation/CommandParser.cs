@@ -1378,6 +1378,9 @@ public static class CommandParser
         (new Regex(@"^kal\s+wala\s+hisaab$", CasualOpts), "kal ka hisaab"),
         (new Regex(@"^sab\s+se\s+zyada\s+kya\s+bika$", CasualOpts), "sab se zyada bika"),
         (new Regex(@"^shortcut\s+band(?:\s+karo|\s+kar\s*do|\s+kardo)?$", CasualOpts), "shortcut off"),
+        (new Regex(@"^pichle\s+hafte\s+kitna\s+(?:bika|bikri|sale)(?:\s+(?:dekho|dikhao|batao|bata\s+do))?$", CasualOpts), "pichle hafte ka hisaab"),
+        (new Regex(@"^sab\s+se\s+(?:mehnga|mehngi|mehnge)(?:\s+(?:kya(?:\s+hai)?|product|item|kaun\s+sa))?$", CasualOpts), "mehnga product"),
+        (new Regex(@"^(?<name>.{2,}?)\s+(?:dhoondo|dhundo|dhoondho|talash\s+karo)$", CasualOpts), "search customer: ${name}"),
         // "catalog bhejo", "aaj ka hisaab dikhao": the trailing verb is a request to show it; the command is the rest.
         (new Regex(@"^(?<rest>.+?)\s+(?:bhejo|bhej\s+do|dikhao|dikhayein|batao)$", CasualOpts), "${rest}"),
     };
