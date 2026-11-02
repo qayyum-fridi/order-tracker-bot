@@ -67,6 +67,9 @@ public class CasualPhrasingTests
     [InlineData("sab se zyada kya bika", CommandKind.TrendingProducts)]
     [InlineData("Sara ka record dikhao", CommandKind.CustomerDetail)]
     [InlineData("shortcut band karo", CommandKind.Shortcuts)]
+    [InlineData("pichle hafte kitna bika dekho", CommandKind.TodaysSummary)]
+    [InlineData("sab se mehnga kya hai", CommandKind.Insight)]
+    [InlineData("Sara dhoondo", CommandKind.CustomerSearch)]
     public void EverydayReports_ParseToTheirCommand(string message, CommandKind kind)
     {
         var parsed = CommandParser.TryParse(message);
@@ -76,7 +79,7 @@ public class CasualPhrasingTests
 
     [Theory]
     [InlineData("Bag hata do")]
-    [InlineData("Sara dhoondo")]
+    [InlineData("Sara ko message bhejo")]
     [InlineData("reset account ko cancel karo")]
     [InlineData("email badlo")]
     [InlineData("order 2 ko cancel wapas karo")]
