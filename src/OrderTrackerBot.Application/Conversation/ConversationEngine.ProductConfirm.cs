@@ -39,14 +39,16 @@ public partial class ConversationEngine
         return rows;
     }
 
-    // Says whether the product is new or already in the catalog (same name and pack, as the save matches it), with the price that will change.
+    // Says whether the product is new or already in the catalog, with the price that will change. Uses the save's own matcher
+    // (name + pack, then size / colour), so a new colour of an existing product is a new variant, not an update.
     private async Task<List<string>> ProductPreviewRowsAsync(Seller seller, ProductLine line, CancellationToken ct)
     {
         var rows = ProductPreviewRows(line);
-        var lower = line.Name.ToLower();
-        var existing = (await _db.Products.Where(p => p.SellerId == seller.Id && p.Name.ToLower() == lower).ToListAsync(ct))
-            .FirstOrDefault(p => p.UnitType == line.UnitType && p.UnitQty == line.UnitQty);
-        var note = existing is null ? "• Naya product: catalog mein pehle se nahi hai"
+        var variants = await SameNameListingsAsync(seller, line.Name, line.UnitType, line.UnitQty, ct);
+        var (existing, ambiguous) = ProductVariants.MatchListing(variants, line.Extras?.Size, line.Extras?.Color);
+        var note = ambiguous ? "• Is naam ke kai variant hain: rang ya size bhi likhein"
+            : existing is null ? (variants.Count == 0 ? "• Naya product: catalog mein pehle se nahi hai"
+                : "• Naya variant: is naam ka doosra rang/size, alag save hoga")
             : existing.Price == line.Price ? (line.Extras is null
                 ? $"• Catalog mein pehle se hai ({Formatters.Money(existing.Price)}): koi tabdeeli nahi"
                 : $"• Catalog mein pehle se hai ({Formatters.Money(existing.Price)}): price wohi hai, sirf details update hongi")

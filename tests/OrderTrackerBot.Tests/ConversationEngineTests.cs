@@ -864,6 +864,23 @@ public class ConversationEngineTests : IDisposable
         Assert.Contains(_sentMessages, m => m.Contains("Catalog mein pehle se hai") && m.Contains("Supplier: Shah Alam"));
     }
 
+    [Fact]
+    public async Task ProductPreview_NewColourOfAnExistingProduct_IsShownAsANewVariant()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        db.Products.Add(new Product { SellerId = db.Sellers.First().Id, Name = "Polo Shirt", Price = 500, Color = "white" });
+        await db.SaveChangesAsync();
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, catalogSheets: _catalogSheets.Object,
+            features: new FeatureOptions { ProductConfirmation = true, ShortcutButtons = false, ConfirmButtons = true, SuggestionButtons = false, SetupNudges = false, IndustryQuestion = false });
+
+        await engine.HandleIncomingMessageAsync(Phone, "Polo Shirt - 500, color black", default);
+
+        // The save matches name + pack + colour, so black is a new variant; the preview must not call it "already in catalog".
+        Assert.Contains(_sentMessages, m => m.Contains("Naya variant") && m.Contains("Rang: black"));
+        Assert.DoesNotContain(_sentMessages, m => m.Contains("Catalog mein pehle se hai"));
+    }
+
     [Theory]
     [InlineData("ایکسل اس کی ویرائنٹ ہے اور کیا کہتے ہیں")]
     [InlineData("lawn shirt ke variants excel mein hain")]
