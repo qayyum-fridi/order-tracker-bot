@@ -4,7 +4,7 @@ T002,01 Setup and onboarding,,,Roman Urdu,"Language set to Roman Urdu, setup but
 T003,01 Setup and onboarding,,,Setup shuru karein,Shop name question asked
 T004,01 Setup and onboarding,,,Ayesha Collections,"Shop name saved, city question asked"
 T005,01 Setup and onboarding,,,Lahore,"City saved, kind of shop question asked"
-T006,01 Setup and onboarding,,,2,"Shop kind set to grocery by tap 2 (typed ""kiryana"" is a separate known check)"
+T006,01 Setup and onboarding,,,2,"Shop kind set to grocery by tap 2; setup ends here with the trial message (no ""done"" needed)"
 T007,01 Setup and onboarding,,,Kurti - 1800,Product preview shown; Save/Cancel asked
 T008,01 Setup and onboarding,,,yes,Kurti saved
 T009,01 Setup and onboarding,,,"Lawn Suit - 3500, cost 2400, stock 10, category: Lawn","Product preview with cost, stock, category"
@@ -13,8 +13,8 @@ T011,01 Setup and onboarding,,,"Polo Shirt - 500, color white",Polo Shirt white 
 T012,01 Setup and onboarding,,,yes,Polo Shirt white saved as variant
 T013,01 Setup and onboarding,,,"Polo Shirt - 500, color black",Polo Shirt black preview
 T014,01 Setup and onboarding,,,yes,Polo Shirt black saved as variant
-T015,01 Setup and onboarding,,,done,"Setup complete, trial message, main menu"
-T016,"02 Greetings, help, menu",settings/account,other,hi,Greeting reply / menu hint
+T015,01 Setup and onboarding,,,done,"Idle now, so ""done"" is not understood (setup already ended at T006)"
+T016,"02 Greetings, help, menu",settings/account,other,hi,"No reply by design: a bare ""hi"" is not answered (ConversationEngine.Commands.cs Greeting)"
 T017,"02 Greetings, help, menu",settings/account,other,help,"Help list (commands), under 1024 chars"
 T018,"02 Greetings, help, menu",settings/account,other,menu,Main menu list with 8 categories
 T019,"02 Greetings, help, menu",settings/account,other,guide,Step-by-step guide
