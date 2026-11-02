@@ -1,5 +1,6 @@
 {
   "notice.buyer.001": "ℹ️ Bot buyer ko message nahi bhejta. Buyer ko receipt dene ke liye \"receipt 12\" likhein, phir PDF unhe forward karein.",
   "notice.undo.001": "ℹ️ Abhi sirf aakhri kaam wapas kiya ja sakta hai. \"undo\" likhein. Kisi ek order ke liye alag undo abhi nahi hai.",
-  "notice.phone.001": "⚠️ Phone sahi nahi hai. 11 digit likhein, jaise: \"Sara ka phone 03001234567\"."
+  "notice.phone.001": "⚠️ Phone sahi nahi hai. 11 digit likhein, jaise: \"Sara ka phone 03001234567\".",
+  "notice.draft.001": "ℹ️ Abhi ek order adhoora hai, is liye ek message mein kai orders cancel nahi ho sakte. Adhoora order chhodne ke liye \"cancel\" akela likhein. Order cancel karne ke liye har message mein ek number likhein, jaise \"cancel 1\"."
 }

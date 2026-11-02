@@ -107,6 +107,27 @@ public class CasualPhrasingTests
         Assert.Equal(CommandKind.MonthlyNet, parsed!.Kind);
     }
 
+    [Fact]
+    public void WageGivenWithTheWordAfterTheAmount_IsAWage()
+    {
+        var parsed = CommandParser.TryParse("Ali ko 5000 tankhwah di");
+        Assert.NotNull(parsed);
+        Assert.Equal(CommandKind.Wage, parsed!.Kind);
+        Assert.Equal("Ali", parsed.Text);
+        Assert.Equal(5000m, parsed.Amount);
+    }
+
+    [Theory]
+    [InlineData("cancel 1 cancel 2 cancel 3", true)]
+    [InlineData("cancel #1 cancel #2", true)]
+    [InlineData("cancel 3", false)]
+    [InlineData("cancel", false)]
+    [InlineData("order 2 cancel 3", false)]
+    public void NumberedCancelRun_IsSeveralOrderCancels(string message, bool expected)
+    {
+        Assert.Equal(expected, CommandParser.IsNumberedCancelRun(message));
+    }
+
     [Theory]
     [InlineData("Sara ka phone wapas karo")]
     [InlineData("reset account ko cancel karo")]
