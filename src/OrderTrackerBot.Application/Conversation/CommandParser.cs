@@ -663,6 +663,9 @@ public static class CommandParser
     // "Ali ko 5000 tankhwah di" / "Ali ko 5000 tankhwah diye": the amount comes before the word, and the word is the verb of giving.
     private static readonly Regex WageGiven = new(@"^(?<name>[^\d,:]{2,40}?)\s+(?:ko|ki|ka)\s+(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d{1,2})?)\s+(?:wage|salary|tankhwah|tankhah|تنخواہ)\s+(?:di|diye|dein|de\s+do|de\s+diya|di\s+hai)$", Opts);
 
+    // "Ali ki tankhwah 6000 kar do" / "Ali ki salary 6000 karo": the wage is set to this amount (a correction), not paid again.
+    private static readonly Regex WageSet = new(@"^(?<name>[^\d,:]{2,40}?)\s+(?:ki|ka|ko|کی)\s+(?:wages?|salary|tankhwah|tankhah|تنخواہ)\s+(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d{1,2})?)\s+(?:kar\s*do|kardo|karo|kar\s*dein|kar\s+diya)$", Opts);
+
     // "cancel 1 cancel 2 cancel 3": several order cancels in one message. A half-entered draft must not take it as its cancel answer.
     public static bool IsNumberedCancelRun(string message) =>
         Regex.IsMatch(message.Trim(), @"^cancel\s+#?\d+\s+cancel\s+#?\d+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
@@ -682,6 +685,8 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.Wage, Text = m.Groups["name"].Value.Trim(), Amount = daily, Number = 1 };
         if ((m = WageFlat.Match(message)).Success && TryParseMoney(m.Groups["a"].Value, out var flat))
             return new ParsedCommand { Kind = CommandKind.Wage, Text = m.Groups["name"].Value.Trim(), Amount = flat };
+        if ((m = WageSet.Match(message)).Success && TryParseMoney(m.Groups["a"].Value, out var setAmount))
+            return new ParsedCommand { Kind = CommandKind.Wage, Text = m.Groups["name"].Value.Trim(), Amount = setAmount, Text2 = "set" };
         if ((m = WageGiven.Match(message)).Success && TryParseMoney(m.Groups["a"].Value, out var given))
             return new ParsedCommand { Kind = CommandKind.Wage, Text = m.Groups["name"].Value.Trim(), Amount = given };
         return null;
