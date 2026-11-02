@@ -23,7 +23,7 @@ public partial class ConversationEngine
 
         ctx.CancelOrderId = order.Id;
         SetState(session, ConversationState.AwaitingCancelConfirmation);
-        await ReplyAsync(seller,
+        await AskYesNoAsync(seller,
             MessageTemplates.Get("commands2.001", order.Id, order.Customer?.Name, Formatters.ItemsSummary(order)), ct);
     }
 
@@ -68,7 +68,7 @@ public partial class ConversationEngine
 
         ctx.BulkStatusOrderIds = ids;
         SetState(session, ConversationState.AwaitingBulkStatusConfirmation);
-        await ReplyAsync(seller,
+        await AskYesNoAsync(seller,
             MessageTemplates.Get("commands2.004", ids.Count, string.Join(", #", ids)), ct);
     }
 
@@ -460,7 +460,7 @@ public partial class ConversationEngine
         SetState(session, ConversationState.AwaitingResetConfirmation);
         ctx.ResetAskedAt = _clock.GetUtcNow().UtcDateTime;
         ctx.ResetGenerationId = Guid.NewGuid().ToString("N");
-        await ReplyAsync(seller,
+        await AskYesNoAsync(seller,
             MessageTemplates.Get("commands2.032"), ct);
     }
 

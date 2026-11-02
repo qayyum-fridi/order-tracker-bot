@@ -138,7 +138,7 @@ public partial class ConversationEngine
 
         ctx.DeleteCustomerId = customer.Id;
         SetState(session, ConversationState.AwaitingDeleteCustomerConfirmation);
-        await ReplyAsync(seller,
+        await AskYesNoAsync(seller,
             MessageTemplates.Get("customers.004", customer.Name, ActiveOrderCount(customer), Formatters.Money(TotalSpent(customer)), RestoreWindowDays), ct);
     }
 

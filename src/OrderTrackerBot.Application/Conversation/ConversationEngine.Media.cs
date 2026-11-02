@@ -154,14 +154,14 @@ public partial class ConversationEngine
                 await _db.SaveChangesAsync(ct);
                 return;
             }
-            await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n❓ {decision.Message}", VoiceFallbackChoices.ToList(), ct);
+            await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n❓ {decision.Message}", VoiceFallbackFor(seller).ToList(), ct);
             await _db.SaveChangesAsync(ct);
             return;
         }
         if (decision.Kind == DecisionKind.Reject)
         {
             // Unsafe to run and not safe to offer as choices: say nothing changed. The taps are only safe reads (orders, menu), never an approval.
-            await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n{decision.Message}", VoiceFallbackChoices, ct);
+            await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n{decision.Message}", VoiceFallbackFor(seller), ct);
             await _db.SaveChangesAsync(ct);
             return;
         }
@@ -222,6 +222,19 @@ public partial class ConversationEngine
         new("orders today", "orders today"),
         new("menu", "menu"),
     };
+
+    /// <summary>While the bot still waits on a yes / no question (reset, cancel, ...), a refused voice note leaves that question open: the taps are Yes / No, not unrelated reads.</summary>
+    private static readonly ChoiceOption[] VoiceYesNoChoices =
+    {
+        new("Yes", "Yes"),
+        new("No", "No"),
+    };
+
+    internal static IReadOnlyList<ChoiceOption> VoiceFallbackFor(Seller seller)
+    {
+        var allowed = AllowedVoiceActions(seller, seller.Session!.State);
+        return allowed.Contains("yes") && allowed.Contains("no") ? VoiceYesNoChoices : VoiceFallbackChoices;
+    }
 
     /// <summary>Keeps the id of the last 20 voice notes handled, so a later reply to one of them is recognised.</summary>
     private async Task RememberVoiceNoteAsync(Seller seller, string messageId, CancellationToken ct)

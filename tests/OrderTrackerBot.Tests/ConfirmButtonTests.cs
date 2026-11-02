@@ -66,6 +66,36 @@ public class ConfirmButtonTests : IDisposable
     private static Task<int> OrdersAsync(AppDbContext db) => db.Orders.CountAsync();
 
     [Fact]
+    public async Task ResetQuestion_HasYesNoButtons_AndNoKeepsTheData()
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+        var engine = Engine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "reset account", default);
+
+        var question = Assert.Single(_buttons, b => b.Body.Contains("poora data"));
+        Assert.Equal(new[] { "Yes", "No" }, question.Labels);
+
+        await engine.HandleIncomingMessageAsync(Phone, "No", default); // the tapped button arrives as its label
+        Assert.Contains(_text, m => m.Contains("kuch delete nahi kiya"));
+        Assert.Equal(1, await db.Products.CountAsync());
+    }
+
+    [Fact]
+    public async Task ResetQuestion_WithButtonsOff_IsThePlainTextAsBefore()
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+        var engine = Engine(db, buttons: false);
+
+        await engine.HandleIncomingMessageAsync(Phone, "reset account", default);
+
+        Assert.DoesNotContain(_buttons, b => b.Body.Contains("poora data"));
+        Assert.Contains(_text, m => m.Contains("poora data") && m.Contains("Reply YES"));
+    }
+
+    [Fact]
     public async Task Draft_ShowsSaveEditCancelButtons_NotTheTypedHint()
     {
         using var db = _dbFactory.CreateContext();

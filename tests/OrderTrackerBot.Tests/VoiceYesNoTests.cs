@@ -50,3 +50,32 @@ public class VoiceYesNoTests
         Assert.Equal("yes", ConversationEngine.SpokenYesNo("او بھائی میں نے ہاں بولا تھا", allowed));
     }
 }
+
+// While a yes / no question is open, a refused voice note must offer Yes / No, not unrelated reads.
+public class VoiceFallbackTapsTests
+{
+    private static Seller SellerIn(ConversationState state) => new()
+    {
+        WhatsAppPhoneNumber = "923001234567",
+        OnboardingComplete = true,
+        Session = new ConversationSession { State = state }
+    };
+
+    [Theory]
+    [InlineData(ConversationState.AwaitingResetConfirmation)]
+    [InlineData(ConversationState.AwaitingCancelConfirmation)]
+    [InlineData(ConversationState.AwaitingDeleteCustomerConfirmation)]
+    [InlineData(ConversationState.AwaitingOrderConfirmation)]
+    public void WhileAYesNoQuestionIsOpen_TheTapsAreYesAndNo(ConversationState state)
+    {
+        var taps = ConversationEngine.VoiceFallbackFor(SellerIn(state));
+        Assert.Equal(new[] { "Yes", "No" }, taps.Select(t => t.Value));
+    }
+
+    [Fact]
+    public void WhenNothingIsAsked_TheTapsAreTheSafeReads()
+    {
+        var taps = ConversationEngine.VoiceFallbackFor(SellerIn(ConversationState.Idle));
+        Assert.Equal(new[] { "orders today", "menu" }, taps.Select(t => t.Value));
+    }
+}
