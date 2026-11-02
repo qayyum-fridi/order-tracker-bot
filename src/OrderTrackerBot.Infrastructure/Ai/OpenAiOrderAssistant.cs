@@ -291,6 +291,30 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         }
     }
 
+    public async Task<string?> ClassifyYesNoAsync(string question, string answer, CancellationToken cancellationToken = default)
+    {
+        var input = new JsonObject { ["bot_question"] = question.Length > 600 ? question[..600] : question, ["owner_answer"] = answer };
+        var json = await CompleteTextAsync(
+            "A WhatsApp bot asked a small shop owner (Pakistan) a yes/no question. The owner answered, possibly by voice transcript, in Urdu, Roman Urdu, Punjabi, English or a mix, " +
+            "with filler such as \"oye bhai\" or \"yaar\", and with any spelling. Decide what the answer MEANS for the question. " +
+            "Return ONLY JSON {\"answer\": \"yes\" | \"no\" | \"other\"}. " +
+            "yes = the owner agrees, confirms or allows what the bot asked. no = the owner refuses, declines or wants to stop it. " +
+            "other = anything else: a different request or command, a question, both yes and no, a change (\"haan par price badlo\"), or unclear. " +
+            "Do not guess: when unsure, answer other. Never add anything else to the JSON.",
+            input.ToJsonString(), 0, "yes/no meaning", cancellationToken, jsonMode: true, model: _options.VoiceModel);
+        if (json is null) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var value = doc.RootElement.TryGetProperty("answer", out var a) && a.ValueKind == JsonValueKind.String ? a.GetString()?.Trim().ToLowerInvariant() : null;
+            return value is "yes" or "no" or "other" ? value : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     public Task<string?> GenerateInsightAsync(string factsSummary, CancellationToken cancellationToken = default) =>
         CompleteTextAsync("One short Roman Urdu sentence of business insight/suggestion for a small seller, based on the facts given. No preamble.",
             factsSummary, 0.4, "insight generation", cancellationToken);

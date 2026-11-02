@@ -287,7 +287,7 @@ public partial class ConversationEngine
     }
 
     private static readonly System.Text.RegularExpressions.Regex SpokenYesWords = new(
-        @"(?<![\p{L}\p{N}])(?:yes|yeah|yep|haan|han|hanji|ha|ji|jee|ok|okay|theek|thik|bilkul|sahi|ہاں|جی|ٹھیک|بالکل|صحیح)(?![\p{L}\p{N}])",
+        @"(?<![\p{L}\p{N}])(?:yes|yeah|yep|haan|han|hanji|ha|ji|jee|ok|okay|bilkul|ہاں|جی|بالکل)(?![\p{L}\p{N}])",
         System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
     private static readonly System.Text.RegularExpressions.Regex SpokenNoWords = new(
         @"(?<![\p{L}\p{N}])(?:no|nope|nahi|nahin|nhi|nai|mat|cancel|stop|ruko|rukiye|نہیں|نہ|مت|رکو|رکیں|کینسل)(?![\p{L}\p{N}])",
@@ -326,8 +326,19 @@ public partial class ConversationEngine
         if (CommandParser.IsGuidanceRequest(transcript))
             return TurnDecision.Execute(new[] { transcript });
         // While the bot waits for yes / no, a short spoken answer with filler ("او بھائی میں نے ہاں بولا تھا") is the answer: no model call, so no model can turn it into something else.
-        if (SpokenYesNo(transcript, AllowedVoiceActions(seller, seller.Session!.State)) is { } yesNo)
+        var allowedNow = AllowedVoiceActions(seller, seller.Session!.State);
+        if (SpokenYesNo(transcript, allowedNow) is { } yesNo)
             return TurnDecision.Execute(new[] { yesNo });
+        // The word rules above are only a fast path. For any other answer to a yes / no question, ask what it MEANS (any dialect, any filler): the model may
+        // answer only yes / no / other, so it cannot make up a step. "other" (a different request, or unclear) goes on to the normal rewrite.
+        if (allowedNow.Contains("yes") && allowedNow.Contains("no") && !transcript.Any(char.IsDigit) && transcript.Length <= 300)
+        {
+            var asked = await _db.MessageLogs.Where(m => m.Phone == seller.WhatsAppPhoneNumber && m.Direction == "outbound")
+                .OrderByDescending(m => m.Id).Select(m => m.RawText).FirstOrDefaultAsync(ct) ?? "";
+            var meaning = await _ai.ClassifyYesNoAsync(asked, transcript, ct);
+            _logger?.LogInformation("Voice yes/no: the model read the answer as {Meaning}", meaning ?? "unavailable");
+            if (meaning is "yes" or "no") return TurnDecision.Execute(new[] { meaning });
+        }
         var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
         var catalog = await LoadCatalogAsync(seller, ct);
         var recent = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
