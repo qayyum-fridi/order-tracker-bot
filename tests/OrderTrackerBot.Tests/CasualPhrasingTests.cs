@@ -87,7 +87,28 @@ public class CasualPhrasingTests
     }
 
     [Theory]
-    [InlineData("Sara ko message bhejo")]
+    [InlineData("Sara ko message bhejo", "notice.buyer.001")]
+    [InlineData("order 2 undo", "notice.undo.001")]
+    [InlineData("last expense wapas karo", "notice.undo.001")]
+    [InlineData("Sara ka phone abc", "notice.phone.001")]
+    public void NoticePhrases_AnswerWithTheirTemplate(string message, string templateKey)
+    {
+        var parsed = CommandParser.TryParse(message);
+        Assert.NotNull(parsed);
+        Assert.Equal(CommandKind.Notice, parsed!.Kind);
+        Assert.Equal(templateKey, parsed.Text);
+    }
+
+    [Fact]
+    public void KitnaBachaHai_IsTheMonthlyNet()
+    {
+        var parsed = CommandParser.TryParse("kitna bacha hai dukan mein");
+        Assert.NotNull(parsed);
+        Assert.Equal(CommandKind.MonthlyNet, parsed!.Kind);
+    }
+
+    [Theory]
+    [InlineData("Sara ka phone wapas karo")]
     [InlineData("reset account ko cancel karo")]
     [InlineData("email badlo")]
     [InlineData("order 2 ko cancel wapas karo")]
