@@ -660,6 +660,13 @@ public static class CommandParser
     private static readonly Regex WageDays = new(@"^(?:(?:wages?|salary|tankhwah|tankhah|تنخواہ)\s+)?(?<name>[^\d,:]{2,40}?)\s+(?:ki|ka|ko|کی)\s+(?<d>\d{1,3})\s+(?:din|days?)\s+(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d{1,2})?)$", Opts);
     private static readonly Regex WageFlat = new(@"^(?:wages|wage|salary|tankhwah|tankhah|تنخواہ)\s*:?\s*(?<name>[^\d,:]{2,40}?)\s+(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d{1,2})?)(?:\s+(?:dihari|daily))?$", Opts);
 
+    // "Ali ko 5000 tankhwah di" / "Ali ko 5000 tankhwah diye": the amount comes before the word, and the word is the verb of giving.
+    private static readonly Regex WageGiven = new(@"^(?<name>[^\d,:]{2,40}?)\s+(?:ko|ki|ka)\s+(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d{1,2})?)\s+(?:wage|salary|tankhwah|tankhah|تنخواہ)\s+(?:di|diye|dein|de\s+do|de\s+diya|di\s+hai)$", Opts);
+
+    // "cancel 1 cancel 2 cancel 3": several order cancels in one message. A half-entered draft must not take it as its cancel answer.
+    public static bool IsNumberedCancelRun(string message) =>
+        Regex.IsMatch(message.Trim(), @"^cancel\s+#?\d+\s+cancel\s+#?\d+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
     private static ParsedCommand? TryParseLossOrWage(string message)
     {
         var m = LossLine.Match(message);
@@ -675,6 +682,8 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.Wage, Text = m.Groups["name"].Value.Trim(), Amount = daily, Number = 1 };
         if ((m = WageFlat.Match(message)).Success && TryParseMoney(m.Groups["a"].Value, out var flat))
             return new ParsedCommand { Kind = CommandKind.Wage, Text = m.Groups["name"].Value.Trim(), Amount = flat };
+        if ((m = WageGiven.Match(message)).Success && TryParseMoney(m.Groups["a"].Value, out var given))
+            return new ParsedCommand { Kind = CommandKind.Wage, Text = m.Groups["name"].Value.Trim(), Amount = given };
         return null;
     }
 

@@ -707,6 +707,12 @@ public partial class ConversationEngine
     private async Task<bool> TryLeaveOrderDraftAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         var trimmed = message.Trim();
+        // "cancel 1 cancel 2 cancel 3" is order cancels, not an answer to the draft: keep the draft and say what to type.
+        if (CommandParser.IsNumberedCancelRun(trimmed))
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("notice.draft.001"), ct);
+            return true;
+        }
         // "delivery 300" while confirming changes this order's delivery, not the seller default.
         if (session.State == ConversationState.AwaitingOrderConfirmation
             && (CommandParser.TryParseDeliveryAmount(trimmed, out _) || trimmed.Length <= 30 && CommandParser.TryFindAdvanceInOrderText(trimmed, out _))) return false;
