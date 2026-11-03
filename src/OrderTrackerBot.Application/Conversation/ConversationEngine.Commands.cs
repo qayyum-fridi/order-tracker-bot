@@ -414,6 +414,20 @@ public partial class ConversationEngine
             case CommandKind.Version:
                 await ReplyAsync(seller, _build.Describe(), ct);
                 break;
+            case CommandKind.Limits:
+                {
+                    // 0 means no limit is set; the numbers come from the live settings, never typed into the text.
+                    string Per(int n) => n == 0 ? "koi hadd nahi" : n.ToString();
+                    var limiter = _mediaLimiter;
+                    await ReplyAsync(seller, MessageTemplates.Get("voice-confirm.031", MaxVoiceSeconds / 60,
+                        Per(limiter?.LimitFor(MediaKind.Text) ?? 0), Per(limiter?.LimitFor(MediaKind.Voice) ?? 0), Per(limiter?.LimitFor(MediaKind.Image) ?? 0),
+                        MaxPendingPictures, (int)PictureLabelWindow.TotalMinutes), ct);
+                    break;
+                }
+            case CommandKind.DailyJobs:
+                await SendChoicesAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("voice-confirm.032"),
+                    GuideChoices.Select(c => new ChoiceOption(c.Label, c.Value)).ToList(), ct);
+                break;
             case CommandKind.DataEntryHelp:
                 await ReplyAsync(seller, MessageTemplates.Get("entry-help.001"), ct);
                 break;

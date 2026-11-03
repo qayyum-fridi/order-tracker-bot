@@ -1015,6 +1015,21 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task LimitsCommand_ExplainsWhatTheBotAccepts_AndRozanaListsTheDailyJobs()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        _sent.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "limits", default);
+        Assert.Contains(_sent, m => m.Contains("Voice note: 5 minute tak") && m.Contains("Tasveerein"));
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "rozana", default);
+        Assert.Contains(_sent, m => m.Contains("Roz ke kaam"));
+    }
+
+    [Fact]
     public async Task Picture_LabelledOther_SavesNothing()
     {
         using var db = _dbFactory.CreateContext();

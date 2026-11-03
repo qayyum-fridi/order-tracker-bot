@@ -203,6 +203,8 @@ Every phrase below is pinned in `StrategicInsightParserTests` (Urdu script and R
 | Bottom buttons | `shortcut off` (`shortcut on`) |
 | Data | `export` · `export orders 30 days` · `export expenses` · `import` |
 | Which build is running | `version` |
+| What the bot accepts (voice note length, pictures and messages per hour) | `limits` · `hadood` · `حدود` |
+| The daily jobs as taps (new order, today's account, expense, wages, stock, menu) | `rozana` · `roz ka kaam` · `daily jobs` · `روزانہ` |
 | Sign in to the client dashboard (a code comes here) | `login` (`dashboard login`) |
 | End every dashboard session (if a login was not you) | `dashboard logout` (`logout all`, `sign out`) |
 | Tell us something | `feedback: [message]` |

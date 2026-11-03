@@ -105,6 +105,10 @@ public enum CommandKind
     NewOrderHelp,
     Guide,
     Version,
+    /// <summary>"limits" / "hadood": what the bot accepts (voice note length, pictures and messages per hour).</summary>
+    Limits,
+    /// <summary>"rozana" / "roz ka kaam": the daily jobs as taps (new order, today's account, expense, wages, stock, menu).</summary>
+    DailyJobs,
     DataEntryHelp,
     ClientLogin,
     ClientLogout,
@@ -185,7 +189,9 @@ public static class CommandParser
     // "industry" / "business type clothing" / "dukaan ki qism grocery": pick the kind of shop (examples, tips); Text = what was written (null = show the choices).
     private static readonly Regex IndustryCmd = new(@"^(?:industry|business\s+type|shop\s+type|dukaan\s+(?:ki\s+)?(?:qism|type)|کاروبار\s+کی\s+قسم)(?:\s*[:=]?\s+(?<v>.+))?$", Opts);
     private static readonly Regex SetupCheckCmd = new(@"^(?:data\s+check|setup\s+check|data\s+checklist|checklist|setup\s+status|data\s+theek\s*hai|ڈیٹا\s*چیک|چیک\s*لسٹ)$", Opts);
-    private static readonly Regex VersionCmd = new(@"^(?:bot\s+)?(?:version|build|ورژن)$", Opts);
+    private static readonly Regex LimitsCmd = new(@"^(?:limits?|hadood|hadd|meri\s+limits?|kitni\s+limits?|حد|حدود)$", Opts);
+    private static readonly Regex DailyJobsCmd = new(@"^(?:rozana|roz\s+ka\s+kaam|rozana\s+kaam|daily\s+(?:jobs?|work)|روزانہ|روز\s+کا\s+کام)$", Opts);
+    private static readonly Regex VersionCmd =new(@"^(?:bot\s+)?(?:version|build|ورژن)$", Opts);
     // "data help" / "how to add" / "kaise dalein": the formats and the typed commands for every kind of data.
     private static readonly Regex DataEntryHelpCmd = new(@"^(?:data\s+(?:entry|help)|entry\s+help|how\s+to\s+add|kaise\s+(?:dalein|daalein)|ڈیٹا\s+کیسے\s+(?:ڈالیں|ڈالوں)|ڈیٹا\s+کا\s+طریقہ)$", Opts);
     private static readonly Regex ClientLoginCmd = new(@"^(?:dashboard\s+)?(?:login|log\s+in|لاگ\s*ان)$", Opts);
@@ -1551,6 +1557,8 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.Industry, Text = industry.Groups["v"].Success ? industry.Groups["v"].Value.Trim() : null };
         if (SetupCheckCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.SetupCheck };
         if (VersionCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Version };
+        if (LimitsCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Limits };
+        if (DailyJobsCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DailyJobs };
         if (DataEntryHelpCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DataEntryHelp };
         if (ClientLoginCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ClientLogin };
         if (ClientLogoutCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ClientLogout };
