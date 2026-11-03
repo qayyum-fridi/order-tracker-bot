@@ -25,6 +25,7 @@
   "onboarding.022": "📋 Send the business details (separated by commas):\nCity, Business type, @instagram\n\ne.g. \"Lahore, Clothing, @ayesha.collections\" — or \"cancel\".",
   "onboarding.023": "Now let's add products. Tap a button below, or simply type a number.",
   "onboarding.024": "Okay — whenever you like, you can add products again by typing \"catalog\".\n{0}",
+  "onboarding.039": "Okay — shop type set to {0} ✅. Whenever you like, you can add products by typing \"catalog\".\n{1}",
   "onboarding.025": "🎉 Congratulations! Your setup is complete and the catalog is saved.{0}\nFrom now on, whenever an order comes in, forward it, or record it by typing 'new order: ...'.",
   "onboarding.026": "The catalog is empty for now.",
   "onboarding.027": "🛍️ Your Catalog ({0}):\n{1}",

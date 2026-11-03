@@ -240,13 +240,14 @@ public partial class ConversationEngine
     }
 
     /// <summary>Ends setup: the free trial starts, the seller is idle and gets the menu and the guide offer. "done" / "skip", or a real command once a product is saved.</summary>
-    private async Task CompleteSetupAsync(Seller seller, ConversationSession session, bool skipped, CancellationToken ct)
+    private async Task CompleteSetupAsync(Seller seller, ConversationSession session, bool skipped, CancellationToken ct, string? shopType = null)
     {
         seller.OnboardingComplete = true;
         StartTrial(seller);
         SetState(session, ConversationState.Idle);
+        // Picking the kind of shop ends setup: say which one was set, so a tap or a spoken number visibly "took".
         var reply = skipped
-            ? MessageTemplates.Get("onboarding.024", TrialStartedText(seller))
+            ? (shopType is null ? MessageTemplates.Get("onboarding.024", TrialStartedText(seller)) : MessageTemplates.Get("onboarding.039", shopType, TrialStartedText(seller)))
             : MessageTemplates.Get("onboarding.025", TrialStartedText(seller));
         await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("onboarding.013", reply.TrimEnd()),
             "Options dekhein", AfterSetupSections, ct);
@@ -422,7 +423,7 @@ public partial class ConversationEngine
                 seller.BusinessType = picked.Title;
                 await _db.SaveChangesAsync(ct);
                 // Setup needs only the shop name and the kind of shop; the rest (city, products, customers) is added later.
-                await CompleteSetupAsync(seller, session, skipped: true, ct);
+                await CompleteSetupAsync(seller, session, skipped: true, ct, picked.Title);
                 return;
             }
 
