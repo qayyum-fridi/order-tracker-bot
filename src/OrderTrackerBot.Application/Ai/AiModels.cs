@@ -177,6 +177,14 @@ public interface IAiOrderAssistant
     Task<string?> ClassifyYesNoAsync(string question, string answer, CancellationToken cancellationToken = default) =>
         Task.FromResult<string?>(null);
 
+    /// <summary>
+    /// What KIND of thing a voice transcript is, so each kind goes to the narrowest step: "command" (asks the bot to show or change something in the shop),
+    /// "order" (a customer order being dictated), "chat" (a greeting, small talk, anything unrelated to the shop) or "other" (unclear). Meaning, not words.
+    /// Null when AI is unavailable.
+    /// </summary>
+    Task<string?> ClassifyVoiceKindAsync(string transcript, CancellationToken cancellationToken = default) =>
+        Task.FromResult<string?>(null);
+
     /// <summary>Embedding vectors (meaning, not words) for the texts, same order; null when unavailable. Used to find a taught phrase that MEANS the same as a new sentence.</summary>
     Task<IReadOnlyList<float[]>?> EmbedAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<float[]>?>(null);
 

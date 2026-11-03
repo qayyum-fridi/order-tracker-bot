@@ -697,6 +697,13 @@ public sealed class FeatureOptions
     /// <summary>A short "listening" message the moment a voice note arrives, so a long transcription is not silent. Off = no extra message (unit tests).</summary>
     public bool VoiceAck { get; set; }
 
+    /// <summary>
+    /// Voice, idle seller: a small call first says what KIND of note it is. A chat remark is answered without asking the big rewrite to invent steps; a command goes to the
+    /// intent catalog (the model picks an action and fills slots, the engine builds the command, the amount guard still applies); an order or anything unclear goes to the
+    /// full rewrite as before. Off in code so existing tests keep their behaviour.
+    /// </summary>
+    public bool VoiceIntentFirst { get; set; }
+
     /// <summary>Log every message the bot could NOT understand (path, state and the seller's text) so the owner can see which real phrasings fail. The log holds seller text: keep it off if that is not acceptable. Off = nothing logged (unit tests).</summary>
     public bool TurnLog { get; set; }
 
