@@ -163,6 +163,23 @@ public class TurnDecisionTests
     }
 
     [Fact]
+    public void SavedNameThatWasNotSaidAsWritten_IsReportedWithWhatWasHeard()
+    {
+        var notes = ConversationEngine.NameMatches("hussain ka order cancel kar do", new[] { "cancel order 12 Hassan" }, new[] { "Hassan", "Sara" });
+
+        Assert.Equal(new[] { ("hussain", "Hassan") }, notes);
+    }
+
+    [Theory]
+    [InlineData("hassan ka order cancel kar do")]      // said exactly: nothing to report
+    [InlineData("zainab ka order cancel kar do")]      // nothing close to Hassan was said
+    [InlineData("حسن کا آرڈر کینسل کر دو")]              // Urdu script: a saved Latin name differs every time
+    public void NameNote_IsQuiet_WhenTheNameWasSaidOrNothingIsClose(string transcript)
+    {
+        Assert.Empty(ConversationEngine.NameMatches(transcript, new[] { "cancel order 12 Hassan" }, new[] { "Hassan" }));
+    }
+
+    [Fact]
     public void ConfidentTranscript_BecomingARiskyStep_StillExecutes()
     {
         var decision = ConversationEngine.DecideRewrite("order 12 cancel kar do", new[] { "cancel order 12" }, new HashSet<long> { 12 });

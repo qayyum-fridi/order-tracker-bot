@@ -244,6 +244,9 @@ public partial class ConversationEngine
 
         if (steps.Count != 1 || !string.Equals(steps[0], text, StringComparison.OrdinalIgnoreCase))
             heard += $"\n➡️ Samjha: {string.Join("  →  ", steps.Select(s => $"\"{s}\""))}";
+        if (prefetch is not null)
+            foreach (var (nameHeard, nameMatched) in NameMatches(text, steps, prefetch.CustomerNames.Concat(prefetch.Catalog.Select(c => c.Label))).Take(3))
+                heard += $"\n{MessageTemplates.Get("voice-confirm.020", nameHeard, nameMatched)}";
 
         // Money-changing or hard-to-reverse actions (price edit, cancel, status change...) wait for a YES before anything runs.
         var (safe, risky) = SplitVoiceSteps(seller, steps);
@@ -338,7 +341,7 @@ public partial class ConversationEngine
 
     /// <summary>What the voice rewrite needs from the database, read while the speech model is still transcribing.</summary>
     private sealed record VoiceContextData(
-        IReadOnlyList<CatalogEntry> Catalog, List<Order> Recent, List<string> KnownCustomers, List<MessageLog> LastMessages, List<string> Exchanges);
+        IReadOnlyList<CatalogEntry> Catalog, List<Order> Recent, List<string> KnownCustomers, List<MessageLog> LastMessages, List<string> Exchanges, List<string> CustomerNames);
 
     private async Task<VoiceContextData> LoadVoiceContextAsync(Seller seller, IReadOnlyList<CatalogEntry>? catalog, CancellationToken ct)
     {
@@ -346,15 +349,41 @@ public partial class ConversationEngine
         var recent = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
             .Where(o => o.SellerId == seller.Id).OrderByDescending(o => o.Id).Take(5).ToListAsync(ct);
         // Only the 40 customers with the latest orders are sent to the model: pick them in SQL instead of loading every customer and order.
-        var knownCustomers = (await _db.Customers.Include(c => c.Orders)
+        var customerRows = await _db.Customers.Include(c => c.Orders)
             .Where(c => c.SellerId == seller.Id && c.DeletedAt == null)
-            .OrderByDescending(c => c.Orders.Max(o => (int?)o.Id)).ThenByDescending(c => c.Id).Take(40).ToListAsync(ct))
-            .Select(DescribeCustomerForVoice).ToList();
+            .OrderByDescending(c => c.Orders.Max(o => (int?)o.Id)).ThenByDescending(c => c.Id).Take(40).ToListAsync(ct);
+        var knownCustomers = customerRows.Select(DescribeCustomerForVoice).ToList();
         var lastMessages = await _db.MessageLogs.Where(m => m.Phone == seller.WhatsAppPhoneNumber)
             .OrderByDescending(m => m.Id).Take(6).ToListAsync(ct);
         var exchanges = lastMessages.AsEnumerable().Reverse()
             .Select(m => $"{(m.Direction == "outbound" ? "Bot" : "Seller")}: {(m.RawText.Length > 300 ? m.RawText[..300] : m.RawText)}").ToList();
-        return new VoiceContextData(catalog, recent, knownCustomers, lastMessages, exchanges);
+        return new VoiceContextData(catalog, recent, knownCustomers, lastMessages, exchanges, customerRows.Select(c => c.Name).ToList());
+    }
+
+    /// <summary>
+    /// Saved names (customers, catalog products) that the rewrite uses but the seller did not say as written: the closest words of the transcript are
+    /// the "heard" side of a "heard X, understood Y" note, so a misheard Hussain turned into the saved Hassan is seen before anything runs.
+    /// Latin-script transcripts only (a saved name is Latin; Urdu script would differ every time). Plain text distance, no AI.
+    /// </summary>
+    internal static IReadOnlyList<(string Heard, string Matched)> NameMatches(string transcript, IReadOnlyList<string> steps, IEnumerable<string> names)
+    {
+        var result = new List<(string, string)>();
+        if (string.IsNullOrWhiteSpace(transcript) || Regex.IsMatch(transcript, @"\p{IsArabic}")) return result;
+        var spoken = WordsOf(transcript);
+        var used = WordsOf(string.Join(' ', steps)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var name in names.Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.Trim()).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var parts = WordsOf(name);
+            if (name.Length < 4 || parts.Length is 0 or > 3 || !parts.All(used.Contains)) continue;
+            var wanted = string.Join(' ', parts);
+            var heard = Enumerable.Range(0, Math.Max(0, spoken.Length - parts.Length + 1)).Select(i => string.Join(' ', spoken.Skip(i).Take(parts.Length))).ToList();
+            if (heard.Contains(wanted, StringComparer.OrdinalIgnoreCase)) continue;
+            var limit = Math.Max(1, wanted.Length / 3);
+            var near = heard.Select(h => (Text: h, Distance: TextDistance.Levenshtein(h, wanted))).Where(x => x.Distance is > 0 && x.Distance <= limit)
+                .OrderBy(x => x.Distance).FirstOrDefault();
+            if (near.Text is not null) result.Add((near.Text, name));
+        }
+        return result;
     }
 
     /// <summary>
@@ -503,7 +532,7 @@ public partial class ConversationEngine
                     : TurnDecision.Clarify(MessageTemplates.Get("intent.howto", routed.Help!));
         }
         var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
-        var (catalog, recent, knownCustomers, lastMessages, exchanges) = prefetch ?? await LoadVoiceContextAsync(seller, null, ct);
+        var (catalog, recent, knownCustomers, lastMessages, exchanges, _) = prefetch ?? await LoadVoiceContextAsync(seller, null, ct);
 
         // A spoken "cancel" while an order draft waits is a cancel, whatever the model would make of it ("kis order ko cancel karna hai?").
         if (ctx.PendingOrder is not null && OpensWithLeavePhrase(transcript.Trim().Trim('.', '!', '?', '،', '۔', ' ')))

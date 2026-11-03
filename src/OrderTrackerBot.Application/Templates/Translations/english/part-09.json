@@ -145,6 +145,7 @@
   "voice-confirm.017": "ℹ️ Order #{0} belongs to {1}, but that name was not heard in the note. Please check this is the right order.",
   "voice-confirm.018": "ℹ️ This voice note was too short or empty, so nothing could be heard. Please say it again.",
   "voice-confirm.019": "ℹ️ This voice note is too long. Please send shorter notes (one or two tasks per note).",
+  "voice-confirm.020": "ℹ️ I heard \"{0}\" in your voice note and understood it as \"{1}\" (a saved name). If that is wrong, please send the correct name in writing.",
   "voice-confirm.012": "🧾 Do you want to see your orders? Today's or yesterday's? Pick below, or type it.",
   "voice-confirm.011": "⚠️ Sorry, the word \"{0}\" in the amount was not understood, so nothing was run. Please send the amount in digits (like 75000).",
   "voice-undo.001": "ℹ️ Nothing was found to undo for this voice note.",

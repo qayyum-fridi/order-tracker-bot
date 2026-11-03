@@ -16,6 +16,7 @@
   "voice-confirm.017": "ℹ️ Order #{0} {1} ka hai, lekin note mein yeh naam nahi suna gaya. Barae meherbani check kar lein ke yahi order sahi hai.",
   "voice-confirm.018": "ℹ️ Yeh voice note bohat chhota ya khaali tha, is liye kuch sunai nahi diya. Barae meherbani dobara bolein.",
   "voice-confirm.019": "ℹ️ Yeh voice note bohat lamba hai. Barae meherbani chhote chhote notes mein bhejein (aik note mein aik ya do kaam).",
+  "voice-confirm.020": "ℹ️ Aap ki awaaz mein \"{0}\" suna gaya, maine \"{1}\" (saved naam) samjha. Agar yeh galat hai to barae meherbani sahi naam likh kar bhejein.",
   "voice-confirm.012": "🧾 Aap ke orders dekhne hain? Aaj ke ya kal ke? Neeche se chunein, ya likh kar bhejein.",
   "voice-confirm.011":"⚠️ Maaf kijiye, rakam mein \"{0}\" wala lafz samajh nahi aaya, is liye kuch nahi chalaya. Barae meherbani rakam digits mein likh kar bhejein (jaise 75000).",
   "voice-undo.001": "ℹ️ Is voice note ka koi kaam wapas karne ke liye nahi mila.",
