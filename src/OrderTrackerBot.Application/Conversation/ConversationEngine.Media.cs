@@ -165,6 +165,19 @@ public partial class ConversationEngine
             await _db.SaveChangesAsync(ct);
             return;
         }
+        if (decision.Kind == DecisionKind.Confirm)
+        {
+            // Only an idle, set-up seller can park steps; mid-flow the plain "say it again" is safer than replacing the open question.
+            if (seller.Session!.State != ConversationState.Idle || !seller.OnboardingComplete)
+            {
+                await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n{UnfaithfulQuestion}", VoiceFallbackChoices.ToList(), ct);
+                await _db.SaveChangesAsync(ct);
+                return;
+            }
+            var understood = $"\n➡️ Samjha: {string.Join("  →  ", decision.Steps.Select(s => $"\"{s}\""))}";
+            await ParkVoiceStepsAsync(fromPhoneNumber, seller, decision.Steps, $"{heard}{understood}\n\n{decision.Message}", ct);
+            return;
+        }
         _logger?.LogInformation("Voice note: download {DownloadMs} ms, vocabulary {VocabularyMs} ms, up to transcript {TranscribedMs} ms, understood {TotalMs} ms (audio {Bytes} bytes, transcript {Words} words, decision {Kind})",
             downloadMs, vocabularyMs, transcribedMs, voiceClock.ElapsedMilliseconds, media?.Bytes.Length ?? 0, text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length, decision.Kind);
         IReadOnlyList<string> steps = decision.Steps;
@@ -521,9 +534,20 @@ public partial class ConversationEngine
     {
         // An amount said with a number word we do not know ("ikhattar hazar") cannot be checked, and the rewrite may have dropped it: nothing runs.
         if (UnknownAmountDecision(transcript, steps) is { } unknownDecision) return unknownDecision;
-        if (WhyUnfaithful(transcript, string.Join("\n", steps), knownNumbers) is null) return TurnDecision.Execute(steps);
-        return StepsAreRisky(steps) ? TurnDecision.Reject(RejectedUnfaithful) : TurnDecision.Clarify(UnfaithfulQuestion);
+        if (WhyUnfaithful(transcript, string.Join("\n", steps), knownNumbers) is not { } why) return TurnDecision.Execute(steps);
+        // A doubt about one named number is said as such. Harmless steps wait for a YES (the seller sees what was understood);
+        // risky ones are still refused. Any other doubt (a refused item, a dropped condition, a hedge) keeps the plain "say it again".
+        var number = UncheckedNumber(why);
+        if (StepsAreRisky(steps))
+            return TurnDecision.Reject(number is null ? RejectedUnfaithful : MessageTemplates.Get("voice-confirm.013", number));
+        return number is null ? TurnDecision.Clarify(UnfaithfulQuestion) : TurnDecision.Confirm(steps, MessageTemplates.Get("voice-confirm.014", number));
     }
+
+    private static readonly Regex UncheckedNumberReason = new(@"^(?:spoken amount|amount|count) (\d+) (?:is missing|appears)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    /// <summary>The number a "missing" or "not said" guard reason is about; null for every other reason (including a number the seller refused).</summary>
+    private static string? UncheckedNumber(string reason) =>
+        UncheckedNumberReason.Match(reason) is { Success: true } m ? m.Groups[1].Value : null;
 
     /// <summary>The reply for a note with an amount word the bot cannot read; null when every amount word is known.</summary>
     private static TurnDecision? UnknownAmountDecision(string transcript, IReadOnlyList<string> steps)

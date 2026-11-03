@@ -93,6 +93,26 @@ public class TurnDecisionTests
     }
 
     [Fact]
+    public void HarmlessRewrite_WithAnAmountMissing_WaitsForYes_AndNamesTheAmount()
+    {
+        var decision = ConversationEngine.DecideRewrite("Lawn Suit teen hazaar paanch sau", new[] { "Lawn Suit - 3000" }, null);
+
+        Assert.Equal(DecisionKind.Confirm, decision.Kind);
+        Assert.Equal(new[] { "Lawn Suit - 3000" }, decision.Steps);
+        Assert.Contains("3500", decision.Message);
+    }
+
+    [Fact]
+    public void RiskyRewrite_WithAnAmountMissing_IsRefused_AndNamesTheAmount()
+    {
+        var decision = ConversationEngine.DecideRewrite("order 12 ka price teen hazaar paanch sau", new[] { "price 1 = 3000" }, new HashSet<long> { 12 });
+
+        Assert.Equal(DecisionKind.Reject, decision.Kind);
+        Assert.Empty(decision.Steps);
+        Assert.Contains("3500", decision.Message);
+    }
+
+    [Fact]
     public void UnfaithfulRewrite_ThatIsHarmless_AsksAgain()
     {
         var decision = ConversationEngine.DecideRewrite("teen nahi, do piece", new[] { "quantity 3" }, null);
