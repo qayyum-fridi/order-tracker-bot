@@ -559,6 +559,17 @@ public partial class ConversationEngine
     private Task ReplyAsync(Seller seller, string text, CancellationToken ct) =>
         _sender.SendTextMessageAsync(seller.WhatsAppPhoneNumber, text, ct);
 
+    private static readonly string[] YesNoButtons = { "Yes", "No" };
+
+    /// <summary>
+    /// A yes / no question the bot waits on: the same text with Yes / No tap buttons (a tap arrives as "Yes" / "No", which the confirmation handlers already read),
+    /// so a seller need not type or speak the answer. Typed and spoken answers still work; with buttons off (or a body too long for them) it is the plain text as before.
+    /// </summary>
+    private Task AskYesNoAsync(Seller seller, string text, CancellationToken ct) =>
+        _features.ConfirmButtons && text.Length <= MaxButtonBodyLength
+            ? _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, text, YesNoButtons, ct)
+            : ReplyAsync(seller, text, ct);
+
     private static void SetState(ConversationSession session, ConversationState state) => session.State = state;
 
     /// <summary>Records every outbound message in message_log (saved with the engine's next SaveChanges).</summary>
@@ -685,6 +696,13 @@ public sealed class FeatureOptions
 
     /// <summary>A short "listening" message the moment a voice note arrives, so a long transcription is not silent. Off = no extra message (unit tests).</summary>
     public bool VoiceAck { get; set; }
+
+    /// <summary>
+    /// Voice, idle seller: a small call first says what KIND of note it is. A chat remark is answered without asking the big rewrite to invent steps; a command goes to the
+    /// intent catalog (the model picks an action and fills slots, the engine builds the command, the amount guard still applies); an order or anything unclear goes to the
+    /// full rewrite as before. Off in code so existing tests keep their behaviour.
+    /// </summary>
+    public bool VoiceIntentFirst { get; set; }
 
     /// <summary>Log every message the bot could NOT understand (path, state and the seller's text) so the owner can see which real phrasings fail. The log holds seller text: keep it off if that is not acceptable. Off = nothing logged (unit tests).</summary>
     public bool TurnLog { get; set; }

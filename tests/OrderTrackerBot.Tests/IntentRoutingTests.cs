@@ -24,8 +24,9 @@ public class IntentRoutingTests : IDisposable
     {
         _sender.Setup(s => s.SendTextMessageAsync(Phone, It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .Callback<string, string, CancellationToken>((_, t, _) => _text.Add(t)).Returns(Task.CompletedTask);
+        // A question with tap buttons (reset: Yes / No) is still the question the seller reads, so its body counts as shown text.
         _sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+            .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, body, _, _) => _text.Add(body)).Returns(Task.CompletedTask);
         _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiMessageAnalysis { Intent = "unclear", AiUnavailable = true });
     }

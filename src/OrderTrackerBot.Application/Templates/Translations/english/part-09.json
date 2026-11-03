@@ -135,7 +135,7 @@
   "voice-confirm.005": "⚠️ The remaining steps that change money or an order were not run, because an order draft is open. Send them again with YES.",
   "voice-confirm.006": "⚠️ This statement was not understood, so it was not run: \"{0}\"",
   "voice-confirm.007": "⚠️ The amount was not heard clearly in the voice note, so this statement was not run: \"{0}\". Send it in writing with the amount.",
-  "voice-confirm.008": "⚠️ This statement was not clear in the voice note, so it was not run: \"{0}\". Send a short sentence in writing.",
+  "voice-confirm.008": "⚠️ Sorry, I could not understand this properly, so nothing was run: \"{0}\". Please say it again, or send a short sentence in writing.",
   "voice-confirm.009": "⚠️ This voice note was sent as a reply to an earlier voice note. The orders of the earlier note were not created again. If this is a change, first type \"undo\" (only the last action is undone), then send the new note.",
   "voice-confirm.010": "⚠️ The remaining steps of the earlier voice note did not run because they are out of date: {0}. Send again if needed.",
   "voice-confirm.013": "⚠️ Sorry, the amount {0} in your message did not match what was heard, so nothing was changed. Please send that amount in digits, or say it again slowly.",

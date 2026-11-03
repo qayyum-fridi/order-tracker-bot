@@ -1500,6 +1500,138 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task VoiceNote_YesNoAnswerInAnyWords_IsReadByMeaning_NotByTheRewrite()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(Order("Sara", "Kurti", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
+        // No yes word at all ("oye pakka kar de yaar"): only the meaning says it is a yes.
+        var voice = VoiceEngine(db, "oye pakka kar de yaar");
+        _ai.Setup(a => a.ClassifyYesNoAsync(It.IsAny<string>(), "oye pakka kar de yaar", It.IsAny<CancellationToken>())).ReturnsAsync("yes");
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        Assert.Equal(1, await db.Orders.CountAsync());
+        _ai.Verify(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task VoiceNote_YesNoQuestion_OtherAnswer_GoesOnToTheRewrite()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(Order("Sara", "Kurti", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
+        var voice = VoiceEngine(db, "pehle yeh batao ke delivery kab hogi");
+        _ai.Setup(a => a.ClassifyYesNoAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync("other");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "kya karun" } });
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        Assert.Equal(0, await db.Orders.CountAsync());
+        _ai.Verify(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task VoiceNote_RoutedCommandWithAnAmountThatWasNotSaid_IsNotRun_EvenWithoutIntentFirst()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        var voice = VoiceEngine(db, "petrol ka kharcha likh do");
+        // The rewrite gives no step, so the idle fallback asks the intent catalog; the model fills amount = 500, which was never said.
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation());
+        _ai.Setup(a => a.RouteIntentAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<OrderTrackerBot.Application.Intents.IntentDefinition>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OrderTrackerBot.Application.Intents.IntentRoute("expense.add", new Dictionary<string, string> { ["amount"] = "500", ["note"] = "petrol" }, 0.95));
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        Assert.Equal(0, await db.Expenses.CountAsync());
+    }
+
+    private static FeatureOptions IntentFirst(bool on = true) => new() { VoiceIntentFirst = on, ShortcutButtons = false };
+
+    [Fact]
+    public async Task VoiceIntentFirst_ChatRemark_IsNotGivenToTheRewrite()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        var voice = VoiceEngine(db, "aaj mausam bohat garam hai", features: IntentFirst());
+        _ai.Setup(a => a.ClassifyVoiceKindAsync("aaj mausam bohat garam hai", It.IsAny<CancellationToken>())).ReturnsAsync("chat");
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        _ai.Verify(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.Equal(0, await db.Orders.CountAsync());
+    }
+
+    [Fact]
+    public async Task VoiceIntentFirst_Command_GoesThroughTheIntentCatalog_NotTheRewrite()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        var voice = VoiceEngine(db, "paanch sau ka petrol kharcha", features: IntentFirst());
+        _ai.Setup(a => a.ClassifyVoiceKindAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync("command");
+        _ai.Setup(a => a.RouteIntentAsync("paanch sau ka petrol kharcha", It.IsAny<IReadOnlyList<OrderTrackerBot.Application.Intents.IntentDefinition>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OrderTrackerBot.Application.Intents.IntentRoute("expense.add", new Dictionary<string, string> { ["amount"] = "500", ["note"] = "petrol" }, 0.95));
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        Assert.Equal(1, await db.Expenses.CountAsync());
+        _ai.Verify(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task VoiceIntentFirst_CommandWithAnAmountThatWasNotSaid_IsNotRun()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        var voice = VoiceEngine(db, "petrol ka kharcha likh do", features: IntentFirst());
+        _ai.Setup(a => a.ClassifyVoiceKindAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync("command");
+        _ai.Setup(a => a.RouteIntentAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<OrderTrackerBot.Application.Intents.IntentDefinition>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new OrderTrackerBot.Application.Intents.IntentRoute("expense.add", new Dictionary<string, string> { ["amount"] = "500", ["note"] = "petrol" }, 0.95));
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        Assert.Equal(0, await db.Expenses.CountAsync()); // 500 was never spoken: the model made it up
+    }
+
+    [Theory]
+    [InlineData("order")]
+    [InlineData("other")]
+    [InlineData(null)]
+    public async Task VoiceIntentFirst_OrderOtherOrUnavailable_GoesToTheRewriteAsBefore(string? kind)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        var voice = VoiceEngine(db, "Ayesha ke liye do Kurti", features: IntentFirst());
+        _ai.Setup(a => a.ClassifyVoiceKindAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(kind);
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "catalog" } });
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        _ai.Verify(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task VoiceIntentFirst_Off_NeverAsksForTheKind()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        var voice = VoiceEngine(db, "aaj mausam bohat garam hai", features: IntentFirst(on: false));
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Question = "Aap kya chahte hain?" });
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
+
+        _ai.Verify(a => a.ClassifyVoiceKindAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task VoiceNote_SafeReads_RunWithoutConfirmation()
     {
         using var db = _dbFactory.CreateContext();

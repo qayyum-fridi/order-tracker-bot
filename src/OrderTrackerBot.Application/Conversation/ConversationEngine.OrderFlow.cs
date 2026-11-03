@@ -504,7 +504,7 @@ public partial class ConversationEngine
             pending.DuplicateOfOrderId = duplicate.Id;
             SetState(session, ConversationState.AwaitingDuplicateOrderConfirmation);
             var minutes = Math.Max(1, (int)(DateTime.UtcNow - duplicate.CreatedAt).TotalMinutes);
-            await ReplyAsync(seller,
+            await AskYesNoAsync(seller,
                 MessageTemplates.Get("order-flow.008", pending.CustomerName, minutes, duplicate.Id), ct);
             return;
         }

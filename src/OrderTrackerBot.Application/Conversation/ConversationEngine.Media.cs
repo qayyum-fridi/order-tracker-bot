@@ -151,8 +151,9 @@ public partial class ConversationEngine
             && await RouteIntentAsync(text, ct) is { } routed)
         {
             _droppedVoiceSteps.Clear();
+            // The routed command passes the same amount guard as a rewrite: a figure the seller never said must not be run (the model fills slots).
             decision = routed.Command is not null
-                ? TurnDecision.Execute(new[] { routed.Command })
+                ? DecideRewrite(text, new[] { routed.Command }, null)
                 : TurnDecision.Clarify(MessageTemplates.Get("intent.howto", routed.Help!));
         }
         if (decision.Kind != DecisionKind.Execute) LogNotUnderstood("voice-" + decision.Kind.ToString().ToLowerInvariant(), seller.Session!.State, text);
@@ -179,14 +180,14 @@ public partial class ConversationEngine
                 await _db.SaveChangesAsync(ct);
                 return;
             }
-            await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n❓ {decision.Message}", VoiceFallbackChoices.ToList(), ct);
+            await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n❓ {decision.Message}", VoiceFallbackFor(seller).ToList(), ct);
             await _db.SaveChangesAsync(ct);
             return;
         }
         if (decision.Kind == DecisionKind.Reject)
         {
             // Unsafe to run and not safe to offer as choices: say nothing changed. The taps are only safe reads (orders, menu), never an approval.
-            await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n{decision.Message}", VoiceFallbackChoices, ct);
+            await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n{decision.Message}", VoiceFallbackFor(seller), ct);
             await _db.SaveChangesAsync(ct);
             return;
         }
@@ -261,6 +262,19 @@ public partial class ConversationEngine
         new("menu", "menu"),
     };
 
+    /// <summary>While the bot still waits on a yes / no question (reset, cancel, ...), a refused voice note leaves that question open: the taps are Yes / No, not unrelated reads.</summary>
+    private static readonly ChoiceOption[] VoiceYesNoChoices =
+    {
+        new("Yes", "Yes"),
+        new("No", "No"),
+    };
+
+    internal static IReadOnlyList<ChoiceOption> VoiceFallbackFor(Seller seller)
+    {
+        var allowed = AllowedVoiceActions(seller, seller.Session!.State);
+        return allowed.Contains("yes") && allowed.Contains("no") ? VoiceYesNoChoices : VoiceFallbackChoices;
+    }
+
     /// <summary>Keeps the id of the last 20 voice notes handled, so a later reply to one of them is recognised.</summary>
     private async Task RememberVoiceNoteAsync(Seller seller, string messageId, CancellationToken ct)
     {
@@ -324,6 +338,48 @@ public partial class ConversationEngine
         return Regex.Split(transcript, @"[^\p{L}]+").Where(w => w.Length > 0).All(SmallTalkWords.Contains);
     }
 
+    private static readonly System.Text.RegularExpressions.Regex SpokenYesWords = new(
+        @"(?<![\p{L}\p{N}])(?:yes|yeah|yep|haan|han|hanji|ha|ji|jee|ok|okay|bilkul|ہاں|جی|بالکل)(?![\p{L}\p{N}])",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    private static readonly System.Text.RegularExpressions.Regex SpokenNoWords = new(
+        @"(?<![\p{L}\p{N}])(?:no|nope|nahi|nahin|nhi|nai|mat|cancel|stop|ruko|rukiye|نہیں|نہ|مت|رکو|رکیں|کینسل)(?![\p{L}\p{N}])",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>Most catalog names sent to the voice rewrite: a very large catalog made the prompt slow and let the model pick names that were not spoken.</summary>
+    internal const int VoiceCatalogLimit = 120;
+
+    /// <summary>
+    /// The catalog names the voice rewrite is shown. Up to <see cref="VoiceCatalogLimit"/> all of them (nothing changes for a normal shop); a larger catalog sends first
+    /// the names that share a word with the transcript, then the rest in their order. The model still maps a misheard word ("soor" for suit) to a name it is shown.
+    /// </summary>
+    internal static List<string> VoiceCatalogNames(IReadOnlyList<string> labels, string transcript)
+    {
+        if (labels.Count <= VoiceCatalogLimit) return labels.ToList();
+        var spoken = System.Text.RegularExpressions.Regex.Split(transcript.ToLowerInvariant(), @"[^\p{L}\p{N}]+")
+            .Where(w => w.Length >= 3).ToHashSet();
+        bool Shares(string label) => System.Text.RegularExpressions.Regex.Split(label.ToLowerInvariant(), @"[^\p{L}\p{N}]+").Any(spoken.Contains);
+        return labels.Where(Shares).Concat(labels.Where(l => !Shares(l))).Take(VoiceCatalogLimit).ToList();
+    }
+
+    /// <summary>
+    /// "yes" / "no" for a short spoken answer, while the question on screen is a yes / no one. Only when exactly one of the two is said, there is
+    /// no digit, no other command in it and it is at most 8 words; anything else is left to the rewrite.
+    /// </summary>
+    internal static string? SpokenYesNo(string transcript, IReadOnlyList<string> allowedActions)
+    {
+        if (!allowedActions.Contains("yes") || !allowedActions.Contains("no")) return null;
+        var text = transcript.Trim();
+        if (text.Length == 0 || text.Any(char.IsDigit)) return null;
+        var words = System.Text.RegularExpressions.Regex.Split(text, @"[\s,.!?،۔؟]+").Count(w => w.Length > 0);
+        if (words > 8) return null;
+        if (CommandParser.TryParse(text) is not null) return null;
+        var yes = SpokenYesWords.IsMatch(text);
+        var no = SpokenNoWords.IsMatch(text);
+        if (yes == no) return null;
+        // "nahi" sits in many sentences ("samajh nahi aa raha"): a NO is read only from a very short answer, since a wrong NO drops the draft.
+        return yes ? "yes" : words <= 3 ? "no" : null;
+    }
+
     private async Task<TurnDecision> InterpretVoiceAsync(Seller seller, string transcript, CancellationToken ct)
     {
         if (NumberedChoiceStates.Contains(seller.Session!.State) && SpokenNumbers.ChoiceNumber(transcript) is { } pick)
@@ -337,6 +393,31 @@ public partial class ConversationEngine
         // "setup mein abhi kya baqi hai?", "ab kya karna hai": a request for the next step is answered with the tip for the current step, as typed.
         if (CommandParser.IsGuidanceRequest(transcript))
             return TurnDecision.Execute(new[] { transcript });
+        // While the bot waits for yes / no, a short spoken answer with filler ("او بھائی میں نے ہاں بولا تھا") is the answer: no model call, so no model can turn it into something else.
+        var allowedNow = AllowedVoiceActions(seller, seller.Session!.State);
+        if (SpokenYesNo(transcript, allowedNow) is { } yesNo)
+            return TurnDecision.Execute(new[] { yesNo });
+        // The word rules above are only a fast path. For any other answer to a yes / no question, ask what it MEANS (any dialect, any filler): the model may
+        // answer only yes / no / other, so it cannot make up a step. "other" (a different request, or unclear) goes on to the normal rewrite.
+        if (allowedNow.Contains("yes") && allowedNow.Contains("no") && !transcript.Any(char.IsDigit) && transcript.Length <= 300)
+        {
+            var asked = await _db.MessageLogs.Where(m => m.Phone == seller.WhatsAppPhoneNumber && m.Direction == "outbound")
+                .OrderByDescending(m => m.Id).Select(m => m.RawText).FirstOrDefaultAsync(ct) ?? "";
+            var meaning = await _ai.ClassifyYesNoAsync(asked, transcript, ct);
+            _logger?.LogInformation("Voice yes/no: the model read the answer as {Meaning}", meaning ?? "unavailable");
+            if (meaning is "yes" or "no") return TurnDecision.Execute(new[] { meaning });
+        }
+        // Intent first (idle seller): the kind of note decides the narrowest step. The router and the amount guard are the ones the typed path already uses.
+        if (_features.VoiceIntentFirst && seller.OnboardingComplete && seller.Session!.State == ConversationState.Idle)
+        {
+            var kind = await _ai.ClassifyVoiceKindAsync(transcript, ct);
+            _logger?.LogInformation("Voice kind: the model read the note as {Kind}", kind ?? "unavailable");
+            if (kind == "chat") return TurnDecision.Clarify(MessageTemplates.Get("voice.smalltalk"));
+            if (kind == "command" && await RouteIntentAsync(transcript, ct) is { } routed)
+                return routed.Command is not null
+                    ? DecideRewrite(transcript, new[] { routed.Command }, null)
+                    : TurnDecision.Clarify(MessageTemplates.Get("intent.howto", routed.Help!));
+        }
         var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
         var catalog = await LoadCatalogAsync(seller, ct);
         var recent = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
@@ -364,7 +445,7 @@ public partial class ConversationEngine
                   $"never create a new order from it; return the steps \"edit order {fixId}\", then the edit lines (price 1 = 1500, qty 1 = 4, remove 2, delivery 250...), then \"done\"."
                 : ""),
             AllowedActions = AllowedVoiceActions(seller, seller.Session!.State).ToList(),
-            CatalogNames = catalog.Select(c => c.Label).ToList(),
+            CatalogNames = VoiceCatalogNames(catalog.Select(c => c.Label).ToList(), transcript),
             RecentOrders = recent.Select(DescribeOrderForVoice).ToList(),
             KnownCustomers = knownCustomers,
             RecentExchanges = exchanges
@@ -758,7 +839,7 @@ public partial class ConversationEngine
 
 
     /// <summary>English description of what the bot is waiting for, given to the AI so a spoken answer is read in context.</summary>
-    private static string DescribeVoiceSituation(Seller seller, SessionContextData ctx)
+    internal static string DescribeVoiceSituation(Seller seller, SessionContextData ctx)
     {
         var state = seller.Session!.State;
         var core = state switch
