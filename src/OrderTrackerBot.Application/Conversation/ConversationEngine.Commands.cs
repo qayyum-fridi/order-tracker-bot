@@ -933,8 +933,8 @@ public partial class ConversationEngine
     /// </summary>
     private async Task HandleNewProductsAsync(Seller seller, SessionContextData ctx, IReadOnlyList<AiNewProduct> products, string? sourceText, CancellationToken ct)
     {
-        // The model must not make up numbers (it likes to copy one from a similar catalog product): a price, cost or stock only counts when the
-        // seller wrote that number as digits, and an attribute only when its value appears in what they wrote.
+        // The model must not make up numbers (it likes to copy one from a similar catalog product): a price, cost or stock only counts when the seller said it
+        // (digits, number words, or words the model quotes that really are in the message: NumberHasSupport), and an attribute only when its value appears in what they wrote.
         // Cost / stock the model read but the seller never said: not saved, and said so instead of dropped without a word.
         var droppedNumbers = new List<(string Name, string What)>();
         if (sourceText is not null)
@@ -947,16 +947,20 @@ public partial class ConversationEngine
             foreach (var saidCount in SpokenNumbers.SmallCounts(sourceText)) written.Add(saidCount);
             products = products.Select(p =>
             {
-                if (p.Cost is { } nvCost0 && !written.Contains(nvCost0)) droppedNumbers.Add((p.Name, "cost"));
-                if (p.Stock is { } nvStock0 && !written.Contains(nvStock0)) droppedNumbers.Add((p.Name, "stock"));
-                // A range counts only when both ends were said and are in order; colours and sizes only when the word is in what was said.
-                var nvRangeOk = p.PriceLow is { } nvLow && p.PriceHigh is { } nvHigh && nvLow < nvHigh && written.Contains(nvLow) && written.Contains(nvHigh);
+                var nvCostOk = p.Cost is { } nvCost && NumberHasSupport(nvCost, p.CostWords, sourceText, written, isCount: false);
+                var nvStockOk = p.Stock is { } nvStock && NumberHasSupport(nvStock, p.StockWords, sourceText, written, isCount: true);
+                var nvPriceOk = p.Price is { } nvPrice && NumberHasSupport(nvPrice, p.PriceWords, sourceText, written, isCount: false);
+                if (p.Cost is not null && !nvCostOk) droppedNumbers.Add((p.Name, "cost"));
+                if (p.Stock is not null && !nvStockOk) droppedNumbers.Add((p.Name, "stock"));
+                // A range counts only when both ends are supported and in order; colours and sizes only when the word is in what was said.
+                var nvRangeOk = p.PriceLow is { } nvLow && p.PriceHigh is { } nvHigh && nvLow < nvHigh
+                    && NumberHasSupport(nvLow, p.PriceLowWords, sourceText, written, isCount: false) && NumberHasSupport(nvHigh, p.PriceHighWords, sourceText, written, isCount: false);
                 return new AiNewProduct
                 {
                     Name = p.Name,
-                    Price = p.Price is { } price && written.Contains(price) ? price : null,
-                    Cost = p.Cost is { } cost && written.Contains(cost) ? cost : null,
-                    Stock = p.Stock is { } stock && written.Contains(stock) ? stock : null,
+                    Price = nvPriceOk ? p.Price : null,
+                    Cost = nvCostOk ? p.Cost : null,
+                    Stock = nvStockOk ? p.Stock : null,
                     PriceLow = nvRangeOk ? p.PriceLow : null,
                     PriceHigh = nvRangeOk ? p.PriceHigh : null,
                     Colors = p.Colors.Where(v => sourceText.Contains(v, StringComparison.OrdinalIgnoreCase)).ToList(),
@@ -1101,6 +1105,27 @@ public partial class ConversationEngine
         return new ProductExtras(later.Cost ?? earlier.Cost, later.Stock ?? earlier.Stock, later.Category ?? earlier.Category, later.Size ?? earlier.Size,
             later.Color ?? earlier.Color, later.Sku ?? earlier.Sku, attributes.Count == 0 ? null : attributes,
             ColorList: later.ColorList ?? earlier.ColorList, SizeList: later.SizeList ?? earlier.SizeList);
+    }
+
+    /// <summary>
+    /// Whether a number the model read is the seller's own. It counts when it was said as digits or in words the number tables know (<paramref name="written"/>), or when the
+    /// model quotes the words it heard and those words really are in the message and do not name a different amount. The second way needs no word list: a spelling nobody
+    /// listed still works, while a number with no words to show (one made up or copied from the catalog) never does. A small count next to an unknown word ("paanch sarpe") is
+    /// not read as "5" for a price or cost, since the unknown word is exactly what a misheard "sau" looks like; for a stock count it is.
+    /// </summary>
+    private static bool NumberHasSupport(decimal value, string? words, string sourceText, ISet<decimal> written, bool isCount)
+    {
+        if (written.Contains(value)) return true;
+        if (string.IsNullOrWhiteSpace(words)) return false;
+        static string Squash(string text) => System.Text.RegularExpressions.Regex.Replace(text, @"[^\p{L}\p{N}]+", "").ToLowerInvariant();
+        var quote = Squash(words);
+        if (quote.Length < 2 || !Squash(sourceText).Contains(quote)) return false;
+        // The quote may not state another amount than the value.
+        var named = new HashSet<decimal>(System.Text.RegularExpressions.Regex.Matches(words.Replace(",", ""), @"\d+(?:\.\d+)?")
+            .Select(m => decimal.Parse(m.Value, System.Globalization.CultureInfo.InvariantCulture)));
+        foreach (var amount in SpokenNumbers.Amounts(words)) named.Add(amount);
+        if (isCount) foreach (var count in SpokenNumbers.SmallCounts(words)) named.Add(count);
+        return named.Count == 0 || named.Contains(value);
     }
 
     /// <summary>

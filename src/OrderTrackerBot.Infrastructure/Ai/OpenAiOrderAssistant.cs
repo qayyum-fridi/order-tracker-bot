@@ -87,7 +87,9 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "If the seller gives a price RANGE (\"X se Y tak\", \"between X and Y\") fill price_low and price_high and leave price null. If the seller names several colours or " +
             "sizes of the SAME product (variants), list them in colors / sizes, one entry each, instead of making several products. Voice notes are speech-to-text and contain " +
             "mistakes and filler words: write spoken numbers as digits, ignore filler, and never turn a word you cannot read into a number; copy product names, colours and sizes " +
-            "as the seller said them, in their own script; " +
+            "as the seller said them, in their own script. For every number you fill (price, cost_price, stock_qty, price_low, price_high) also copy into price_words, " +
+            "cost_words, stock_words, price_low_words, price_high_words the exact words from the seller's message that state that number, spelled and written exactly as in the " +
+            "message (a misspelt or odd word included), else null; never write words that are not in the message; " +
             "a number is never copied from the catalog), add_customer (the seller is saving a new buyer before any order, e.g. \"naya client hai Muhammad Ali, address Model Town Lahore, phone baad mein\": no items and no price, so set is_order_attempt=false and fill new_customer with name, phone (digits only, else null), address and city, null when not said), create_discount (the seller wants to make/add a discount code or offer, in any wording or just " +
             "describing it — \"naya discount banain\", \"ye ek naya discount hai jo product ke liye hoga\": not an order, not off_topic; set is_order_attempt=false), unclear. " +
             "For new_order put one entry per customer in orders (two different customers in one message = two entries). Quantity is the number " +
@@ -716,6 +718,11 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
                             && costPrice.TryGetDecimal(out var costValue) && costValue > 0 ? costValue : null,
                         Stock = p.TryGetProperty("stock_qty", out var stockQty) && stockQty.ValueKind == JsonValueKind.Number
                             && stockQty.TryGetInt32(out var stockValue) && stockValue >= 0 ? stockValue : null,
+                        PriceWords = GetNullableString(p, "price_words")?.Trim(),
+                        CostWords = GetNullableString(p, "cost_words")?.Trim(),
+                        StockWords = GetNullableString(p, "stock_words")?.Trim(),
+                        PriceLowWords = GetNullableString(p, "price_low_words")?.Trim(),
+                        PriceHighWords = GetNullableString(p, "price_high_words")?.Trim(),
                         PriceLow = PositiveDecimal(p, "price_low"),
                         PriceHigh = PositiveDecimal(p, "price_high"),
                         Colors = StringList(p, "colors"),
@@ -861,6 +868,11 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
                     ["price"] = new JsonObject { ["type"] = new JsonArray { "number", "null" } },
                     ["cost_price"] = new JsonObject { ["type"] = new JsonArray { "number", "null" } },
                     ["stock_qty"] = new JsonObject { ["type"] = new JsonArray { "integer", "null" } },
+                    ["price_words"] = NullableString(),
+                    ["cost_words"] = NullableString(),
+                    ["stock_words"] = NullableString(),
+                    ["price_low_words"] = NullableString(),
+                    ["price_high_words"] = NullableString(),
                     ["price_low"] = new JsonObject { ["type"] = new JsonArray { "number", "null" } },
                     ["price_high"] = new JsonObject { ["type"] = new JsonArray { "number", "null" } },
                     ["colors"] = new JsonObject { ["type"] = "array", ["items"] = new JsonObject { ["type"] = "string" } },

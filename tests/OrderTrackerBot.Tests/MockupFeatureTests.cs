@@ -1569,6 +1569,43 @@ public class MockupFeatureTests : IDisposable
         Assert.Contains(_sent, m => m.Contains("Muffler ki stock") && !m.Contains("9999"));
     }
 
+    [Fact]
+    public async Task NewProduct_NumberInAnUnlistedSpelling_IsBelieved_WhenTheModelQuotesWordsThatAreInTheMessage()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts = { new AiNewProduct { Name = "Coat", Price = 900, PriceWords = "nau sooo", Cost = 500, CostWords = "panch sarpe" } }
+        });
+
+        await engine.HandleIncomingMessageAsync(Phone, "mere paas naya product hai coat nau sooo ka, cost panch sarpe", default);
+
+        var coat = await db.Products.AsNoTracking().SingleAsync(p => p.Name == "Coat");
+        Assert.Equal((900m, 500m), (coat.Price, coat.CostPrice!.Value));
+    }
+
+    [Theory]
+    [InlineData("mere paas naya product hai coat ka", "nau sau")]            // the quoted words were never said
+    [InlineData("mere paas naya product hai coat 500 ka", "500 ka")]         // the quoted words name another amount than 900
+    [InlineData("mere paas naya product hai coat ka", null)]                 // no words to show
+    public async Task NewProduct_NumberWithNoRealWordsBehindIt_IsNotBelieved_AndThePriceIsAskedFor(string said, string? words)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts = { new AiNewProduct { Name = "Coat", Price = 900, PriceWords = words } }
+        });
+
+        await engine.HandleIncomingMessageAsync(Phone, said, default);
+
+        Assert.False(await db.Products.AnyAsync(p => p.Name == "Coat"));
+        Assert.Contains(_sent, m => m.Contains("Coat") && m.Contains("sale price bata dein"));
+    }
+
     [Theory]
     [InlineData("suit 5000", false)]
     [InlineData("suit 5000 bas ho gaya", true)]
