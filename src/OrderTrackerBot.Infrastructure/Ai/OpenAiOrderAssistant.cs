@@ -585,8 +585,43 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
     internal TimeSpan RetryDelay { get; set; } = TimeSpan.FromMilliseconds(400);
 
     /// <summary>A plain single-turn completion; null when AI is unavailable or fails (every caller has a non-AI fallback).</summary>
+    public async Task<AiPictureReading?> ReadPictureAsync(string kind, AiImageInput image, CancellationToken cancellationToken = default)
+    {
+        var fields = kind switch
+        {
+            "expense" => "a shop expense (a bill, receipt or note of money spent). Return {\"amount\": the total paid as a number or null, \"note\": what it was for in at most 6 words, Latin script, or null}.",
+            "wages" => "a wage or salary (a slip, register page or note of pay to a worker). Return {\"name\": the worker's name or null, \"amount\": the amount paid as a number or null}.",
+            "customer" => "a customer's details (a visiting card, a chat or a written note). Return {\"name\": the customer's name or null, \"phone\": digits only or null, \"address\": street/area or null, \"city\": the city or null}.",
+            _ => null
+        };
+        if (fields is null) return null;
+        var dataUrl = $"data:{image.MimeType};base64,{Convert.ToBase64String(image.Bytes)}";
+        var content = new JsonArray
+        {
+            new JsonObject { ["type"] = "text", ["text"] = string.IsNullOrWhiteSpace(image.Caption) ? "Read this picture." : $"The seller's own words about it: {image.Caption}" },
+            new JsonObject { ["type"] = "image_url", ["image_url"] = new JsonObject { ["url"] = dataUrl } }
+        };
+        var json = await CompleteTextAsync(
+            "The owner of a small Pakistani shop sent a picture and said it is " + fields + " Read only what is written or printed; never invent or guess a value, use null when it is not " +
+            "clearly there. Amounts are in Pakistani rupees, digits only. When the seller's own words state a value (an amount, a name), that value wins over the picture. Return ONLY that JSON object.",
+            "", 0, "picture reading", cancellationToken, jsonMode: true, model: null, userContent: content);
+        if (json is null) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            string? Text(string name) => root.TryGetProperty(name, out var p) && p.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(p.GetString()) ? p.GetString()!.Trim() : null;
+            decimal? amount = root.TryGetProperty("amount", out var a) && a.ValueKind == JsonValueKind.Number && a.TryGetDecimal(out var d) && d > 0 ? d : null;
+            return new AiPictureReading { Name = Text("name"), Amount = amount, Note = Text("note"), Phone = Text("phone"), Address = Text("address"), City = Text("city") };
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     private async Task<string?> CompleteTextAsync(string systemPrompt, string userText, double temperature, string purpose,
-        CancellationToken cancellationToken, bool jsonMode = false, string? model = null)
+        CancellationToken cancellationToken, bool jsonMode = false, string? model = null, JsonNode? userContent = null)
     {
         if (string.IsNullOrWhiteSpace(_options.ApiKey)) return null;
 
@@ -599,7 +634,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
                 ["messages"] = new JsonArray
                 {
                     new JsonObject { ["role"] = "system", ["content"] = systemPrompt },
-                    new JsonObject { ["role"] = "user", ["content"] = userText }
+                    new JsonObject { ["role"] = "user", ["content"] = userContent ?? JsonValue.Create(userText) }
                 }
             };
             if (jsonMode) requestBody["response_format"] = new JsonObject { ["type"] = "json_object" };

@@ -513,6 +513,10 @@ public partial class ConversationEngine
         // A plain read-only command ("orders today", "menu") needs no rewrite: it runs as spoken, the same as a typed one.
         if (CommandParser.TryParse(transcript) is { } readOnly && ReadOnlyVoiceCommands.Contains(readOnly.Kind))
             return TurnDecision.Execute(new[] { transcript });
+        // A spoken "yeh expense hai" right after a picture is the label for it: it runs as typed, exactly like the typed word, with no rewrite to mishear it.
+        if (SessionContextData.FromJson(seller.Session!.ContextJson) is { PendingPictureMediaId: not null } pictureCtx && pictureCtx.PendingPictureAt is not null
+            && PictureLabels.TryParseReply(transcript, out _))
+            return TurnDecision.Execute(new[] { transcript });
         if (CanRunVoiceAsTyped(seller.Session!.State, transcript))
             return TurnDecision.Execute(new[] { transcript });
         // "setup mein abhi kya baqi hai?", "ab kya karna hai": a request for the next step is answered with the tip for the current step, as typed.
@@ -1051,9 +1055,23 @@ public partial class ConversationEngine
             return;
         }
 
+        // A caption naming the type (expense, wages, customer, other) says what the picture is: read it for that type only. "order" continues below.
+        if (PictureLabels.TryParseCaption(caption, out var pictureKind, out var pictureNote) && pictureKind != PictureLabels.Order)
+        {
+            ctx.PendingPictureMediaId = null;
+            ctx.PendingPictureAt = null;
+            await ApplyPictureLabelAsync(seller, session, ctx, pictureKind, pictureNote, media.Value, ct);
+            await PersistAsync(session, ctx, ct);
+            return;
+        }
+
         // A screenshot starts fresh: any half-finished draft/prompt is dropped.
         ResetFlowContext(ctx);
         SetState(session, ConversationState.Idle);
+        // Without a type word the picture is read as an order or a payment receipt as before, and remembered for a few minutes:
+        // a following "expense" / "wages" / "customer" message (typed or spoken) then labels it.
+        ctx.PendingPictureMediaId = mediaId;
+        ctx.PendingPictureAt = _clock.GetUtcNow().UtcDateTime;
 
         var catalog = await LoadCatalogAsync(seller, ct);
         var analysis = await _ai.AnalyzeImageAsync(AiContext(seller, catalog), new AiImageInput(media.Value.Bytes, media.Value.MimeType, caption), ct);

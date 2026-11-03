@@ -203,6 +203,9 @@ public sealed class SessionContextData
     public int LastVoiceNoteEndLogId { get; set; }
     /// <summary>WhatsApp id of that voice note, so a reply to it can be read as a correction of the order it made.</summary>
     public string? LastVoiceNoteMessageId { get; set; }
+    /// <summary>The last picture sent without a type word, and when (UTC): a following "expense" / "wages" / "customer" message labels it.</summary>
+    public string? PendingPictureMediaId { get; set; }
+    public DateTime? PendingPictureAt { get; set; }
     /// <summary>SHA-256 of the audio of the last voice note that made actions, and of the latest notes that did (newest last).</summary>
     public string? LastVoiceNoteHash { get; set; }
     public List<string>? ProcessedVoiceHashes { get; set; }

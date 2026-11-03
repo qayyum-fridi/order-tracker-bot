@@ -132,12 +132,29 @@ public sealed class AiPaymentReceipt
 
 public sealed record AiImageInput(byte[] Bytes, string MimeType, string? Caption);
 
+/// <summary>What was read off a picture once its type is known. Only the fields of that type are filled: expense = Amount + Note, wages = Name + Amount, customer = Name + Phone + Address + City.</summary>
+public sealed class AiPictureReading
+{
+    public string? Name { get; set; }
+    public decimal? Amount { get; set; }
+    public string? Note { get; set; }
+    public string? Phone { get; set; }
+    public string? Address { get; set; }
+    public string? City { get; set; }
+}
+
 public interface IAiOrderAssistant
 {
     Task<AiMessageAnalysis> AnalyzeMessageAsync(AiAnalysisContext context, string message, CancellationToken cancellationToken = default);
 
     /// <summary>Same analysis for a forwarded screenshot (Instagram/TikTok DM order, or a payment receipt).</summary>
     Task<AiMessageAnalysis> AnalyzeImageAsync(AiAnalysisContext context, AiImageInput image, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads a picture the seller labelled as <paramref name="kind"/> ("expense", "wages" or "customer") for that type's fields only; the seller's own words
+    /// (<see cref="AiImageInput.Caption"/>) win over the picture. Null when AI is unavailable or nothing could be read.
+    /// </summary>
+    Task<AiPictureReading?> ReadPictureAsync(string kind, AiImageInput image, CancellationToken cancellationToken = default) => Task.FromResult<AiPictureReading?>(null);
 
     /// <summary>Classifies an IG comment. Returns null when AI is unavailable — callers fall back to keyword rules.</summary>
     Task<AiCommentClassification?> ClassifyCommentAsync(string businessName, string commentText, CancellationToken cancellationToken = default);

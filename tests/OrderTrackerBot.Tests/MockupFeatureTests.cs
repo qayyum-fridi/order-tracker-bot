@@ -726,6 +726,95 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Theory]
+    [InlineData("expense", "expense")]
+    [InlineData("yeh kharcha hai", "expense")]
+    [InlineData("mark as wages", "wages")]
+    [InlineData("تنخواہ", "wages")]
+    [InlineData("this is a customer", "customer")]
+    [InlineData("order", "order")]
+    [InlineData("other", "other")]
+    public void PictureLabel_IsReadFromAShortReply(string message, string kind)
+    {
+        Assert.True(PictureLabels.TryParseReply(message, out var found));
+        Assert.Equal(kind, found);
+    }
+
+    [Theory]
+    [InlineData("expense 500 petrol")]      // a real command, not a label
+    [InlineData("orders today")]
+    [InlineData("haan")]
+    [InlineData("")]
+    public void PictureLabel_IsNotAnythingElse(string message)
+    {
+        Assert.False(PictureLabels.TryParseReply(message, out _));
+    }
+
+    [Fact]
+    public void PictureStep_IsBuiltOnlyFromWhatWasRead_AndParsesAsTheRightCommand()
+    {
+        Assert.Equal("expense 800 petrol", ConversationEngine.BuildPictureStep("expense", new AiPictureReading { Amount = 800, Note = "petrol" }, ""));
+        Assert.Equal("wages Ali 5000", ConversationEngine.BuildPictureStep("wages", new AiPictureReading { Name = "Ali", Amount = 5000 }, ""));
+        Assert.Equal("customer add Sara, Model Town Lahore, 03001234567",
+            ConversationEngine.BuildPictureStep("customer", new AiPictureReading { Name = "Sara", Address = "Model Town", City = "Lahore", Phone = "0300-1234567" }, ""));
+        Assert.Null(ConversationEngine.BuildPictureStep("expense", new AiPictureReading { Note = "petrol" }, ""));   // no amount: never guessed
+        Assert.Null(ConversationEngine.BuildPictureStep("wages", new AiPictureReading { Amount = 5000 }, ""));        // no name
+        Assert.Null(ConversationEngine.BuildPictureStep("expense", null, ""));
+    }
+
+    [Fact]
+    public async Task Picture_WithAnExpenseCaption_IsReadAsAnExpense_AndSavedAfterYes()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        _media.Setup(m => m.DownloadAsync("pic-1", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[3000], "image/jpeg"));
+        _ai.Setup(a => a.ReadPictureAsync("expense", It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiPictureReading { Amount = 800, Note = "petrol" });
+        var withMedia = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object);
+        _sent.Clear();
+
+        await withMedia.HandleImageMessageAsync(Phone, "pic-1", "expense");
+
+        Assert.Contains(_sent, m => m.Contains("expense 800 petrol") && m.Contains("YES"));
+        Assert.Equal(0, await db.Expenses.CountAsync());                 // nothing saved before YES
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        Assert.Equal(1, await db.Expenses.CountAsync());
+    }
+
+    [Fact]
+    public async Task Picture_WithoutACaption_IsLabelledByTheNextMessage()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        _media.Setup(m => m.DownloadAsync("pic-2", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[3000], "image/jpeg"));
+        _ai.Setup(a => a.AnalyzeImageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "unclear" });
+        _ai.Setup(a => a.ReadPictureAsync("wages", It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiPictureReading { Name = "Ali", Amount = 5000 });
+        var withMedia = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object);
+
+        await withMedia.HandleImageMessageAsync(Phone, "pic-2", null);
+        _sent.Clear();
+        await withMedia.HandleIncomingMessageAsync(Phone, "yeh wages hai", default);
+
+        Assert.Contains(_sent, m => m.Contains("wages Ali 5000") && m.Contains("YES"));
+    }
+
+    [Fact]
+    public async Task Picture_LabelledOther_SavesNothing()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        _media.Setup(m => m.DownloadAsync("pic-3", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[3000], "image/jpeg"));
+        var withMedia = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object);
+        _sent.Clear();
+
+        await withMedia.HandleImageMessageAsync(Phone, "pic-3", "other");
+
+        Assert.Contains(_sent, m => m.Contains("kuch save nahi kiya"));
+        _ai.Verify(a => a.ReadPictureAsync(It.IsAny<string>(), It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
     [InlineData(true, "ikhatar hazar")]    // second model reads every amount word: its text is the note
     [InlineData(false, "ekhatarr hazar")]  // second model has the same problem: the first text stays
     public async Task VoiceNote_UnreadableAmountWord_GetsASecondOpinion(bool secondReadsCleanly, string expectedEcho)

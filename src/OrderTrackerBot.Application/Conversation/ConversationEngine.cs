@@ -264,6 +264,22 @@ public partial class ConversationEngine
             return;
         }
 
+        // A picture sent without a type word leaves the bot idle or asking "what is this?" (the clarification state): a type word right after it labels the picture.
+        if (ctx.PendingPictureMediaId is not null && session.State is ConversationState.Idle or ConversationState.AwaitingClarificationChoice
+            && PictureLabels.TryParseReply(message, out _))
+        {
+            if (session.State == ConversationState.AwaitingClarificationChoice)
+            {
+                ctx.ClarificationOptions = null;
+                SetState(session, ConversationState.Idle);
+            }
+            if (await TryHandlePictureLabelAsync(seller, session, ctx, message, ct))
+            {
+                await PersistAsync(session, ctx, ct);
+                return;
+            }
+        }
+
         if (await TryRouteMidFlowReplyAsync(seller, session, ctx, message, ct))
         {
             await PersistAsync(session, ctx, ct);
@@ -442,6 +458,7 @@ public partial class ConversationEngine
             return;
         }
 
+        if (await TryHandlePictureLabelAsync(seller, session, ctx, message, ct)) return;
         if (await TryHandleOrderForCustomerItemsAsync(seller, session, ctx, message, ct)) return;
         if (await TryHandleItemsOnlyAsync(seller, session, ctx, message, ct)) return;
 
