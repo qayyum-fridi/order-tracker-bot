@@ -1,4 +1,5 @@
 using OrderTrackerBot.Application.Conversation;
+using OrderTrackerBot.Domain.Enums;
 using Xunit;
 
 namespace OrderTrackerBot.Tests;
@@ -106,6 +107,23 @@ public class TurnDecisionTests
         var decision = ConversationEngine.DecideRewrite("شاید آرڈر 12 کینسل کر دوں", new[] { "cancel order 12" }, new HashSet<long> { 12 });
 
         Assert.Equal(DecisionKind.Reject, decision.Kind);
+    }
+
+    [Theory]
+    [InlineData(ConversationState.Idle, "stock Kurti 20", true)]
+    [InlineData(ConversationState.Idle, "expense 500 petrol", true)]
+    [InlineData(ConversationState.Idle, "delivery 250", false)]
+    [InlineData(ConversationState.AwaitingOrderConfirmation, "haan", true)]
+    [InlineData(ConversationState.AwaitingCancelConfirmation, "nahi", true)]
+    [InlineData(ConversationState.Idle, "haan", false)]
+    [InlineData(ConversationState.AwaitingOrderConfirmation, "haan lekin delivery 300", false)]
+    [InlineData(ConversationState.Idle, "cancel 12", false)]
+    [InlineData(ConversationState.Idle, "expense 500 petrol nahi", false)]
+    [InlineData(ConversationState.Idle, "stock Kurti bees", false)]
+    [InlineData(ConversationState.Idle, "shayad stock Kurti 20", false)]
+    public void PlainSpokenCommands_SkipTheRewrite_OthersDoNot(ConversationState state, string transcript, bool skips)
+    {
+        Assert.Equal(skips, ConversationEngine.CanRunVoiceAsTyped(state, transcript));
     }
 
     [Fact]

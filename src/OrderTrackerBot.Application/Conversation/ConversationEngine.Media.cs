@@ -351,6 +351,38 @@ public partial class ConversationEngine
         CommandKind.Help, CommandKind.Menu, CommandKind.OrdersToday, CommandKind.PendingOrders, CommandKind.TodaysSummary, CommandKind.Catalog, CommandKind.UnpaidOrders,
     };
 
+    // Plain, non-risky commands whose typed form is the whole instruction: spoken as digits and a clear sentence, the transcript runs as typed (no rewrite call).
+    private static readonly HashSet<CommandKind> DirectVoiceCommands = new()
+    {
+        CommandKind.Stock, CommandKind.Expense, CommandKind.ExpenseList, CommandKind.MonthlyNet,
+        CommandKind.Profit, CommandKind.DiscountList, CommandKind.OrderDetail, CommandKind.MarkStatus,
+    };
+
+    // States that wait for a yes or no: a bare spoken yes / no there needs no rewrite.
+    private static readonly HashSet<ConversationState> YesNoVoiceStates = new()
+    {
+        ConversationState.AwaitingOrderConfirmation, ConversationState.AwaitingCancelConfirmation, ConversationState.AwaitingBulkStatusConfirmation,
+        ConversationState.AwaitingDuplicateOrderConfirmation, ConversationState.AwaitingCodCollectedConfirmation, ConversationState.AwaitingResetConfirmation,
+        ConversationState.AwaitingDeleteCustomerConfirmation, ConversationState.AwaitingLoyaltyDiscountConfirmation, ConversationState.AwaitingMultiOrderConfirmation,
+        ConversationState.AwaitingSupportReplyConfirmation, ConversationState.AwaitingImportConfirmation, ConversationState.AwaitingVoiceConfirmation,
+    };
+
+    /// <summary>
+    /// True when a transcript can run exactly as typed, skipping the AI rewrite: a short sentence with no hedge, reversal, spoken or retracted amount, that is a bare
+    /// yes / no for a state waiting on one, or parses as a plain non-risky command (stock Kurti 20, expense 500 petrol, delivery 250). Anything else is rewritten.
+    /// </summary>
+    internal static bool CanRunVoiceAsTyped(ConversationState state, string transcript)
+    {
+        var text = transcript.Trim().Trim('.', '!', '?', '،', '۔', ' ');
+        if (text.Length == 0 || text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length > 8) return false;
+        if (YesNoVoiceStates.Contains(state) && (CommandParser.IsAffirmative(text) || CommandParser.IsNegative(text))) return true;
+        if (ReversalWord.IsMatch(text) || HedgeWord.IsMatch(text)) return false;
+        if (SpokenNumbers.WordAmounts(text).Count > 0 || SpokenNumbers.UnknownAmountWords(text).Count > 0
+            || SpokenNumbers.RetractedAmounts(text).Count > 0 || SpokenNumbers.NegatedAmounts(text).Count > 0) return false;
+        if (TurnGate.DecideTyped(text).Kind != DecisionKind.Execute || ActionRisk.IsRiskyStep(text)) return false;
+        return CommandParser.TryParse(text) is { } command && DirectVoiceCommands.Contains(command.Kind);
+    }
+
     private static readonly HashSet<string> SmallTalkWords = new(StringComparer.OrdinalIgnoreCase)
     {
         "hello", "hi", "hey", "salam", "assalam", "alaikum", "bhai", "bhaiya", "kya", "hogaya", "hua", "kaise", "kaisay", "kaisi", "ho",
@@ -415,6 +447,8 @@ public partial class ConversationEngine
             return TurnDecision.Clarify(MessageTemplates.Get("voice.smalltalk"));
         // A plain read-only command ("orders today", "menu") needs no rewrite: it runs as spoken, the same as a typed one.
         if (CommandParser.TryParse(transcript) is { } readOnly && ReadOnlyVoiceCommands.Contains(readOnly.Kind))
+            return TurnDecision.Execute(new[] { transcript });
+        if (CanRunVoiceAsTyped(seller.Session!.State, transcript))
             return TurnDecision.Execute(new[] { transcript });
         // "setup mein abhi kya baqi hai?", "ab kya karna hai": a request for the next step is answered with the tip for the current step, as typed.
         if (CommandParser.IsGuidanceRequest(transcript))
