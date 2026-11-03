@@ -212,7 +212,7 @@ public interface IAiOrderAssistant
     /// The bot asked a yes / no question (<paramref name="situation"/>) and the reply is not one of the plain yes / no words: does it say yes, no, or neither? The model also
     /// quotes the exact words of the reply that say so; the engine only acts when that quote really is in the message. Null = unknown / no AI.
     /// </summary>
-    Task<AiYesNoReading?> ClassifyYesNoAsync(string situation, string message, CancellationToken cancellationToken = default) => Task.FromResult<AiYesNoReading?>(null);
+    Task<AiYesNoReading?> ReadYesNoWithQuoteAsync(string situation, string message, CancellationToken cancellationToken = default) => Task.FromResult<AiYesNoReading?>(null);
 
     /// <summary>A seller once taught that <paramref name="taughtPhrase"/> means a command; they now wrote <paramref name="newPhrase"/>. Do both ask for the same thing? <c>null</c> = unknown / no AI.</summary>
     Task<bool?> ConfirmSamePhraseAsync(string taughtPhrase, string newPhrase, CancellationToken cancellationToken = default) => Task.FromResult<bool?>(null);

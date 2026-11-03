@@ -1678,7 +1678,7 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await DraftWaitingForYesAsync(db, dynamicAnswers: true);
-        _ai.Setup(a => a.ClassifyYesNoAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _ai.Setup(a => a.ReadYesNoWithQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiYesNoReading { Answer = "yes", Quote = "bilkul sahi" });
 
         await engine.HandleIncomingMessageAsync(Phone, "jee bilkul sahi hai", default);
@@ -1694,7 +1694,7 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await DraftWaitingForYesAsync(db, dynamicAnswers: true);
-        _ai.Setup(a => a.ClassifyYesNoAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _ai.Setup(a => a.ReadYesNoWithQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiYesNoReading { Answer = answer, Quote = quote });
 
         await engine.HandleIncomingMessageAsync(Phone, "jee bilkul sahi hai", default);
@@ -1707,13 +1707,13 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await DraftWaitingForYesAsync(db, dynamicAnswers: false);
-        _ai.Setup(a => a.ClassifyYesNoAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _ai.Setup(a => a.ReadYesNoWithQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiYesNoReading { Answer = "yes", Quote = "bilkul sahi" });
 
         await engine.HandleIncomingMessageAsync(Phone, "jee bilkul sahi hai", default);
 
         Assert.Equal(0, await db.Orders.CountAsync());
-        _ai.Verify(a => a.ClassifyYesNoAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _ai.Verify(a => a.ReadYesNoWithQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -1722,14 +1722,14 @@ public class MockupFeatureTests : IDisposable
         using var db = _dbFactory.CreateContext();
         var engine = await DraftWaitingForYesAsync(db, dynamicAnswers: true);
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);          // order #1 saved
-        _ai.Setup(a => a.ClassifyYesNoAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _ai.Setup(a => a.ReadYesNoWithQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiYesNoReading { Answer = "yes", Quote = "bilkul sahi" });
         await engine.HandleIncomingMessageAsync(Phone, "cancel 1", default);     // asks to confirm the cancel
 
         await engine.HandleIncomingMessageAsync(Phone, "jee bilkul sahi hai", default);
 
         Assert.NotEqual(OrderStatus.Cancelled, (await db.Orders.AsNoTracking().SingleAsync()).Status);
-        _ai.Verify(a => a.ClassifyYesNoAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _ai.Verify(a => a.ReadYesNoWithQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Theory]

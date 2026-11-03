@@ -27,7 +27,7 @@ public partial class ConversationEngine
             || Array.IndexOf(ConfirmButtonLabels, text) >= 0 || CommandParser.TryParse(text) is not null || HedgeWord.IsMatch(text))
             return null;
 
-        var reading = await _ai.ClassifyYesNoAsync(DescribeVoiceSituation(seller, ctx), text, ct);
+        var reading = await _ai.ReadYesNoWithQuoteAsync(DescribeVoiceSituation(seller, ctx), text, ct);
         if (reading is not { Answer: "yes" or "no" } || !QuoteIsInMessage(reading.Quote, text)) return null;
         _logger?.LogInformation("Dynamic answer read: {Answer} in {State}", reading.Answer, session.State);
         return reading.Answer;

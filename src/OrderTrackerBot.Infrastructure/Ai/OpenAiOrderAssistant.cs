@@ -241,7 +241,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         }
     }
 
-    public async Task<AiYesNoReading?> ClassifyYesNoAsync(string situation, string message, CancellationToken cancellationToken = default)
+    public async Task<AiYesNoReading?> ReadYesNoWithQuoteAsync(string situation, string message, CancellationToken cancellationToken = default)
     {
         var json = await CompleteTextAsync(
             "A WhatsApp order-tracking bot for a small shop owner (the seller) asked the seller a yes / no question. The reply may be in Roman Urdu, Urdu script or English, in any wording or spelling. " +
