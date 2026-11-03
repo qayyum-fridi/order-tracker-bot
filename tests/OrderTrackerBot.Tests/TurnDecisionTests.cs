@@ -39,13 +39,13 @@ public class TurnDecisionTests
     }
 
     [Fact]
-    public void UnfaithfulRewrite_ThatWouldChangePrice_IsRefused_NotOfferedAsChoices()
+    public void UnfaithfulRewrite_ThatWouldChangePrice_IsShownForConfirmation_NeverRun()
     {
         var decision = ConversationEngine.DecideRewrite("Panj hazaar ton ghatt rakhna", new[] { "price 5000" }, null);
 
-        Assert.Equal(DecisionKind.Reject, decision.Kind);
-        Assert.Empty(decision.Steps);
-        Assert.Null(decision.Options);
+        // the exact command is proposed and waits for a tap; nothing runs by itself
+        Assert.Equal(DecisionKind.Confirm, decision.Kind);
+        Assert.Equal(new[] { "price 5000" }, decision.Steps);
     }
 
     [Theory]
@@ -265,12 +265,12 @@ public class TurnDecisionTests
     }
 
     [Fact]
-    public void RiskyRewrite_WithAnAmountMissing_IsRefused_AndNamesTheAmount()
+    public void RiskyRewrite_WithAnAmountMissing_IsShownForConfirmation_AndNamesTheAmount()
     {
         var decision = ConversationEngine.DecideRewrite("order 12 ka price teen hazaar paanch sau", new[] { "price 1 = 3000" }, new HashSet<long> { 12 });
 
-        Assert.Equal(DecisionKind.Reject, decision.Kind);
-        Assert.Empty(decision.Steps);
+        Assert.Equal(DecisionKind.Confirm, decision.Kind);
+        Assert.Equal(new[] { "price 1 = 3000" }, decision.Steps);
         Assert.Contains("3500", decision.Message);
     }
 

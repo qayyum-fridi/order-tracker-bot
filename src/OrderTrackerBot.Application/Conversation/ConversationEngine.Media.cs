@@ -651,7 +651,7 @@ public partial class ConversationEngine
                 var whole = DecideRewrite(transcript, CorrectMarginQuestion(transcript, CorrectAccountReset(transcript, steps)), known);
                 // The model picks the spans, so the fallback never trusts them alone: it is closed to a refused (risky) note, to any risky step, and to a
                 // transcript with a hedge, a taken-back or refused amount or an unreadable amount word, all of which the whole-note gate sees and a span can hide.
-                if (whole.Kind == DecisionKind.Clarify && steps.Count == result.Spans.Count
+                if (whole.Kind is DecisionKind.Clarify or DecisionKind.Confirm && steps.Count == result.Spans.Count
                     && !HedgeWord.IsMatch(transcript)
                     && SpokenNumbers.RetractedAmounts(transcript).Count == 0 && SpokenNumbers.NegatedAmounts(transcript).Count == 0
                     && SpokenNumbers.UnknownAmountWords(transcript).Count == 0
@@ -852,10 +852,14 @@ public partial class ConversationEngine
         if (WhyUnfaithful(transcript, string.Join("\n", steps), knownNumbers) is not { } why) return TurnDecision.Execute(steps);
         // A doubt about one named number is said as such. Harmless steps wait for a YES (the seller sees what was understood);
         // risky ones are still refused. Any other doubt (a refused item, a dropped condition, a hedge) keeps the plain "say it again".
+        // Where the bot has a best guess, it shows it and asks for one tap ("sahi hai?") instead of making the seller say everything again; the button names the
+        // amount or order, so the seller approves the exact command. Two doubts stay a plain "say it again": a rewrite that is empty or a paragraph, and a value the
+        // seller explicitly refused ("teen nahi, do"), which must never come back as the proposal.
+        // A hedged risky step ("shayad order 12 cancel kar dun") is also refused: a hesitant seller must not be nudged into a cancel by a button.
+        if (why is "empty rewrite" or "rewrite too long" || why.Contains("was refused") || (HedgeWord.IsMatch(transcript) && StepsAreRisky(steps)))
+            return StepsAreRisky(steps) ? TurnDecision.Reject(RejectedUnfaithful) : TurnDecision.Clarify(UnfaithfulQuestion);
         var number = UncheckedNumber(why);
-        if (StepsAreRisky(steps))
-            return TurnDecision.Reject(number is null ? RejectedUnfaithful : MessageTemplates.Get("voice-confirm.013", number));
-        return number is null ? TurnDecision.Clarify(UnfaithfulQuestion) : TurnDecision.Confirm(steps, MessageTemplates.Get("voice-confirm.014", number));
+        return TurnDecision.Confirm(steps, number is null ? MessageTemplates.Get("voice-confirm.030") : MessageTemplates.Get("voice-confirm.014", number));
     }
 
     private static readonly Regex UncheckedNumberReason = new(@"^(?:spoken amount|amount|count) (\d+) (?:is missing|appears)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
