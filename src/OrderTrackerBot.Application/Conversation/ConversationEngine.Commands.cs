@@ -939,6 +939,10 @@ public partial class ConversationEngine
         {
             var written = System.Text.RegularExpressions.Regex.Matches(sourceText.Replace(",", ""), @"\d+(?:\.\d+)?")
                 .Select(m => decimal.Parse(m.Value, System.Globalization.CultureInfo.InvariantCulture)).ToHashSet();
+            // A number the seller SAID in words ("paintees piece", "barah sau", "سترہ سو") is as much theirs as one written in digits; a voice note is
+            // always words. Only numbers present in what they said count, so the model still cannot bring one in from a similar catalog product.
+            foreach (var spoken in SpokenNumbers.Amounts(sourceText)) written.Add(spoken);
+            foreach (var count in SpokenNumbers.SmallCounts(sourceText)) written.Add(count);
             products = products.Select(p => new AiNewProduct
             {
                 Name = p.Name,
