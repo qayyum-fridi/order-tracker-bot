@@ -934,6 +934,45 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task PriceListPicture_BecomesProductLines_AndIsSavedAfterYes()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        _media.Setup(m => m.DownloadAsync("pic-list", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[3000], "image/jpeg"));
+        _ai.Setup(a => a.ReadPictureAsync("products", It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiPictureReading
+            {
+                Products =
+                {
+                    new AiPictureProduct { Name = "Raw Silk Suit", Price = 3500, Cost = 2400 },
+                    new AiPictureProduct { Name = "Pashmina Shawl", Price = 800 },
+                    new AiPictureProduct { Name = "Unclear item", Price = null },   // no readable price: left out
+                }
+            });
+        var withMedia = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object);
+        var before = await db.Products.CountAsync();
+        _sent.Clear();
+
+        await withMedia.HandleImageMessageAsync(Phone, "pic-list", "products");
+
+        Assert.Contains(_sent, m => m.Contains("Raw Silk Suit - 3500, cost 2400") && m.Contains("Pashmina Shawl - 800") && !m.Contains("Unclear") && m.Contains("YES"));
+        Assert.Equal(before, await db.Products.CountAsync());           // nothing is saved before YES
+        await withMedia.HandleIncomingMessageAsync(Phone, "yes", default);
+        Assert.Equal(before + 2, await db.Products.CountAsync());
+    }
+
+    [Fact]
+    public void VoiceStats_CountOutcomesByNameOnly()
+    {
+        VoiceStats.Clear();
+        VoiceStats.Record("decision_execute");
+        VoiceStats.Record("decision_execute");
+        VoiceStats.Record("refused_too_long");
+
+        Assert.Equal(new[] { ("decision_execute", 2), ("refused_too_long", 1) }, VoiceStats.Snapshot());
+    }
+
+    [Fact]
     public async Task Picture_LabelledOther_SavesNothing()
     {
         using var db = _dbFactory.CreateContext();

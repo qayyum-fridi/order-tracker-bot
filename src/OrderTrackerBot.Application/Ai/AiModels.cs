@@ -141,6 +141,15 @@ public sealed class AiPictureReading
     public string? Phone { get; set; }
     public string? Address { get; set; }
     public string? City { get; set; }
+    /// <summary>For a price list: every item with a clear price (Cost only when the picture shows what it cost).</summary>
+    public List<AiPictureProduct> Products { get; set; } = new();
+}
+
+public sealed class AiPictureProduct
+{
+    public string? Name { get; set; }
+    public decimal? Price { get; set; }
+    public decimal? Cost { get; set; }
 }
 
 public interface IAiOrderAssistant

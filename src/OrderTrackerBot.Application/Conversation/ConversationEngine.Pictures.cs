@@ -151,6 +151,7 @@ public partial class ConversationEngine
     {
         PictureLabels.Expense => "expense 500 packaging",
         PictureLabels.Wages => "wages Ali 5000",
+        PictureLabels.Products => "Lawn Suit - 3500, cost 2400",
         _ => "customer add Sara, Model Town Lahore, 03001234567",
     };
 
@@ -184,6 +185,18 @@ public partial class ConversationEngine
                 if (worker.Length < 2 || reading.Amount is not { } pay || pay <= 0) return null;
                 step = $"wages {worker} {pay.ToString("0.##", CultureInfo.InvariantCulture)}";
                 expected = CommandKind.Wage;
+                break;
+            case PictureLabels.Products:
+                // One product per line ("Lawn Suit - 3500, cost 2400"); a line the product parser would not accept is left out, so the rest still go in together.
+                var lines = reading.Products
+                    .Where(p => p.Price is not null && CleanPictureText(p.Name, 60).Length >= 2)
+                    .Select(p => $"{CleanPictureText(p.Name, 60)} - {p.Price!.Value.ToString("0.##", CultureInfo.InvariantCulture)}"
+                                 + (p.Cost is { } productCost ? $", cost {productCost.ToString("0.##", CultureInfo.InvariantCulture)}" : ""))
+                    .Where(l => CommandParser.TryParse(l)?.Kind == CommandKind.AddProduct)
+                    .Take(30).ToList();
+                if (lines.Count == 0) return null;
+                step = string.Join("\n", lines);
+                expected = lines.Count == 1 ? CommandKind.AddProduct : CommandKind.AddProductsBulk;
                 break;
             case PictureLabels.Customer:
                 var name = CleanPictureText(reading.Name, 40);

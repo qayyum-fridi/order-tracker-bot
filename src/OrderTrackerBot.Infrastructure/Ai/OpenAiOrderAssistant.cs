@@ -591,6 +591,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         {
             "expense" => "a shop expense (a bill, receipt or note of money spent). Return {\"amount\": the total paid as a number or null, \"note\": what it was for in at most 6 words, Latin script, or null}.",
             "wages" => "a wage or salary (a slip, register page or note of pay to a worker). Return {\"name\": the worker's name or null, \"amount\": the amount paid as a number or null}.",
+            "products" => "a price list of items the shop sells (printed, handwritten or a catalog page). Return {\"products\": [{\"name\": item name, \"price\": the selling price as a number, \"cost\": what it cost the shop as a number or null}]} with every item that has a clearly readable name and price (at most 30); skip unclear ones.",
             "customer" => "a customer's details (a visiting card, a chat or a written note). Return {\"name\": the customer's name or null, \"phone\": digits only or null, \"address\": street/area or null, \"city\": the city or null}.",
             _ => null
         };
@@ -612,7 +613,17 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             var root = doc.RootElement;
             string? Text(string name) => root.TryGetProperty(name, out var p) && p.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(p.GetString()) ? p.GetString()!.Trim() : null;
             decimal? amount = root.TryGetProperty("amount", out var a) && a.ValueKind == JsonValueKind.Number && a.TryGetDecimal(out var d) && d > 0 ? d : null;
-            return new AiPictureReading { Name = Text("name"), Amount = amount, Note = Text("note"), Phone = Text("phone"), Address = Text("address"), City = Text("city") };
+            var reading = new AiPictureReading { Name = Text("name"), Amount = amount, Note = Text("note"), Phone = Text("phone"), Address = Text("address"), City = Text("city") };
+            if (root.TryGetProperty("products", out var list) && list.ValueKind == JsonValueKind.Array)
+                foreach (var item in list.EnumerateArray().Take(30))
+                {
+                    if (item.ValueKind != JsonValueKind.Object) continue;
+                    var itemName = item.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() : null;
+                    decimal? price = item.TryGetProperty("price", out var p) && p.ValueKind == JsonValueKind.Number && p.TryGetDecimal(out var pv) && pv >= 0 ? pv : null;
+                    decimal? cost = item.TryGetProperty("cost", out var c) && c.ValueKind == JsonValueKind.Number && c.TryGetDecimal(out var cv) && cv > 0 ? cv : null;
+                    reading.Products.Add(new AiPictureProduct { Name = itemName, Price = price, Cost = cost });
+                }
+            return reading;
         }
         catch (JsonException)
         {

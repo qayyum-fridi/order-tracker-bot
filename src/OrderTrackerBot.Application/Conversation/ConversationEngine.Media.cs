@@ -125,6 +125,7 @@ public partial class ConversationEngine
         // The length is read from the Ogg Opus file itself (5 minutes at most); any other format falls back to the file size.
         if (media is { } audio && (audio.Bytes.Length < MinVoiceBytes || VoiceTooLong(audio.Bytes)))
         {
+            VoiceStats.Record(audio.Bytes.Length < MinVoiceBytes ? "refused_too_short" : "refused_too_long");
             await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get(audio.Bytes.Length < MinVoiceBytes ? "voice-confirm.018" : "voice-confirm.019"), ct);
             await _db.SaveChangesAsync(ct);
             return;
@@ -132,6 +133,7 @@ public partial class ConversationEngine
         _lastAudioHash = media is null ? null : Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(media.Value.Bytes));
         if (_lastAudioHash is not null && SessionContextData.FromJson(seller.Session!.ContextJson).ProcessedVoiceHashes?.Contains(_lastAudioHash) == true)
         {
+            VoiceStats.Record("duplicate_note");
             await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("voice-undo.003"), ct);
             await _db.SaveChangesAsync(ct);
             return;
@@ -150,14 +152,17 @@ public partial class ConversationEngine
         if (text is not null && media is { } heardAudio && SpokenNumbers.UnknownAmountWords(text).Count > 0)
         {
             UnknownNumberWordLog.Record(SpokenNumbers.UnknownAmountWords(text));
+            VoiceStats.Record("second_opinion_asked");
             var second = await _transcriber.TranscribeSecondOpinionAsync(heardAudio.Bytes, heardAudio.MimeType, vocabulary, ct);
             if (second is not null && SpokenNumbers.UnknownAmountWords(second).Count == 0)
             {
                 _logger?.LogInformation("Voice note: the second speech model read every amount word the first one could not");
                 text = second;
+                VoiceStats.Record("second_opinion_used");
             }
         }
         var transcribedMs = voiceClock.ElapsedMilliseconds;
+        VoiceStats.Record(text is null ? "transcription_failed" : "note_transcribed");
         if (text is null)
         {
             if (_issues is not null)
@@ -197,6 +202,7 @@ public partial class ConversationEngine
                 ? DecideRewrite(text, new[] { routed.Command }, null)
                 : TurnDecision.Clarify(MessageTemplates.Get("intent.howto", routed.Help!));
         }
+        VoiceStats.Record("decision_" + decision.Kind.ToString().ToLowerInvariant());
         if (decision.Kind != DecisionKind.Execute) LogNotUnderstood("voice-" + decision.Kind.ToString().ToLowerInvariant(), seller.Session!.State, text);
         if (decision.Kind != DecisionKind.Execute) await RecordUnplacedAsync(seller, "voice_" + decision.Kind.ToString().ToLowerInvariant(), text, null, null, ct);
         // Steps the AI made up or that do not match the words spoken are not run; the seller is told which ones, so nothing vanishes silently.
@@ -596,6 +602,7 @@ public partial class ConversationEngine
             return TurnDecision.Execute(new[] { "cancel" });
 
         var rewriteClock = System.Diagnostics.Stopwatch.StartNew();
+        VoiceStats.Record("rewrite_called");
         var result = await _ai.InterpretVoiceAsync(new AiVoiceContext
         {
             BusinessName = seller.BusinessName ?? "",
@@ -651,6 +658,7 @@ public partial class ConversationEngine
                     && StepsThatStandOnTheirOwn(transcript, steps, result.Spans, known) is { Keep.Count: > 0 } standing
                     && !StepsAreRisky(standing.Keep))
                 {
+                    VoiceStats.Record("partial_fallback");
                     foreach (var step in standing.Dropped) _droppedVoiceSteps.Add((step, "voice-confirm.007"));
                     return TurnDecision.Execute(CorrectMarginQuestion(transcript, CorrectAccountReset(transcript, standing.Keep)));
                 }
@@ -1171,7 +1179,7 @@ public partial class ConversationEngine
     // Each value is a type word PictureLabels understands (a test checks it), so a tap labels the remembered picture.
     internal static readonly (string Label, string Value)[] PictureTypeChoices =
     {
-        ("Kharcha (bill)", "expense"), ("Tankhwah", "wages"), ("Customer ki detail", "customer"), ("Order", "order"), ("Kuch nahi", "other"),
+        ("Kharcha (bill)", "expense"), ("Tankhwah", "wages"), ("Customer ki detail", "customer"), ("Products ki list", "products"), ("Order", "order"), ("Kuch nahi", "other"),
     };
 
     private async Task StartReceiptMatchAsync(Seller seller, ConversationSession session, SessionContextData ctx, AiPaymentReceipt receipt, CancellationToken ct)

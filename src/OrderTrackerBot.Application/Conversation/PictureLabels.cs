@@ -13,6 +13,7 @@ public static class PictureLabels
     public const string Customer = "customer";
     public const string Order = "order";
     public const string Other = "other";
+    public const string Products = "products";
 
     private static readonly Dictionary<string, string> Words = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -21,6 +22,8 @@ public static class PictureLabels
         ["customer"] = Customer, ["client"] = Customer, ["gahak"] = Customer, ["گاہک"] = Customer, ["کسٹمر"] = Customer, ["خریدار"] = Customer,
         ["order"] = Order, ["orders"] = Order, ["آرڈر"] = Order,
         ["other"] = Other, ["misc"] = Other, ["baqi"] = Other, ["دیگر"] = Other,
+        ["product"] = Products, ["products"] = Products, ["catalog"] = Products, ["catalogue"] = Products, ["pricelist"] = Products, ["ratelist"] = Products,
+        ["saman"] = Products, ["maal"] = Products, ["پروڈکٹ"] = Products, ["پروڈکٹس"] = Products, ["سامان"] = Products,
     };
 
     // Filler around the label word: "yeh expense hai", "mark as wages", "this is a customer".
