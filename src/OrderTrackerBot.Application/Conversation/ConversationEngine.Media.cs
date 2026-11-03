@@ -574,6 +574,17 @@ public partial class ConversationEngine
     {
         if (NumberedChoiceStates.Contains(seller.Session!.State) && SpokenNumbers.ChoiceNumber(transcript) is { } pick)
             return TurnDecision.Execute(new[] { pick.ToString() });
+        // One new product is waiting for its price and the note is short and names exactly one amount ("price dedh sau rupay"): that amount is the price. It is
+        // read by the same amount reader as typed text and goes through the same price step, so it needs no rewrite that a gate could refuse. A note with a hedge, a
+        // taken-back amount or an unreadable amount word, or a longer sentence (which may be about something else), still goes the normal way.
+        if (seller.Session!.State == ConversationState.Idle
+            && SessionContextData.FromJson(seller.Session.ContextJson).PendingPriceProducts is { Count: 1 }
+            && transcript.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= 6
+            && !HedgeWord.IsMatch(transcript)
+            && SpokenNumbers.RetractedAmounts(transcript).Count == 0 && SpokenNumbers.NegatedAmounts(transcript).Count == 0
+            && SpokenNumbers.UnknownAmountWords(transcript).Count == 0
+            && SpokenNumbers.Amounts(transcript) is { Count: 1 } onlyAmount)
+            return TurnDecision.Execute(new[] { onlyAmount.Single().ToString(System.Globalization.CultureInfo.InvariantCulture) });
         // A greeting or small talk is not an order or a command: say so plainly, and do not let the model invent steps from it.
         if (IsSmallTalkOnly(transcript))
             return TurnDecision.Clarify(MessageTemplates.Get("voice.smalltalk"));

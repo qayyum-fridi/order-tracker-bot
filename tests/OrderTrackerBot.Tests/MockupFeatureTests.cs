@@ -1637,6 +1637,33 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Theory]
+    [InlineData("price dedh sau rupay", 150)]
+    [InlineData("پرائزز ڈیڑھ سو روپے۔", 150)]
+    [InlineData("teen hazar paanch sau", 3500)]
+    public async Task VoiceNote_WithOneAmount_AnswersTheWaitingNewProductsPrice_WithoutNeedingTheRewrite(string spoken, int price)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "add_products", NewProducts = { new AiNewProduct { Name = "Shampoo" } } });
+        await engine.HandleIncomingMessageAsync(Phone, "mere paas naya product hai shampoo", default);
+        Assert.Contains(_sent, m => m.Contains("ki price bhejein"));
+
+        _media.Setup(m => m.DownloadAsync("voice-price", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[2500], "audio/ogg"));
+        var transcriber = new Mock<IAudioTranscriber>();
+        transcriber.SetupGet(t => t.IsConfigured).Returns(true);
+        transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>())).ReturnsAsync(spoken);
+        // The rewrite would have been useless here; the price must not depend on it.
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation());
+        var voice = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object);
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-price", "wamid.price");
+
+        Assert.Equal(price, (await db.Products.AsNoTracking().SingleAsync(p => p.Name == "Shampoo")).Price);
+    }
+
+    [Theory]
     [InlineData("suit 5000", false)]
     [InlineData("suit 5000 bas ho gaya", true)]
     public async Task VoiceNote_DoneStep_OnlyEndsSetup_WhenTheSellerSaidTheyAreFinished(string spoken, bool setupEnds)
