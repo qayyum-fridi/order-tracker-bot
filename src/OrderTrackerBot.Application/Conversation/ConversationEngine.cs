@@ -106,6 +106,8 @@ public partial class ConversationEngine
         _turnSeller = null;
         _turnCtx = null;
         _stockWarnings.Clear();
+        _turnMissed = false;
+        _turnTracked = false;
         if (await TryHandleVoiceConfirmationAsync(fromPhoneNumber, rawMessage, ct)) return;
         var answeredDraft = IsOrderDraftState((await LoadOrCreateSellerAsync(fromPhoneNumber, ct)).Session!.State);
         _draftPutOnHold = false;
@@ -113,12 +115,47 @@ public partial class ConversationEngine
         if (_draftPutOnHold) await HoldParkedVoiceStepsAsync(fromPhoneNumber, ct);
         await ResumeVoiceContinueAsync(fromPhoneNumber, answeredDraft, ct);
         await FlushStockWarningsAsync(fromPhoneNumber, ct);
+        if (await TrackMissesAsync(fromPhoneNumber, ct)) return;
         await TrySendShortcutBarAsync(fromPhoneNumber, ct);
     }
+
+    /// <summary>Set when this turn ended in a "not understood" reply (see <see cref="LogNotUnderstood"/>).</summary>
+    private bool _turnMissed;
+    private bool _turnTracked;
+
+    /// <summary>
+    /// Counts messages in a row the bot did not understand. On the second, a short guide with three taps follows the normal reply, so a tired seller is never
+    /// left retyping the same thing: new order, today's account, or the menu. Returns true when the guide was sent.
+    /// </summary>
+    private async Task<bool> TrackMissesAsync(string fromPhoneNumber, CancellationToken ct)
+    {
+        // A voice note that ran its steps as typed messages was already counted by the last of them.
+        if (_turnTracked) return false;
+        _turnTracked = true;
+        var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
+        if (seller.Session is not { } session) return false;
+        var ctx = SessionContextData.FromJson(session.ContextJson);
+        var before = ctx.ConsecutiveMisses;
+        ctx.ConsecutiveMisses = _turnMissed ? before + 1 : 0;
+        var guide = _turnMissed && seller.OnboardingComplete && ctx.ConsecutiveMisses >= 2;
+        if (guide) ctx.ConsecutiveMisses = 0;
+        if (ctx.ConsecutiveMisses != before) await PersistAsync(session, ctx, ct);
+        if (!guide) return false;
+
+        await SendChoicesAsync(fromPhoneNumber, MessageTemplates.Get("voice-confirm.028", Industry(seller).MainLine),
+            GuideChoices.Select(c => new ChoiceOption(c, c)).ToList(), ct);
+        await _db.SaveChangesAsync(ct);
+        return true;
+    }
+
+    // Each label is a command the parser already knows (a test checks it), so a tap is understood every time.
+    internal static readonly string[] GuideChoices = { "Naya order", "Aaj ka hisaab", "Menu" };
 
     /// <summary>One log line for a message the bot did not understand: <c>grep NotUnderstood</c> in the server log lists the real phrasings to teach it.</summary>
     private void LogNotUnderstood(string path, ConversationState state, string? text)
     {
+        // A rule the AI overruled is not a miss for the seller: the message still goes on to be answered.
+        if (!path.StartsWith("rule-overruled", StringComparison.Ordinal)) _turnMissed = true;
         if (!_features.TurnLog || string.IsNullOrWhiteSpace(text)) return;
         _logger?.LogInformation("NotUnderstood path={Path} state={State} text={Text}", path, state, text.Length > 300 ? text[..300] : text);
     }

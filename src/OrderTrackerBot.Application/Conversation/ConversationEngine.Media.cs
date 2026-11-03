@@ -29,7 +29,10 @@ public partial class ConversationEngine
             _logger?.LogInformation("Voice note: {LagMs} ms from WhatsApp's send time to the start of handling", (long)(DateTime.UtcNow - sentUtc).TotalMilliseconds);
         var startLogId = await NewestActionLogIdAsync((await LoadOrCreateSellerAsync(fromPhoneNumber, ct)).Id, ct);
         _lastAudioHash = null;
+        _turnMissed = false;
+        _turnTracked = false;
         await HandleAudioCoreAsync(fromPhoneNumber, mediaId, messageId, replyToId, ct);
+        await TrackMissesAsync(fromPhoneNumber, ct);
         _logger?.LogInformation("Voice note: handled in {TotalMs} ms, reply included", handling.ElapsedMilliseconds);
 
         // The actions this note made are remembered for "undo note". A note that made none (a refused reply) keeps the earlier range.

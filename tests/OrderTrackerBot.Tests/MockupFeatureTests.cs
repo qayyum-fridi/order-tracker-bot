@@ -825,6 +825,39 @@ public class MockupFeatureTests : IDisposable
         Assert.Equal(ConversationEngine.MaxPendingPictures, await db.Expenses.CountAsync());
     }
 
+    [Theory]
+    [InlineData("Naya order")]
+    [InlineData("Aaj ka hisaab")]
+    [InlineData("Menu")]
+    public void GuideButtons_AreCommandsTheParserKnows(string label)
+    {
+        Assert.NotNull(CommandParser.TryParse(label));
+        Assert.True(label.Length <= 20);
+    }
+
+    [Fact]
+    public async Task TwoNotUnderstoodMessagesInARow_GetTheThreeButtonGuide_OnceUnderstoodResetsTheCount()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis { Intent = "unclear" });
+        _sent.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "qwzx plmk", default);
+        Assert.DoesNotContain(_sent, m => m.Contains("sahi se samajh nahi pa raha"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "vbnm asdf", default);
+        Assert.Contains(_sent, m => m.Contains("sahi se samajh nahi pa raha"));
+        var guide = Assert.Single(_buttons, b => b.Body.Contains("sahi se samajh nahi pa raha"));
+        Assert.Equal(ConversationEngine.GuideChoices, guide.Buttons);
+
+        // an understood message in between starts the count again
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "orders today", default);
+        await engine.HandleIncomingMessageAsync(Phone, "poiu lkjh", default);
+        Assert.DoesNotContain(_sent, m => m.Contains("sahi se samajh nahi pa raha"));
+    }
+
     [Fact]
     public async Task Picture_LabelledOther_SavesNothing()
     {
