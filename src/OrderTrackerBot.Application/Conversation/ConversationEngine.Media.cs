@@ -902,7 +902,13 @@ public partial class ConversationEngine
         if (SpokenNumbers.UnknownAmountWords(transcript) is not { Count: > 0 } unknown) return null;
         UnknownNumberWordLog.Record(unknown);
         var question = MessageTemplates.Get("voice-confirm.011", unknown[0]);
-        return StepsAreRisky(steps) ? TurnDecision.Reject(question) : TurnDecision.Clarify(question);
+        if (StepsAreRisky(steps)) return TurnDecision.Reject(question);
+        // A harmless step (an expense, a counter sale...) whose rewrite carries an amount: the word list cannot check that amount, but the seller can. The command the
+        // bot understood is shown with a button that names the amount, and nothing runs until the tap, so an unlisted spelling no longer ends in "say it again".
+        // A rewrite with no amount in it (the model may have dropped the unreadable one) is still asked again.
+        if (steps.Count > 0 && steps.All(step => Regex.IsMatch(step, @"\d{2,}")))
+            return TurnDecision.Confirm(steps, MessageTemplates.Get("voice-confirm.030"));
+        return TurnDecision.Clarify(question);
     }
 
     private static bool StepsAreRisky(IEnumerable<string> steps) => steps.Any(ActionRisk.IsRiskyStep);

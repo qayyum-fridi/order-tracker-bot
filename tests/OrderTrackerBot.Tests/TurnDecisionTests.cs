@@ -153,6 +153,25 @@ public class TurnDecisionTests
     }
 
     [Fact]
+    public void AmountWordTheEngineCannotRead_OnAHarmlessStep_IsShownForOneTap_InsteadOfAskingAgain()
+    {
+        var decision = ConversationEngine.DecideRewrite("kharcha packaging ka ekhatarr hazar", new[] { "expense 71000 packaging" }, null);
+
+        // An expense is not risky: the understood command is offered for a tap (the button names the amount) and nothing has run yet.
+        Assert.Equal(DecisionKind.Confirm, decision.Kind);
+        Assert.Equal(new[] { "expense 71000 packaging" }, decision.Steps);
+    }
+
+    [Fact]
+    public void AmountWordTheEngineCannotRead_WhenTheRewriteHasNoAmount_IsStillAskedAgain()
+    {
+        var decision = ConversationEngine.DecideRewrite("kharcha packaging ka ekhatarr hazar", new[] { "expense packaging" }, null);
+
+        Assert.Equal(DecisionKind.Clarify, decision.Kind);
+        Assert.Empty(decision.Steps);
+    }
+
+    [Fact]
     public void RefusedUnknownNumberWord_IsCounted_WordOnly()
     {
         UnknownNumberWordLog.Clear();
