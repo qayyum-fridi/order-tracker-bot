@@ -96,6 +96,15 @@ public sealed class AiNewProduct
     /// <summary>Several colours / sizes the seller named for this one product (variants), each in the seller's own words; each combination becomes a listing.</summary>
     public List<string> Colors { get; init; } = new();
     public List<string> Sizes { get; init; } = new();
+    /// <summary>
+    /// For each number above, the exact words the seller used to say it (same spelling and script as in their message), or null. The bot checks that the words really
+    /// are in the message, so a number needs no entry in a word list to be believed, and a number the model made up has no words to show.
+    /// </summary>
+    public string? PriceWords { get; init; }
+    public string? CostWords { get; init; }
+    public string? StockWords { get; init; }
+    public string? PriceLowWords { get; init; }
+    public string? PriceHighWords { get; init; }
 }
 
 /// <summary>A buyer the seller is saving before any order; phone, address and city are null when the seller did not say them.</summary>
