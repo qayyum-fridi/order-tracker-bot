@@ -80,6 +80,13 @@ public sealed class AiMessageAnalysis
 }
 
 /// <summary>A product the seller named while describing what they sell; the price is null when they did not say it.</summary>
+/// <summary>The AI's reading of a reply to a yes / no question: "yes", "no" or "other", plus the exact words of the reply it based that on.</summary>
+public sealed class AiYesNoReading
+{
+    public string Answer { get; init; } = "other";
+    public string Quote { get; init; } = "";
+}
+
 public sealed class AiNewProduct
 {
     public string Name { get; init; } = "";
@@ -200,6 +207,12 @@ public interface IAiOrderAssistant
     /// (typically a new order or another request), so the AI order reader should handle it; <c>null</c> = unknown / no AI (keep the rule's answer).
     /// </summary>
     Task<bool?> ConfirmCommandMatchAsync(string message, string commandKind, CancellationToken cancellationToken = default) => Task.FromResult<bool?>(null);
+
+    /// <summary>
+    /// The bot asked a yes / no question (<paramref name="situation"/>) and the reply is not one of the plain yes / no words: does it say yes, no, or neither? The model also
+    /// quotes the exact words of the reply that say so; the engine only acts when that quote really is in the message. Null = unknown / no AI.
+    /// </summary>
+    Task<AiYesNoReading?> ClassifyYesNoAsync(string situation, string message, CancellationToken cancellationToken = default) => Task.FromResult<AiYesNoReading?>(null);
 
     /// <summary>A seller once taught that <paramref name="taughtPhrase"/> means a command; they now wrote <paramref name="newPhrase"/>. Do both ask for the same thing? <c>null</c> = unknown / no AI.</summary>
     Task<bool?> ConfirmSamePhraseAsync(string taughtPhrase, string newPhrase, CancellationToken cancellationToken = default) => Task.FromResult<bool?>(null);

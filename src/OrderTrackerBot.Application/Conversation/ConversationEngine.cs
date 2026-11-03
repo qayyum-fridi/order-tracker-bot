@@ -323,6 +323,9 @@ public partial class ConversationEngine
             }
         }
 
+        // A reply that is not a plain yes / no word is read by the AI (with a quoted proof) instead of being asked again.
+        if (await TryReadYesNoAsync(seller, session, ctx, message, ct) is { } readAnswer) message = readAnswer;
+
         if (await TryRouteMidFlowReplyAsync(seller, session, ctx, message, ct))
         {
             await PersistAsync(session, ctx, ct);
@@ -720,6 +723,12 @@ public sealed class FeatureOptions
 
     /// <summary>Setup asks the kind of shop right after the shop name (taps); off = the old flow without that question (unit tests).</summary>
     public bool IndustryQuestion { get; set; }
+
+    /// <summary>
+    /// A reply that is not one of the plain yes / no words ("jee bilkul sahi hai") to a harmless yes / no question is read by the AI, which must quote the words it based
+    /// that on; the engine checks the quote is in the message. Off in code (unit tests keep the old flow), on in appsettings. Cancel / reset / delete questions never use it.
+    /// </summary>
+    public bool DynamicAnswers { get; set; }
 
     /// <summary>Learns how this seller answers the price question and applies the answer they always give without asking (see <c>StrategyPolicy</c>); off = always ask.</summary>
     public bool StrategyLearning { get; set; }

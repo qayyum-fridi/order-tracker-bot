@@ -241,6 +241,28 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         }
     }
 
+    public async Task<AiYesNoReading?> ClassifyYesNoAsync(string situation, string message, CancellationToken cancellationToken = default)
+    {
+        var json = await CompleteTextAsync(
+            "A WhatsApp order-tracking bot for a small shop owner (the seller) asked the seller a yes / no question. The reply may be in Roman Urdu, Urdu script or English, in any wording or spelling. " +
+            "Decide whether the reply says yes (agrees, approves, go ahead), no (refuses, does not want it), or other (anything else: a new request, a question, a different answer, unclear, hesitant). " +
+            "Return ONLY JSON {\"answer\": \"yes\"|\"no\"|\"other\", \"quote\": \"<the exact words of the reply that say it, copied as written>\"}. " +
+            "The quote must be copied from the reply; never write words that are not in it. If the reply asks for something else first, adds a condition, or is unsure, answer other. " +
+            $"Bot's question: {situation}\nSeller's reply: {message}", 0, "yes/no reading", cancellationToken, jsonMode: true);
+        if (json is null) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var answer = doc.RootElement.TryGetProperty("answer", out var a) && a.ValueKind == JsonValueKind.String ? a.GetString() : null;
+            var quote = doc.RootElement.TryGetProperty("quote", out var q) && q.ValueKind == JsonValueKind.String ? q.GetString() : null;
+            return answer is "yes" or "no" or "other" ? new AiYesNoReading { Answer = answer, Quote = quote?.Trim() ?? "" } : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     public async Task<string?> ClassifyMidFlowReplyAsync(string situation, string message, CancellationToken cancellationToken = default)
     {
         var json = await CompleteTextAsync(
