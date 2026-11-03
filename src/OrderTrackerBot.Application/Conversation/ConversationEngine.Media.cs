@@ -1156,6 +1156,13 @@ public partial class ConversationEngine
             return;
         }
 
+        // The first picture without a type word: once, say how to send a clear one and how to label it, so later pictures arrive readable and named.
+        if (!ctx.PhotoTipShown)
+        {
+            ctx.PhotoTipShown = true;
+            await ReplyAsync(seller, MessageTemplates.Get("voice-confirm.036"), ct);
+        }
+
         // A screenshot starts fresh: any half-finished draft/prompt is dropped.
         ResetFlowContext(ctx);
         SetState(session, ConversationState.Idle);

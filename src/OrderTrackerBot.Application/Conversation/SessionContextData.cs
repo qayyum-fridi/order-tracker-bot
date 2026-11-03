@@ -212,6 +212,8 @@ public sealed class SessionContextData
     public string? PendingVoiceYesLabel { get; set; }
     /// <summary>The action log id of the last expense saved without asking (earned trust): undoing exactly that one counts as a correction.</summary>
     public int? AutoExpenseLogId { get; set; }
+    /// <summary>True once the seller was told, with their first unlabelled picture, how to send a clear one and how to label it.</summary>
+    public bool PhotoTipShown { get; set; }
     /// <summary>Messages in a row the bot did not understand; at 2 the seller gets the three-button guide and the count starts again. Any understood message resets it.</summary>
     public int ConsecutiveMisses { get; set; }
     /// <summary>SHA-256 of the audio of the last voice note that made actions, and of the latest notes that did (newest last).</summary>

@@ -1047,6 +1047,32 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task FirstUnlabelledPicture_GetsTheClearPhotoTip_OnlyOnce_AndALabelledOneNever()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        _media.Setup(m => m.DownloadAsync("pic-tip", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[3000], "image/jpeg"));
+        _ai.Setup(a => a.AnalyzeImageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "unclear" });
+        _ai.Setup(a => a.ReadPictureAsync("expense", It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiPictureReading { Amount = 100, Note = "x" });
+        var withMedia = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object);
+
+        _sent.Clear();
+        await withMedia.HandleImageMessageAsync(Phone, "pic-tip", "expense");          // labelled: the seller already knows
+        Assert.DoesNotContain(_sent, m => m.Contains("Saaf tasveer ke liye"));
+
+        await withMedia.HandleIncomingMessageAsync(Phone, "no", default);
+        _sent.Clear();
+        await withMedia.HandleImageMessageAsync(Phone, "pic-tip", null);               // first without a label
+        Assert.Contains(_sent, m => m.Contains("Saaf tasveer ke liye") && m.Contains("caption"));
+
+        _sent.Clear();
+        await withMedia.HandleImageMessageAsync(Phone, "pic-tip", null);               // not again
+        Assert.DoesNotContain(_sent, m => m.Contains("Saaf tasveer ke liye"));
+    }
+
+    [Fact]
     public async Task LimitsCommand_ExplainsWhatTheBotAccepts_AndRozanaListsTheDailyJobs()
     {
         using var db = _dbFactory.CreateContext();
