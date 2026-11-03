@@ -51,7 +51,7 @@ public class OrderListPagingTests : IDisposable
         await db.SaveChangesAsync();
         for (var i = 0; i < 12; i++)
         {
-            var order = new Order { SellerId = seller.Id, CustomerId = customer.Id, Status = OrderStatus.Pending, Subtotal = 1800, Total = 1800, CreatedAt = DateTime.UtcNow.AddMinutes(-i - 1) };
+            var order = new Order { SellerId = seller.Id, CustomerId = customer.Id, Status = OrderStatus.Pending, Subtotal = 1800, Total = 1800, CreatedAt = DateTime.UtcNow.AddSeconds(-i - 1) }; // seconds, not minutes: "today" starts at Pakistan midnight (19:00 UTC), and minutes ago crossed it just after that hour
             order.Items.Add(new OrderItem { ProductNameSnapshot = "Kurti", UnitPrice = 1800, Quantity = 1 });
             db.Orders.Add(order);
         }
