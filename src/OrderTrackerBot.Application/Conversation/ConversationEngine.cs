@@ -143,13 +143,18 @@ public partial class ConversationEngine
         if (!guide) return false;
 
         await SendChoicesAsync(fromPhoneNumber, MessageTemplates.Get("voice-confirm.028", Industry(seller).MainLine),
-            GuideChoices.Select(c => new ChoiceOption(c, c)).ToList(), ct);
+            GuideChoices.Select(c => new ChoiceOption(c.Label, c.Value)).ToList(), ct);
         await _db.SaveChangesAsync(ct);
         return true;
     }
 
-    // Each label is a command the parser already knows (a test checks it), so a tap is understood every time.
-    internal static readonly string[] GuideChoices = { "Naya order", "Aaj ka hisaab", "Menu" };
+    // The daily jobs in the seller's own words. Each value is a command the parser already knows (a test checks it), and the bare ones
+    // (expenses, wages, stock) answer with how to write an entry, so a tap also teaches the sentence.
+    internal static readonly (string Label, string Value)[] GuideChoices =
+    {
+        ("Naya order", "Naya order"), ("Aaj ka hisaab", "Aaj ka hisaab"), ("Kharcha likhna", "expenses"),
+        ("Tankhwah dena", "wages"), ("Stock dekhna", "stock"), ("Menu", "menu"),
+    };
 
     /// <summary>One log line for a message the bot did not understand: <c>grep NotUnderstood</c> in the server log lists the real phrasings to teach it.</summary>
     private void LogNotUnderstood(string path, ConversationState state, string? text)

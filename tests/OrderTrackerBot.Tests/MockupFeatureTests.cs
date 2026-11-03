@@ -825,14 +825,14 @@ public class MockupFeatureTests : IDisposable
         Assert.Equal(ConversationEngine.MaxPendingPictures, await db.Expenses.CountAsync());
     }
 
-    [Theory]
-    [InlineData("Naya order")]
-    [InlineData("Aaj ka hisaab")]
-    [InlineData("Menu")]
-    public void GuideButtons_AreCommandsTheParserKnows(string label)
+    [Fact]
+    public void GuideTaps_AreCommandsTheParserKnows()
     {
-        Assert.NotNull(CommandParser.TryParse(label));
-        Assert.True(label.Length <= 20);
+        foreach (var (label, value) in ConversationEngine.GuideChoices)
+        {
+            Assert.NotNull(CommandParser.TryParse(value));
+            Assert.True(label.Length <= 24, label);                // a list row title
+        }
     }
 
     [Fact]
@@ -848,8 +848,7 @@ public class MockupFeatureTests : IDisposable
 
         await engine.HandleIncomingMessageAsync(Phone, "vbnm asdf", default);
         Assert.Contains(_sent, m => m.Contains("sahi se samajh nahi pa raha"));
-        var guide = Assert.Single(_buttons, b => b.Body.Contains("sahi se samajh nahi pa raha"));
-        Assert.Equal(ConversationEngine.GuideChoices, guide.Buttons);
+        Assert.Single(_sent, m => m.Contains("sahi se samajh nahi pa raha"));
 
         // an understood message in between starts the count again
         _sent.Clear();
@@ -880,6 +879,27 @@ public class MockupFeatureTests : IDisposable
         Assert.Single(expenses);                                       // the good task ran
         Assert.Equal(300, expenses[0].Amount);
         Assert.Contains(_sent, m => m.Contains("expense 900 packaging"));   // the doubtful one is listed as not done
+    }
+
+    [Theory]
+    [InlineData("shayad expense 300 petrol likh do aur expense 500 packaging likh do", "expense 300 petrol likh do", "expense 500 packaging likh do")]   // hedge in the note
+    [InlineData("expense 300 petrol likh do aur expense 500 packaging likh do", "expense 300 petrol hai", "expense 500 packaging likh do")]                 // span not in the note: not the seller's words
+    public async Task LongNote_PartialFallback_IsClosed_WhenTheSpansCannotBeTrusted(string transcript, string span1, string span2)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        var voice = VoiceEngine(db, transcript);
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation
+            {
+                Steps = { "expense 300 petrol", "expense 900 packaging" },
+                Actions = { "command", "command" },
+                Spans = { span1, span2 }
+            });
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.closed");
+
+        Assert.Equal(0, await db.Expenses.CountAsync());   // nothing ran: the whole note was asked again
     }
 
     [Fact]

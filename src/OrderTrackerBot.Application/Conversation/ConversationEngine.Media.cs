@@ -642,9 +642,18 @@ public partial class ConversationEngine
                 if (WhyUnfaithful(transcript, string.Join("\n", steps), known) is { } why)
                     _logger?.LogWarning("Voice rewrite refused: {Reason} (risky={Risky})", why, StepsAreRisky(steps));
                 var whole = DecideRewrite(transcript, CorrectMarginQuestion(transcript, CorrectAccountReset(transcript, steps)), known);
-                if (whole.Kind != DecisionKind.Execute && steps.Count == result.Spans.Count
-                    && KeepStepsThatStandOnTheirOwn(steps, result.Spans, known) is { Count: > 0 } standing)
-                    return TurnDecision.Execute(CorrectMarginQuestion(transcript, CorrectAccountReset(transcript, standing)));
+                // The model picks the spans, so the fallback never trusts them alone: it is closed to a refused (risky) note, to any risky step, and to a
+                // transcript with a hedge, a taken-back or refused amount or an unreadable amount word, all of which the whole-note gate sees and a span can hide.
+                if (whole.Kind == DecisionKind.Clarify && steps.Count == result.Spans.Count
+                    && !HedgeWord.IsMatch(transcript)
+                    && SpokenNumbers.RetractedAmounts(transcript).Count == 0 && SpokenNumbers.NegatedAmounts(transcript).Count == 0
+                    && SpokenNumbers.UnknownAmountWords(transcript).Count == 0
+                    && StepsThatStandOnTheirOwn(transcript, steps, result.Spans, known) is { Keep.Count: > 0 } standing
+                    && !StepsAreRisky(standing.Keep))
+                {
+                    foreach (var step in standing.Dropped) _droppedVoiceSteps.Add((step, "voice-confirm.007"));
+                    return TurnDecision.Execute(CorrectMarginQuestion(transcript, CorrectAccountReset(transcript, standing.Keep)));
+                }
                 return whole;
             }
         }
@@ -662,22 +671,24 @@ public partial class ConversationEngine
     /// least one task failed on its own (here or in <see cref="KeepSpokenSteps"/>), so a task the model left out entirely (which only the whole-note check can see) never lets a partial note through silently.
     /// Returns the passing steps, or null when nothing failed individually or nothing passed.
     /// </summary>
-    internal List<string>? KeepStepsThatStandOnTheirOwn(IReadOnlyList<string> steps, IReadOnlyList<string> spans, IReadOnlySet<long> known)
+    internal (List<string> Keep, List<string> Dropped)? StepsThatStandOnTheirOwn(string transcript, IReadOnlyList<string> steps, IReadOnlyList<string> spans, IReadOnlySet<long> known)
     {
         var keep = new List<string>();
         var dropped = new List<string>();
+        var spoken = SpeechWords(transcript);
         for (var i = 0; i < steps.Count; i++)
         {
             var span = spans[i];
+            // The span must be the seller's own words, verbatim: a span the model made up or trimmed proves nothing.
             var ok = !string.IsNullOrWhiteSpace(span)
+                     && spoken.Contains(SpeechWords(span))
                      && SpokenNumbers.UnknownAmountWords(span).Count == 0
                      && WhyUnfaithful(span, steps[i], known) is null;
             if (ok) keep.Add(steps[i]); else dropped.Add(steps[i]);
         }
         // Something must have failed on its own: here, or earlier in KeepSpokenSteps (whose dropped task is why the whole-note amounts no longer add up).
         if (keep.Count == 0 || (dropped.Count == 0 && _droppedVoiceSteps.Count == 0)) return null;
-        foreach (var step in dropped) _droppedVoiceSteps.Add((step, "voice-confirm.007"));
-        return keep;
+        return (keep, dropped);
     }
 
     /// <summary>Steps removed by <see cref="KeepSpokenSteps"/> for the current voice note; shown to the seller with the echo.</summary>
