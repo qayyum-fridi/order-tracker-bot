@@ -315,6 +315,31 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         }
     }
 
+    public async Task<string?> ClassifyVoiceKindAsync(string transcript, CancellationToken cancellationToken = default)
+    {
+        var json = await CompleteTextAsync(
+            "A small shop owner in Pakistan sent a voice note to their WhatsApp order-tracking bot. The input is the speech-to-text transcript (Urdu, Roman Urdu, Punjabi or English, " +
+            "possibly misheard, with filler such as \"oye bhai\"). Decide what KIND of message it is. " +
+            "Return ONLY JSON {\"kind\": \"command\" | \"order\" | \"chat\" | \"other\"}. " +
+            "command = the owner asks the bot to show or change something in the shop: see sales or orders, change an order's status, a price or stock, record an expense or wage, " +
+            "see the catalog, ask for help, and similar. " +
+            "order = the owner dictates or describes a customer's order (a customer, items, quantities, maybe a phone, address or delivery). " +
+            "chat = a greeting, small talk, a remark about the weather or anything unrelated to the shop. " +
+            "other = unclear, cut off or you cannot tell. When unsure between command and order, answer other. Never add anything else to the JSON.",
+            transcript, 0, "voice kind", cancellationToken, jsonMode: true);
+        if (json is null) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var value = doc.RootElement.TryGetProperty("kind", out var k) && k.ValueKind == JsonValueKind.String ? k.GetString()?.Trim().ToLowerInvariant() : null;
+            return value is "command" or "order" or "chat" or "other" ? value : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     public Task<string?> GenerateInsightAsync(string factsSummary, CancellationToken cancellationToken = default) =>
         CompleteTextAsync("One short Roman Urdu sentence of business insight/suggestion for a small seller, based on the facts given. No preamble.",
             factsSummary, 0.4, "insight generation", cancellationToken);

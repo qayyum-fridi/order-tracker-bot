@@ -126,8 +126,9 @@ public partial class ConversationEngine
             && await RouteIntentAsync(text, ct) is { } routed)
         {
             _droppedVoiceSteps.Clear();
+            // The routed command passes the same amount guard as a rewrite: a figure the seller never said must not be run (the model fills slots).
             decision = routed.Command is not null
-                ? TurnDecision.Execute(new[] { routed.Command })
+                ? DecideRewrite(text, new[] { routed.Command }, null)
                 : TurnDecision.Clarify(MessageTemplates.Get("intent.howto", routed.Help!));
         }
         if (decision.Kind != DecisionKind.Execute) LogNotUnderstood("voice-" + decision.Kind.ToString().ToLowerInvariant(), seller.Session!.State, text);
@@ -367,6 +368,17 @@ public partial class ConversationEngine
             var meaning = await _ai.ClassifyYesNoAsync(asked, transcript, ct);
             _logger?.LogInformation("Voice yes/no: the model read the answer as {Meaning}", meaning ?? "unavailable");
             if (meaning is "yes" or "no") return TurnDecision.Execute(new[] { meaning });
+        }
+        // Intent first (idle seller): the kind of note decides the narrowest step. The router and the amount guard are the ones the typed path already uses.
+        if (_features.VoiceIntentFirst && seller.OnboardingComplete && seller.Session!.State == ConversationState.Idle)
+        {
+            var kind = await _ai.ClassifyVoiceKindAsync(transcript, ct);
+            _logger?.LogInformation("Voice kind: the model read the note as {Kind}", kind ?? "unavailable");
+            if (kind == "chat") return TurnDecision.Clarify(MessageTemplates.Get("voice.smalltalk"));
+            if (kind == "command" && await RouteIntentAsync(transcript, ct) is { } routed)
+                return routed.Command is not null
+                    ? DecideRewrite(transcript, new[] { routed.Command }, null)
+                    : TurnDecision.Clarify(MessageTemplates.Get("intent.howto", routed.Help!));
         }
         var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
         var catalog = await LoadCatalogAsync(seller, ct);

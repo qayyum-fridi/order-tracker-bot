@@ -4,6 +4,7 @@ using Moq;
 using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Ai;
 using OrderTrackerBot.Application.Conversation;
+using OrderTrackerBot.Application.Intents;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
 using OrderTrackerBot.Infrastructure.Ai;
@@ -76,8 +77,10 @@ public class VoiceRewriteEval
         var assistant = new OpenAiOrderAssistant(new HttpClient { Timeout = TimeSpan.FromSeconds(60) },
             Options.Create(new OpenAiOptions { ApiKey = key }), NullLogger<OpenAiOrderAssistant>.Instance, Mock.Of<IIssueReporter>());
 
-        var byKind = new Dictionary<string, (int Right, int Total)>();
-        var safetyMisses = 0;
+        // Two pipelines on the same sentences: the full rewrite alone (Features:VoiceIntentFirst off) and intent-first (on).
+        var rewriteByKind = new Dictionary<string, (int Right, int Total)>();
+        var firstByKind = new Dictionary<string, (int Right, int Total)>();
+        var safetyMissesIntentFirst = 0;
         foreach (var c in Cases)
         {
             var seller = new Seller { WhatsAppPhoneNumber = "923001234567", BusinessName = "Ayesha Collections", OnboardingComplete = true, Session = new ConversationSession { State = c.State } };
@@ -93,21 +96,60 @@ public class VoiceRewriteEval
             };
 
             var result = await assistant.InterpretVoiceAsync(context, c.Transcript);
-            var steps = result?.Steps ?? new List<string>();
-            var joined = string.Join(" | ", steps).ToLowerInvariant();
-            var ok = c.NoSteps
-                ? steps.Count == 0 && c.Not.All(n => !joined.Contains(n))
-                : c.Has.All(h => joined.Contains(h.ToLowerInvariant())) && c.Not.All(n => !joined.Contains(n.ToLowerInvariant()));
+            var rewriteSteps = result?.Steps ?? new List<string>();
+            var rewriteOk = Passes(c, rewriteSteps);
+            Add(rewriteByKind, c.Kind, rewriteOk);
 
-            var (right, total) = byKind.GetValueOrDefault(c.Kind);
-            byKind[c.Kind] = (right + (ok ? 1 : 0), total + 1);
-            if (!ok && c.Kind == "safety") safetyMisses++;
-            _output.WriteLine($"{(ok ? "OK  " : "MISS")} [{c.Kind}] {c.Transcript}  =>  {(steps.Count == 0 ? (result?.Question is { } q ? "ASKS: " + q : "(no steps)") : joined)}");
+            // Intent-first, as the engine does it for an idle seller: chat -> nothing runs; command -> the intent catalog, behind the amount guard; else the rewrite.
+            var firstSteps = rewriteSteps;
+            var path = "rewrite";
+            if (c.State == ConversationState.Idle)
+            {
+                var kind = await assistant.ClassifyVoiceKindAsync(c.Transcript) ?? "unavailable";
+                path = kind;
+                if (kind == "chat") firstSteps = new List<string>();
+                else if (kind == "command")
+                {
+                    var route = await assistant.RouteIntentAsync(c.Transcript, IntentCatalog.All);
+                    if (route is { Confidence: >= 0.7 } && IntentCatalog.Find(route.Intent) is { } intent
+                        && IntentCatalog.Build(intent, route.Slots).Command is { } command
+                        && ConversationEngine.WhyUnfaithful(c.Transcript, command, null) is null)
+                        firstSteps = new List<string> { command };
+                    else path = "command, router did not place it: rewrite";
+                }
+            }
+            var firstOk = Passes(c, firstSteps);
+            Add(firstByKind, c.Kind, firstOk);
+            if (!firstOk && c.Kind == "safety") safetyMissesIntentFirst++;
+
+            _output.WriteLine($"rewrite {(rewriteOk ? "OK  " : "MISS")} | intent-first {(firstOk ? "OK  " : "MISS")} [{c.Kind}] {c.Transcript}");
+            _output.WriteLine($"          rewrite: {Show(rewriteSteps, result?.Question)}   |   intent-first ({path}): {Show(firstSteps, null)}");
         }
 
-        foreach (var (kind, (right, total)) in byKind) _output.WriteLine($"{kind,-16} {right}/{total} ({100.0 * right / total:F0}%)");
-        var allRight = byKind.Values.Sum(v => v.Right); var all = byKind.Values.Sum(v => v.Total);
-        _output.WriteLine($"ACCURACY {allRight}/{all} ({100.0 * allRight / all:F0}%)");
-        Assert.Equal(0, safetyMisses);
+        _output.WriteLine("kind              rewrite     intent-first");
+        foreach (var kind in rewriteByKind.Keys)
+            _output.WriteLine($"{kind,-16}  {Pct(rewriteByKind[kind]),-10}  {Pct(firstByKind[kind])}");
+        _output.WriteLine($"ACCURACY rewrite {Pct(Sum(rewriteByKind))}   intent-first {Pct(Sum(firstByKind))}");
+        Assert.Equal(0, safetyMissesIntentFirst);
     }
+
+    private static bool Passes(Case c, List<string> steps)
+    {
+        var joined = string.Join(" | ", steps).ToLowerInvariant();
+        return c.NoSteps
+            ? steps.Count == 0 && c.Not.All(n => !joined.Contains(n.ToLowerInvariant()))
+            : c.Has.All(h => joined.Contains(h.ToLowerInvariant())) && c.Not.All(n => !joined.Contains(n.ToLowerInvariant()));
+    }
+
+    private static string Show(List<string> steps, string? question) =>
+        steps.Count > 0 ? string.Join(" | ", steps) : question is not null ? "ASKS: " + question : "(no steps)";
+
+    private static void Add(Dictionary<string, (int Right, int Total)> map, string kind, bool ok)
+    {
+        var (right, total) = map.GetValueOrDefault(kind);
+        map[kind] = (right + (ok ? 1 : 0), total + 1);
+    }
+
+    private static (int Right, int Total) Sum(Dictionary<string, (int Right, int Total)> map) => (map.Values.Sum(v => v.Right), map.Values.Sum(v => v.Total));
+    private static string Pct((int Right, int Total) v) => $"{v.Right}/{v.Total} ({100.0 * v.Right / Math.Max(1, v.Total):F0}%)";
 }
