@@ -735,6 +735,7 @@ public partial class ConversationEngine
     private static TurnDecision? UnknownAmountDecision(string transcript, IReadOnlyList<string> steps)
     {
         if (SpokenNumbers.UnknownAmountWords(transcript) is not { Count: > 0 } unknown) return null;
+        UnknownNumberWordLog.Record(unknown);
         var question = MessageTemplates.Get("voice-confirm.011", unknown[0]);
         return StepsAreRisky(steps) ? TurnDecision.Reject(question) : TurnDecision.Clarify(question);
     }

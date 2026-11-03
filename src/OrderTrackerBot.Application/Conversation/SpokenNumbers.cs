@@ -162,7 +162,34 @@ public static class SpokenNumbers
 
     private static string Normalize(string text) => ExpandThousands(GroupedDigits.Replace(AsciiDigits(StripMarks(text)), ""));
 
-    private static List<string> Tokens(string text) => Token.Matches(Normalize(text)).Select(m => m.Value).ToList();
+    private static List<string> Tokens(string text) => FuzzyNumberWords(Token.Matches(Normalize(text)).Select(m => m.Value).ToList());
+
+    // Words never corrected by the one-edit match: one letter apart from a number word of another value ("saat" 7 / "saath" 60), or everyday words that sit next to an amount.
+    private static readonly HashSet<string> NeverFuzzy = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "saat", "saath", "sath", "satt", "sati", "sathi", "saathi", "saathy", "sabit", "sirf", "sabse", "bahut", "bohat", "aathwan", "rupay", "rupaye", "rupees", "paise", "paisay",
+    };
+
+    /// <summary>
+    /// A misspelt number word right beside "sau / hazar / lakh" ("ikhatar hazar") is read as the one number word it is a single letter away from.
+    /// Only a Latin word of 5+ letters, only next to a multiplier, and only when every number word one edit away has the same value: a word that could be
+    /// two different numbers ("saat" / "saath"), or no number, stays unknown so the note is refused as before.
+    /// </summary>
+    private static List<string> FuzzyNumberWords(List<string> tokens)
+    {
+        for (var i = 0; i < tokens.Count; i++)
+        {
+            var word = tokens[i];
+            if (word.Length < 5 || !word.All(c => c is >= 'a' and <= 'z' or >= 'A' and <= 'Z')) continue;
+            if (Words.ContainsKey(word) || FractionWords.ContainsKey(word) || Multipliers.ContainsKey(word) || NotAmountWords.Contains(word) || NeverFuzzy.Contains(word)) continue;
+            var nextToMultiplier = (i + 1 < tokens.Count && Multipliers.ContainsKey(tokens[i + 1])) || (i > 0 && Multipliers.ContainsKey(tokens[i - 1]));
+            if (!nextToMultiplier) continue;
+            var lower = word.ToLowerInvariant();
+            var near = Words.Where(w => w.Key.Length >= 4 && w.Key.All(c => c is >= 'a' and <= 'z' or >= 'A' and <= 'Z') && TextDistance.Levenshtein(lower, w.Key) == 1).ToList();
+            if (near.Count > 0 && near.Select(w => w.Value).Distinct().Count() == 1) tokens[i] = near[0].Key.ToLowerInvariant();
+        }
+        return tokens;
+    }
 
     private static List<AmountSpan> DigitSpans(IReadOnlyList<string> tokens)
     {

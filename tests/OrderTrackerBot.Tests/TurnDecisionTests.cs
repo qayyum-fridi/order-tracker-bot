@@ -10,18 +10,18 @@ public class TurnDecisionTests
     [Fact]
     public void AmountWordTheEngineCannotRead_AsksForDigits_AndRunsNothing()
     {
-        var decision = ConversationEngine.DecideRewrite("Ayesha ko ekhattar hazar ka order", new[] { "customer Ayesha price 71000" }, null);
+        var decision = ConversationEngine.DecideRewrite("Ayesha ko ekhatarr hazar ka order", new[] { "customer Ayesha price 71000" }, null);
 
         // The price step is risky, so it is refused rather than offered as a choice; either way nothing runs and the reply names the word.
         Assert.Equal(DecisionKind.Reject, decision.Kind);
         Assert.Empty(decision.Steps);
-        Assert.Contains("ekhattar", decision.Message);
+        Assert.Contains("ekhatarr", decision.Message);
     }
 
     [Theory]
     [InlineData("ikhattar hazar", "")]
     [InlineData("mere paas hazar rupay hain", "")]
-    [InlineData("ekhattar hazar", "ekhattar")]
+    [InlineData("ekhatarr hazar", "ekhatarr")]
     public void UnknownAmountWords_OnlyFlagsAnAmountWordTheEngineCannotRead(string text, string expected)
     {
         var words = SpokenNumbers.UnknownAmountWords(text);
@@ -134,6 +134,32 @@ public class TurnDecisionTests
     public void LongKeywordNames_AreCutAtAWord_NotDropped(string name, string expected)
     {
         Assert.Equal(expected, OrderTrackerBot.Infrastructure.Ai.OpenAiAudioTranscriber.FitKeyword(name));
+    }
+
+    [Theory]
+    [InlineData("ikhatar hazar", 71000)]            // one letter off "ikhattar"
+    [InlineData("pachhatar hazar", 75000)]          // one letter off "pachhattar"
+    public void MisspeltNumberWordNextToAMultiplier_IsReadWhenOneLetterOff(string text, long expected)
+    {
+        Assert.Contains(expected, SpokenNumbers.WordAmounts(text));
+    }
+
+    [Theory]
+    [InlineData("saath hazar", true)]               // 60 thousand
+    [InlineData("kuch saathi hazar", false)]        // everyday word, never corrected into a number
+    public void FuzzyMatch_NeverTurnsAnEverydayOrAmbiguousWordIntoANumber(string text, bool readsAnAmount)
+    {
+        Assert.Equal(readsAnAmount, SpokenNumbers.WordAmounts(text).Count > 0);
+    }
+
+    [Fact]
+    public void RefusedUnknownNumberWord_IsCounted_WordOnly()
+    {
+        UnknownNumberWordLog.Clear();
+
+        ConversationEngine.DecideRewrite("Ayesha ko ekhatarr hazar ka order", new[] { "customer Ayesha price 71000" }, null);
+
+        Assert.Contains(UnknownNumberWordLog.Snapshot(), x => x.Word == "ekhatarr" && x.Count >= 1);
     }
 
     [Fact]
