@@ -382,15 +382,21 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         var allowedActions = context.AllowedActions.Count == 0
             ? "reply, command, yes, no, choose, edit_step, done, skip, help"
             : string.Join(", ", context.AllowedActions);
+        // Prompt caching needs an identical prefix: every instruction is the same for every seller and note, so it comes first,
+        // and everything that changes (shop, situation, catalog, orders, customers, chat, allowed actions) is appended last.
+        var sellerContext =
+            "\n\nSELLER CONTEXT (changes with every note):\n" +
+            $"Shop: '{context.BusinessName}'\n" +
+            $"Situation: {context.Situation}\nSeller's catalog: {catalog}\nSeller's latest orders (use these to resolve \"Hassan ka order\", \"last order\", \"suit ki price\"):\n{orders}\n" +
+            $"Seller's saved customers (name, phone, order history):\n{customers}\n" +
+            (context.RecentExchanges.Count == 0 ? "" : $"The last messages in this chat, oldest first (a short spoken answer usually replies to the last bot message):\n{string.Join("\n", context.RecentExchanges)}\n") +
+            $"ALLOWED ACTIONS right now: {allowedActions}. If the seller's words need an action that is not allowed, use reply with their words — never pick another action to make it fit.";
         var json = await CompleteTextAsync(
-            $"You clean up voice notes that the owner of the small Pakistani shop '{context.BusinessName}' sends to their WhatsApp order-tracking bot. " +
+            "You clean up voice notes that the owner of a small Pakistani shop sends to their WhatsApp order-tracking bot. " +
             "The input is a speech-to-text transcript; it may be Urdu script, Roman Urdu or English, with misheard words and spoken numbers. " +
             "FIRST understand what the seller means (the transcript's words are often phonetically wrong: \"kaan\" may be cotton, \"soor\" suit, " +
             "\"paroshak\" products); never transliterate sounds word for word — write the intended words with their normal spellings (khaddar, chadar, dupatta, wool, cotton, suit, product). " +
-            "Then rewrite it into the exact text the seller would have TYPED to the bot, in Latin script (Roman Urdu / English), for this situation: " +
-            $"{context.Situation}\nSeller's catalog: {catalog}\nSeller's latest orders (use these to resolve \"Hassan ka order\", \"last order\", \"suit ki price\"):\n{orders}\n" +
-            $"Seller's saved customers (name, phone, order history):\n{customers}\n" +
-            (context.RecentExchanges.Count == 0 ? "" : $"The last messages in this chat, oldest first (a short spoken answer usually replies to the last bot message):\n{string.Join("\n", context.RecentExchanges)}\n") + "\n" +
+            "Then rewrite it into the exact text the seller would have TYPED to the bot, in Latin script (Roman Urdu / English), for the situation described in the SELLER CONTEXT at the very end of these instructions. " +
             "Rules: (1) Keep every digit of every number, price and phone; turn spoken number words into digits (char = 4, ek = 1, teen hazaar paanch sau = 3500). " +
             "A spoken word for \"number\" (number, nambar, نمبر) before a figure is not part of the answer: write only the figure, in digits (\"number paanch bola tha\" = 5). " +
             "(2) If a yes/no answer is expected and the transcript clearly agrees (haan, ji, theek hai, kar do) answer exactly \"yes\"; if it clearly refuses " +
@@ -427,7 +433,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "(\"chadar daal dein, sale price 10000, cost taqreeban 8500, stock 50\"), write ONE product line for it: \"Chadar - 10000, cost 8500, stock 50\" (only the parts said; " +
             "an approximate number is written as that number). That line is the answer; do not write a sentence. " +
             "ORDER STATUS: the only statuses are pending, shipped, delivered, returned, cancelled (plus paid for payment). The command is \"mark <order id> <status>\" using the real id from the " +
-            "latest orders list above (\"Order #13 Hassan\" -> 13; the numbers in the examples are NOT real). Map the seller's words by meaning: shipped = bhej diya / courier ko de diya / dispatch / ship kar do; " +
+            "latest orders list in the SELLER CONTEXT (\"Order #13 Hassan\" -> 13; the numbers in the examples are NOT real). Map the seller's words by meaning: shipped = bhej diya / courier ko de diya / dispatch / ship kar do; " +
             "delivered = complete / completed / mukammal / ho chuka / customer ko mil gaya / pohanch gaya (an order that is \"complete\" is DELIVERED, never shipped); returned = wapas aa gaya; " +
             "paid = payment aa gayi; cancelled = \"cancel order <id>\". Never choose shipped unless they said it was sent/dispatched. If several orders match the name, ask which one. If they want to change an order's status but did not say which status, or you are not sure which one they mean, " +
             "return the command \"status <order id>\" (just \"status\" when no order is clear): the bot then shows the seller the possible statuses to pick from. " +
@@ -439,7 +445,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "\"is saal ke customers\" -> \"customers this year\"; \"1 se 15 May tak kharcha\" -> \"expenses 1 May to 15 May\". If the period is unclear, ask which period. " +
             "A discount's validity is a duration or date: \"create discount: EID10, 10 percent, expires 2 weeks\" (also 15 days, 3 months, 31 Dec, month end). (7) A product's catalog price is only a default: the seller often sells one order at a different price. To change what ONE " +
             "customer was charged use three steps: \"edit order <order id>\", \"price <item number> = <amount>\", \"done\" (item numbers are the 1) 2) numbers " +
-            "in the order list above; \"qty <item number> = <n>\", \"remove <item number>\", \"delivery <amount>\", \"phone <digits>\" and \"address <text>\" are the other edits you can put between edit order and done). " +
+            "in the order list of the SELLER CONTEXT; \"qty <item number> = <n>\", \"remove <item number>\", \"delivery <amount>\", \"phone <digits>\" and \"address <text>\" are the other edits you can put between edit order and done). " +
             "Never touch the catalog price for this. (8) NAMES: when the seller names a person, match it against the saved customers (spelling, Urdu script and phonetic " +
             "variants all count). One clear match = an existing customer: use the saved spelling, and use their order history (an order command for them needs the right order id; " +
             "\"Hassan ka order\" with several orders = ask which). Two or more plausible matches = return a question listing them (\"Hassan Ali (0300…) ya Hassan Raza (0321…)?\"). " +
@@ -455,14 +461,14 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "reply = typed text that answers the bot's question, or a dictated order / product lines; command = a typed bot command (orders today, mark 3 shipped, edit order 12, catalog...); " +
             "yes / no = the seller agrees / refuses (text empty); choose = picks a numbered option (text is only the number); edit_step = one edit line while changing an order " +
             "(price 1 = 1500, qty 2 = 3, remove 1, delivery 250...); done = the seller says they are finished (text empty); skip = the seller says skip (text empty); help = kya karun / guide. " +
-            $"ALLOWED ACTIONS right now: {allowedActions}. If the seller's words need an action that is not allowed, use reply with their words — never pick another action to make it fit. " +
+            "Only the ALLOWED ACTIONS listed in the SELLER CONTEXT are allowed. " +
             "SPAN: every step also has \"span\": the exact words of the transcript that the step was made from, copied as they were spoken (\"\" only when the step comes from the chat context alone, e.g. yes / no / done). " +
             "Never write a span that is not in the transcript, and keep every amount of the step inside its span (words such as \"do\" or \"teen\" count, digits too). " +
             "Return ONLY JSON: {\"steps\": [{\"action\": \"reply\", \"text\": \"...\", \"span\": \"...\"}], \"question\": null, \"options\": []}; steps run one after another as separate typed messages " +
             "(normally just one; at most 8, one per separate wish in the note); question is a string only when asking. WHENEVER you are unsure what the seller means, or a detail has a few possible values " +
             "(which of two customers, which order, which status, which period, which of several commands), ask a short question AND fill options with up to 5 answers the seller can TAP: " +
             "each option is EXACTLY the message the bot should receive when tapped, written as the typed command or reply (\"mark 13 delivered\", \"orders last week\", \"Hassan Ali\", \"create discount\"), " +
-            "at most 40 characters. Use options [] for an open question (a price, a name nobody has said).",
+            "at most 40 characters. Use options [] for an open question (a price, a name nobody has said)." + sellerContext,
             new JsonObject { ["transcript"] = transcript }.ToJsonString(),
             0.1, "voice interpretation", cancellationToken, jsonMode: true,
             model: !string.IsNullOrWhiteSpace(_options.VoiceFastModel) && transcript.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= _options.VoiceFastMaxWords ? _options.VoiceFastModel : _options.VoiceModel);
