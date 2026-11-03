@@ -17,9 +17,9 @@ public static class SpokenNumbers
     private static readonly Dictionary<string, decimal> Words = BuildWords();
     private static readonly Dictionary<string, long> Multipliers = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["sau"] = 100, ["so"] = 100, ["hundred"] = 100, ["سو"] = 100,
-        ["hazar"] = 1_000, ["hazaar"] = 1_000, ["hajar"] = 1_000, ["thousand"] = 1_000, ["ہزار"] = 1_000,
-        ["lakh"] = 100_000, ["lac"] = 100_000, ["lakhs"] = 100_000, ["لاکھ"] = 100_000
+        ["sau"] = 100, ["so"] = 100, ["sou"] = 100, ["hundred"] = 100, ["سو"] = 100,
+        ["hazar"] = 1_000, ["hazaar"] = 1_000, ["hajar"] = 1_000, ["hajaar"] = 1_000, ["hazzar"] = 1_000, ["thousand"] = 1_000, ["ہزار"] = 1_000,
+        ["lakh"] = 100_000, ["lac"] = 100_000, ["lakhs"] = 100_000, ["lakkh"] = 100_000, ["لاکھ"] = 100_000
     };
 
     private static Dictionary<string, decimal> BuildWords()
@@ -59,6 +59,9 @@ public static class SpokenNumbers
 
         // Punjabi spellings that differ from Roman Urdu ("dass hazaar", "atth sau", "vee hazaar"). "saath"/"sath" stay 60; "satt" is 7.
         Add(1, "ikk"); Add(2, "dho"); Add(3, "tinn", "tin"); Add(7, "satt"); Add(8, "atth"); Add(10, "dass"); Add(20, "vee", "veeh", "vih"); Add(40, "chali");
+
+        // More spellings the speech model and Punjabi speakers produce. Only forms that cannot be another number or an everyday word.
+        Add(1, "ik"); Add(5, "paanj", "panjj"); Add(6, "chheh", "chhey"); Add(10, "dus", "duss"); Add(12, "baarah"); Add(20, "bis");
 
         // "one and a half / two and a half": dedh sau = 150, dhai hazar = 2500
         Add(1.5m, "dedh", "derh"); Add(2.5m, "dhai", "dhaai");

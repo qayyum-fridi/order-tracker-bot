@@ -147,7 +147,7 @@
   "voice-confirm.019": "ℹ️ This voice note is too long (over 5 minutes). Please send shorter notes (one or two tasks per note).",
   "voice-confirm.020": "ℹ️ I heard \"{0}\" in your voice note and understood it as \"{1}\" (a saved name). If that is wrong, please send the correct name in writing.",
   "voice-confirm.021": "📷 The picture was taken as \"{0}\". This is what I read: {1}",
-  "voice-confirm.022": "⚠️ Sorry, the needed details could not be read clearly from the picture, so nothing was saved. Please write it instead, like: {0}",
+  "voice-confirm.022": "⚠️ Sorry, the needed details could not be read clearly from the picture, so nothing was saved. Please send a clearer picture (good light, held straight and close), or write it instead, like: {0}",
   "voice-confirm.023": "ℹ️ Okay, nothing was saved from the picture.",
   "voice-confirm.025": "ℹ️ Please finish the current task (an order draft or a question) or type \"cancel\", then send the picture again.",
   "voice-confirm.029": "📷 What is this picture of? Pick one below (or say it: expense, wages, customer):",

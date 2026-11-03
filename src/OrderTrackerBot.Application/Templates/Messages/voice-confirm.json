@@ -18,7 +18,7 @@
   "voice-confirm.019": "ℹ️ Yeh voice note bohat lamba hai (5 minute se zyada). Barae meherbani chhote chhote notes mein bhejein (aik note mein aik ya do kaam).",
   "voice-confirm.020": "ℹ️ Aap ki awaaz mein \"{0}\" suna gaya, maine \"{1}\" (saved naam) samjha. Agar yeh galat hai to barae meherbani sahi naam likh kar bhejein.",
   "voice-confirm.021": "📷 Tasveer ko \"{0}\" samjha gaya. Maine yeh parha: {1}",
-  "voice-confirm.022": "⚠️ Maaf kijiye, tasveer mein se zaroori maloomat saaf nahi parh sakay, is liye kuch save nahi kiya. Barae meherbani likh kar bhejein, jaise: {0}",
+  "voice-confirm.022": "⚠️ Maaf kijiye, tasveer mein se zaroori maloomat saaf nahi parh sakay, is liye kuch save nahi kiya. Barae meherbani roshni mein, seedhi aur qareeb se saaf tasveer dobara bhejein, ya likh kar bhejein, jaise: {0}",
   "voice-confirm.023": "ℹ️ Theek hai, tasveer se kuch save nahi kiya.",
   "voice-confirm.025": "ℹ️ Pehle mojooda kaam (order draft ya sawal) mukammal karein ya \"cancel\" likhein, phir tasveer dobara bhejein.",
   "voice-confirm.029": "📷 Yeh tasveer kis cheez ki hai? Neeche se chunein (ya bol dein: kharcha, tankhwah, customer):",

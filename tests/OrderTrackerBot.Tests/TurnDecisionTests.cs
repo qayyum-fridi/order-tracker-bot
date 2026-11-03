@@ -232,6 +232,20 @@ public class TurnDecisionTests
         Assert.Equal(expected, step);
     }
 
+    [Theory]
+    [InlineData("ik hazaar", 1000)]
+    [InlineData("panj sou", 500)]
+    [InlineData("paanj hajaar", 5000)]
+    [InlineData("bis hajaar", 20000)]
+    [InlineData("dus sou", 1000)]
+    [InlineData("baarah hazzar", 12000)]
+    [InlineData("teen lakkh", 300000)]
+    [InlineData("chhey sou", 600)]
+    public void MoreSpokenNumberSpellings_AreRead(string text, long expected)
+    {
+        Assert.Contains(expected, SpokenNumbers.WordAmounts(text));
+    }
+
     [Fact]
     public void ConfidentTranscript_BecomingARiskyStep_StillExecutes()
     {
