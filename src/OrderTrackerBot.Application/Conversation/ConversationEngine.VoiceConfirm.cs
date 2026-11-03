@@ -216,7 +216,9 @@ public partial class ConversationEngine
         var parkedLogId = ctx.PendingVoiceLogId;
         var parkedSentAt = ctx.PendingVoiceSentAt;
         var yesLabel = ctx.PendingVoiceYesLabel;
+        var fromPicture = ctx.PendingVoiceFromPicture;
         ctx.PendingVoiceYesLabel = null;
+        ctx.PendingVoiceFromPicture = false;
         ctx.PendingVoiceSteps = null;
         ctx.PendingVoiceParkedAt = null;
         ctx.PendingVoiceSentAt = null;
@@ -240,9 +242,14 @@ public partial class ConversationEngine
                 return true;
             }
 
+            if (fromPicture && steps.Count == 1 && CommandParser.TryParse(steps[0])?.Kind == CommandKind.Expense)
+                await RecordExpenseConfirmAsync(seller, yes: true, ct);
             await RunVoiceStepsAsync(fromPhoneNumber, steps, parkedSentAt, ct);
             return true;
         }
+
+        if (fromPicture && steps is { Count: 1 } && CommandParser.TryParse(steps[0])?.Kind == CommandKind.Expense && (tappedNo || CommandParser.IsNegative(message)))
+            await RecordExpenseConfirmAsync(seller, yes: false, ct);
 
         if (tappedNo || CommandParser.IsNegative(message) || message.Equals("cancel", StringComparison.OrdinalIgnoreCase))
         {

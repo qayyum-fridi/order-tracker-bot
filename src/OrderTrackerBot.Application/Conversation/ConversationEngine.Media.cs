@@ -1152,6 +1152,7 @@ public partial class ConversationEngine
         {
             await ApplyPictureLabelAsync(seller, session, ctx, pictureKind, pictureNote, media.Value, ct);
             await PersistAsync(session, ctx, ct);
+            await RunAutoStepAsync(fromPhoneNumber, ct);
             return;
         }
 

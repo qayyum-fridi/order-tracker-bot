@@ -1015,17 +1015,35 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
-    public async Task FinishingSetup_TellsTheSellerAboutRozanaAndLimits()
+    public async Task PictureExpense_AfterSixteenYeses_IsSavedWithoutAsking_AndUndoBringsTheQuestionBack()
     {
         using var db = _dbFactory.CreateContext();
-        var engine = Engine(db);
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "Lawn Suit - 3500" })
-            await engine.HandleIncomingMessageAsync(Phone, m, default);
+        await OnboardAsync(db);
+        _media.Setup(m => m.DownloadAsync("pic-trust", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[3000], "image/jpeg"));
+        _ai.Setup(a => a.ReadPictureAsync("expense", It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiPictureReading { Amount = 800, Note = "petrol" });
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object,
+            features: new FeatureOptions { StrategyLearning = true, ShortcutButtons = false, ConfirmButtons = false, SuggestionButtons = false, SetupNudges = false, IndustryQuestion = false });
+
+        for (var i = 0; i < 16; i++)
+        {
+            await engine.HandleImageMessageAsync(Phone, "pic-trust", "expense");
+            await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        }
+        Assert.Equal(16, await db.Expenses.CountAsync());
+
         _sent.Clear();
+        await engine.HandleImageMessageAsync(Phone, "pic-trust", "expense");             // 17th: no question
+        Assert.Equal(17, await db.Expenses.CountAsync());
+        Assert.Contains(_sent, m => m.Contains("undo"));
+        Assert.DoesNotContain(_sent, m => m.Contains("YES"));
 
-        await engine.HandleIncomingMessageAsync(Phone, "done", default);
-
-        Assert.Contains(_sent, m => m.Contains("\"rozana\"") && m.Contains("\"limits\""));
+        await engine.HandleIncomingMessageAsync(Phone, "undo", default);                  // a correction
+        Assert.Equal(16, await db.Expenses.CountAsync());
+        _sent.Clear();
+        await engine.HandleImageMessageAsync(Phone, "pic-trust", "expense");
+        Assert.Equal(16, await db.Expenses.CountAsync());                                 // asked again, nothing saved yet
+        Assert.Contains(_sent, m => m.Contains("YES"));
     }
 
     [Fact]

@@ -1945,7 +1945,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "orders today", default);
         await engine.HandleIncomingMessageAsync(Phone, "orders today", default);
 
-        VerifyBar(new[] { "📖 Guide", "➕ Naya order", "📋 Menu" }, Times.Exactly(2));
+        VerifyBar(new[] { "📋 Rozana", "➕ Naya order", "📋 Menu" }, Times.Exactly(2));
         Assert.Contains("shortcut off", bodies[0]);
         Assert.Equal("⚡ Quick actions", bodies[1]);
     }
@@ -1961,7 +1961,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "menu", default);          // already an interactive list
         await engine.HandleIncomingMessageAsync(Phone, "reset account", default); // waiting for yes/no
 
-        VerifyBar(new[] { "📖 Guide", "➕ Naya order", "📋 Menu" }, Times.Never());
+        VerifyBar(new[] { "📋 Rozana", "➕ Naya order", "📋 Menu" }, Times.Never());
     }
 
     [Fact]
@@ -1970,7 +1970,7 @@ public class ConversationEngineTests : IDisposable
         using var db = _dbFactory.CreateContext();
         await OnboardSellerAsync(db);
         var engine = CreateShortcutEngine(db);
-        var bar = new[] { "📖 Guide", "➕ Naya order", "📋 Menu" };
+        var bar = new[] { "📋 Rozana", "➕ Naya order", "📋 Menu" };
         _sender.Invocations.Clear();
 
         await engine.HandleIncomingMessageAsync(Phone, "shortcut off", default);
@@ -1993,11 +1993,11 @@ public class ConversationEngineTests : IDisposable
         _sender.Invocations.Clear();
 
         await CreateShortcutEngine(db).HandleIncomingMessageAsync(Phone, "orders today", default);
-        VerifyBar(new[] { "📖 گائیڈ", "➕ نیا آرڈر", "📋 مینو" }, Times.Once());
+        VerifyBar(new[] { "📋 روزانہ", "➕ نیا آرڈر", "📋 مینو" }, Times.Once());
 
         _sender.Invocations.Clear();
         await CreateEngine(db).HandleIncomingMessageAsync(Phone, "orders today", default); // features unset = off
-        VerifyBar(new[] { "📖 گائیڈ", "➕ نیا آرڈر", "📋 مینو" }, Times.Never());
+        VerifyBar(new[] { "📋 روزانہ", "➕ نیا آرڈر", "📋 مینو" }, Times.Never());
     }
 
     [Fact]

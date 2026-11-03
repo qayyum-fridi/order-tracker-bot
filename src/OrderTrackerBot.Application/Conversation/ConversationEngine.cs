@@ -115,6 +115,7 @@ public partial class ConversationEngine
         if (_draftPutOnHold) await HoldParkedVoiceStepsAsync(fromPhoneNumber, ct);
         await ResumeVoiceContinueAsync(fromPhoneNumber, answeredDraft, ct);
         await FlushStockWarningsAsync(fromPhoneNumber, ct);
+        await RunAutoStepAsync(fromPhoneNumber, ct);
         if (await TrackMissesAsync(fromPhoneNumber, ct)) return;
         await TrySendShortcutBarAsync(fromPhoneNumber, ct);
     }

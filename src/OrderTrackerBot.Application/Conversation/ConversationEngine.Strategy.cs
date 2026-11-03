@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Strategy;
+using OrderTrackerBot.Application.Templates;
 using OrderTrackerBot.Domain.Entities;
+using OrderTrackerBot.Domain.Enums;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -83,6 +85,51 @@ public partial class ConversationEngine
         row.Overridden += overridden;
         row.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
         await _db.SaveChangesAsync(ct);
+    }
+
+    // Earned trust for a picture-read expense: the confirmation tap is dropped for small amounts once the seller has said yes every time (same rule and
+    // threshold as the price guard: sixteen yeses in a row, none corrected), and comes back as soon as one is refused or undone. Off = always ask.
+    private const string ExpenseConfirmContext = "confirm_expense_picture";
+    private const string YesArm = "yes";
+    private const decimal AutoExpenseMax = 20_000m;
+
+    private async Task<bool> ExpenseConfirmTrustedAsync(Seller seller, CancellationToken ct)
+    {
+        if (!_features.StrategyLearning) return false;
+        var rows = await _db.StrategyStats.Where(s => s.SellerId == seller.Id && s.Context == ExpenseConfirmContext).ToListAsync(ct);
+        var total = rows.FirstOrDefault(r => r.Arm == AnyArm)?.Picked ?? 0;
+        var yes = rows.FirstOrDefault(r => r.Arm == YesArm);
+        return StrategyPolicy.LowerBound((yes?.Picked ?? 0) - (yes?.Overridden ?? 0), total) >= StrategyPolicy.AutoMinLowerBound;
+    }
+
+    /// <summary>Counts one answer to the confirmation of a picture-read expense: every decision, and the yeses among them.</summary>
+    private async Task RecordExpenseConfirmAsync(Seller seller, bool yes, CancellationToken ct)
+    {
+        await BumpStrategyAsync(seller, ExpenseConfirmContext, AnyArm, picked: 1, overridden: 0, ct);
+        if (yes) await BumpStrategyAsync(seller, ExpenseConfirmContext, YesArm, picked: 1, overridden: 0, ct);
+    }
+
+    /// <summary>An expense saved without asking was undone: that is a correction, so the question comes back.</summary>
+    private Task RetractAutoExpenseAsync(Seller seller, CancellationToken ct) =>
+        BumpStrategyAsync(seller, ExpenseConfirmContext, YesArm, picked: 0, overridden: 1, ct);
+
+    private string? _autoRunStep;
+
+    /// <summary>Runs an expense that earned trust, after the turn that read it has been saved; says that it was saved without asking and how to undo it.</summary>
+    private async Task RunAutoStepAsync(string fromPhoneNumber, CancellationToken ct)
+    {
+        if (_autoRunStep is not { } step) return;
+        _autoRunStep = null;
+        await HandleIncomingMessageAsync(fromPhoneNumber, step, ct, _sentAtUtc);
+
+        var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
+        var session = seller.Session!;
+        var ctx = SessionContextData.FromJson(session.ContextJson);
+        ctx.AutoExpenseLogId = await _db.ActionLogs.Where(a => a.SellerId == seller.Id && a.ActionType == ActionType.ExpenseAdded && !a.Undone)
+            .OrderByDescending(a => a.Id).Select(a => (int?)a.Id).FirstOrDefaultAsync(ct);
+        await PersistAsync(session, ctx, ct);
+        await RecordExpenseConfirmAsync(seller, yes: true, ct);
+        await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("voice-confirm.034"), ct);
     }
 
     private const string DeliveryContext = "delivery_text";

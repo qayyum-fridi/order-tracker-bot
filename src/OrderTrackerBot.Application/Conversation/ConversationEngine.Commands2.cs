@@ -139,6 +139,12 @@ public partial class ConversationEngine
         }
 
         last.Undone = true;
+        // Undoing an expense that was saved without asking is a correction: the confirmation comes back.
+        if (last.ActionType == ActionType.ExpenseAdded && _turnCtx?.AutoExpenseLogId == last.Id)
+        {
+            await RetractAutoExpenseAsync(seller, ct);
+            _turnCtx.AutoExpenseLogId = null;
+        }
 
         switch (last.ActionType)
         {

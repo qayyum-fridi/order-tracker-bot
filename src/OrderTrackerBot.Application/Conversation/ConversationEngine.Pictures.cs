@@ -132,6 +132,15 @@ public partial class ConversationEngine
             return;
         }
 
+        // A small expense from a seller who has confirmed these every time is saved without the tap (see ExpenseConfirmTrustedAsync); the caller runs it after the turn.
+        if (kind == PictureLabels.Expense && steps.Count == 1 && failed == 0 && session.State == ConversationState.Idle
+            && CommandParser.TryParse(steps[0]) is { Kind: CommandKind.Expense, Amount: > 0 } expense && expense.Amount <= AutoExpenseMax
+            && await ExpenseConfirmTrustedAsync(seller, ct))
+        {
+            _autoRunStep = steps[0];
+            return;
+        }
+
         var waiting = session.State == ConversationState.AwaitingVoiceConfirmation && ctx.PendingVoiceFromPicture ? ctx.PendingVoiceSteps ?? new List<string>() : new List<string>();
         var all = waiting.Concat(steps.Where(s => !waiting.Contains(s))).Take(MaxPictureSteps).ToList();
 
@@ -145,6 +154,8 @@ public partial class ConversationEngine
         var shown = all.Count == 1 ? all[0] : "\n" + string.Join("\n", all.Select(s => $"• {s}"));
         var text = MessageTemplates.Get("media.002", MessageTemplates.Get("voice-confirm.021", kind, shown));
         if (failed > 0) text = MessageTemplates.Get("voice-confirm.027", failed) + "\n" + text;
+        // What the reports need for an exact result, said where the seller is already looking at the products.
+        if (kind == PictureLabels.Products) text += "\n\n" + MessageTemplates.Get("voice-confirm.035");
         await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, text, new[] { ctx.PendingVoiceYesLabel, NoButtonLabel }, ct);
     }
 

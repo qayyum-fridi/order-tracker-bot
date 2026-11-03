@@ -13,9 +13,9 @@ public partial class ConversationEngine
     // Guide is always the first button (the way back to the illustrated and step-by-step guides); Menu is the last, so every command is one tap away.
     private static string[] ShortcutLabels(string language) => Lang.Normalize(language) switch
     {
-        Lang.UrduScript => new[] { "📖 گائیڈ", MessageTemplates.Get("shortcuts.009"), MenuLabel(language) },
-        Lang.English => new[] { "📖 Guide", MessageTemplates.Get("shortcuts.010"), MenuLabel(language) },
-        _ => new[] { "📖 Guide", MessageTemplates.Get("shortcuts.011"), MenuLabel(language) }
+        Lang.UrduScript => new[] { "📋 روزانہ", MessageTemplates.Get("shortcuts.009"), MenuLabel(language) },
+        Lang.English => new[] { "📋 Rozana", MessageTemplates.Get("shortcuts.010"), MenuLabel(language) },
+        _ => new[] { "📋 Rozana", MessageTemplates.Get("shortcuts.011"), MenuLabel(language) }
     };
 
     private static string MenuLabel(string language) => Lang.Normalize(language) == Lang.UrduScript ? "📋 مینو" : "📋 Menu";
