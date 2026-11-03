@@ -584,7 +584,7 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         await OnboardAsync(db);
-        _media.Setup(m => m.DownloadAsync("voice-1", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
+        _media.Setup(m => m.DownloadAsync("voice-1", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[2500], "audio/ogg"));
         var transcriber = new Mock<IAudioTranscriber>();
         transcriber.SetupGet(t => t.IsConfigured).Returns(true);
         transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>())).ReturnsAsync("delivery 200");
@@ -602,7 +602,7 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         await OnboardAsync(db);
-        _media.Setup(m => m.DownloadAsync("voice-2", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
+        _media.Setup(m => m.DownloadAsync("voice-2", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[2500], "audio/ogg"));
         var transcriber = new Mock<IAudioTranscriber>();
         transcriber.SetupGet(t => t.IsConfigured).Returns(true);
         var issues = new Mock<IIssueReporter>();
@@ -633,7 +633,7 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         await OnboardAsync(db);
-        _media.Setup(m => m.DownloadAsync("voice-4", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
+        _media.Setup(m => m.DownloadAsync("voice-4", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[2500], "audio/ogg"));
         var transcriber = new Mock<IAudioTranscriber>();
         transcriber.SetupGet(t => t.IsConfigured).Returns(true);
         transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>()))
@@ -654,7 +654,7 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         await OnboardAsync(db);
-        _media.Setup(m => m.DownloadAsync("voice-5", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
+        _media.Setup(m => m.DownloadAsync("voice-5", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[2500], "audio/ogg"));
         var transcriber = new Mock<IAudioTranscriber>();
         transcriber.SetupGet(t => t.IsConfigured).Returns(true);
         transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>()))
@@ -675,7 +675,7 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         await OnboardAsync(db);
-        _media.Setup(m => m.DownloadAsync("voice-6", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
+        _media.Setup(m => m.DownloadAsync("voice-6", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[2500], "audio/ogg"));
         var transcriber = new Mock<IAudioTranscriber>();
         transcriber.SetupGet(t => t.IsConfigured).Returns(true);
         transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>()))
@@ -700,11 +700,29 @@ public class MockupFeatureTests : IDisposable
         foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections" })
             await setup.HandleIncomingMessageAsync(Phone, m, default);
         _sent.Clear();
-        _media.Setup(m => m.DownloadAsync("voice-ctx", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
+        _media.Setup(m => m.DownloadAsync("voice-ctx", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[2500], "audio/ogg"));
         var transcriber = new Mock<IAudioTranscriber>();
         transcriber.SetupGet(t => t.IsConfigured).Returns(true);
         transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>())).ReturnsAsync(transcript);
         return new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object);
+    }
+
+    [Theory]
+    [InlineData(10, "bohat chhota ya khaali")]
+    [InlineData(ConversationEngine.MaxVoiceBytes + 1, "bohat lamba")]
+    public async Task VoiceNote_EmptyOrOversized_IsNotTranscribed(int size, string reply)
+    {
+        using var db = _dbFactory.CreateContext();
+        var voice = await VoiceEngineAtAddProductAsync(db, "Lawn Suit - 3500");
+        _media.Setup(m => m.DownloadAsync("voice-size", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[size], "audio/ogg"));
+        var transcriber = new Mock<IAudioTranscriber>();
+        transcriber.SetupGet(t => t.IsConfigured).Returns(true);
+        voice = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object);
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-size", "wamid.size");
+
+        Assert.Contains(_sent, m => m.Contains(reply));
+        transcriber.Verify(t => t.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -1095,7 +1113,7 @@ public class MockupFeatureTests : IDisposable
 
     private ConversationEngine VoiceEngine(AppDbContext db, string transcript, Microsoft.Extensions.Logging.ILogger<ConversationEngine>? logger = null, FeatureOptions? features = null)
     {
-        _media.Setup(m => m.DownloadAsync("voice-ctx", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
+        _media.Setup(m => m.DownloadAsync("voice-ctx", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[2500], "audio/ogg"));
         var transcriber = new Mock<IAudioTranscriber>();
         transcriber.SetupGet(t => t.IsConfigured).Returns(true);
         transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>())).ReturnsAsync(transcript);

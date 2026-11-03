@@ -67,6 +67,10 @@ public partial class ConversationEngine
         return open ? id : null;
     }
 
+    // WhatsApp voice notes are about 2 KB per second: under ~1 s is silence or a tap, over ~3 MB is a recording of many minutes.
+    internal const int MinVoiceBytes = 2000;
+    internal const int MaxVoiceBytes = 3 * 1024 * 1024;
+
     /// <summary>SHA-256 of the audio being handled now (set by HandleAudioCoreAsync), recorded only when the note made actions.</summary>
     private string? _lastAudioHash;
 
@@ -105,6 +109,13 @@ public partial class ConversationEngine
         var voiceClock = System.Diagnostics.Stopwatch.StartNew();
         var media = _media is null ? null : await _media.DownloadAsync(mediaId, ct);
         var downloadMs = voiceClock.ElapsedMilliseconds;
+        // An empty or tiny file has nothing to hear, and an oversized one is a long recording the speech model would charge in full: neither is transcribed.
+        if (media is { } audio && (audio.Bytes.Length < MinVoiceBytes || audio.Bytes.Length > MaxVoiceBytes))
+        {
+            await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get(audio.Bytes.Length < MinVoiceBytes ? "voice-confirm.018" : "voice-confirm.019"), ct);
+            await _db.SaveChangesAsync(ct);
+            return;
+        }
         _lastAudioHash = media is null ? null : Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(media.Value.Bytes));
         if (_lastAudioHash is not null && SessionContextData.FromJson(seller.Session!.ContextJson).ProcessedVoiceHashes?.Contains(_lastAudioHash) == true)
         {

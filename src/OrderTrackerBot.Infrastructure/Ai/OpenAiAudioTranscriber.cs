@@ -50,6 +50,7 @@ public class OpenAiAudioTranscriber : IAudioTranscriber
                               && _options.TranscriptionModel.StartsWith("gpt-", StringComparison.OrdinalIgnoreCase)
                               && !_options.TranscriptionModel.StartsWith("gpt-4o", StringComparison.OrdinalIgnoreCase);
 
+    internal static int RetryDelayMs = 700;
     private const int MaxKeywords = 50;
     private const int MaxKeywordChars = 40;
 
@@ -107,6 +108,16 @@ public class OpenAiAudioTranscriber : IAudioTranscriber
                 clock.Restart();
                 response = await SendAsync(BuildForm(audio, extension, vocabulary, withHints: false), cancellationToken);
                 _logger.LogInformation("Transcription: HTTP {Status} after {Ms} ms (retry without hints)", (int)response.StatusCode, clock.ElapsedMilliseconds);
+            }
+
+            // A busy or failing speech service (429 / 5xx) usually answers the second try: one retry, so a seller's note is not lost to a blip.
+            if ((int)response.StatusCode is 429 or >= 500)
+            {
+                _logger.LogWarning("Transcription answered HTTP {Status}; retrying once", (int)response.StatusCode);
+                response.Dispose();
+                await Task.Delay(TimeSpan.FromMilliseconds(RetryDelayMs), cancellationToken);
+                response = await SendAsync(BuildForm(audio, extension, vocabulary, withHints: true), cancellationToken);
+                _logger.LogInformation("Transcription: HTTP {Status} after retry", (int)response.StatusCode);
             }
 
             using (response)

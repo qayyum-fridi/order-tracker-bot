@@ -67,7 +67,7 @@ public class VoiceNoteTests
     {
         var api = new FakeTranscriptionApi(HttpStatusCode.OK, "{\"text\":\"Boski 5000\"}");
 
-        var text = await Transcriber(api, model: "gpt-transcribe").TranscribeAsync(new byte[] { 1 }, "audio/ogg", new[] { "Boski", "Hassan Ali", "boski" });
+        var text = await Transcriber(api, model: "gpt-transcribe").TranscribeAsync(new byte[2500], "audio/ogg", new[] { "Boski", "Hassan Ali", "boski" });
 
         Assert.Equal("Boski 5000", text);
         Assert.Contains("gpt-transcribe", api.RequestBody);
@@ -95,7 +95,7 @@ public class VoiceNoteTests
     {
         var api = new RejectHintsThenAccept();
 
-        var text = await Transcriber(api, model: "gpt-transcribe").TranscribeAsync(new byte[] { 1 }, "audio/ogg", new[] { "Boski" });
+        var text = await Transcriber(api, model: "gpt-transcribe").TranscribeAsync(new byte[2500], "audio/ogg", new[] { "Boski" });
 
         Assert.Equal("theek hai", text);
         Assert.Equal(2, api.Bodies.Count);
@@ -107,6 +107,6 @@ public class VoiceNoteTests
     public async Task Transcriber_WithoutKeyOrOnError_ReturnsNull()
     {
         Assert.False(Transcriber(new FakeTranscriptionApi(HttpStatusCode.OK, "{}"), apiKey: "").IsConfigured);
-        Assert.Null(await Transcriber(new FakeTranscriptionApi(HttpStatusCode.InternalServerError, "oops")).TranscribeAsync(new byte[] { 1 }, "audio/ogg", null));
+        Assert.Null(await Transcriber(new FakeTranscriptionApi(HttpStatusCode.InternalServerError, "oops")).TranscribeAsync(new byte[2500], "audio/ogg", null));
     }
 }
