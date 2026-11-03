@@ -1015,6 +1015,20 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task FinishingSetup_TellsTheSellerAboutRozanaAndLimits()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = Engine(db);
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "Lawn Suit - 3500" })
+            await engine.HandleIncomingMessageAsync(Phone, m, default);
+        _sent.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "done", default);
+
+        Assert.Contains(_sent, m => m.Contains("\"rozana\"") && m.Contains("\"limits\""));
+    }
+
+    [Fact]
     public async Task LimitsCommand_ExplainsWhatTheBotAccepts_AndRozanaListsTheDailyJobs()
     {
         using var db = _dbFactory.CreateContext();

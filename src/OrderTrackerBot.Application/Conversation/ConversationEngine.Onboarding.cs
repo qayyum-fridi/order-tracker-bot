@@ -252,6 +252,8 @@ public partial class ConversationEngine
             "Options dekhein", AfterSetupSections, ct);
         await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
             MessageTemplates.Get("onboarding.014"), GuideOfferButtons, ct);
+        // The three words worth knowing from day one, so nothing has to be discovered by getting stuck first.
+        await _sender.SendTextMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("voice-confirm.033"), ct);
     }
 
     private static readonly string BusinessInfoPrompt =

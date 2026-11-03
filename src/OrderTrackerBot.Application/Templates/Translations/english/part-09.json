@@ -151,6 +151,7 @@
   "voice-confirm.023": "ℹ️ Okay, nothing was saved from the picture.",
   "voice-confirm.025": "ℹ️ Please finish the current task (an order draft or a question) or type \"cancel\", then send the picture again.",
   "voice-confirm.031": "ℹ️ What the bot accepts:\n🎤 A voice note: up to {0} minutes\n🎤 Voice notes: {2} per hour\n📷 Pictures: {3} per hour (up to {4} at once, and {5} minutes to tell the type)\n💬 Messages: {1} per hour\nWhen a limit is reached, the bot says how long to wait.",
+  "voice-confirm.033": "💡 You can work by speaking (voice note), writing or sending a picture.\n• Daily jobs: \"rozana\"\n• What the bot accepts: \"limits\"\n• Help: \"help\"",
   "voice-confirm.032": "📋 Daily jobs — pick one:",
   "voice-confirm.030": "ℹ️ I am not sure I heard you correctly. Please check \"Samjha\" above and confirm.",
   "voice-confirm.029": "📷 What is this picture of? Pick one below (or say it: expense, wages, customer):",
