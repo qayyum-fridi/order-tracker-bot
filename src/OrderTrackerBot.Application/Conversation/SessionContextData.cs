@@ -234,6 +234,17 @@ public sealed class SessionContextData
 
     public string ToJson() => JsonSerializer.Serialize(this);
 
+    /// <summary>
+    /// Puts every setting back to what a new session has. The engine saves its in-memory context at the end of every turn, so clearing the stored
+    /// JSON alone (as "reset account" did) is undone by that save: the waiting-for-price names, voice hashes, tips and the rest came back.
+    /// </summary>
+    public void ResetToEmpty()
+    {
+        var fresh = new SessionContextData();
+        foreach (var property in typeof(SessionContextData).GetProperties().Where(p => p.CanWrite && p.GetIndexParameters().Length == 0))
+            property.SetValue(this, property.GetValue(fresh));
+    }
+
     public static SessionContextData FromJson(string? json) =>
         string.IsNullOrWhiteSpace(json)
             ? new SessionContextData()

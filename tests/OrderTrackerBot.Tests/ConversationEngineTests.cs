@@ -127,6 +127,35 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task ResetAccount_ClearsTheWholeSessionMemory_NotJustTheStoredJson()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        // Left over from earlier testing: names still waiting for a price, a shown tip, voice hashes, a catalog page, a switched-off bar.
+        var before = await db.Sellers.Include(s => s.Session).FirstAsync(s => s.WhatsAppPhoneNumber == Phone);
+        var old = SessionContextData.FromJson(before.Session!.ContextJson);
+        old.PendingPriceProducts = new List<string> { "Handbag", "Chadar" };
+        old.PendingPriceSetAt = DateTime.UtcNow;
+        old.PhotoTipShown = true;
+        old.ProcessedVoiceHashes = new List<string> { "ABC" };
+        old.CatalogPage = 3;
+        before.Session.ContextJson = old.ToJson();
+        await db.SaveChangesAsync();
+
+        await engine.HandleIncomingMessageAsync(Phone, "reset account", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        var seller = await db.Sellers.Include(s => s.Session).FirstAsync(s => s.WhatsAppPhoneNumber == Phone);
+        var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
+        Assert.Null(ctx.PendingPriceProducts);
+        Assert.Null(ctx.PendingPriceSetAt);
+        Assert.False(ctx.PhotoTipShown);
+        Assert.Null(ctx.ProcessedVoiceHashes);
+        Assert.Equal(new SessionContextData().CatalogPage, ctx.CatalogPage);
+    }
+
+    [Fact]
     public async Task ResetAccount_WithoutConfirmation_KeepsData()
     {
         using var db = _dbFactory.CreateContext();
