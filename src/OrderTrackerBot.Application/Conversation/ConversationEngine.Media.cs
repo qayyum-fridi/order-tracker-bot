@@ -696,14 +696,14 @@ public partial class ConversationEngine
         return null;
     }
 
-    private static readonly Regex HedgeWord = new(@"\b(?:agar|shayad|maybe|perhaps|if|soch\w*|dekh\w*|ruk\w*|wait|hmm+|pata\s+nahi|pata\s+nahin)\b",RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex HedgeWord = new(@"\b(?:agar|shayad|maybe|perhaps|if|soch\w*|dekh\w*|ruk\w*|wait|hmm+|pata\s+nahi|pata\s+nahin)\b|(?<!\p{L})(?:شاید|اگر|سوچ\p{L}*|رک(?:و|نا|یں|یے)?|ہمم+|پتا\s+نہیں|پتہ\s+نہیں)(?!\p{L})",RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     private static readonly Regex BareAffirmation = new(@"^(yes|y|ha|haan|han|hanji|ji|jee|ok|okay|theek hai|thik hai)[.!]*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
-    private static readonly Regex ReversalWord = new(@"(?:\b(?:lekin|magar|par|but|however|nahi|nahin|nahee|mat|na|no|ruk|ruko|rukna|pehle|phir|cancel|agar|shayad|soch|sochta|sochna|sochun|dekhta|dekhti|dekhungi|hmm|hmmm|baad|abhi|wait|if|maybe)\b)|\?|\.\.\.|…", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
-    private static readonly Regex Comparator = new(@"\bse\s+(?:kam|kum|zyada|zyaada|ziada|upar|neeche|less|more)\b|\bton\s+(?:ghatt|ghat|kam|chhota|zyada|vadh|vadha|upar)\b|\b(?:less|more)\s+than\b|\b(?:under|below|above|over|upto|up\s+to)\b|(?:\d|\b(?:hazaar|hazar|hajar|sau|lakh|k)\b)\s+tak\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex ReversalWord = new(@"(?:\b(?:lekin|magar|par|but|however|nahi|nahin|nahee|mat|na|no|ruk|ruko|rukna|pehle|phir|cancel|agar|shayad|soch|sochta|sochna|sochun|dekhta|dekhti|dekhungi|hmm|hmmm|baad|abhi|wait|if|maybe)\b)|(?<!\p{L})(?:لیکن|مگر|پر|نہیں|مت|رک(?:و|نا|یں|یے)?|پہلے|پھر|منسوخ|کینسل|اگر|شاید|سوچ\p{L}*|ہمم+|بعد|ابھی)(?!\p{L})|\?|؟|\.\.\.|…", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex Comparator = new(@"\bse\s+(?:kam|kum|zyada|zyaada|ziada|upar|neeche|less|more)\b|\bton\s+(?:ghatt|ghat|kam|chhota|zyada|vadh|vadha|upar)\b|\b(?:less|more)\s+than\b|\b(?:under|below|above|over|upto|up\s+to)\b|(?:\d|\b(?:hazaar|hazar|hajar|sau|lakh|k)\b)\s+tak\b|سے\s+(?:کم|کمتر|زیادہ|زیادہ|اوپر|نیچے)(?!\p{L})|(?:\d|ہزار|سو|لاکھ)\s*تک(?!\p{L})", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
     private static readonly Regex RewriteComparator = new(@"\b(?:under|below|above|over|less|more|upto|up\s+to|max|maximum|min|minimum|kam|zyada|tak|ghatt|vadh|vadha)\b|<|>|≤|≥", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
-    private static readonly Regex DeliveryWord = new(@"\b(?:delivery|shipping|courier|postage)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
-    private static readonly Regex InclusionWord = new(@"\b(?:including|included|inclusive|incl|shamil)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex DeliveryWord = new(@"\b(?:delivery|shipping|courier|postage)\b|ڈیلیوری|ڈلیوری|شپنگ|کوریئر|کورئیر",RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex InclusionWord = new(@"\b(?:including|included|inclusive|incl|shamil)\b|(?<!\p{L})(?:شامل|انکلوڈ(?:ڈ)?)(?!\p{L})",RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     // A count or index in a rewrite: 1-99 and not an id or index ("1 = 3", "remove 2", "order 12", "#7" are checked against ids and the amount rules instead).
     private static readonly Regex RewriteCount = new(@"(?<![\w#.])(?<!\b(?:remove|item|order|receipt|status|id|number|tracking)\s)(\d{1,2})(?![\w.])(?!\s*=)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);

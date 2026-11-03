@@ -84,6 +84,30 @@ public class TurnDecisionTests
         Assert.Empty(decision.Steps);
     }
 
+    [Theory]
+    [InlineData("ہاں لیکن کوانٹٹی دو کر دو", "yes")]
+    [InlineData("ہاں، ٹھیک ہے... نہیں رکو", "yes")]
+    public void UrduScriptReversal_AfterAYes_IsNotApproved(string transcript, string step)
+    {
+        Assert.False(ConversationEngine.IsFaithfulRewrite(transcript, step));
+    }
+
+    [Fact]
+    public void UrduScriptComparatorDeliveryAndInclusion_AreNotDropped()
+    {
+        Assert.False(ConversationEngine.IsFaithfulRewrite("پانچ ہزار سے کم رکھنا", "price 5000"));
+        Assert.False(ConversationEngine.IsFaithfulRewrite("آرڈر بارہ پر ڈیلیوری الگ ہے", "order 12 price 500"));
+        Assert.False(ConversationEngine.IsFaithfulRewrite("ڈیلیوری شامل ہے", "order 12 price 500"));
+    }
+
+    [Fact]
+    public void UrduScriptHedge_BecomingARiskyStep_IsRefused()
+    {
+        var decision = ConversationEngine.DecideRewrite("شاید آرڈر 12 کینسل کر دوں", new[] { "cancel order 12" }, new HashSet<long> { 12 });
+
+        Assert.Equal(DecisionKind.Reject, decision.Kind);
+    }
+
     [Fact]
     public void ConfidentTranscript_BecomingARiskyStep_StillExecutes()
     {
