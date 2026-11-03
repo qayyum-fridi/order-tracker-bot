@@ -39,6 +39,7 @@ public partial class ConversationEngine
         var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
         ctx.LastVoiceNoteStartLogId = startLogId;
         ctx.LastVoiceNoteEndLogId = endLogId;
+        ctx.LastVoiceNoteMessageId = messageId;
         ctx.LastVoiceNoteHash = _lastAudioHash;
         if (_lastAudioHash is { } hash)
         {
@@ -48,6 +49,22 @@ public partial class ConversationEngine
             ctx.ProcessedVoiceHashes = hashes.TakeLast(20).ToList();
         }
         await PersistAsync(seller.Session!, ctx, ct);
+    }
+
+    /// <summary>Set while a voice note that replies to the last note is handled: the one open order that note made.</summary>
+    private int? _voiceCorrectionOrderId;
+
+    /// <summary>The single open order made by the last voice note when <paramref name="replyToId"/> is that note; null otherwise (none, several, undone, cancelled).</summary>
+    private async Task<int?> OrderOfVoiceNoteAsync(Seller seller, SessionContextData ctx, string replyToId, CancellationToken ct)
+    {
+        if (ctx.LastVoiceNoteMessageId != replyToId || ctx.LastVoiceNoteEndLogId <= ctx.LastVoiceNoteStartLogId) return null;
+        var ids = await _db.ActionLogs
+            .Where(l => l.SellerId == seller.Id && l.Id > ctx.LastVoiceNoteStartLogId && l.Id <= ctx.LastVoiceNoteEndLogId && !l.Undone && l.OrderId != null)
+            .Select(l => l.OrderId!.Value).Distinct().ToListAsync(ct);
+        if (ids.Count != 1) return null;
+        var id = ids[0];
+        var open = await _db.Orders.AnyAsync(o => o.Id == id && o.SellerId == seller.Id && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned, ct);
+        return open ? id : null;
     }
 
     /// <summary>SHA-256 of the audio being handled now (set by HandleAudioCoreAsync), recorded only when the note made actions.</summary>
@@ -63,12 +80,19 @@ public partial class ConversationEngine
 
         var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
         // A voice note sent as a reply to an earlier voice note is usually a correction of it: the earlier note's orders already exist,
-        // so nothing runs until the seller undoes them. This is said, not guessed.
-        if (replyToId is not null && SessionContextData.FromJson(seller.Session!.ContextJson).ProcessedVoiceNoteIds?.Contains(replyToId) == true)
+        // so nothing is created again. When that note made exactly one open order, the reply is read as a correction of it (edit order N, behind
+        // the usual YES); otherwise this is said, not guessed.
+        _voiceCorrectionOrderId = null;
+        var replyCtx = SessionContextData.FromJson(seller.Session!.ContextJson);
+        if (replyToId is not null && replyCtx.ProcessedVoiceNoteIds?.Contains(replyToId) == true)
         {
-            await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("voice-confirm.009"), ct);
-            await _db.SaveChangesAsync(ct);
-            return;
+            _voiceCorrectionOrderId = await OrderOfVoiceNoteAsync(seller, replyCtx, replyToId, ct);
+            if (_voiceCorrectionOrderId is null)
+            {
+                await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("voice-confirm.009"), ct);
+                await _db.SaveChangesAsync(ct);
+                return;
+            }
         }
         if (!TryTakeUsage(seller, fromPhoneNumber, MediaKind.Voice, out var voiceDecision, out var voiceWait))
         {
@@ -106,6 +130,7 @@ public partial class ConversationEngine
 
         if (messageId is not null) await RememberVoiceNoteAsync(seller, messageId, ct);
         var heard = $"🎤 Maine suna: \"{text}\"";
+        if (_voiceCorrectionOrderId is { } correcting) heard += $"\n{MessageTemplates.Get("voice-confirm.015", correcting)}";
         // Variants (sizes / colours) that the seller says are in a sheet: the voice rewrite keeps only the product, so the variants
         // would be lost. Nothing is saved; the seller sends the file and the import handles the rows.
         if (VariantsInFile.IsMatch(text) && SessionContextData.FromJson(seller.Session!.ContextJson).PendingProductJson is null)
@@ -334,7 +359,10 @@ public partial class ConversationEngine
         var result = await _ai.InterpretVoiceAsync(new AiVoiceContext
         {
             BusinessName = seller.BusinessName ?? "",
-            Situation = DescribeVoiceSituation(seller, ctx),
+            Situation = DescribeVoiceSituation(seller, ctx) + (_voiceCorrectionOrderId is { } fixId
+                ? $" This note is a reply to the seller's previous voice note and corrects the order that note made, Order #{fixId}: " +
+                  $"never create a new order from it; return the steps \"edit order {fixId}\", then the edit lines (price 1 = 1500, qty 1 = 4, remove 2, delivery 250...), then \"done\"."
+                : ""),
             AllowedActions = AllowedVoiceActions(seller, seller.Session!.State).ToList(),
             CatalogNames = catalog.Select(c => c.Label).ToList(),
             RecentOrders = recent.Select(DescribeOrderForVoice).ToList(),

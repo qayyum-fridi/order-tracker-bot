@@ -1239,6 +1239,38 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task VoiceNote_ReplyToTheNoteThatMadeOneOrder_IsReadAsACorrectionOfThatOrder()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await SaveSaraKurtiOrderAsync(engine, db);
+        var seller = await db.Sellers.Include(s => s.Session).SingleAsync();
+        var log = new ActionLog { SellerId = seller.Id, ActionType = ActionType.OrderEdited, OrderId = 1, PayloadJson = "{}" };
+        db.ActionLogs.Add(log);
+        await db.SaveChangesAsync();
+        var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
+        ctx.ProcessedVoiceNoteIds = new List<string> { "wamid.first" };
+        ctx.LastVoiceNoteMessageId = "wamid.first";
+        ctx.LastVoiceNoteStartLogId = log.Id - 1;
+        ctx.LastVoiceNoteEndLogId = log.Id;
+        seller.Session.ContextJson = ctx.ToJson();
+        await db.SaveChangesAsync();
+
+        var voice = VoiceEngine(db, "order 1 mein nahi 5 nahi 4");
+        AiVoiceContext? seen = null;
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<AiVoiceContext, string, CancellationToken>((c, _, _) => seen = c)
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "edit order 1" }, Actions = { "command" }, Spans = { "order 1" } });
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.second", "wamid.first");
+
+        Assert.DoesNotContain(_sent, m => m.Contains("pehle wale voice note ke jawab"));
+        Assert.Contains(_sent, m => m.Contains("Order #1 ki tabdeeli"));
+        Assert.Contains("Order #1", seen!.Situation);
+    }
+
+    [Fact]
     public async Task VoiceNote_RepeatedStepFromTheSameWords_IsSavedOnce()
     {
         using var db = _dbFactory.CreateContext();
