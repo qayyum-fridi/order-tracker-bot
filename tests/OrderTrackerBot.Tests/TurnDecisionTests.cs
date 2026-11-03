@@ -126,6 +126,16 @@ public class TurnDecisionTests
         Assert.Equal(skips, ConversationEngine.CanRunVoiceAsTyped(state, transcript));
     }
 
+    [Theory]
+    [InlineData("Kurti", "Kurti")]
+    [InlineData("  Lawn Suit  ", "Lawn Suit")]
+    [InlineData("Embroidered Chiffon Lawn Suit Three Piece Special", "Embroidered Chiffon Lawn Suit Three")]
+    [InlineData("Supercalifragilisticexpialidocious-and-more-letters-here", "Supercalifragilisticexpialidocious-and-m")]
+    public void LongKeywordNames_AreCutAtAWord_NotDropped(string name, string expected)
+    {
+        Assert.Equal(expected, OrderTrackerBot.Infrastructure.Ai.OpenAiAudioTranscriber.FitKeyword(name));
+    }
+
     [Fact]
     public void ConfidentTranscript_BecomingARiskyStep_StillExecutes()
     {

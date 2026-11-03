@@ -306,11 +306,24 @@ public partial class ConversationEngine
         // Bot vocabulary first (the keyword list is capped): "catalog mein add kar dein" was heard as "address mein".
         var names = new List<string> { "catalog", "product", "products", "order", "delivery" };
         if (!string.IsNullOrWhiteSpace(seller.BusinessName)) names.Add(seller.BusinessName);
-        names.AddRange(await _db.Customers.Where(c => c.SellerId == seller.Id && c.DeletedAt == null)
-            .OrderByDescending(c => c.Id).Select(c => c.Name).Take(40).ToListAsync(ct));
+        // The speech model takes about 50 keywords and drops the tail, so the order matters: products the seller really sells (most often, then most
+        // recently, from their last 200 orders), then the customers with the latest orders, then the rest of the catalog and the older customers.
+        var sold = await _db.Orders.Where(o => o.SellerId == seller.Id && o.Status != OrderStatus.Cancelled).OrderByDescending(o => o.Id).Take(200)
+            .SelectMany(o => o.Items).Select(i => i.ProductNameSnapshot).ToListAsync(ct);
+        var soldNames = sold.Select((name, index) => (Name: VariantSuffix.Replace(name ?? "", "").Trim(), Index: index)).Where(x => x.Name.Length > 0)
+            .GroupBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(g => g.Count()).ThenBy(g => g.Min(x => x.Index)).Select(g => g.Key).Take(20).ToList();
+        var customerNames = await _db.Customers.Where(c => c.SellerId == seller.Id && c.DeletedAt == null)
+            .OrderByDescending(c => c.Orders.Max(o => (int?)o.Id)).ThenByDescending(c => c.Id).Select(c => c.Name).Take(40).ToListAsync(ct);
+        names.AddRange(soldNames);
+        names.AddRange(customerNames.Take(15));
         names.AddRange(catalog.Take(30).Select(c => c.Label));
+        names.AddRange(customerNames.Skip(15));
         return names;
     }
+
+    /// <summary>A variant in brackets at the end of an order line's product name ("Polo Shirt (white)"): the catalog name is the word to listen for.</summary>
+    private static readonly Regex VariantSuffix = new(@"\s*\([^)]*\)\s*$", RegexOptions.Compiled);
 
     /// <summary>What the voice rewrite needs from the database, read while the speech model is still transcribing.</summary>
     private sealed record VoiceContextData(

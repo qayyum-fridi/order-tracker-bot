@@ -53,6 +53,16 @@ public class OpenAiAudioTranscriber : IAudioTranscriber
     private const int MaxKeywords = 50;
     private const int MaxKeywordChars = 40;
 
+    /// <summary>A name over the keyword limit is cut at its last word that fits (the first words are what gets spoken) instead of being dropped.</summary>
+    internal static string? FitKeyword(string? name)
+    {
+        var text = name?.Trim();
+        if (string.IsNullOrEmpty(text) || text.Length <= MaxKeywordChars) return text;
+        var cut = text[..MaxKeywordChars];
+        var space = cut.LastIndexOf(' ');
+        return (space > 0 ? cut[..space] : cut).Trim();
+    }
+
     private MultipartFormDataContent BuildForm(byte[] audio, string extension, IReadOnlyList<string>? vocabulary, bool withHints)
     {
         var form = new MultipartFormDataContent
@@ -67,7 +77,7 @@ public class OpenAiAudioTranscriber : IAudioTranscriber
 
         if (hinted)
         {
-            foreach (var keyword in (vocabulary ?? Array.Empty<string>()).Select(v => v?.Trim()).Where(v => !string.IsNullOrEmpty(v) && v.Length <= MaxKeywordChars)
+            foreach (var keyword in (vocabulary ?? Array.Empty<string>()).Select(v => FitKeyword(v)).Where(v => !string.IsNullOrEmpty(v))
                          .Distinct(StringComparer.OrdinalIgnoreCase).Take(MaxKeywords))
                 form.Add(new StringContent(keyword!), "keywords[]");
             foreach (var language in _options.TranscriptionLanguages.Where(l => !string.IsNullOrWhiteSpace(l)))
