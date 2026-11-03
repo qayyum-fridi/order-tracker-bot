@@ -113,9 +113,14 @@ public partial class ConversationEngine
             return;
         }
         var vocabularyStartMs = voiceClock.ElapsedMilliseconds;
-        var vocabulary = media is null ? null : await BuildVoiceVocabularyAsync(seller, ct);
+        // The catalog is read once and shared by the speech hints and the rewrite. The rewrite's own reads (orders, customers, chat) run
+        // while the transcription request is in flight; the transcription uses no database, so the DbContext is never used twice at once.
+        var catalog = media is null ? null : await LoadCatalogAsync(seller, ct);
+        var vocabulary = catalog is null ? null : await BuildVoiceVocabularyAsync(seller, catalog, ct);
         var vocabularyMs = voiceClock.ElapsedMilliseconds - vocabularyStartMs;
-        var text = media is null ? null : await _transcriber.TranscribeAsync(media.Value.Bytes, media.Value.MimeType, vocabulary, ct);
+        var transcription = media is null ? Task.FromResult<string?>(null) : _transcriber.TranscribeAsync(media.Value.Bytes, media.Value.MimeType, vocabulary, ct);
+        var prefetch = catalog is null ? null : await LoadVoiceContextAsync(seller, catalog, ct);
+        var text = await transcription;
         var transcribedMs = voiceClock.ElapsedMilliseconds;
         if (text is null)
         {
@@ -145,7 +150,7 @@ public partial class ConversationEngine
         _droppedVoiceSteps.Clear();
         var decision = joined.All(c => char.IsDigit(c) || c == '+') && IsPlausiblePhone(joined)
             ? TurnDecision.Execute(new[] { joined })
-            : await InterpretVoiceAsync(seller, text, ct);
+            : await InterpretVoiceAsync(seller, text, ct, prefetch);
         // The rewrite left nothing to run while idle ("naya product" said aloud): the intent catalog may still place the sentence.
         if (decision.Steps.Count == 0 && decision.Kind != DecisionKind.Reject && seller.Session!.State == ConversationState.Idle
             && await RouteIntentAsync(text, ct) is { } routed)
@@ -296,15 +301,36 @@ public partial class ConversationEngine
         RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     /// <summary>The seller's own words (shop, customers, products) given to the speech model so names are heard correctly.</summary>
-    private async Task<List<string>> BuildVoiceVocabularyAsync(Seller seller, CancellationToken ct)
+    private async Task<List<string>> BuildVoiceVocabularyAsync(Seller seller, IReadOnlyList<CatalogEntry> catalog, CancellationToken ct)
     {
         // Bot vocabulary first (the keyword list is capped): "catalog mein add kar dein" was heard as "address mein".
         var names = new List<string> { "catalog", "product", "products", "order", "delivery" };
         if (!string.IsNullOrWhiteSpace(seller.BusinessName)) names.Add(seller.BusinessName);
         names.AddRange(await _db.Customers.Where(c => c.SellerId == seller.Id && c.DeletedAt == null)
             .OrderByDescending(c => c.Id).Select(c => c.Name).Take(40).ToListAsync(ct));
-        names.AddRange((await LoadCatalogAsync(seller, ct)).Take(30).Select(c => c.Label));
+        names.AddRange(catalog.Take(30).Select(c => c.Label));
         return names;
+    }
+
+    /// <summary>What the voice rewrite needs from the database, read while the speech model is still transcribing.</summary>
+    private sealed record VoiceContextData(
+        IReadOnlyList<CatalogEntry> Catalog, List<Order> Recent, List<string> KnownCustomers, List<MessageLog> LastMessages, List<string> Exchanges);
+
+    private async Task<VoiceContextData> LoadVoiceContextAsync(Seller seller, IReadOnlyList<CatalogEntry>? catalog, CancellationToken ct)
+    {
+        catalog ??= await LoadCatalogAsync(seller, ct);
+        var recent = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
+            .Where(o => o.SellerId == seller.Id).OrderByDescending(o => o.Id).Take(5).ToListAsync(ct);
+        // Only the 40 customers with the latest orders are sent to the model: pick them in SQL instead of loading every customer and order.
+        var knownCustomers = (await _db.Customers.Include(c => c.Orders)
+            .Where(c => c.SellerId == seller.Id && c.DeletedAt == null)
+            .OrderByDescending(c => c.Orders.Max(o => (int?)o.Id)).ThenByDescending(c => c.Id).Take(40).ToListAsync(ct))
+            .Select(DescribeCustomerForVoice).ToList();
+        var lastMessages = await _db.MessageLogs.Where(m => m.Phone == seller.WhatsAppPhoneNumber)
+            .OrderByDescending(m => m.Id).Take(6).ToListAsync(ct);
+        var exchanges = lastMessages.AsEnumerable().Reverse()
+            .Select(m => $"{(m.Direction == "outbound" ? "Bot" : "Seller")}: {(m.RawText.Length > 300 ? m.RawText[..300] : m.RawText)}").ToList();
+        return new VoiceContextData(catalog, recent, knownCustomers, lastMessages, exchanges);
     }
 
     /// <summary>
@@ -380,7 +406,7 @@ public partial class ConversationEngine
         return yes ? "yes" : words <= 3 ? "no" : null;
     }
 
-    private async Task<TurnDecision> InterpretVoiceAsync(Seller seller, string transcript, CancellationToken ct)
+    private async Task<TurnDecision> InterpretVoiceAsync(Seller seller, string transcript, CancellationToken ct, VoiceContextData? prefetch = null)
     {
         if (NumberedChoiceStates.Contains(seller.Session!.State) && SpokenNumbers.ChoiceNumber(transcript) is { } pick)
             return TurnDecision.Execute(new[] { pick.ToString() });
@@ -419,18 +445,7 @@ public partial class ConversationEngine
                     : TurnDecision.Clarify(MessageTemplates.Get("intent.howto", routed.Help!));
         }
         var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
-        var catalog = await LoadCatalogAsync(seller, ct);
-        var recent = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
-            .Where(o => o.SellerId == seller.Id).OrderByDescending(o => o.Id).Take(5).ToListAsync(ct);
-        // Only the 40 customers with the latest orders are sent to the model: pick them in SQL instead of loading every customer and order.
-        var knownCustomers = (await _db.Customers.Include(c => c.Orders)
-            .Where(c => c.SellerId == seller.Id && c.DeletedAt == null)
-            .OrderByDescending(c => c.Orders.Max(o => (int?)o.Id)).ThenByDescending(c => c.Id).Take(40).ToListAsync(ct))
-            .Select(DescribeCustomerForVoice).ToList();
-        var lastMessages = await _db.MessageLogs.Where(m => m.Phone == seller.WhatsAppPhoneNumber)
-            .OrderByDescending(m => m.Id).Take(6).ToListAsync(ct);
-        var exchanges = lastMessages.AsEnumerable().Reverse()
-            .Select(m => $"{(m.Direction == "outbound" ? "Bot" : "Seller")}: {(m.RawText.Length > 300 ? m.RawText[..300] : m.RawText)}").ToList();
+        var (catalog, recent, knownCustomers, lastMessages, exchanges) = prefetch ?? await LoadVoiceContextAsync(seller, null, ct);
 
         // A spoken "cancel" while an order draft waits is a cancel, whatever the model would make of it ("kis order ko cancel karna hai?").
         if (ctx.PendingOrder is not null && OpensWithLeavePhrase(transcript.Trim().Trim('.', '!', '?', '،', '۔', ' ')))
