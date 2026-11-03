@@ -227,12 +227,14 @@ public partial class ConversationEngine
                 await _db.SaveChangesAsync(ct);
                 return;
             }
+            if (await ReaskIndustryAfterUnclearVoiceAsync(fromPhoneNumber, seller, heard, ct)) return;
             await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n❓ {decision.Message}", VoiceFallbackFor(seller).ToList(), ct);
             await _db.SaveChangesAsync(ct);
             return;
         }
         if (decision.Kind == DecisionKind.Reject)
         {
+            if (await ReaskIndustryAfterUnclearVoiceAsync(fromPhoneNumber, seller, heard, ct)) return;
             // Unsafe to run and not safe to offer as choices: say nothing changed. The taps are only safe reads (orders, menu), never an approval.
             await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n{decision.Message}", VoiceFallbackFor(seller), ct);
             await _db.SaveChangesAsync(ct);
@@ -415,6 +417,16 @@ public partial class ConversationEngine
             if (near.Text is not null) result.Add((near.Text, name));
         }
         return result;
+    }
+
+    /// <summary>At the kind-of-shop step an unclear voice note gets the list again (the product-writing help is no use there). True when it did.</summary>
+    private async Task<bool> ReaskIndustryAfterUnclearVoiceAsync(string fromPhoneNumber, Seller seller, string heard, CancellationToken ct)
+    {
+        if (seller.Session!.State != ConversationState.OnboardingIndustry) return false;
+        await _sender.SendTextMessageAsync(fromPhoneNumber, heard, ct);
+        await AskIndustryAsync(seller, null, ct);
+        await _db.SaveChangesAsync(ct);
+        return true;
     }
 
     /// <summary>

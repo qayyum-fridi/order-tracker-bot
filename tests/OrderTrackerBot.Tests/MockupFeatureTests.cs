@@ -1466,6 +1466,28 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Theory]
+    [InlineData("naya product hoodie hai, paintees piece hain, cost paanch sau, price barah sau")]
+    [InlineData("نیا پروڈکٹ ہڈی ہے، پینتیس پیس ہیں، کوسٹ پانچ سو، پرائس بارہ سو")]
+    public async Task NewProduct_NumbersSaidInWords_AreKept_LikeNumbersWrittenInDigits(string spoken)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts = { new AiNewProduct { Name = "Hoodie", Price = 1200, Cost = 500, Stock = 35 } }
+        });
+
+        await engine.HandleIncomingMessageAsync(Phone, spoken, default);
+
+        // With confirmation on the draft is shown first; either way the three numbers must reach the reply or the saved product.
+        var saved = await db.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Name == "Hoodie");
+        if (saved is not null) Assert.Equal((1200m, 500m, 35), (saved.Price, saved.CostPrice!.Value, saved.StockQty!.Value));
+        else Assert.Contains(_sent, m => m.Contains("Hoodie") && m.Contains("1,200") && m.Contains("500") && m.Contains("35"));
+        Assert.DoesNotContain(_sent, m => m.Contains("sale price bata dein") && m.Contains("Hoodie"));
+    }
+
+    [Theory]
     [InlineData("suit 5000", false)]
     [InlineData("suit 5000 bas ho gaya", true)]
     public async Task VoiceNote_DoneStep_OnlyEndsSetup_WhenTheSellerSaidTheyAreFinished(string spoken, bool setupEnds)

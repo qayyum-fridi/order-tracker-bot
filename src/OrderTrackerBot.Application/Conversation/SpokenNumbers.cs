@@ -444,6 +444,15 @@ public static class SpokenNumbers
         "bola", "boli", "bole", "tha", "thi", "the", "main", "mein", "ne", "bhi", "sirf",
         "نمبر", "والا", "والی", "والے", "میرے", "میری", "میرا", "ہے", "ہیں", "چاہیے", "یہ",
         "بولا", "بولی", "بولے", "تھا", "تھی", "تھے", "میں", "نے", "بھی", "صرف",
+        // "ji number one wala select karte hain / kar do": the polite and the "pick it" words around a pick.
+        "ji", "jee", "select", "karte", "karti", "karein", "karen", "karo", "kijiye", "kijiyega", "kar", "please", "plz", "choose", "chunein", "chun", "lo", "lein",
+        "جی", "سلیکٹ", "کرتے", "کرتی", "کریں", "کرو", "کیجیے", "کیجئے", "کر", "پلیز", "چنیں", "چنیے", "لو", "لیں",
+    };
+
+    // English number words as the speech model writes them in Urdu script ("نمبر ون"). Only read as a pick from a list: in an amount "ون" would be noise.
+    private static readonly Dictionary<string, int> ChoiceUrduScriptEnglish = new()
+    {
+        ["ون"] = 1, ["ٹو"] = 2, ["تھری"] = 3, ["فور"] = 4, ["فائیو"] = 5, ["فائو"] = 5, ["سکس"] = 6, ["سیون"] = 7, ["ایٹ"] = 8, ["نائن"] = 9,
     };
 
     /// <summary>
@@ -453,11 +462,17 @@ public static class SpokenNumbers
     public static int? ChoiceNumber(string text)
     {
         int? pick = null;
+        string? previous = null;
         foreach (var token in Tokens(text))
         {
+            var before = previous;
+            previous = token;
             if (ChoiceFiller.Contains(token)) continue;
+            // "kar do" / "کر دو" is "do it", not the number two.
+            if ((token is "do" or "دو") && (before is "kar" or "کر" or "karo" or "کرو")) continue;
             int? value =
-                Ordinals.TryGetValue(token, out var ordinal) ? ordinal
+                ChoiceUrduScriptEnglish.TryGetValue(token, out var english) ? english
+                : Ordinals.TryGetValue(token, out var ordinal) ? ordinal
                 : int.TryParse(token, NumberStyles.None, CultureInfo.InvariantCulture, out var digit) ? digit
                 : Words.TryGetValue(token, out var word) && word == decimal.Truncate(word) ? (int)word
                 : null;

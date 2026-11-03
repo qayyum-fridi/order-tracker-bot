@@ -25,6 +25,7 @@
   "onboarding.022": "📋 Business details bhejein (comma se alag):\nCity, Business type, @instagram\n\ne.g. \"Lahore, Clothing, @ayesha.collections\" — ya \"cancel\".",
   "onboarding.023": "Ab products add karte hain. Neeche button dabayein, ya seedha number likh dein.",
   "onboarding.024": "Ji theek hai — jab bhi chahein \"catalog\" likh kar dobara products add kar sakte hain.\n{0}",
+  "onboarding.039": "Ji theek hai — dukaan ki qism {0} set ho gayi ✅. Jab bhi chahein \"catalog\" likh kar products add kar sakte hain.\n{1}",
   "onboarding.025": "🎉 Mubarak ho! Aapka setup mukammal ho gaya hai aur catalog save ho chuki hai.{0}\nAb jab bhi koi order aaye, usay forward kar dein ya 'new order: ...' likh kar darj karein.",
   "onboarding.026": "Abhi catalog khali hai.",
   "onboarding.027": "🛍️ Aapka Catalog ({0}):\n{1}",

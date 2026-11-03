@@ -288,6 +288,13 @@ public class ParserOverlapTests
     [InlineData("نمبر پانچ", 5)]
     [InlineData("میں نے نمبر دو بولا تھا", 2)]
     [InlineData("pehla wala", 1)]
+    // Live voice note at the shop-type list: the speech model wrote the English word "one" in Urdu script and added "select" and "ji".
+    [InlineData("جی نمبر ون والا سلیکٹ کرتے", 1)]
+    [InlineData("جی نمبر ٹو والا سلیکٹ کریں", 2)]
+    [InlineData("number three select karte hain", 3)]
+    [InlineData("ji number one wala select kar do", 1)]
+    [InlineData("نمبر سیون سلیکٹ کر دو", 7)]
+    [InlineData("option two please", 2)]
     public void ChoiceNumber_ReadsANumberSaidWithItsFillerWords(string spoken, int expected) =>
         Assert.Equal(expected, SpokenNumbers.ChoiceNumber(spoken));
 
@@ -295,6 +302,8 @@ public class ParserOverlapTests
     [InlineData("2 kurti")]
     [InlineData("Ayesha ka order")]
     [InlineData("number 5 aur 6")]
+    [InlineData("ji kar do")]
+    [InlineData("نمبر ون اور ٹو")]
     public void ChoiceNumber_IsNullWhenTheWordsAreNotOnlyAChoice(string spoken) =>
         Assert.Null(SpokenNumbers.ChoiceNumber(spoken));
 }
