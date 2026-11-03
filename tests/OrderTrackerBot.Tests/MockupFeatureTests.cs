@@ -1487,6 +1487,88 @@ public class MockupFeatureTests : IDisposable
         Assert.DoesNotContain(_sent, m => m.Contains("sale price bata dein") && m.Contains("Hoodie"));
     }
 
+    [Fact]
+    public async Task NewProduct_WithSeveralColoursAndSizes_BecomesOneListingPerCombination_WithoutSpreadingTheStock()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts = { new AiNewProduct { Name = "Hoodie", Price = 1200, Cost = 500, Stock = 35, Colors = { "red", "blue" }, Sizes = { "small", "large" } } }
+        });
+
+        await engine.HandleIncomingMessageAsync(Phone, "mere paas naya product hai hoodie 1200 ka, cost 500, 35 piece, red blue, small large", default);
+
+        var listings = await db.Products.AsNoTracking().Where(p => p.Name == "Hoodie").ToListAsync();
+        Assert.Equal(new[] { "blue/large", "blue/small", "red/large", "red/small" }, listings.Select(p => $"{p.Color}/{p.Size}").OrderBy(x => x).ToArray());
+        Assert.All(listings, p => Assert.Equal((1200m, 500m), (p.Price, p.CostPrice!.Value)));
+        // The 35 belonged to one of the four; the bot cannot tell which, so none of them gets it.
+        Assert.All(listings, p => Assert.Null(p.StockQty));
+    }
+
+    [Fact]
+    public async Task NewProduct_PriceRange_AsksForOnePrice_AndKeepsTheVariantsUntilItArrives()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts = { new AiNewProduct { Name = "Jacket", PriceLow = 1200, PriceHigh = 1700, Colors = { "red", "blue" } } }
+        });
+
+        await engine.HandleIncomingMessageAsync(Phone, "mere paas naya product hai jacket, 1200 se 1700 tak, red blue", default);
+
+        Assert.False(await db.Products.AnyAsync(p => p.Name == "Jacket"));
+        Assert.Contains(_sent, m => m.Contains("Jacket") && m.Contains("Rs.1,200") && m.Contains("Rs.1,700") && m.Contains("ek price"));
+
+        // The seller picks one price: both colours are created with it.
+        await engine.HandleIncomingMessageAsync(Phone, "1200", default);
+        var listings = await db.Products.AsNoTracking().Where(p => p.Name == "Jacket").ToListAsync();
+        Assert.Equal(new[] { "blue", "red" }, listings.Select(p => p.Color!).OrderBy(x => x).ToArray());
+        Assert.All(listings, p => Assert.Equal(1200m, p.Price));
+    }
+
+    [Fact]
+    public async Task NewProduct_ColourOrSizeThatWasNotSaid_IsNotMadeUp()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts = { new AiNewProduct { Name = "Scarf", Price = 400, Colors = { "green", "black" }, Sizes = { "xl", "xxl" } } }
+        });
+
+        await engine.HandleIncomingMessageAsync(Phone, "mere paas naya product hai scarf 400 ka", default);
+
+        var listings = await db.Products.AsNoTracking().Where(p => p.Name == "Scarf").ToListAsync();
+        Assert.Single(listings);
+        Assert.Null(listings[0].Color);
+        Assert.Null(listings[0].Size);
+    }
+
+    [Fact]
+    public async Task NewProduct_CostOrStockTheSellerNeverSaid_IsNotSaved_AndTheSellerIsToldInsteadOfSilence()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts = { new AiNewProduct { Name = "Muffler", Price = 300, Cost = 777, Stock = 9999 } }
+        });
+
+        await engine.HandleIncomingMessageAsync(Phone, "mere paas naya product hai muffler 300 ka", default);
+
+        var muffler = await db.Products.AsNoTracking().SingleAsync(p => p.Name == "Muffler");
+        Assert.Null(muffler.CostPrice);
+        Assert.Null(muffler.StockQty);
+        Assert.Contains(_sent, m => m.Contains("Muffler ki cost") && !m.Contains("777"));
+        Assert.Contains(_sent, m => m.Contains("Muffler ki stock") && !m.Contains("9999"));
+    }
+
     [Theory]
     [InlineData("suit 5000", false)]
     [InlineData("suit 5000 bas ho gaya", true)]

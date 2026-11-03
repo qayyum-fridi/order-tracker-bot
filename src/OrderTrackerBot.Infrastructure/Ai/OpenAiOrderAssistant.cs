@@ -84,6 +84,10 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "set is_order_attempt=false and list each product in new_products with its price in rupees when the seller said one, else null; the name " +
             "is the product only, without a unit or quantity word such as thaan/gaz/kg. Also fill cost_price (what it cost the seller to buy, \"kharid/cost\"), " +
             "stock_qty (how many they have) and attributes (other facts, each as name+value, e.g. colour, size, fabric) ONLY when the seller said them, else null / an empty list; " +
+            "If the seller gives a price RANGE (\"X se Y tak\", \"between X and Y\") fill price_low and price_high and leave price null. If the seller names several colours or " +
+            "sizes of the SAME product (variants), list them in colors / sizes, one entry each, instead of making several products. Voice notes are speech-to-text and contain " +
+            "mistakes and filler words: write spoken numbers as digits, ignore filler, and never turn a word you cannot read into a number; copy product names, colours and sizes " +
+            "as the seller said them, in their own script; " +
             "a number is never copied from the catalog), add_customer (the seller is saving a new buyer before any order, e.g. \"naya client hai Muhammad Ali, address Model Town Lahore, phone baad mein\": no items and no price, so set is_order_attempt=false and fill new_customer with name, phone (digits only, else null), address and city, null when not said), create_discount (the seller wants to make/add a discount code or offer, in any wording or just " +
             "describing it — \"naya discount banain\", \"ye ek naya discount hai jo product ke liye hoga\": not an order, not off_topic; set is_order_attempt=false), unclear. " +
             "For new_order put one entry per customer in orders (two different customers in one message = two entries). Quantity is the number " +
@@ -712,6 +716,10 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
                             && costPrice.TryGetDecimal(out var costValue) && costValue > 0 ? costValue : null,
                         Stock = p.TryGetProperty("stock_qty", out var stockQty) && stockQty.ValueKind == JsonValueKind.Number
                             && stockQty.TryGetInt32(out var stockValue) && stockValue >= 0 ? stockValue : null,
+                        PriceLow = PositiveDecimal(p, "price_low"),
+                        PriceHigh = PositiveDecimal(p, "price_high"),
+                        Colors = StringList(p, "colors"),
+                        Sizes = StringList(p, "sizes"),
                         Attributes = p.TryGetProperty("attributes", out var attrs) && attrs.ValueKind == JsonValueKind.Array
                             ? attrs.EnumerateArray().Where(a => a.ValueKind == JsonValueKind.Object)
                                 .Select(a => (Name: GetNullableString(a, "name")?.Trim(), Value: GetNullableString(a, "value")?.Trim()))
@@ -792,6 +800,15 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         return order;
     }
 
+    private static decimal? PositiveDecimal(JsonElement element, string property) =>
+        element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetDecimal(out var number) && number > 0 ? number : null;
+
+    private static List<string> StringList(JsonElement element, string property) =>
+        element.TryGetProperty(property, out var list) && list.ValueKind == JsonValueKind.Array
+            ? list.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()!.Trim()).Where(x => x.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase).Take(12).ToList()
+            : new List<string>();
+
     private static string? GetNullableString(JsonElement element, string property) =>
         element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
@@ -844,6 +861,10 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
                     ["price"] = new JsonObject { ["type"] = new JsonArray { "number", "null" } },
                     ["cost_price"] = new JsonObject { ["type"] = new JsonArray { "number", "null" } },
                     ["stock_qty"] = new JsonObject { ["type"] = new JsonArray { "integer", "null" } },
+                    ["price_low"] = new JsonObject { ["type"] = new JsonArray { "number", "null" } },
+                    ["price_high"] = new JsonObject { ["type"] = new JsonArray { "number", "null" } },
+                    ["colors"] = new JsonObject { ["type"] = "array", ["items"] = new JsonObject { ["type"] = "string" } },
+                    ["sizes"] = new JsonObject { ["type"] = "array", ["items"] = new JsonObject { ["type"] = "string" } },
                     ["attributes"] = new JsonObject
                     {
                         ["type"] = "array",
