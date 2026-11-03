@@ -972,6 +972,48 @@ public class MockupFeatureTests : IDisposable
         Assert.Equal(new[] { ("decision_execute", 2), ("refused_too_long", 1) }, VoiceStats.Snapshot());
     }
 
+    [Theory]
+    [InlineData("expense 800 petrol", "✅ Rs.800 likho")]
+    [InlineData("wages Ali 5000", "✅ Rs.5000 dein")]
+    [InlineData("cancel order 12", "✅ Order #12 cancel")]
+    [InlineData("customer add Sara, Model Town", "✅ Customer save")]
+    [InlineData("expense 123456789012 rent", "✅ Haan, karo")]               // the fact does not fit a 20-character button
+    public void YesButton_NamesTheFactWorthReading(string step, string label)
+    {
+        var yes = ConversationEngine.YesButtonLabel(new[] { step });
+
+        Assert.Equal(label, yes);
+        Assert.True(yes.Length <= 20);
+    }
+
+    [Fact]
+    public void YesButton_CountsTheEntriesWhenThereAreSeveral()
+    {
+        Assert.Equal("✅ 3 kaam karo", ConversationEngine.YesButtonLabel(new[] { "expense 100 a", "expense 200 b", "expense 300 c" }));
+        Assert.Equal("✅ 2 products", ConversationEngine.YesButtonLabel(new[] { "Suit - 3500\nShawl - 800" }));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ConfirmButtons_TapYesSavesAndTapNoDoesNot(bool tapYes)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        _media.Setup(m => m.DownloadAsync("pic-tap", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[3000], "image/jpeg"));
+        _ai.Setup(a => a.ReadPictureAsync("expense", It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiPictureReading { Amount = 800, Note = "petrol" });
+        var withMedia = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object);
+        _buttons.Clear();
+
+        await withMedia.HandleImageMessageAsync(Phone, "pic-tap", "expense");
+
+        var asked = Assert.Single(_buttons, b => b.Body.Contains("expense 800 petrol"));
+        Assert.Equal(new[] { "✅ Rs.800 likho", "❌ Nahi" }, asked.Buttons);
+        await withMedia.HandleIncomingMessageAsync(Phone, tapYes ? "✅ Rs.800 likho" : "❌ Nahi", default);
+        Assert.Equal(tapYes ? 1 : 0, await db.Expenses.CountAsync());
+    }
+
     [Fact]
     public async Task Picture_LabelledOther_SavesNothing()
     {

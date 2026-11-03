@@ -43,6 +43,32 @@ public partial class ConversationEngine
         return (safe, risky);
     }
 
+    internal const string NoButtonLabel = "❌ Nahi";
+
+    /// <summary>
+    /// The "yes" button for waiting steps. It names the one fact worth reading (the amount, the order number, how many entries), so tapping it means having seen it:
+    /// a button that always says the same thing gets tapped without looking. Falls back to a plain label when the fact does not fit a button (20 characters).
+    /// </summary>
+    internal static string YesButtonLabel(IReadOnlyList<string> steps)
+    {
+        const string plain = "✅ Haan, karo";
+        string label;
+        if (steps.Count > 1) label = $"✅ {steps.Count} kaam karo";
+        else if (steps.Count == 1 && steps[0].Contains('\n')) label = $"✅ {steps[0].Split('\n').Length} products";
+        else if (steps.Count == 1 && CommandParser.TryParse(steps[0]) is { } command)
+            label = command.Kind switch
+            {
+                CommandKind.Expense when command.Amount is { } a => $"✅ Rs.{a:0.##} likho",
+                CommandKind.Wage when command.Amount is { } a => $"✅ Rs.{a:0.##} dein",
+                CommandKind.CancelOrder when command.Number is { } n => $"✅ Order #{n} cancel",
+                CommandKind.AddProduct => "✅ Product save",
+                CommandKind.CustomerAdd => "✅ Customer save",
+                _ => plain,
+            };
+        else label = plain;
+        return label.Length <= 20 ? label : plain;
+    }
+
     /// <summary>Parks steps until the seller answers YES or NO; the echo of what was heard is shown with the question.</summary>
     private async Task ParkVoiceStepsAsync(string fromPhoneNumber, Seller seller, IReadOnlyList<string> steps, string heard, CancellationToken ct, string? transcript = null)
     {
@@ -55,8 +81,9 @@ public partial class ConversationEngine
         ctx.PendingVoiceParkedAt = DateTime.UtcNow;
         ctx.PendingVoiceSentAt = _sentAtUtc;
         ctx.PendingVoiceLogId = await NewestActionLogIdAsync(seller.Id, ct);
+        ctx.PendingVoiceYesLabel = YesButtonLabel(ctx.PendingVoiceSteps);
         SetState(session, ConversationState.AwaitingVoiceConfirmation);
-        await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("media.002", heard), ct);
+        await _sender.SendButtonsMessageAsync(fromPhoneNumber, MessageTemplates.Get("media.002", heard), new[] { ctx.PendingVoiceYesLabel, NoButtonLabel }, ct);
         await PersistAsync(session, ctx, ct);
     }
 
@@ -188,14 +215,19 @@ public partial class ConversationEngine
         var parkedAt = ctx.PendingVoiceParkedAt;
         var parkedLogId = ctx.PendingVoiceLogId;
         var parkedSentAt = ctx.PendingVoiceSentAt;
+        var yesLabel = ctx.PendingVoiceYesLabel;
+        ctx.PendingVoiceYesLabel = null;
         ctx.PendingVoiceSteps = null;
         ctx.PendingVoiceParkedAt = null;
         ctx.PendingVoiceSentAt = null;
         SetState(session, ConversationState.Idle);
         await PersistAsync(session, ctx, ct);
 
-        var message = (rawMessage ?? "").Trim();
-        if (steps is { Count: > 0 } && CommandParser.IsAffirmative(message))
+        // A tapped button comes back as its (possibly translated) label: map it to the label that was sent, then compare.
+        var message = _translator.RestoreButtonLabel((rawMessage ?? "").Trim()).Trim();
+        var tappedYes = yesLabel is not null && string.Equals(message, yesLabel, StringComparison.OrdinalIgnoreCase);
+        var tappedNo = string.Equals(message, NoButtonLabel, StringComparison.OrdinalIgnoreCase);
+        if (steps is { Count: > 0 } && (tappedYes || CommandParser.IsAffirmative(message)))
         {
             // The YES approves what was read out, against the orders as they were then. If time passed or anything changed meanwhile, drop it.
             var stale = parkedAt is null || DateTime.UtcNow - parkedAt.Value > VoiceConfirmWindow
@@ -212,7 +244,7 @@ public partial class ConversationEngine
             return true;
         }
 
-        if (CommandParser.IsNegative(message) || message.Equals("cancel", StringComparison.OrdinalIgnoreCase))
+        if (tappedNo || CommandParser.IsNegative(message) || message.Equals("cancel", StringComparison.OrdinalIgnoreCase))
         {
             await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("voice-confirm.003"), ct);
             await _db.SaveChangesAsync(ct);

@@ -137,6 +137,7 @@ public partial class ConversationEngine
 
         ctx.PendingVoiceSteps = all;
         ctx.PendingVoiceFromPicture = true;
+        ctx.PendingVoiceYesLabel = YesButtonLabel(all);
         ctx.PendingVoiceParkedAt = DateTime.UtcNow;
         ctx.PendingVoiceSentAt = _sentAtUtc;
         ctx.PendingVoiceLogId = await NewestActionLogIdAsync(seller.Id, ct);
@@ -144,7 +145,7 @@ public partial class ConversationEngine
         var shown = all.Count == 1 ? all[0] : "\n" + string.Join("\n", all.Select(s => $"• {s}"));
         var text = MessageTemplates.Get("media.002", MessageTemplates.Get("voice-confirm.021", kind, shown));
         if (failed > 0) text = MessageTemplates.Get("voice-confirm.027", failed) + "\n" + text;
-        await _sender.SendTextMessageAsync(seller.WhatsAppPhoneNumber, text, ct);
+        await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, text, new[] { ctx.PendingVoiceYesLabel, NoButtonLabel }, ct);
     }
 
     private static string PictureExample(string kind) => kind switch

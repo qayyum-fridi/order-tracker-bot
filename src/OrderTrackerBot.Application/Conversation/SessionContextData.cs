@@ -208,6 +208,8 @@ public sealed class SessionContextData
     public DateTime? PendingPictureAt { get; set; }
     /// <summary>True while the steps waiting for YES were read from pictures, so more labelled pictures may be added to the same YES (never to a voice note's steps).</summary>
     public bool PendingVoiceFromPicture { get; set; }
+    /// <summary>The text of the "yes" button that came with the waiting steps (it names the amount or order), so a tap on it counts as YES.</summary>
+    public string? PendingVoiceYesLabel { get; set; }
     /// <summary>Messages in a row the bot did not understand; at 2 the seller gets the three-button guide and the count starts again. Any understood message resets it.</summary>
     public int ConsecutiveMisses { get; set; }
     /// <summary>SHA-256 of the audio of the last voice note that made actions, and of the latest notes that did (newest last).</summary>
