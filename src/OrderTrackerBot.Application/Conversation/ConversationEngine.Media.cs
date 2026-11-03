@@ -238,7 +238,7 @@ public partial class ConversationEngine
         }
         if (safe.Count == 0)
         {
-            await ParkVoiceStepsAsync(fromPhoneNumber, seller, risky, heard, ct);
+            await ParkVoiceStepsAsync(fromPhoneNumber, seller, risky, heard, ct, text);
             return;
         }
 
@@ -247,7 +247,7 @@ public partial class ConversationEngine
         var after = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
         if (after.Session!.State == ConversationState.Idle)
         {
-            await ParkVoiceStepsAsync(fromPhoneNumber, after, risky, heard, ct);
+            await ParkVoiceStepsAsync(fromPhoneNumber, after, risky, heard, ct, text);
             return;
         }
         await _sender.SendTextMessageAsync(fromPhoneNumber, $"{heard}\n\n{MessageTemplates.Get("voice-confirm.005")}", ct);

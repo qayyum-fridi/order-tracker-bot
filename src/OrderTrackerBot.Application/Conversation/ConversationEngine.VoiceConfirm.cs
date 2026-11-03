@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
@@ -43,8 +44,10 @@ public partial class ConversationEngine
     }
 
     /// <summary>Parks steps until the seller answers YES or NO; the echo of what was heard is shown with the question.</summary>
-    private async Task ParkVoiceStepsAsync(string fromPhoneNumber, Seller seller, IReadOnlyList<string> steps, string heard, CancellationToken ct)
+    private async Task ParkVoiceStepsAsync(string fromPhoneNumber, Seller seller, IReadOnlyList<string> steps, string heard, CancellationToken ct, string? transcript = null)
     {
+        var touched = await DescribeTouchedOrdersAsync(seller, steps, transcript, ct);
+        if (touched.Length > 0) heard += "\n\n" + touched;
         var session = seller.Session!;
         var ctx = SessionContextData.FromJson(session.ContextJson);
         ctx.PendingVoiceSteps = steps.ToList();
@@ -54,6 +57,34 @@ public partial class ConversationEngine
         SetState(session, ConversationState.AwaitingVoiceConfirmation);
         await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("media.002", heard), ct);
         await PersistAsync(session, ctx, ct);
+    }
+
+    /// <summary>
+    /// The orders the parked steps will touch (an id picked from a name or "pichla order" is a known number to the guard, so nothing else checks it),
+    /// with the customer and items, so a wrong pick is seen before YES. When the note was Latin script and never said the customer's name, that is said too.
+    /// </summary>
+    private async Task<string> DescribeTouchedOrdersAsync(Seller seller, IReadOnlyList<string> steps, string? transcript, CancellationToken ct)
+    {
+        var ids = steps.Select(s => CommandParser.TryParse(s))
+            .Where(c => c is { Number: not null, Kind: CommandKind.CancelOrder or CommandKind.EditOrder or CommandKind.OrderDeliveryCharge or CommandKind.OrderCourierFee or CommandKind.MarkStatus })
+            .Select(c => c!.Number!.Value).Distinct().Take(3).ToList();
+        if (ids.Count == 0) return "";
+
+        var orders = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
+            .Where(o => o.SellerId == seller.Id && ids.Contains(o.Id)).OrderBy(o => o.Id).ToListAsync(ct);
+        var latin = !string.IsNullOrWhiteSpace(transcript) && !Regex.IsMatch(transcript, @"\p{IsArabic}");
+        var spoken = latin ? SpeechWords(transcript!) : "";
+        var lines = new List<string>();
+        foreach (var o in orders)
+        {
+            var name = o.Customer?.Name ?? "-";
+            var items = string.Join(", ", o.Items.Take(3).Select(i => $"{i.ProductNameSnapshot} x{i.Quantity}"));
+            lines.Add(MessageTemplates.Get("voice-confirm.016", o.Id, name, items, o.Total.ToString("N0", System.Globalization.CultureInfo.InvariantCulture)));
+            var first = name.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
+            if (latin && first.Length >= 3 && !spoken.Contains($" {first.ToLowerInvariant()} "))
+                lines.Add(MessageTemplates.Get("voice-confirm.017", o.Id, name));
+        }
+        return string.Join("\n", lines);
     }
 
     private static bool IsOrderDraftState(ConversationState state) =>

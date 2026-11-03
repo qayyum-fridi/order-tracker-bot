@@ -1270,6 +1270,25 @@ public class MockupFeatureTests : IDisposable
         Assert.Contains("Order #1", seen!.Situation);
     }
 
+    [Theory]
+    [InlineData("sara ka order cancel kar do", false)]
+    [InlineData("pichla order cancel kar do", true)]
+    public async Task VoiceNote_RiskyStep_ShowsTheOrderItWillTouch_AndWarnsWhenTheNameWasNotSpoken(string spoken, bool warns)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await SaveSaraKurtiOrderAsync(engine, db);
+        var voice = VoiceEngine(db, spoken);
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "cancel 1" }, Actions = { "command" }, Spans = { "cancel" } });
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.touch");
+
+        Assert.Contains(_sent, m => m.Contains("Order #1 —") && m.Contains("Kurti"));
+        Assert.Equal(warns, _sent.Any(m => m.Contains("yeh naam nahi suna gaya")));
+    }
+
     [Fact]
     public async Task VoiceNote_RepeatedStepFromTheSameWords_IsSavedOnce()
     {

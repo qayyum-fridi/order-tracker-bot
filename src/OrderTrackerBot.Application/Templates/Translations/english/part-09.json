@@ -141,6 +141,8 @@
   "voice-confirm.013": "⚠️ Sorry, the amount {0} in your message did not match what was heard, so nothing was changed. Please send that amount in digits, or say it again slowly.",
   "voice-confirm.014": "ℹ️ I was not sure I heard the amount {0} correctly. Please check \"Samjha\" above.",
   "voice-confirm.015": "ℹ️ This note is understood as a change to Order #{0} from the earlier note.",
+  "voice-confirm.016": "📋 Order #{0} — {1}: {2}, Rs.{3}",
+  "voice-confirm.017": "ℹ️ Order #{0} belongs to {1}, but that name was not heard in the note. Please check this is the right order.",
   "voice-confirm.012": "🧾 Do you want to see your orders? Today's or yesterday's? Pick below, or type it.",
   "voice-confirm.011": "⚠️ Sorry, the word \"{0}\" in the amount was not understood, so nothing was run. Please send the amount in digits (like 75000).",
   "voice-undo.001": "ℹ️ Nothing was found to undo for this voice note.",
