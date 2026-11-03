@@ -1498,7 +1498,7 @@ public class MockupFeatureTests : IDisposable
             NewProducts = { new AiNewProduct { Name = "Hoodie", Price = 1200, Cost = 500, Stock = 35, Colors = { "red", "blue" }, Sizes = { "small", "large" } } }
         });
 
-        await engine.HandleIncomingMessageAsync(Phone, "hoodie 1200 ki, cost 500, 35 piece, red blue, small large", default);
+        await engine.HandleIncomingMessageAsync(Phone, "mere paas naya product hai hoodie 1200 ka, cost 500, 35 piece, red blue, small large", default);
 
         var listings = await db.Products.AsNoTracking().Where(p => p.Name == "Hoodie").ToListAsync();
         Assert.Equal(new[] { "blue/large", "blue/small", "red/large", "red/small" }, listings.Select(p => $"{p.Color}/{p.Size}").OrderBy(x => x).ToArray());
@@ -1518,7 +1518,7 @@ public class MockupFeatureTests : IDisposable
             NewProducts = { new AiNewProduct { Name = "Jacket", PriceLow = 1200, PriceHigh = 1700, Colors = { "red", "blue" } } }
         });
 
-        await engine.HandleIncomingMessageAsync(Phone, "jacket ki price 1200 se 1700 tak hai, red blue", default);
+        await engine.HandleIncomingMessageAsync(Phone, "mere paas naya product hai jacket, 1200 se 1700 tak, red blue", default);
 
         Assert.False(await db.Products.AnyAsync(p => p.Name == "Jacket"));
         Assert.Contains(_sent, m => m.Contains("Jacket") && m.Contains("Rs.1,200") && m.Contains("Rs.1,700") && m.Contains("ek price"));
@@ -1541,7 +1541,7 @@ public class MockupFeatureTests : IDisposable
             NewProducts = { new AiNewProduct { Name = "Scarf", Price = 400, Colors = { "green", "black" }, Sizes = { "xl", "xxl" } } }
         });
 
-        await engine.HandleIncomingMessageAsync(Phone, "scarf 400 ka hai", default);
+        await engine.HandleIncomingMessageAsync(Phone, "mere paas naya product hai scarf 400 ka", default);
 
         var listings = await db.Products.AsNoTracking().Where(p => p.Name == "Scarf").ToListAsync();
         Assert.Single(listings);
@@ -1560,7 +1560,7 @@ public class MockupFeatureTests : IDisposable
             NewProducts = { new AiNewProduct { Name = "Muffler", Price = 300, Cost = 777, Stock = 9999 } }
         });
 
-        await engine.HandleIncomingMessageAsync(Phone, "muffler 300 ka hai", default);
+        await engine.HandleIncomingMessageAsync(Phone, "mere paas naya product hai muffler 300 ka", default);
 
         var muffler = await db.Products.AsNoTracking().SingleAsync(p => p.Name == "Muffler");
         Assert.Null(muffler.CostPrice);
