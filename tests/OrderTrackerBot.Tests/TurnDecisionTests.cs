@@ -179,6 +179,31 @@ public class TurnDecisionTests
         Assert.Empty(ConversationEngine.NameMatches(transcript, new[] { "cancel order 12 Hassan" }, new[] { "Hassan" }));
     }
 
+    private static byte[] OggOpus(double seconds)
+    {
+        var data = new byte[3000];
+        System.Text.Encoding.ASCII.GetBytes("OggS").CopyTo(data, 0);
+        BitConverter.GetBytes((long)(seconds * 48000)).CopyTo(data, 6);
+        return data;
+    }
+
+    [Theory]
+    [InlineData(60, false)]
+    [InlineData(299, false)]
+    [InlineData(301, true)]
+    [InlineData(900, true)]
+    public void VoiceLimit_IsFiveMinutes_ReadFromTheOggFile(double seconds, bool tooLong)
+    {
+        Assert.Equal(tooLong, ConversationEngine.VoiceTooLong(OggOpus(seconds)));
+    }
+
+    [Fact]
+    public void VoiceLimit_FallsBackToSize_WhenTheLengthCannotBeRead()
+    {
+        Assert.False(ConversationEngine.VoiceTooLong(new byte[ConversationEngine.MaxVoiceBytes]));
+        Assert.True(ConversationEngine.VoiceTooLong(new byte[ConversationEngine.MaxVoiceBytes + 1]));
+    }
+
     [Fact]
     public void ConfidentTranscript_BecomingARiskyStep_StillExecutes()
     {

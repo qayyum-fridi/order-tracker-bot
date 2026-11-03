@@ -265,7 +265,7 @@ public partial class ConversationEngine
         }
 
         // A picture sent without a type word leaves the bot idle or asking "what is this?" (the clarification state): a type word right after it labels the picture.
-        if (ctx.PendingPictureMediaId is not null && session.State is ConversationState.Idle or ConversationState.AwaitingClarificationChoice
+        if (ctx.PendingPictureMediaIds is { Count: > 0 } && session.State is ConversationState.Idle or ConversationState.AwaitingClarificationChoice
             && PictureLabels.TryParseReply(message, out _))
         {
             if (session.State == ConversationState.AwaitingClarificationChoice)

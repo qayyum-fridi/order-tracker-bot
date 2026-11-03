@@ -800,6 +800,32 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task SeveralPictures_OneLabel_ReadsAllOfThem_UnderOneYes()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        foreach (var id in new[] { "p1", "p2", "p3", "p4", "p5", "p6" })
+            _media.Setup(m => m.DownloadAsync(id, It.IsAny<CancellationToken>())).ReturnsAsync((new byte[3000], "image/jpeg"));
+        _ai.Setup(a => a.AnalyzeImageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "unclear" });
+        var amount = 100;
+        _ai.Setup(a => a.ReadPictureAsync("expense", It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new AiPictureReading { Amount = amount += 100, Note = "bill" });
+        var withMedia = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object);
+
+        foreach (var id in new[] { "p1", "p2", "p3", "p4", "p5", "p6" })
+            await withMedia.HandleImageMessageAsync(Phone, id, null);
+        _sent.Clear();
+        await withMedia.HandleIncomingMessageAsync(Phone, "expense", default);
+
+        // only the newest five are remembered, each read once, and one YES covers them all
+        _ai.Verify(a => a.ReadPictureAsync("expense", It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()), Times.Exactly(ConversationEngine.MaxPendingPictures));
+        Assert.Contains(_sent, m => m.Contains("expense 200 bill") && m.Contains("expense 600 bill") && m.Contains("YES"));
+        await withMedia.HandleIncomingMessageAsync(Phone, "yes", default);
+        Assert.Equal(ConversationEngine.MaxPendingPictures, await db.Expenses.CountAsync());
+    }
+
+    [Fact]
     public async Task Picture_LabelledOther_SavesNothing()
     {
         using var db = _dbFactory.CreateContext();

@@ -51,6 +51,7 @@ public partial class ConversationEngine
         var session = seller.Session!;
         var ctx = SessionContextData.FromJson(session.ContextJson);
         ctx.PendingVoiceSteps = steps.ToList();
+        ctx.PendingVoiceFromPicture = false;
         ctx.PendingVoiceParkedAt = DateTime.UtcNow;
         ctx.PendingVoiceSentAt = _sentAtUtc;
         ctx.PendingVoiceLogId = await NewestActionLogIdAsync(seller.Id, ct);

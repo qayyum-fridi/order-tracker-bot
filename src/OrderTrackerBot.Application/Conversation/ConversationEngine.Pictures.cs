@@ -10,45 +10,78 @@ namespace OrderTrackerBot.Application.Conversation;
 // A picture the seller labels as an expense, wages or a customer: the caption, or a short text / voice message sent after it, names the type;
 // the AI then reads the picture for that type's fields only, and the typed command it builds waits for YES (the voice-confirm mechanism)
 // before anything is saved. "order" reads the picture as an order screenshot, "other" saves nothing.
+// Several pictures at once: each one arrives as its own message. Unlabelled ones are remembered (up to MaxPendingPictures) and one label covers
+// them all; labelled ones add their command to the steps already waiting for the same YES.
 public partial class ConversationEngine
 {
     private static readonly TimeSpan PictureLabelWindow = TimeSpan.FromMinutes(10);
 
-    /// <summary>True when a fresh remembered picture exists and <paramref name="message"/> is only a type word: the picture is then read as that type.</summary>
+    /// <summary>Pictures a single label covers, and steps one YES covers.</summary>
+    internal const int MaxPendingPictures = 5;
+    private const int MaxPictureSteps = 10;
+
+    /// <summary>Remembers an unlabelled picture for the next type word; pictures older than the window are forgotten.</summary>
+    private void RememberPicture(SessionContextData ctx, string mediaId)
+    {
+        var now = _clock.GetUtcNow().UtcDateTime;
+        var ids = ctx.PendingPictureAt is { } at && now - at <= PictureLabelWindow ? ctx.PendingPictureMediaIds ?? new List<string>() : new List<string>();
+        ids.Remove(mediaId);
+        ids.Add(mediaId);
+        ctx.PendingPictureMediaIds = ids.TakeLast(MaxPendingPictures).ToList();
+        ctx.PendingPictureAt = now;
+    }
+
+    /// <summary>True when fresh remembered pictures exist and <paramref name="message"/> is only a type word: they are then read as that type.</summary>
     private async Task<bool> TryHandlePictureLabelAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
-        if (ctx.PendingPictureMediaId is not { } mediaId) return false;
+        if (ctx.PendingPictureMediaIds is not { Count: > 0 } mediaIds) return false;
         if (ctx.PendingPictureAt is not { } at || _clock.GetUtcNow().UtcDateTime - at > PictureLabelWindow)
         {
-            ctx.PendingPictureMediaId = null;
+            ctx.PendingPictureMediaIds = null;
             ctx.PendingPictureAt = null;
             return false;
         }
         if (!PictureLabels.TryParseReply(message, out var kind)) return false;
 
-        ctx.PendingPictureMediaId = null;
+        ctx.PendingPictureMediaIds = null;
         ctx.PendingPictureAt = null;
-        if (kind != PictureLabels.Other)
+        if (kind == PictureLabels.Other)
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("voice-confirm.023"), ct);
+            return true;
+        }
+        if (kind != PictureLabels.Order && !CanParkPictureSteps(session, ctx))
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("voice-confirm.025"), ct);
+            return true;
+        }
+
+        // An order is read from the newest picture only; the other types read every remembered picture.
+        var ids = kind == PictureLabels.Order ? mediaIds.TakeLast(1).ToList() : mediaIds;
+        var steps = new List<string>();
+        var failed = 0;
+        foreach (var id in ids)
         {
             if (!TryTakeUsage(seller, seller.WhatsAppPhoneNumber, MediaKind.Image, out var decision, out var wait))
             {
                 await ReplyAsync(seller, UsageLimitText(seller, MediaKind.Image, decision, wait), ct);
-                return true;
+                break;
             }
-            var media = _media is null ? null : await _media.DownloadAsync(mediaId, ct);
-            if (media is null)
+            var media = _media is null ? null : await _media.DownloadAsync(id, ct);
+            if (media is null) { failed++; continue; }
+            if (kind == PictureLabels.Order)
             {
-                await ReplyAsync(seller, MessageTemplates.Get("voice-confirm.026"), ct);
+                await ApplyPictureLabelAsync(seller, session, ctx, kind, "", media.Value, ct);
                 return true;
             }
-            await ApplyPictureLabelAsync(seller, session, ctx, kind, "", media.Value, ct);
-            return true;
+            var step = await ReadPictureStepAsync(kind, "", media.Value, ct);
+            if (step is null) failed++; else steps.Add(step);
         }
-        await ReplyAsync(seller, MessageTemplates.Get("voice-confirm.023"), ct);
+        await ParkPictureStepsAsync(seller, session, ctx, kind, steps, failed, ct);
         return true;
     }
 
-    /// <summary>Reads <paramref name="media"/> as <paramref name="kind"/> and, when it gave usable fields, parks the typed command for YES.</summary>
+    /// <summary>One labelled picture (its caption named the type): read it and add the result to the steps waiting for YES.</summary>
     private async Task ApplyPictureLabelAsync(Seller seller, ConversationSession session, SessionContextData ctx, string kind, string note,
         (byte[] Bytes, string MimeType) media, CancellationToken ct)
     {
@@ -69,28 +102,49 @@ public partial class ConversationEngine
             return;
         }
 
-        // Parking replaces the state: only from idle, so a half-finished order draft is never dropped by a photo.
-        if (session.State != ConversationState.Idle)
+        // Parking replaces the state: only from idle (or from a wait that earlier pictures made), so a half-finished order draft is never dropped by a photo.
+        if (!CanParkPictureSteps(session, ctx))
         {
             await ReplyAsync(seller, MessageTemplates.Get("voice-confirm.025"), ct);
             return;
         }
 
+        var step = await ReadPictureStepAsync(kind, note, media, ct);
+        await ParkPictureStepsAsync(seller, session, ctx, kind, step is null ? new List<string>() : new List<string> { step }, step is null ? 1 : 0, ct);
+    }
+
+    private static bool CanParkPictureSteps(ConversationSession session, SessionContextData ctx) =>
+        session.State == ConversationState.Idle
+        || (session.State == ConversationState.AwaitingVoiceConfirmation && ctx.PendingVoiceFromPicture && ctx.PendingVoiceSteps is { Count: > 0 });
+
+    private async Task<string?> ReadPictureStepAsync(string kind, string note, (byte[] Bytes, string MimeType) media, CancellationToken ct)
+    {
         var reading = await _ai.ReadPictureAsync(kind, new AiImageInput(media.Bytes, media.MimeType, string.IsNullOrWhiteSpace(note) ? null : note), ct);
-        var step = BuildPictureStep(kind, reading, note);
-        if (step is null)
+        return BuildPictureStep(kind, reading, note);
+    }
+
+    /// <summary>Parks the commands read from pictures behind one YES (joining those already waiting from earlier pictures), or says what could not be read.</summary>
+    private async Task ParkPictureStepsAsync(Seller seller, ConversationSession session, SessionContextData ctx, string kind, List<string> steps, int failed, CancellationToken ct)
+    {
+        if (steps.Count == 0)
         {
-            await ReplyAsync(seller, MessageTemplates.Get("voice-confirm.022", PictureExample(kind)), ct);
+            if (failed > 0) await ReplyAsync(seller, MessageTemplates.Get("voice-confirm.022", PictureExample(kind)), ct);
             return;
         }
 
-        ctx.PendingVoiceSteps = new List<string> { step };
+        var waiting = session.State == ConversationState.AwaitingVoiceConfirmation && ctx.PendingVoiceFromPicture ? ctx.PendingVoiceSteps ?? new List<string>() : new List<string>();
+        var all = waiting.Concat(steps.Where(s => !waiting.Contains(s))).Take(MaxPictureSteps).ToList();
+
+        ctx.PendingVoiceSteps = all;
+        ctx.PendingVoiceFromPicture = true;
         ctx.PendingVoiceParkedAt = DateTime.UtcNow;
         ctx.PendingVoiceSentAt = _sentAtUtc;
         ctx.PendingVoiceLogId = await NewestActionLogIdAsync(seller.Id, ct);
         SetState(session, ConversationState.AwaitingVoiceConfirmation);
-        await _sender.SendTextMessageAsync(seller.WhatsAppPhoneNumber,
-            MessageTemplates.Get("media.002", MessageTemplates.Get("voice-confirm.021", kind, step)), ct);
+        var shown = all.Count == 1 ? all[0] : "\n" + string.Join("\n", all.Select(s => $"• {s}"));
+        var text = MessageTemplates.Get("media.002", MessageTemplates.Get("voice-confirm.021", kind, shown));
+        if (failed > 0) text = MessageTemplates.Get("voice-confirm.027", failed) + "\n" + text;
+        await _sender.SendTextMessageAsync(seller.WhatsAppPhoneNumber, text, ct);
     }
 
     private static string PictureExample(string kind) => kind switch

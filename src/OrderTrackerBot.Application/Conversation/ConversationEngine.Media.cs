@@ -69,7 +69,11 @@ public partial class ConversationEngine
 
     // WhatsApp voice notes are about 2 KB per second: under ~1 s is silence or a tap, over ~3 MB is a recording of many minutes.
     internal const int MinVoiceBytes = 2000;
-    internal const int MaxVoiceBytes = 3 * 1024 * 1024;
+    internal const int MaxVoiceSeconds = 300;          // 5 minutes: longer is costly to transcribe and cannot be rewritten into at most 8 steps within the 3-minute handling limit
+    internal const int MaxVoiceBytes = 750 * 1024;     // the same limit by size (~2.5 KB per second) for a file whose length cannot be read
+
+    internal static bool VoiceTooLong(byte[] audio) =>
+        AudioInfo.OggOpusSeconds(audio) is { } seconds ? seconds > MaxVoiceSeconds : audio.Length > MaxVoiceBytes;
 
     /// <summary>SHA-256 of the audio being handled now (set by HandleAudioCoreAsync), recorded only when the note made actions.</summary>
     private string? _lastAudioHash;
@@ -110,7 +114,8 @@ public partial class ConversationEngine
         var media = _media is null ? null : await _media.DownloadAsync(mediaId, ct);
         var downloadMs = voiceClock.ElapsedMilliseconds;
         // An empty or tiny file has nothing to hear, and an oversized one is a long recording the speech model would charge in full: neither is transcribed.
-        if (media is { } audio && (audio.Bytes.Length < MinVoiceBytes || audio.Bytes.Length > MaxVoiceBytes))
+        // The length is read from the Ogg Opus file itself (5 minutes at most); any other format falls back to the file size.
+        if (media is { } audio && (audio.Bytes.Length < MinVoiceBytes || VoiceTooLong(audio.Bytes)))
         {
             await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get(audio.Bytes.Length < MinVoiceBytes ? "voice-confirm.018" : "voice-confirm.019"), ct);
             await _db.SaveChangesAsync(ct);
@@ -514,7 +519,7 @@ public partial class ConversationEngine
         if (CommandParser.TryParse(transcript) is { } readOnly && ReadOnlyVoiceCommands.Contains(readOnly.Kind))
             return TurnDecision.Execute(new[] { transcript });
         // A spoken "yeh expense hai" right after a picture is the label for it: it runs as typed, exactly like the typed word, with no rewrite to mishear it.
-        if (SessionContextData.FromJson(seller.Session!.ContextJson) is { PendingPictureMediaId: not null } pictureCtx && pictureCtx.PendingPictureAt is not null
+        if (SessionContextData.FromJson(seller.Session!.ContextJson) is { PendingPictureMediaIds.Count: > 0 } pictureCtx && pictureCtx.PendingPictureAt is not null
             && PictureLabels.TryParseReply(transcript, out _))
             return TurnDecision.Execute(new[] { transcript });
         if (CanRunVoiceAsTyped(seller.Session!.State, transcript))
@@ -1058,8 +1063,6 @@ public partial class ConversationEngine
         // A caption naming the type (expense, wages, customer, other) says what the picture is: read it for that type only. "order" continues below.
         if (PictureLabels.TryParseCaption(caption, out var pictureKind, out var pictureNote) && pictureKind != PictureLabels.Order)
         {
-            ctx.PendingPictureMediaId = null;
-            ctx.PendingPictureAt = null;
             await ApplyPictureLabelAsync(seller, session, ctx, pictureKind, pictureNote, media.Value, ct);
             await PersistAsync(session, ctx, ct);
             return;
@@ -1070,8 +1073,7 @@ public partial class ConversationEngine
         SetState(session, ConversationState.Idle);
         // Without a type word the picture is read as an order or a payment receipt as before, and remembered for a few minutes:
         // a following "expense" / "wages" / "customer" message (typed or spoken) then labels it.
-        ctx.PendingPictureMediaId = mediaId;
-        ctx.PendingPictureAt = _clock.GetUtcNow().UtcDateTime;
+        RememberPicture(ctx, mediaId);
 
         var catalog = await LoadCatalogAsync(seller, ct);
         var analysis = await _ai.AnalyzeImageAsync(AiContext(seller, catalog), new AiImageInput(media.Value.Bytes, media.Value.MimeType, caption), ct);
