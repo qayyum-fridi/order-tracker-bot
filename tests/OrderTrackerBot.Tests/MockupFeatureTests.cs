@@ -1606,6 +1606,36 @@ public class MockupFeatureTests : IDisposable
         Assert.Contains(_sent, m => m.Contains("Coat") && m.Contains("sale price bata dein"));
     }
 
+    [Fact]
+    public async Task VoiceAnswer_ToANumberedProductQuestion_IsTheListNumber_EvenWhenNoDigitWasSpoken()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "new_order",
+            IsOrderAttempt = true,
+            Order = new AiOrderDraft { CustomerName = "Ali", Phone = "03001234567", Items = { new AiOrderItemDraft { ProductName = "Shampoo", Quantity = 1 } } }
+        });
+        await engine.HandleIncomingMessageAsync(Phone, "Ali ka order shampoo 1 03001234567", default);
+        Assert.Contains(_sent, m => m.Contains("catalog mein nahi mila"));
+        _sent.Clear();
+
+        _media.Setup(m => m.DownloadAsync("voice-pick", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[2500], "audio/ogg"));
+        var transcriber = new Mock<IAudioTranscriber>();
+        transcriber.SetupGet(t => t.IsConfigured).Returns(true);
+        transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("jee haan yeh naya product hai to yeh add kar lein catalog mein");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "1" }, Actions = { "choose" } });
+        var voice = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object);
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-pick", "wamid.pick");
+
+        Assert.DoesNotContain(_sent, m => m.Contains("kuch nahi chalaya"));
+        Assert.Contains(_sent, m => m.Contains("Shampoo") && m.Contains("price"));
+    }
+
     [Theory]
     [InlineData("suit 5000", false)]
     [InlineData("suit 5000 bas ho gaya", true)]
