@@ -445,6 +445,32 @@ public partial class ConversationEngine
         ConversationState.AwaitingSupportReplyConfirmation, ConversationState.AwaitingImportConfirmation, ConversationState.AwaitingVoiceConfirmation,
     };
 
+    // Everyday ways to say yes / no out loud while the bot waits on one. Whole-phrase matches only: anything longer, hedged or with another word goes to the rewrite.
+    private static readonly HashSet<string> SpokenYes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "haan kar do", "han kar do", "ji kar do", "jee kar do", "haan ji", "han ji", "ji haan", "ji han", "jee haan", "bilkul", "bilkul kar do", "theek hai", "thik hai",
+        "theek hai kar do", "thik hai kar do", "ok kar do", "okay kar do", "kar do", "kardo", "sahi hai", "yes please", "ہاں کر دو", "جی کر دو", "جی ہاں", "ہاں جی", "بالکل",
+        "ٹھیک ہے", "ٹھیک ہے کر دو", "کر دو", "کردو", "صحیح ہے",
+    };
+
+    private static readonly HashSet<string> SpokenNo = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "nahi karo", "nahi kar do", "mat karo", "mat kar do", "nahi ji", "ji nahi", "nahi bilkul nahi", "bilkul nahi", "rehne do", "rahne do", "chhor do", "ruk jao",
+        "نہیں کرو", "نہیں کر دو", "مت کرو", "جی نہیں", "نہیں جی", "بالکل نہیں", "رہنے دو", "چھوڑ دو",
+    };
+
+    /// <summary>The typed "yes" / "no" for a spoken everyday phrase while the bot waits on a yes or no; false for anything else (the rewrite then decides).</summary>
+    internal static bool TryLocalYesNo(ConversationState state, string transcript, out string step)
+    {
+        step = "";
+        if (!YesNoVoiceStates.Contains(state)) return false;
+        var text = Regex.Replace(transcript.Trim().Trim('.', '!', '?', '،', '۔', ' ').ToLowerInvariant(), @"\s+", " ");
+        if (text.Length == 0 || text.Split(' ').Length > 3) return false;
+        if (SpokenYes.Contains(text)) { step = "yes"; return true; }
+        if (SpokenNo.Contains(text)) { step = "no"; return true; }
+        return false;
+    }
+
     /// <summary>
     /// True when a transcript can run exactly as typed, skipping the AI rewrite: a short sentence with no hedge, reversal, spoken or retracted amount, that is a bare
     /// yes / no for a state waiting on one, or parses as a plain non-risky command (stock Kurti 20, expense 500 petrol, delivery 250). Anything else is rewritten.
@@ -530,6 +556,8 @@ public partial class ConversationEngine
         if (SessionContextData.FromJson(seller.Session!.ContextJson) is { PendingPictureMediaIds.Count: > 0 } pictureCtx && pictureCtx.PendingPictureAt is not null
             && PictureLabels.TryParseReply(transcript, out _))
             return TurnDecision.Execute(new[] { transcript });
+        if (TryLocalYesNo(seller.Session!.State, transcript, out var yesNoStep))
+            return TurnDecision.Execute(new[] { yesNoStep });
         if (CanRunVoiceAsTyped(seller.Session!.State, transcript))
             return TurnDecision.Execute(new[] { transcript });
         // "setup mein abhi kya baqi hai?", "ab kya karna hai": a request for the next step is answered with the tip for the current step, as typed.
@@ -613,7 +641,11 @@ public partial class ConversationEngine
                 // Reason only (never the transcript text): makes refused rewrites visible in the logs.
                 if (WhyUnfaithful(transcript, string.Join("\n", steps), known) is { } why)
                     _logger?.LogWarning("Voice rewrite refused: {Reason} (risky={Risky})", why, StepsAreRisky(steps));
-                return DecideRewrite(transcript, CorrectMarginQuestion(transcript, CorrectAccountReset(transcript, steps)), known);
+                var whole = DecideRewrite(transcript, CorrectMarginQuestion(transcript, CorrectAccountReset(transcript, steps)), known);
+                if (whole.Kind != DecisionKind.Execute && steps.Count == result.Spans.Count
+                    && KeepStepsThatStandOnTheirOwn(steps, result.Spans, known) is { Count: > 0 } standing)
+                    return TurnDecision.Execute(CorrectMarginQuestion(transcript, CorrectAccountReset(transcript, standing)));
+                return whole;
             }
         }
         // The AI was unavailable: the transcript goes to the deterministic engine, as before, unless it has an amount word the engine cannot read.
@@ -622,6 +654,30 @@ public partial class ConversationEngine
         if (CommandParser.TryParse(transcript) is not null || CommandParser.IsAffirmative(transcript) || CommandParser.IsNegative(transcript))
             return TurnDecision.Execute(new[] { transcript });
         return TurnDecision.Clarify(MessageTemplates.Get("voice.parse", Industry(seller).SimpleProduct));
+    }
+
+    /// <summary>
+    /// A long note with several tasks: when the whole-note check refuses it, each task is checked against its OWN spoken words (its span) instead, so one doubtful
+    /// number does not throw away the others. Tasks that pass run (risky ones still wait for YES); the ones that do not are listed as not done. Applies only when at
+    /// least one task failed on its own (here or in <see cref="KeepSpokenSteps"/>), so a task the model left out entirely (which only the whole-note check can see) never lets a partial note through silently.
+    /// Returns the passing steps, or null when nothing failed individually or nothing passed.
+    /// </summary>
+    internal List<string>? KeepStepsThatStandOnTheirOwn(IReadOnlyList<string> steps, IReadOnlyList<string> spans, IReadOnlySet<long> known)
+    {
+        var keep = new List<string>();
+        var dropped = new List<string>();
+        for (var i = 0; i < steps.Count; i++)
+        {
+            var span = spans[i];
+            var ok = !string.IsNullOrWhiteSpace(span)
+                     && SpokenNumbers.UnknownAmountWords(span).Count == 0
+                     && WhyUnfaithful(span, steps[i], known) is null;
+            if (ok) keep.Add(steps[i]); else dropped.Add(steps[i]);
+        }
+        // Something must have failed on its own: here, or earlier in KeepSpokenSteps (whose dropped task is why the whole-note amounts no longer add up).
+        if (keep.Count == 0 || (dropped.Count == 0 && _droppedVoiceSteps.Count == 0)) return null;
+        foreach (var step in dropped) _droppedVoiceSteps.Add((step, "voice-confirm.007"));
+        return keep;
     }
 
     /// <summary>Steps removed by <see cref="KeepSpokenSteps"/> for the current voice note; shown to the seller with the echo.</summary>

@@ -859,6 +859,30 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task LongNote_OneDoubtfulTask_DoesNotThrowAwayTheOthers()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var voice = VoiceEngine(db, "expense 300 petrol likh do aur expense 500 packaging likh do");
+        // the model got the second amount wrong (900 for the 500 that was said)
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation
+            {
+                Steps = { "expense 300 petrol", "expense 900 packaging" },
+                Actions = { "command", "command" },
+                Spans = { "expense 300 petrol likh do", "expense 500 packaging likh do" }
+            });
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.long");
+
+        var expenses = await db.Expenses.ToListAsync();
+        Assert.Single(expenses);                                       // the good task ran
+        Assert.Equal(300, expenses[0].Amount);
+        Assert.Contains(_sent, m => m.Contains("expense 900 packaging"));   // the doubtful one is listed as not done
+    }
+
+    [Fact]
     public async Task Picture_LabelledOther_SavesNothing()
     {
         using var db = _dbFactory.CreateContext();

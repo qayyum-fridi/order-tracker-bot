@@ -215,6 +215,23 @@ public class TurnDecisionTests
         Assert.True(ConversationEngine.VoiceTooLong(new byte[ConversationEngine.MaxVoiceBytes + 1]));
     }
 
+    [Theory]
+    [InlineData(ConversationState.AwaitingOrderConfirmation, "haan kar do", "yes")]
+    [InlineData(ConversationState.AwaitingOrderConfirmation, "Theek hai.", "yes")]
+    [InlineData(ConversationState.AwaitingCancelConfirmation, "ٹھیک ہے", "yes")]
+    [InlineData(ConversationState.AwaitingCancelConfirmation, "mat karo", "no")]
+    [InlineData(ConversationState.AwaitingResetConfirmation, "رہنے دو", "no")]
+    [InlineData(ConversationState.AwaitingOrderConfirmation, "haan lekin delivery 300", "")]   // another word: the rewrite decides
+    [InlineData(ConversationState.AwaitingOrderConfirmation, "theek hai ruko", "")]
+    [InlineData(ConversationState.Idle, "haan kar do", "")]                                      // nothing is waiting on a yes
+    public void EverydayYesNoPhrases_AreReadLocally_OnlyWhileAYesNoWaits(ConversationState state, string transcript, string expected)
+    {
+        var found = ConversationEngine.TryLocalYesNo(state, transcript, out var step);
+
+        Assert.Equal(expected.Length > 0, found);
+        Assert.Equal(expected, step);
+    }
+
     [Fact]
     public void ConfidentTranscript_BecomingARiskyStep_StillExecutes()
     {
