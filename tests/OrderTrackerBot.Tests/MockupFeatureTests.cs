@@ -725,6 +725,29 @@ public class MockupFeatureTests : IDisposable
         transcriber.Verify(t => t.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [Theory]
+    [InlineData(true, "ikhatar hazar")]    // second model reads every amount word: its text is the note
+    [InlineData(false, "ekhatarr hazar")]  // second model has the same problem: the first text stays
+    public async Task VoiceNote_UnreadableAmountWord_GetsASecondOpinion(bool secondReadsCleanly, string expectedEcho)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        _media.Setup(m => m.DownloadAsync("voice-two", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[2500], "audio/ogg"));
+        var transcriber = new Mock<IAudioTranscriber>();
+        transcriber.SetupGet(t => t.IsConfigured).Returns(true);
+        transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>())).ReturnsAsync("ekhatarr hazar");
+        transcriber.Setup(t => t.TranscribeSecondOpinionAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(secondReadsCleanly ? "ikhatar hazar" : "ekhatarr hazar");
+        var voice = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object);
+        AiReturns(new AiMessageAnalysis { Intent = "unclear" });
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-two", "wamid.two");
+
+        Assert.Contains(_sent, m => m.Contains($"Maine suna: \"{expectedEcho}\""));
+        transcriber.Verify(t => t.TranscribeSecondOpinionAsync(It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     [Fact]
     public async Task VoiceNote_IsRewrittenInContext_ThenHandledByTheNormalEngine()
     {

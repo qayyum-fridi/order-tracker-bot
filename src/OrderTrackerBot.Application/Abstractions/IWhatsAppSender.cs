@@ -56,4 +56,11 @@ public interface IAudioTranscriber
     /// is passed to the speech model as a hint so names are heard correctly; null/empty = no hint.
     /// </summary>
     Task<string?> TranscribeAsync(byte[] audio, string mimeType, IReadOnlyList<string>? vocabulary, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The same audio read by a second speech model, asked only when the first transcript holds a number word that cannot be read.
+    /// Null when no second model is configured or it failed; the first transcript is then used as before.
+    /// </summary>
+    Task<string?> TranscribeSecondOpinionAsync(byte[] audio, string mimeType, IReadOnlyList<string>? vocabulary, CancellationToken cancellationToken = default) =>
+        Task.FromResult<string?>(null);
 }

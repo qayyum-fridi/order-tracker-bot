@@ -45,6 +45,23 @@ public class VoiceNoteTests
         new(new HttpClient(handler), Options.Create(new OpenAiOptions { ApiKey = apiKey, TranscriptionModel = model }), NullLogger<OpenAiAudioTranscriber>.Instance);
 
     [Fact]
+    public async Task SecondOpinion_IsOff_UntilASecondModelIsSet_AndThenAsksThatModel()
+    {
+        var off = new FakeTranscriptionApi(HttpStatusCode.OK, "{\"text\":\"x\"}");
+        Assert.Null(await Transcriber(off).TranscribeSecondOpinionAsync(new byte[] { 1 }, "audio/ogg", null));
+        Assert.Null(off.RequestBody);                       // no call, no cost
+
+        var on = new FakeTranscriptionApi(HttpStatusCode.OK, "{\"text\":\" teen hazar \"}");
+        var second = new OpenAiAudioTranscriber(new HttpClient(on),
+            Options.Create(new OpenAiOptions { ApiKey = "k", TranscriptionModel = "gpt-transcribe", TranscriptionSecondModel = "whisper-1" }),
+            NullLogger<OpenAiAudioTranscriber>.Instance);
+
+        Assert.Equal("teen hazar", await second.TranscribeSecondOpinionAsync(new byte[] { 1 }, "audio/ogg", null));
+        Assert.Contains("whisper-1", on.RequestBody);
+        Assert.DoesNotContain("gpt-transcribe", on.RequestBody);
+    }
+
+    [Fact]
     public async Task Transcriber_Whisper_SendsModelPromptAndOggFile_AndReturnsTrimmedText()
     {
         var api = new FakeTranscriptionApi(HttpStatusCode.OK, "{\"text\":\"  Ayesha 2 lawn suit 03001234567  \"}");

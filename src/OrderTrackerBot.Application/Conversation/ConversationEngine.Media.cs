@@ -132,6 +132,18 @@ public partial class ConversationEngine
         var transcription = media is null ? Task.FromResult<string?>(null) : _transcriber.TranscribeAsync(media.Value.Bytes, media.Value.MimeType, vocabulary, ct);
         var prefetch = catalog is null ? null : await LoadVoiceContextAsync(seller, catalog, ct);
         var text = await transcription;
+        // An amount word the bot cannot read refuses the whole note. The speech model may have misheard it, so a second model (when one is set up)
+        // hears the same audio once; its text is used only if every amount word in it is readable.
+        if (text is not null && media is { } heardAudio && SpokenNumbers.UnknownAmountWords(text).Count > 0)
+        {
+            UnknownNumberWordLog.Record(SpokenNumbers.UnknownAmountWords(text));
+            var second = await _transcriber.TranscribeSecondOpinionAsync(heardAudio.Bytes, heardAudio.MimeType, vocabulary, ct);
+            if (second is not null && SpokenNumbers.UnknownAmountWords(second).Count == 0)
+            {
+                _logger?.LogInformation("Voice note: the second speech model read every amount word the first one could not");
+                text = second;
+            }
+        }
         var transcribedMs = voiceClock.ElapsedMilliseconds;
         if (text is null)
         {

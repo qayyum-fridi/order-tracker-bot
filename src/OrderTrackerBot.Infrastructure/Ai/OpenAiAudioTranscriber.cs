@@ -46,9 +46,9 @@ public class OpenAiAudioTranscriber : IAudioTranscriber
 
     // gpt-transcribe / gpt-live-transcribe take the seller's names as separate keyword hints and the expected languages;
     // whisper-1 only has the free-text prompt.
-    private bool UsesHints => _options.TranscriptionModel.Contains("transcribe", StringComparison.OrdinalIgnoreCase)
-                              && _options.TranscriptionModel.StartsWith("gpt-", StringComparison.OrdinalIgnoreCase)
-                              && !_options.TranscriptionModel.StartsWith("gpt-4o", StringComparison.OrdinalIgnoreCase);
+    private static bool UsesHintsFor(string model) => model.Contains("transcribe", StringComparison.OrdinalIgnoreCase)
+                              && model.StartsWith("gpt-", StringComparison.OrdinalIgnoreCase)
+                              && !model.StartsWith("gpt-4o", StringComparison.OrdinalIgnoreCase);
 
     internal static int RetryDelayMs = 700;
     private const int MaxKeywords = 50;
@@ -64,15 +64,15 @@ public class OpenAiAudioTranscriber : IAudioTranscriber
         return (space > 0 ? cut[..space] : cut).Trim();
     }
 
-    private MultipartFormDataContent BuildForm(byte[] audio, string extension, IReadOnlyList<string>? vocabulary, bool withHints)
+    private MultipartFormDataContent BuildForm(string model, byte[] audio, string extension, IReadOnlyList<string>? vocabulary, bool withHints)
     {
         var form = new MultipartFormDataContent
         {
-            { new StringContent(_options.TranscriptionModel), "model" },
+            { new StringContent(model), "model" },
             { new ByteArrayContent(audio), "file", $"voice.{extension}" }
         };
 
-        var hinted = UsesHints && withHints;
+        var hinted = UsesHintsFor(model) && withHints;
         var prompt = hinted ? _options.TranscriptionPrompt : BuildPrompt(_options.TranscriptionPrompt, vocabulary);
         if (!string.IsNullOrWhiteSpace(prompt)) form.Add(new StringContent(prompt), "prompt");
 
@@ -87,7 +87,16 @@ public class OpenAiAudioTranscriber : IAudioTranscriber
         return form;
     }
 
-    public async Task<string?> TranscribeAsync(byte[] audio, string mimeType, IReadOnlyList<string>? vocabulary, CancellationToken cancellationToken = default)
+    public Task<string?> TranscribeAsync(byte[] audio, string mimeType, IReadOnlyList<string>? vocabulary, CancellationToken cancellationToken = default) =>
+        TranscribeWithAsync(_options.TranscriptionModel, audio, mimeType, vocabulary, cancellationToken);
+
+    /// <summary>Null (no call made) unless <c>OpenAi:TranscriptionSecondModel</c> is set and differs from the first model.</summary>
+    public Task<string?> TranscribeSecondOpinionAsync(byte[] audio, string mimeType, IReadOnlyList<string>? vocabulary, CancellationToken cancellationToken = default) =>
+        string.IsNullOrWhiteSpace(_options.TranscriptionSecondModel) || string.Equals(_options.TranscriptionSecondModel, _options.TranscriptionModel, StringComparison.OrdinalIgnoreCase)
+            ? Task.FromResult<string?>(null)
+            : TranscribeWithAsync(_options.TranscriptionSecondModel.Trim(), audio, mimeType, vocabulary, cancellationToken);
+
+    private async Task<string?> TranscribeWithAsync(string model, byte[] audio, string mimeType, IReadOnlyList<string>? vocabulary, CancellationToken cancellationToken)
     {
         if (!IsConfigured) return null;
 
@@ -97,16 +106,16 @@ public class OpenAiAudioTranscriber : IAudioTranscriber
             var extension = mimeType.Contains("ogg") ? "ogg" : mimeType.Contains("mpeg") ? "mp3" : mimeType.Contains("mp4") || mimeType.Contains("aac") ? "m4a" : "ogg";
 
             var clock = System.Diagnostics.Stopwatch.StartNew();
-            var response = await SendAsync(BuildForm(audio, extension, vocabulary, withHints: true), cancellationToken);
+            var response = await SendAsync(BuildForm(model, audio, extension, vocabulary, withHints: true), cancellationToken);
             _logger.LogInformation("Transcription: HTTP {Status} after {Ms} ms (with hints)", (int)response.StatusCode, clock.ElapsedMilliseconds);
-            if (response.StatusCode == System.Net.HttpStatusCode.BadRequest && UsesHints)
+            if (response.StatusCode == System.Net.HttpStatusCode.BadRequest && UsesHintsFor(model))
             {
                 // The keyword/language fields are new; if the API rejects them the voice note is still worth transcribing without hints.
                 _logger.LogWarning("Transcription with keyword/language hints was rejected ({Body}); retrying without hints",
                     await response.Content.ReadAsStringAsync(cancellationToken));
                 response.Dispose();
                 clock.Restart();
-                response = await SendAsync(BuildForm(audio, extension, vocabulary, withHints: false), cancellationToken);
+                response = await SendAsync(BuildForm(model, audio, extension, vocabulary, withHints: false), cancellationToken);
                 _logger.LogInformation("Transcription: HTTP {Status} after {Ms} ms (retry without hints)", (int)response.StatusCode, clock.ElapsedMilliseconds);
             }
 
@@ -116,7 +125,7 @@ public class OpenAiAudioTranscriber : IAudioTranscriber
                 _logger.LogWarning("Transcription answered HTTP {Status}; retrying once", (int)response.StatusCode);
                 response.Dispose();
                 await Task.Delay(TimeSpan.FromMilliseconds(RetryDelayMs), cancellationToken);
-                response = await SendAsync(BuildForm(audio, extension, vocabulary, withHints: true), cancellationToken);
+                response = await SendAsync(BuildForm(model, audio, extension, vocabulary, withHints: true), cancellationToken);
                 _logger.LogInformation("Transcription: HTTP {Status} after retry", (int)response.StatusCode);
             }
 
