@@ -158,7 +158,8 @@ public sealed record ProductLine(string Name, decimal Price, string UnitType, de
 
 /// <summary>Extra facts written after the price: "Polo Shirt - 500, cost 300, stock 10, color white, fabric: cotton".</summary>
 public sealed record ProductExtras(decimal? Cost, int? Stock, string? Category, string? Size, string? Color, string? Sku,
-    IReadOnlyDictionary<string, string>? Attributes, decimal? PriceA = null, decimal? PriceB = null, decimal? PriceC = null);
+    IReadOnlyDictionary<string, string>? Attributes, decimal? PriceA = null, decimal? PriceB = null, decimal? PriceC = null,
+    IReadOnlyList<string>? ColorList = null, IReadOnlyList<string>? SizeList = null);
 
 /// <summary>
 /// A deterministic command: fixed/near-fixed syntax that is answered by a plain DB

@@ -90,6 +90,12 @@ public sealed class AiNewProduct
     public int? Stock { get; init; }
     /// <summary>Other facts the seller gave ("fabric" = "cotton", "color" = "white"); empty when none.</summary>
     public Dictionary<string, string> Attributes { get; init; } = new();
+    /// <summary>A price range the seller gave ("X se Y tak"): its low and high end. <see cref="Price"/> stays null, since one listing has one price.</summary>
+    public decimal? PriceLow { get; init; }
+    public decimal? PriceHigh { get; init; }
+    /// <summary>Several colours / sizes the seller named for this one product (variants), each in the seller's own words; each combination becomes a listing.</summary>
+    public List<string> Colors { get; init; } = new();
+    public List<string> Sizes { get; init; } = new();
 }
 
 /// <summary>A buyer the seller is saving before any order; phone, address and city are null when the seller did not say them.</summary>

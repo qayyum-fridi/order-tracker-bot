@@ -935,6 +935,8 @@ public partial class ConversationEngine
     {
         // The model must not make up numbers (it likes to copy one from a similar catalog product): a price, cost or stock only counts when the
         // seller wrote that number as digits, and an attribute only when its value appears in what they wrote.
+        // Cost / stock the model read but the seller never said: not saved, and said so instead of dropped without a word.
+        var droppedNumbers = new List<(string Name, string What)>();
         if (sourceText is not null)
         {
             var written = System.Text.RegularExpressions.Regex.Matches(sourceText.Replace(",", ""), @"\d+(?:\.\d+)?")
@@ -943,13 +945,24 @@ public partial class ConversationEngine
             // always words. Only numbers present in what they said count, so the model still cannot bring one in from a similar catalog product.
             foreach (var saidAmount in SpokenNumbers.Amounts(sourceText)) written.Add(saidAmount);
             foreach (var saidCount in SpokenNumbers.SmallCounts(sourceText)) written.Add(saidCount);
-            products = products.Select(p => new AiNewProduct
+            products = products.Select(p =>
             {
-                Name = p.Name,
-                Price = p.Price is { } price && written.Contains(price) ? price : null,
-                Cost = p.Cost is { } cost && written.Contains(cost) ? cost : null,
-                Stock = p.Stock is { } stock && written.Contains(stock) ? stock : null,
-                Attributes = p.Attributes.Where(a => sourceText.Contains(a.Value, StringComparison.OrdinalIgnoreCase)).ToDictionary(a => a.Key, a => a.Value)
+                if (p.Cost is { } nvCost0 && !written.Contains(nvCost0)) droppedNumbers.Add((p.Name, "cost"));
+                if (p.Stock is { } nvStock0 && !written.Contains(nvStock0)) droppedNumbers.Add((p.Name, "stock"));
+                // A range counts only when both ends were said and are in order; colours and sizes only when the word is in what was said.
+                var nvRangeOk = p.PriceLow is { } nvLow && p.PriceHigh is { } nvHigh && nvLow < nvHigh && written.Contains(nvLow) && written.Contains(nvHigh);
+                return new AiNewProduct
+                {
+                    Name = p.Name,
+                    Price = p.Price is { } price && written.Contains(price) ? price : null,
+                    Cost = p.Cost is { } cost && written.Contains(cost) ? cost : null,
+                    Stock = p.Stock is { } stock && written.Contains(stock) ? stock : null,
+                    PriceLow = nvRangeOk ? p.PriceLow : null,
+                    PriceHigh = nvRangeOk ? p.PriceHigh : null,
+                    Colors = p.Colors.Where(v => sourceText.Contains(v, StringComparison.OrdinalIgnoreCase)).ToList(),
+                    Sizes = p.Sizes.Where(v => sourceText.Contains(v, StringComparison.OrdinalIgnoreCase)).ToList(),
+                    Attributes = p.Attributes.Where(a => sourceText.Contains(a.Value, StringComparison.OrdinalIgnoreCase)).ToDictionary(a => a.Key, a => a.Value)
+                };
             }).ToList();
         }
 
@@ -958,7 +971,7 @@ public partial class ConversationEngine
         if (sourceText is not null && products.Count == 1 && products[0].Price is null && SpokenNumbers.WordAmounts(sourceText) is { Count: 1 } spoken)
             products = new List<AiNewProduct>
             {
-                new() { Name = products[0].Name, Price = spoken.Single(), Cost = products[0].Cost, Stock = products[0].Stock, Attributes = products[0].Attributes }
+                new() { Name = products[0].Name, Price = spoken.Single(), Cost = products[0].Cost, Stock = products[0].Stock, Attributes = products[0].Attributes, Colors = products[0].Colors, Sizes = products[0].Sizes }
             };
 
         var pendingExtras = ctx.PendingProductExtras ?? new Dictionary<string, ProductExtras>(StringComparer.OrdinalIgnoreCase);
@@ -973,28 +986,33 @@ public partial class ConversationEngine
             // A price the AI read out of free text never silently overwrites a product that already exists: the seller changes prices on purpose.
             pendingExtras.TryGetValue(p.Name, out var earlier);
             var merged = MergeExtras(earlier, ExtrasOf(p));
-            var line = new ProductLine(p.Name, p.Price!.Value, "piece", 1, merged);
-            var sameName = await SameNameListingsAsync(seller, p.Name, "piece", 1, ct);
-            var (current, ambiguous) = ProductVariants.MatchListing(sameName, merged?.Size, merged?.Color);
-            if (ambiguous)
+            var nvHandled = false;
+            // One listing, or one per colour / size combination when the seller named several of either for this product.
+            foreach (var line in VariantLines(p.Name, p.Price!.Value, merged))
             {
-                priceKept.Add(MessageTemplates.Get("variants.001", p.Name, string.Join(", ", sameName.Select(Formatters.ProductMatchLabel)), Formatters.ProductMatchLabel(sameName[0])));
-                continue;
+                var sameName = await SameNameListingsAsync(seller, p.Name, "piece", 1, ct);
+                var (current, ambiguous) = ProductVariants.MatchListing(sameName, line.Extras?.Size, line.Extras?.Color);
+                if (ambiguous)
+                {
+                    priceKept.Add(MessageTemplates.Get("variants.001", p.Name, string.Join(", ", sameName.Select(Formatters.ProductMatchLabel)), Formatters.ProductMatchLabel(sameName[0])));
+                    continue;
+                }
+                if (current is not null && current.Price != p.Price!.Value)
+                {
+                    priceKept.Add($"⚠️ {Formatters.ProductLabel(current)} pehle se {Formatters.Money(current.Price)} par hai — price nahi badli.\nBadalni ho to likhein: edit product: {Formatters.ProductMatchLabel(current)} - {p.Price.Value:0.##}");
+                    continue;
+                }
+                nvHandled = true;
+                if (_features.ProductConfirmation)
+                {
+                    toConfirm.Add(line);
+                    continue;
+                }
+                var (product, _, _) = await UpsertProductAsync(seller, line, ct);
+                if (product is null) continue;
+                saved.Add($"• {Formatters.ProductLabel(product)} - {Formatters.Money(product.Price)}{ProductDetailsText(product)}");
             }
-            if (current is not null && current.Price != p.Price!.Value)
-            {
-                priceKept.Add($"⚠️ {Formatters.ProductLabel(current)} pehle se {Formatters.Money(current.Price)} par hai — price nahi badli.\nBadalni ho to likhein: edit product: {Formatters.ProductMatchLabel(current)} - {p.Price.Value:0.##}");
-                continue;
-            }
-            pendingExtras.Remove(p.Name);
-            if (_features.ProductConfirmation)
-            {
-                toConfirm.Add(line);
-                continue;
-            }
-            var (product, _, _) = await UpsertProductAsync(seller, line, ct);
-            if (product is null) continue;
-            saved.Add($"• {Formatters.ProductLabel(product)} - {Formatters.Money(product.Price)}{ProductDetailsText(product)}");
+            if (nvHandled) pendingExtras.Remove(p.Name);
         }
 
         foreach (var p in products.Where(p => p.Price is null && ExtrasOf(p) is not null))
@@ -1034,6 +1052,11 @@ public partial class ConversationEngine
             reply += "📦 Samajh gaya — yeh naye products hain:\n" +
                      string.Join("\n", needPrice.Select(n => $"• {n}{(ctx.PendingProductExtras is { } extras && extras.FirstOrDefault(e => string.Equals(e.Key, n, StringComparison.OrdinalIgnoreCase)) is { Value: not null } found ? ExtrasText(found.Value) : "")}")) +
                      "\n\nBarae meherbani har product ki sale price bata dein (misaal: '" + Industry(seller).MainLine + "' ya \"teenon ki 5000\") — jo kuch aap ne bataya hai (cost, stock) woh yaad hai.";
+        // A range is not a price: say what was heard and ask for one, instead of guessing an end of it.
+        foreach (var nvRange in products.Where(x => x.Price is null && x.PriceLow is not null && x.PriceHigh is not null))
+            reply += "\n\n" + MessageTemplates.Get("commands.055", nvRange.Name, Formatters.Money(nvRange.PriceLow!.Value), Formatters.Money(nvRange.PriceHigh!.Value));
+        foreach (var nvDrop in droppedNumbers.Distinct())
+            reply += "\n\n" + MessageTemplates.Get("commands.056", nvDrop.Name, nvDrop.What, Industry(seller).CostLine);
         if (needPrice.Count > 0) reply += "\n\n" + PriceHowToText(needPrice[0]);
         if (reply.Trim().Length > 0) await ReplyAsync(seller, reply.TrimEnd(), ct);
         if (toConfirm.Count > 0) await AskProductConfirmationAsync(seller, ctx, toConfirm, ct);
@@ -1059,9 +1082,13 @@ public partial class ConversationEngine
             else if (CommandParser.CanonicalDetailName(name) == "category") category = value;
             else other[CommandParser.CanonicalDetailName(name)] = value;
         }
-        return p.Cost is null && p.Stock is null && color is null && size is null && category is null && other.Count == 0
+        // One colour / size named is just that colour / size; several are variants, expanded into listings once the price is known.
+        IReadOnlyList<string>? colorList = p.Colors.Count > 1 ? p.Colors : null, sizeList = p.Sizes.Count > 1 ? p.Sizes : null;
+        if (p.Colors.Count == 1) color ??= p.Colors[0];
+        if (p.Sizes.Count == 1) size ??= p.Sizes[0];
+        return p.Cost is null && p.Stock is null && color is null && size is null && category is null && other.Count == 0 && colorList is null && sizeList is null
             ? null
-            : new ProductExtras(p.Cost, p.Stock, category, size, color, null, other.Count == 0 ? null : other);
+            : new ProductExtras(p.Cost, p.Stock, category, size, color, null, other.Count == 0 ? null : other, ColorList: colorList, SizeList: sizeList);
     }
 
     /// <summary>What was said later wins over what was said earlier.</summary>
@@ -1072,7 +1099,22 @@ public partial class ConversationEngine
         var attributes = new Dictionary<string, string>(earlier.Attributes ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
         foreach (var (name, value) in later.Attributes ?? new Dictionary<string, string>()) attributes[name] = value;
         return new ProductExtras(later.Cost ?? earlier.Cost, later.Stock ?? earlier.Stock, later.Category ?? earlier.Category, later.Size ?? earlier.Size,
-            later.Color ?? earlier.Color, later.Sku ?? earlier.Sku, attributes.Count == 0 ? null : attributes);
+            later.Color ?? earlier.Color, later.Sku ?? earlier.Sku, attributes.Count == 0 ? null : attributes,
+            ColorList: later.ColorList ?? earlier.ColorList, SizeList: later.SizeList ?? earlier.SizeList);
+    }
+
+    /// <summary>
+    /// The listings for one product: a single one, or one per colour / size combination when several were named. Stock is left off a split set: the seller
+    /// gave it for one colour or size and the bot cannot tell which, so it is never spread over all of them.
+    /// </summary>
+    private static List<ProductLine> VariantLines(string name, decimal price, ProductExtras? extras)
+    {
+        var colors = extras?.ColorList is { Count: > 1 } cl ? cl.Cast<string?>().ToList() : new List<string?> { extras?.Color };
+        var sizes = extras?.SizeList is { Count: > 1 } sl ? sl.Cast<string?>().ToList() : new List<string?> { extras?.Size };
+        if (extras is null || (colors.Count == 1 && sizes.Count == 1)) return new List<ProductLine> { new(name, price, "piece", 1, extras) };
+        return colors.SelectMany(c => sizes.Select(z => new ProductLine(name, price, "piece", 1,
+                extras with { Color = c, Size = z, Stock = null, ColorList = null, SizeList = null })))
+            .Take(30).ToList();
     }
 
     private static string ExtrasText(ProductExtras e)
@@ -1082,6 +1124,8 @@ public partial class ConversationEngine
         if (e.Stock is { } stock) parts.Add($"stock {stock}");
         if (e.Color is not null) parts.Add($"color: {e.Color}");
         if (e.Size is not null) parts.Add($"size: {e.Size}");
+        if (e.ColorList is { Count: > 1 }) parts.Add($"colors: {string.Join(" / ", e.ColorList)}");
+        if (e.SizeList is { Count: > 1 }) parts.Add($"sizes: {string.Join(" / ", e.SizeList)}");
         if (e.Category is not null) parts.Add($"category: {e.Category}");
         if (e.Attributes is not null) parts.AddRange(e.Attributes.Select(a => $"{a.Key}: {a.Value}"));
         return parts.Count == 0 ? "" : $" ({string.Join(", ", parts)})";
