@@ -247,7 +247,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "A WhatsApp order-tracking bot for a small shop owner (the seller) asked the seller a yes / no question. The reply may be in Roman Urdu, Urdu script or English, in any wording or spelling. " +
             "Decide whether the reply says yes (agrees, approves, go ahead), no (refuses, does not want it), or other (anything else: a new request, a question, a different answer, unclear, hesitant). " +
             "Return ONLY JSON {\"answer\": \"yes\"|\"no\"|\"other\", \"quote\": \"<the exact words of the reply that say it, copied as written>\"}. " +
-            "The quote must be copied from the reply; never write words that are not in it. If the reply asks for something else first, adds a condition, or is unsure, answer other. " +
+            "The quote must be copied from the reply; never write words that are not in it. If the reply asks for something else first, adds a condition, or is unsure, answer other.",
             $"Bot's question: {situation}\nSeller's reply: {message}", 0, "yes/no reading", cancellationToken, jsonMode: true);
         if (json is null) return null;
         try
