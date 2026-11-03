@@ -150,6 +150,7 @@
   "voice-confirm.022": "⚠️ Sorry, the needed details could not be read clearly from the picture, so nothing was saved. Please write it instead, like: {0}",
   "voice-confirm.023": "ℹ️ Okay, nothing was saved from the picture.",
   "voice-confirm.025": "ℹ️ Please finish the current task (an order draft or a question) or type \"cancel\", then send the picture again.",
+  "voice-confirm.029": "📷 What is this picture of? Pick one below (or say it: expense, wages, customer):",
   "voice-confirm.028": "🙏 No problem, I am not getting this right. Pick one below, or say/write a short sentence, like:\n{0}",
   "voice-confirm.027": "ℹ️ {0} picture(s) could not be read clearly and were left out.",
   "voice-confirm.026": "⚠️ Sorry, the picture could not be downloaded. Please send it again.",

@@ -903,6 +903,37 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public void PictureTypeTaps_AreWordsThePictureLabelParserKnows()
+    {
+        foreach (var (label, value) in ConversationEngine.PictureTypeChoices)
+        {
+            Assert.True(PictureLabels.TryParseReply(value, out _), value);
+            Assert.True(label.Length <= 24, label);
+        }
+    }
+
+    [Fact]
+    public async Task UnlabelledPicture_ThatIsNotAnOrderOrReceipt_AsksWhatItIs_AndATapLabelsIt()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        _media.Setup(m => m.DownloadAsync("pic-ask", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[3000], "image/jpeg"));
+        _ai.Setup(a => a.AnalyzeImageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "unclear" });
+        _ai.Setup(a => a.ReadPictureAsync("expense", It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiPictureReading { Amount = 450, Note = "chai" });
+        var withMedia = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object);
+        _sent.Clear();
+
+        await withMedia.HandleImageMessageAsync(Phone, "pic-ask", null);
+        Assert.Contains(_sent, m => m.Contains("Yeh tasveer kis cheez ki hai"));
+        _sent.Clear();
+
+        await withMedia.HandleIncomingMessageAsync(Phone, "expense", default);   // the tap sends the type word
+        Assert.Contains(_sent, m => m.Contains("expense 450 chai") && m.Contains("YES"));
+    }
+
+    [Fact]
     public async Task Picture_LabelledOther_SavesNothing()
     {
         using var db = _dbFactory.CreateContext();

@@ -1155,11 +1155,24 @@ public partial class ConversationEngine
 
         if (analysis.Receipt is { Amount: > 0 } receipt)
             await StartReceiptMatchAsync(seller, session, ctx, receipt, ct);
+        else if (analysis.Order is null && (analysis.AiUnavailable || analysis.Intent is "unclear" or "off_topic"))
+        {
+            // Not an order or a payment receipt: ask what the picture is, with taps, instead of a "samajh nahi aaya". A tap is the type word, and the picture
+            // was remembered above, so it is read as that type.
+            await SendChoicesAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("voice-confirm.029"),
+                PictureTypeChoices.Select(c => new ChoiceOption(c.Label, c.Value)).ToList(), ct);
+        }
         else
             await HandleAnalysisAsync(seller, session, ctx, analysis, catalog, fromScreenshot: true, ct);
 
         await PersistAsync(session, ctx, ct);
     }
+
+    // Each value is a type word PictureLabels understands (a test checks it), so a tap labels the remembered picture.
+    internal static readonly (string Label, string Value)[] PictureTypeChoices =
+    {
+        ("Kharcha (bill)", "expense"), ("Tankhwah", "wages"), ("Customer ki detail", "customer"), ("Order", "order"), ("Kuch nahi", "other"),
+    };
 
     private async Task StartReceiptMatchAsync(Seller seller, ConversationSession session, SessionContextData ctx, AiPaymentReceipt receipt, CancellationToken ct)
     {
