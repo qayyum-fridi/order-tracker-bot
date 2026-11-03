@@ -154,14 +154,14 @@ public partial class ConversationEngine
                 await _db.SaveChangesAsync(ct);
                 return;
             }
-            await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n❓ {decision.Message}", VoiceFallbackChoices.ToList(), ct);
+            await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n❓ {decision.Message}", VoiceFallbackFor(seller).ToList(), ct);
             await _db.SaveChangesAsync(ct);
             return;
         }
         if (decision.Kind == DecisionKind.Reject)
         {
             // Unsafe to run and not safe to offer as choices: say nothing changed. The taps are only safe reads (orders, menu), never an approval.
-            await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n{decision.Message}", VoiceFallbackChoices, ct);
+            await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n{decision.Message}", VoiceFallbackFor(seller), ct);
             await _db.SaveChangesAsync(ct);
             return;
         }
@@ -222,6 +222,19 @@ public partial class ConversationEngine
         new("orders today", "orders today"),
         new("menu", "menu"),
     };
+
+    /// <summary>While the bot still waits on a yes / no question (reset, cancel, ...), a refused voice note leaves that question open: the taps are Yes / No, not unrelated reads.</summary>
+    private static readonly ChoiceOption[] VoiceYesNoChoices =
+    {
+        new("Yes", "Yes"),
+        new("No", "No"),
+    };
+
+    internal static IReadOnlyList<ChoiceOption> VoiceFallbackFor(Seller seller)
+    {
+        var allowed = AllowedVoiceActions(seller, seller.Session!.State);
+        return allowed.Contains("yes") && allowed.Contains("no") ? VoiceYesNoChoices : VoiceFallbackChoices;
+    }
 
     /// <summary>Keeps the id of the last 20 voice notes handled, so a later reply to one of them is recognised.</summary>
     private async Task RememberVoiceNoteAsync(Seller seller, string messageId, CancellationToken ct)
@@ -293,6 +306,22 @@ public partial class ConversationEngine
         @"(?<![\p{L}\p{N}])(?:no|nope|nahi|nahin|nhi|nai|mat|cancel|stop|ruko|rukiye|نہیں|نہ|مت|رکو|رکیں|کینسل)(?![\p{L}\p{N}])",
         System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
+    /// <summary>Most catalog names sent to the voice rewrite: a very large catalog made the prompt slow and let the model pick names that were not spoken.</summary>
+    internal const int VoiceCatalogLimit = 120;
+
+    /// <summary>
+    /// The catalog names the voice rewrite is shown. Up to <see cref="VoiceCatalogLimit"/> all of them (nothing changes for a normal shop); a larger catalog sends first
+    /// the names that share a word with the transcript, then the rest in their order. The model still maps a misheard word ("soor" for suit) to a name it is shown.
+    /// </summary>
+    internal static List<string> VoiceCatalogNames(IReadOnlyList<string> labels, string transcript)
+    {
+        if (labels.Count <= VoiceCatalogLimit) return labels.ToList();
+        var spoken = System.Text.RegularExpressions.Regex.Split(transcript.ToLowerInvariant(), @"[^\p{L}\p{N}]+")
+            .Where(w => w.Length >= 3).ToHashSet();
+        bool Shares(string label) => System.Text.RegularExpressions.Regex.Split(label.ToLowerInvariant(), @"[^\p{L}\p{N}]+").Any(spoken.Contains);
+        return labels.Where(Shares).Concat(labels.Where(l => !Shares(l))).Take(VoiceCatalogLimit).ToList();
+    }
+
     /// <summary>
     /// "yes" / "no" for a short spoken answer, while the question on screen is a yes / no one. Only when exactly one of the two is said, there is
     /// no digit, no other command in it and it is at most 8 words; anything else is left to the rewrite.
@@ -363,7 +392,7 @@ public partial class ConversationEngine
             BusinessName = seller.BusinessName ?? "",
             Situation = DescribeVoiceSituation(seller, ctx),
             AllowedActions = AllowedVoiceActions(seller, seller.Session!.State).ToList(),
-            CatalogNames = catalog.Select(c => c.Label).ToList(),
+            CatalogNames = VoiceCatalogNames(catalog.Select(c => c.Label).ToList(), transcript),
             RecentOrders = recent.Select(DescribeOrderForVoice).ToList(),
             KnownCustomers = knownCustomers,
             RecentExchanges = exchanges
@@ -746,7 +775,7 @@ public partial class ConversationEngine
 
 
     /// <summary>English description of what the bot is waiting for, given to the AI so a spoken answer is read in context.</summary>
-    private static string DescribeVoiceSituation(Seller seller, SessionContextData ctx)
+    internal static string DescribeVoiceSituation(Seller seller, SessionContextData ctx)
     {
         var state = seller.Session!.State;
         var core = state switch

@@ -1377,7 +1377,8 @@ public partial class ConversationEngine
             SetState(session, ConversationState.AwaitingCodCollectedConfirmation);
         }
 
-        await ReplyAsync(seller, reply, ct);
+        if (askCodCollected) await AskYesNoAsync(seller, reply, ct);
+        else await ReplyAsync(seller, reply, ct);
     }
 
     private async Task MarkOrderPaidAsync(Seller seller, Order order, CancellationToken ct)

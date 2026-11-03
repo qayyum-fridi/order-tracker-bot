@@ -559,6 +559,17 @@ public partial class ConversationEngine
     private Task ReplyAsync(Seller seller, string text, CancellationToken ct) =>
         _sender.SendTextMessageAsync(seller.WhatsAppPhoneNumber, text, ct);
 
+    private static readonly string[] YesNoButtons = { "Yes", "No" };
+
+    /// <summary>
+    /// A yes / no question the bot waits on: the same text with Yes / No tap buttons (a tap arrives as "Yes" / "No", which the confirmation handlers already read),
+    /// so a seller need not type or speak the answer. Typed and spoken answers still work; with buttons off (or a body too long for them) it is the plain text as before.
+    /// </summary>
+    private Task AskYesNoAsync(Seller seller, string text, CancellationToken ct) =>
+        _features.ConfirmButtons && text.Length <= MaxButtonBodyLength
+            ? _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, text, YesNoButtons, ct)
+            : ReplyAsync(seller, text, ct);
+
     private static void SetState(ConversationSession session, ConversationState state) => session.State = state;
 
     /// <summary>Records every outbound message in message_log (saved with the engine's next SaveChanges).</summary>
