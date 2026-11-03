@@ -72,8 +72,13 @@ public partial class ConversationEngine
     internal const int MaxVoiceSeconds = 300;          // 5 minutes: longer is costly to transcribe and cannot be rewritten into at most 8 steps within the 3-minute handling limit
     internal const int MaxVoiceBytes = 750 * 1024;     // the same limit by size (~2.5 KB per second) for a file whose length cannot be read
 
+    // The length in the file header is the sender's own claim, so it is never trusted alone: a file over this size is refused whatever it says
+    // (5 minutes of even a high-bitrate Opus note is well under it).
+    internal const int MaxVoiceHardBytes = 2 * 1024 * 1024;
+
     internal static bool VoiceTooLong(byte[] audio) =>
-        AudioInfo.OggOpusSeconds(audio) is { } seconds ? seconds > MaxVoiceSeconds : audio.Length > MaxVoiceBytes;
+        audio.Length > MaxVoiceHardBytes
+        || (AudioInfo.OggOpusSeconds(audio) is { } seconds ? seconds > MaxVoiceSeconds : audio.Length > MaxVoiceBytes);
 
     /// <summary>SHA-256 of the audio being handled now (set by HandleAudioCoreAsync), recorded only when the note made actions.</summary>
     private string? _lastAudioHash;

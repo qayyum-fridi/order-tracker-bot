@@ -198,6 +198,17 @@ public class TurnDecisionTests
     }
 
     [Fact]
+    public void VoiceLimit_DoesNotTrustAHeaderThatClaimsAShortNoteOnAHugeFile()
+    {
+        var forged = OggOpus(5);
+        Array.Resize(ref forged, ConversationEngine.MaxVoiceHardBytes + 1);
+        System.Text.Encoding.ASCII.GetBytes("OggS").CopyTo(forged, 0);
+        BitConverter.GetBytes((long)(5 * 48000)).CopyTo(forged, 6);
+
+        Assert.True(ConversationEngine.VoiceTooLong(forged));
+    }
+
+    [Fact]
     public void VoiceLimit_FallsBackToSize_WhenTheLengthCannotBeRead()
     {
         Assert.False(ConversationEngine.VoiceTooLong(new byte[ConversationEngine.MaxVoiceBytes]));
