@@ -667,10 +667,20 @@ public static class CommandParser
     private static readonly Regex WageFlat = new(@"^(?:wages|wage|salary|tankhwah|tankhah|تنخواہ)\s*:?\s*(?<name>[^\d,:]{2,40}?)\s+(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d{1,2})?)(?:\s+(?:dihari|daily))?$", Opts);
 
     // "Ali ko 5000 tankhwah di" / "Ali ko 5000 tankhwah diye": the amount comes before the word, and the word is the verb of giving.
-    private static readonly Regex WageGiven = new(@"^(?<name>[^\d,:]{2,40}?)\s+(?:ko|ki|ka)\s+(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d{1,2})?)\s+(?:wage|salary|tankhwah|tankhah|تنخواہ)\s+(?:di|diye|dein|de\s+do|de\s+diya|di\s+hai)$", Opts);
+    private static readonly Regex WageGiven = new(@"^(?<name>[^\d,:]{2,40}?)\s+(?:ko|ki|ka)\s+(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d{1,2})?)\s+(?:wage|salary|tankhwah|tankhah|تنخواہ)\s+(?:di|diya|dia|diye|dein|de\s+do|de\s+diya|de\s+di|di\s+hai)$", Opts);
 
     // "Ali ki tankhwah 6000 kar do" / "Ali ki salary 6000 karo": the wage is set to this amount (a correction), not paid again.
     private static readonly Regex WageSet = new(@"^(?<name>[^\d,:]{2,40}?)\s+(?:ki|ka|ko|کی)\s+(?:wages?|salary|tankhwah|tankhah|تنخواہ)\s+(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d{1,2})?)\s+(?:kar\s*do|kardo|karo|kar\s*dein|kar\s+diya)$", Opts);
+
+    // More ways a seller says it (MVP): the word before the amount ("Ali ki salary 20000 de di"), "diya" as the verb, a worker word instead of a name
+    // ("mazdoor ko 1500 di"), a day's pay ("Bilal ko 800 dihari di") and the question "is mahine salary kitni gayi".
+    private const string WordGive = @"(?:di|diya|dia|diye|dein|de\s+do|de\s+diya|de\s+di|di\s+hai|de\s+di\s+hai)";
+    private const string WordWage = @"(?:wages?|salary|tankhwah|tankhah|تنخواہ)";
+    private const string WordMoney = @"(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d{1,2})?)";
+    private static readonly Regex WageWordFirstGiven = new(@"^(?<name>[^\d,:]{2,40}?)\s+(?:ki|ka|ko|کی)\s+" + WordWage + @"\s+" + WordMoney + @"\s+" + WordGive + "$", Opts);
+    private static readonly Regex WageWorkerGiven = new(@"^(?<name>(?:workers?|mazdoor|mazdur|karigar|staff|helper|driver|munshi|مزدور|ورکر)(?:\s+[^\d,:]{1,30})?)\s+(?:ko|ki)\s+" + WordMoney + @"(?:\s+(?<d>dihari|daily))?\s+" + WordGive + "$", Opts);
+    private static readonly Regex WageDihariGiven = new(@"^(?<name>[^\d,:]{2,40}?)\s+(?:ko|ki)\s+" + WordMoney + @"\s+(?:dihari|daily)\s+" + WordGive + "$", Opts);
+    private static readonly Regex WageQuestion = new(@"^(?:(?<name>[^\d,:]{2,40}?)\s+(?:ki|ka)\s+)?(?:(?<p>[^\d,:]{2,30}?)\s+)?" + WordWage + @"\s+(?:kitni|kitna|kitne)\s+(?:hui|hua|gayi|gai|gaya|diye|di|thi|hai|huin)\s*[?؟]?$", Opts);
 
     // "cancel 1 cancel 2 cancel 3": several order cancels in one message. A half-entered draft must not take it as its cancel answer.
     public static bool IsNumberedCancelRun(string message) =>
@@ -695,6 +705,44 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.Wage, Text = m.Groups["name"].Value.Trim(), Amount = setAmount, Text2 = "set" };
         if ((m = WageGiven.Match(message)).Success && TryParseMoney(m.Groups["a"].Value, out var given))
             return new ParsedCommand { Kind = CommandKind.Wage, Text = m.Groups["name"].Value.Trim(), Amount = given };
+        if ((m = WageWordFirstGiven.Match(message)).Success && TryParseMoney(m.Groups["a"].Value, out var wordFirst))
+            return new ParsedCommand { Kind = CommandKind.Wage, Text = m.Groups["name"].Value.Trim(), Amount = wordFirst };
+        if ((m = WageDihariGiven.Match(message)).Success && TryParseMoney(m.Groups["a"].Value, out var dihari))
+            return new ParsedCommand { Kind = CommandKind.Wage, Text = m.Groups["name"].Value.Trim(), Amount = dihari, Number = 1 };
+        if ((m = WageWorkerGiven.Match(message)).Success && TryParseMoney(m.Groups["a"].Value, out var worker))
+            return new ParsedCommand { Kind = CommandKind.Wage, Text = m.Groups["name"].Value.Trim(), Amount = worker, Number = m.Groups["d"].Success ? 1 : null };
+        if ((m = WageQuestion.Match(message)).Success)
+        {
+            // Read-only: lists the period's wages (every worker; a name in the question does not filter yet).
+            var phrase = m.Groups["p"].Success ? m.Groups["p"].Value : m.Groups["name"].Success ? m.Groups["name"].Value : "";
+            var key = phrase.Length > 0 && ReportPeriods.TryParseKey(phrase, DateTime.UtcNow, out var found) ? found : null;
+            if (phrase.Length == 0 || key is not null || m.Groups["name"].Success)
+                return new ParsedCommand { Kind = CommandKind.WageList, Text = key };
+        }
+        return null;
+    }
+
+    // Spending said the way a seller talks: "kiraya 15000 diya", "bijli ka bill 8000", "petrol 1000", "aaj chai pe 200 lage",
+    // "packaging ke 500 lag gaye", "rent 30000 paid", "800 ka kharcha tha rickshaw". Never "Ali ko 500 di" (that is a person, not a cost):
+    // a plain verb of giving needs an expense word first; a verb of spending (lage, paid...) does not.
+    private const string ExpenseNouns = @"(?:kiraya|rent|bijli|electricity|petrol|diesel|gas|internet|wifi|rickshaw|chai|pani|packaging|safai|mobile\s+load)";
+    private const string SpendVerb = @"(?:ada\s+kiya|ada\s+kiye|lage|lag\s+gaye|lag\s+gaya|kharch\s+hue|kharch\s+hua)";
+    private static readonly Regex ExpenseSpentOn = new(@"^(?:(?:aaj|kal)\s+)?(?<note>[^\d,:]{2,60}?)\s+(?:ke|ka|ki|pe|par|mein)\s+" + WordMoney + @"\s+" + SpendVerb + "$", Opts);
+    private static readonly Regex ExpenseSpentVerb = new(@"^(?:(?:aaj|kal)\s+)?(?<note>[^\d,:]{2,60}?)\s+" + WordMoney + @"\s+" + SpendVerb + "$", Opts);
+    private static readonly Regex ExpenseNounGiven = new(@"^(?:(?:aaj|kal)\s+)?(?<note>" + ExpenseNouns + @"(?:\s+[^\d,:]{1,30})?)\s+" + WordMoney + @"(?:\s+(?:" + WordGive + @"|paid))?$", Opts);
+    private static readonly Regex ExpenseAmountKharcha = new(@"^" + WordMoney + @"\s+(?:ka|ki|ke)\s+(?:kharcha|kharch)\s+(?:tha\s+|hua\s+|hai\s+)?(?<note>[^\d].*)$", Opts);
+    private static readonly Regex PersonParticle = new(@"\s(?:ko|ka|ki|ke|se|ne|کو)$", Opts);
+
+    private static ParsedCommand? TryParseExpenseNatural(string message)
+    {
+        foreach (var rx in new[] { ExpenseSpentOn, ExpenseSpentVerb, ExpenseNounGiven, ExpenseAmountKharcha })
+        {
+            var m = rx.Match(message);
+            if (!m.Success || !TryParseMoney(m.Groups["a"].Value, out var amount) || amount <= 0) continue;
+            var note = m.Groups["note"].Value.Trim();
+            if (note.Length == 0 || PersonParticle.IsMatch(note)) continue;
+            return new ParsedCommand { Kind = CommandKind.Expense, Amount = amount, Text = note };
+        }
         return null;
     }
 
@@ -1648,6 +1696,7 @@ public static class CommandParser
                 return new ParsedCommand { Kind = CommandKind.WageList, Text = key };
         }
         if (TryParseLossOrWage(message) is { } lossOrWage) return lossOrWage;
+        if (TryParseExpenseNatural(message) is { } spent) return spent;
         if (StockList.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Stock };
         if ((m = StockOff.Match(message)).Success) return new ParsedCommand { Kind = CommandKind.Stock, Text = m.Groups["name"].Value.Trim(), Text2 = "off" };
         // "Kurti - 1800, stock 10" ends in a stock amount but is a product line (price + details), not "Kurti stock 10".
