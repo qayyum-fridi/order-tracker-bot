@@ -1663,6 +1663,75 @@ public class MockupFeatureTests : IDisposable
         Assert.Equal(price, (await db.Products.AsNoTracking().SingleAsync(p => p.Name == "Shampoo")).Price);
     }
 
+    private async Task<ConversationEngine> DraftWaitingForYesAsync(AppDbContext db, bool dynamicAnswers)
+    {
+        await OnboardAsync(db);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, features: new FeatureOptions { DynamicAnswers = dynamicAnswers });
+        AiReturns(Order("Ali", "Kurti", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Ali ka order kurti 1 03001234567", default);
+        Assert.Equal(0, await db.Orders.CountAsync());   // a draft is waiting for the answer
+        return engine;
+    }
+
+    [Fact]
+    public async Task YesInOwnWords_ToTheDraftQuestion_IsReadByTheAi_WhenItQuotesWordsThatAreInTheMessage()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await DraftWaitingForYesAsync(db, dynamicAnswers: true);
+        _ai.Setup(a => a.ReadYesNoWithQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiYesNoReading { Answer = "yes", Quote = "bilkul sahi" });
+
+        await engine.HandleIncomingMessageAsync(Phone, "jee bilkul sahi hai", default);
+
+        Assert.Equal(1, await db.Orders.CountAsync());
+    }
+
+    [Theory]
+    [InlineData("yes", "zaroor zaroor")]     // the quoted words are not in the message
+    [InlineData("other", "bilkul sahi")]     // the AI does not read it as a yes
+    [InlineData("no", "bilkul sahi")]        // a no never saves
+    public async Task YesInOwnWords_IsNotActedOn_WithoutRealProof(string answer, string quote)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await DraftWaitingForYesAsync(db, dynamicAnswers: true);
+        _ai.Setup(a => a.ReadYesNoWithQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiYesNoReading { Answer = answer, Quote = quote });
+
+        await engine.HandleIncomingMessageAsync(Phone, "jee bilkul sahi hai", default);
+
+        Assert.Equal(0, await db.Orders.CountAsync());
+    }
+
+    [Fact]
+    public async Task YesInOwnWords_DoesNothingNew_WhenTheFlagIsOff()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await DraftWaitingForYesAsync(db, dynamicAnswers: false);
+        _ai.Setup(a => a.ReadYesNoWithQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiYesNoReading { Answer = "yes", Quote = "bilkul sahi" });
+
+        await engine.HandleIncomingMessageAsync(Phone, "jee bilkul sahi hai", default);
+
+        Assert.Equal(0, await db.Orders.CountAsync());
+        _ai.Verify(a => a.ReadYesNoWithQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DynamicYesNo_NeverAppliesToACancelQuestion()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await DraftWaitingForYesAsync(db, dynamicAnswers: true);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);          // order #1 saved
+        _ai.Setup(a => a.ReadYesNoWithQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiYesNoReading { Answer = "yes", Quote = "bilkul sahi" });
+        await engine.HandleIncomingMessageAsync(Phone, "cancel 1", default);     // asks to confirm the cancel
+
+        await engine.HandleIncomingMessageAsync(Phone, "jee bilkul sahi hai", default);
+
+        Assert.NotEqual(OrderStatus.Cancelled, (await db.Orders.AsNoTracking().SingleAsync()).Status);
+        _ai.Verify(a => a.ReadYesNoWithQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     [Theory]
     [InlineData("suit 5000", false)]
     [InlineData("suit 5000 bas ho gaya", true)]
