@@ -1710,8 +1710,11 @@ public class MockupFeatureTests : IDisposable
     {
         var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, null, _media.Object,
             features: new FeatureOptions { ShortcutButtons = false, IndustryQuestion = true, DynamicAnswers = dynamicAnswers });
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections" })
+        // The kind of shop is asked after the shop name AND the city step.
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
+        Assert.Contains(_sent, m => m.Contains("dukaan kis qism ki hai"));
+        _sent.Clear();
         AiReturns(new AiMessageAnalysis { Intent = "unclear" });
         return engine;
     }
