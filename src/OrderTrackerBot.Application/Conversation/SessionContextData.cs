@@ -100,6 +100,12 @@ public sealed class SessionContextData
     public Dictionary<string, string>? LearnedPhrases { get; set; }
     /// <summary>How many times the seller confirmed each learned phrase; a phrase is used only from the second confirmation (a stray tap teaches nothing).</summary>
     public Dictionary<string, int>? LearnedVotes { get; set; }
+    /// <summary>The name the seller typed when it matched several customers (the list was shown); the next exact name they send is the pick.</summary>
+    public string? LastAmbiguousCustomerText { get; set; }
+    /// <summary>Customer learning (MVP): ambiguous name (normalised) -> the customer id the seller picked by typing the exact name.</summary>
+    public Dictionary<string, int>? LearnedCustomerIds { get; set; }
+    /// <summary>How many times the seller picked that customer for that name; the pick is used from the second time.</summary>
+    public Dictionary<string, int>? LearnedCustomerVotes { get; set; }
     public string? PendingNewProductName { get; set; }
     /// <summary>Products scanned with a barcode scanner and not yet turned into an order (product id -> pieces); "scan done" makes the order draft.</summary>
     public Dictionary<int, int>? ScanCart { get; set; }

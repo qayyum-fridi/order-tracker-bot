@@ -9,9 +9,10 @@ namespace OrderTrackerBot.Application.Conversation;
 // "Sara ka phone 0300…", "customer Sara address House 5": one-line customer corrections, undoable.
 public partial class ConversationEngine
 {
-    private async Task HandleCustomerUpdateAsync(Seller seller, ParsedCommand cmd, CancellationToken ct)
+    private async Task HandleCustomerUpdateAsync(Seller seller, SessionContextData ctx, ParsedCommand cmd, CancellationToken ct)
     {
         var wanted = cmd.Text!.Trim();
+        var key = NormalizePhrase(wanted);
         var customers = await _db.Customers.Where(c => c.SellerId == seller.Id && c.DeletedAt == null).ToListAsync(ct);
         var matches = customers.Where(c => string.Equals(c.Name, wanted, StringComparison.OrdinalIgnoreCase)).ToList();
         if (matches.Count == 0)
@@ -19,17 +20,26 @@ public partial class ConversationEngine
 
         if (matches.Count == 0)
         {
+            ctx.LastAmbiguousCustomerText = null;
             await ReplyAsync(seller, MessageTemplates.Get("customers.003", wanted), ct);
             return;
         }
+        // A name that matched several customers before: the seller's earlier pick (used from the second time) answers it without the list.
+        if (matches.Count > 1 && LearnedCustomerFor(ctx, key) is { } learnedId && matches.FirstOrDefault(c => c.Id == learnedId) is { } learned)
+            matches = new List<Customer> { learned };
         if (matches.Count > 1)
         {
+            ctx.LastAmbiguousCustomerText = key;
             await ReplyAsync(seller,
                 MessageTemplates.Get("customer-update.001", wanted, matches.Count, string.Join("\n", matches.Select(c => $"• {c.Name}{(string.IsNullOrWhiteSpace(c.Phone) ? "" : $" ({c.Phone})")}")), matches[0].Name, cmd.Text2), ct);
             return;
         }
 
         var customer = matches[0];
+        // The seller typed the exact name after the list: that is their pick for the ambiguous name.
+        if (ctx.LastAmbiguousCustomerText is { } ambiguous && string.Equals(customer.Name, wanted, StringComparison.OrdinalIgnoreCase))
+            LearnCustomerPick(ctx, ambiguous, customer.Id);
+        ctx.LastAmbiguousCustomerText = null;
         var previous = cmd.Text2 switch { "phone" => customer.Phone, "address" => customer.Address, "city" => customer.City, "email" => customer.Email, "group" => customer.PriceGroup, _ => customer.Name };
         _db.ActionLogs.Add(new ActionLog
         {

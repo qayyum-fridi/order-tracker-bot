@@ -211,7 +211,7 @@ public partial class ConversationEngine
                 await HandleDisconnectInstagramAsync(seller, ct);
                 return;
             case CommandKind.CustomerUpdate:
-                await HandleCustomerUpdateAsync(seller, cmd, ct);
+                await HandleCustomerUpdateAsync(seller, ctx, cmd, ct);
                 return;
             case CommandKind.CustomerAdd:
                 await HandleCustomerAddAsync(seller, cmd, ct);

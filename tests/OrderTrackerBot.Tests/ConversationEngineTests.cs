@@ -546,6 +546,53 @@ public class ConversationEngineTests : IDisposable
         Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
     }
 
+    // Customer learning (MVP): after the same exact-name pick twice for an ambiguous name, the list is skipped. Only the session changes.
+    [Fact]
+    public async Task RepeatedPickForAnAmbiguousCustomerName_IsUsedWithoutTheList()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var seller = await db.Sellers.FirstAsync();
+        db.Customers.AddRange(
+            new OrderTrackerBot.Domain.Entities.Customer { SellerId = seller.Id, Name = "Sara Khan", Phone = "03001110001" },
+            new OrderTrackerBot.Domain.Entities.Customer { SellerId = seller.Id, Name = "Sara Ali", Phone = "03001110002" });
+        await db.SaveChangesAsync();
+        var engine = CreateEngine(db);
+
+        // Two rounds: the list, then the exact name. The second identical pick is what teaches it.
+        await engine.HandleIncomingMessageAsync(Phone, "Sara ka address Model Town", default);
+        Assert.Contains(_sentMessages, m => m.Contains("Sara Khan") && m.Contains("Sara Ali"));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara Ali ka address Model Town", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Sara ka address Model Town", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Sara Ali ka address Model Town", default);
+
+        _sentMessages.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "Sara ka address Gulberg", default);
+        Assert.Empty(_sentMessages.Where(m => m.Contains("Sara Khan") && m.Contains("Sara Ali")));
+        Assert.Equal("Gulberg", (await db.Customers.FirstAsync(c => c.Name == "Sara Ali")).Address);
+        Assert.Null((await db.Customers.FirstAsync(c => c.Name == "Sara Khan")).Address);
+    }
+
+    [Fact]
+    public async Task OneCustomerPick_IsNotEnoughToSkipTheList()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var seller = await db.Sellers.FirstAsync();
+        db.Customers.AddRange(
+            new OrderTrackerBot.Domain.Entities.Customer { SellerId = seller.Id, Name = "Sara Khan", Phone = "03001110001" },
+            new OrderTrackerBot.Domain.Entities.Customer { SellerId = seller.Id, Name = "Sara Ali", Phone = "03001110002" });
+        await db.SaveChangesAsync();
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara ka address Model Town", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Sara Ali ka address Model Town", default);
+
+        _sentMessages.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "Sara ka address Gulberg", default);
+        Assert.Contains(_sentMessages, m => m.Contains("Sara Khan") && m.Contains("Sara Ali"));
+    }
+
     private async Task<List<int>> SeedTwoPendingOrdersAsync(AppDbContext db)
     {
         var seller = await db.Sellers.FirstAsync();
