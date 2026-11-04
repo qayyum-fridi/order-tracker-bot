@@ -397,6 +397,29 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task ClarificationOption_NamedInWords_IsReadByTheAi_AndRunsLikeTheTypedNumber()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, features: new FeatureOptions { DynamicAnswers = true });
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis
+            {
+                IsOrderAttempt = false,
+                ClarificationQuestion = "Maaf kijiye, mujhe aapki baat samajh nahi aayi 🙏 Kya aap yeh kehna chahte hain:",
+                ClarificationOptions = { "Naya order add karna chahte hain", "Kisi order ka status update karna chahte hain" }
+            });
+        await engine.HandleIncomingMessageAsync(Phone, "wo waala order kal tak bhej dena", default);
+        _ai.Setup(a => a.ReadChoiceWithQuoteAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiChoiceReading { Option = 2, Quote = "doosra" });
+
+        await engine.HandleIncomingMessageAsync(Phone, "doosra wala", default);          // in words, not "2"
+
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sentMessages, m => m.Contains("mark 3 shipped"));
+    }
+
+    [Fact]
     public async Task DescribedNewDiscount_AiCreateDiscountIntent_StartsDiscountFlow()
     {
         using var db = _dbFactory.CreateContext();

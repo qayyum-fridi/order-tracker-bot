@@ -33,6 +33,24 @@ public partial class ConversationEngine
         return reading.Answer;
     }
 
+    /// <summary>
+    /// The 1-based option of a numbered list that a reply in words means ("pehla wala", "joote bechta hoon"), read by the AI; null when it is not sure, the quote is not in the
+    /// message, or the old flow should handle the message. Used where the old flow would otherwise treat the reply as unknown. Behind the same flag as yes / no.
+    /// </summary>
+    private async Task<int?> TryReadChoiceAsync(string situation, IReadOnlyList<string> options, string message, CancellationToken ct)
+    {
+        if (!_features.DynamicAnswers || options.Count == 0) return null;
+        var text = message.Trim();
+        if (text.Length == 0 || text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length > 8 || text.Any(char.IsDigit) || text.Contains('\n')
+            || CommandParser.TryParse(text) is not null || HedgeWord.IsMatch(text))
+            return null;
+
+        var reading = await _ai.ReadChoiceWithQuoteAsync(situation, options, text, ct);
+        if (reading is not { Option: >= 1 } || reading.Option > options.Count || !QuoteIsInMessage(reading.Quote, text)) return null;
+        _logger?.LogInformation("Dynamic choice read: option {Option} of {Count}", reading.Option, options.Count);
+        return reading.Option;
+    }
+
     /// <summary>The quoted words must be in the message (letters and digits only, case ignored, so spacing and punctuation do not matter).</summary>
     private static bool QuoteIsInMessage(string? quote, string message)
     {

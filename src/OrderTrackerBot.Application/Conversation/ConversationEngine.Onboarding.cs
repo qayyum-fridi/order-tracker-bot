@@ -408,6 +408,13 @@ public partial class ConversationEngine
                 if (picked is null && await TrySaveProductDuringOnboardingAsync(seller, session, message, ct)) return;
                 if ((picked is null || PhoneNumber.IsMatch(message))
                     && await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: true, ct)) return;
+                // "joote bechta hoon" matches no alias: the AI reads which kind of shop it is, quoting the words (flag DynamicAnswers); the aliases stay the free first check.
+                if (picked is null)
+                {
+                    var shops = IndustryProfiles.All.Append(IndustryProfiles.General).ToList();
+                    if (await TryReadChoiceAsync(DescribeVoiceSituation(seller, ctx), shops.Select(p => p.Title).ToList(), message, ct) is { } shopNumber)
+                        picked = shops[shopNumber - 1];
+                }
                 if (picked is null)
                 {
                     // A real command here (e.g. "orders today") runs only after setup: say so, then show the list again.

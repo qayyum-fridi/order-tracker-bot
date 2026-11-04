@@ -1706,6 +1706,60 @@ public class MockupFeatureTests : IDisposable
         Assert.True(await db.Products.AnyAsync(p => p.Name == "Foundation neela" && p.Color == null));
     }
 
+    private async Task<ConversationEngine> AtTheShopTypeQuestionAsync(AppDbContext db, bool dynamicAnswers)
+    {
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, null, _media.Object,
+            features: new FeatureOptions { ShortcutButtons = false, IndustryQuestion = true, DynamicAnswers = dynamicAnswers });
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections" })
+            await engine.HandleIncomingMessageAsync(Phone, m, default);
+        AiReturns(new AiMessageAnalysis { Intent = "unclear" });
+        return engine;
+    }
+
+    [Fact]
+    public async Task ShopTypeInWords_MatchingNoAlias_IsReadByTheAi_WhenItQuotesWordsThatAreInTheMessage()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await AtTheShopTypeQuestionAsync(db, dynamicAnswers: true);
+        _ai.Setup(a => a.ReadChoiceWithQuoteAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiChoiceReading { Option = 2, Quote = "qalam" });
+
+        await engine.HandleIncomingMessageAsync(Phone, "qalam dawaat aur kaghaz bechta hoon", default);
+
+        var seller = await db.Sellers.AsNoTracking().FirstAsync();
+        Assert.True(seller.OnboardingComplete);
+        Assert.Equal(IndustryProfiles.All.Append(IndustryProfiles.General).ElementAt(1).Title, seller.BusinessType);
+    }
+
+    [Theory]
+    [InlineData(2, "ghadi")]     // the quoted words are not in the message
+    [InlineData(0, "qalam")]     // the AI says none of them
+    [InlineData(9, "qalam")]     // not an option of the list
+    public async Task ShopTypeInWords_IsNotChosen_WithoutRealProof(int option, string quote)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await AtTheShopTypeQuestionAsync(db, dynamicAnswers: true);
+        _ai.Setup(a => a.ReadChoiceWithQuoteAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiChoiceReading { Option = option, Quote = quote });
+
+        await engine.HandleIncomingMessageAsync(Phone, "qalam dawaat aur kaghaz bechta hoon", default);
+
+        Assert.False((await db.Sellers.AsNoTracking().FirstAsync()).OnboardingComplete);
+        Assert.Contains(_sent, m => m.Contains("dukaan kis qism ki hai"));
+    }
+
+    [Fact]
+    public async Task ShopTypeInWords_DoesNotCallTheAi_WhenTheFlagIsOff()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await AtTheShopTypeQuestionAsync(db, dynamicAnswers: false);
+
+        await engine.HandleIncomingMessageAsync(Phone, "qalam dawaat aur kaghaz bechta hoon", default);
+
+        _ai.Verify(a => a.ReadChoiceWithQuoteAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.False((await db.Sellers.AsNoTracking().FirstAsync()).OnboardingComplete);
+    }
+
     [Fact]
     public async Task YesInOwnWords_ToTheDraftQuestion_IsReadByTheAi_WhenItQuotesWordsThatAreInTheMessage()
     {
