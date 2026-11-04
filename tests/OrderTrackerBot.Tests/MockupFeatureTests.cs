@@ -1716,15 +1716,17 @@ public class MockupFeatureTests : IDisposable
         return engine;
     }
 
-    [Fact]
-    public async Task ShopTypeInWords_MatchingNoAlias_IsReadByTheAi_WhenItQuotesWordsThatAreInTheMessage()
+    [Theory]
+    [InlineData("qalam")]
+    [InlineData("qalam dawaat aur kaghaz bechta hoon")]
+    public async Task ShopTypeInWords_MatchingNoAlias_IsReadByTheAi_WhenItQuotesWordsThatAreInTheMessage(string said)
     {
         using var db = _dbFactory.CreateContext();
         var engine = await AtTheShopTypeQuestionAsync(db, dynamicAnswers: true);
         _ai.Setup(a => a.ReadChoiceWithQuoteAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiChoiceReading { Option = 2, Quote = "qalam" });
 
-        await engine.HandleIncomingMessageAsync(Phone, "qalam dawaat aur kaghaz bechta hoon", default);
+        await engine.HandleIncomingMessageAsync(Phone, said, default);
 
         var seller = await db.Sellers.AsNoTracking().FirstAsync();
         Assert.True(seller.OnboardingComplete);
