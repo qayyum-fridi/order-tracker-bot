@@ -152,5 +152,6 @@
   "losses.003": "↩️ Reverted — loss {0} × {1} undone.",
   "losses.004": "The salary amount must be more than 0. For example: \"Ali ki 5000 dihari\" or \"wage Ali 5000\"",
   "losses.005": "✅ {0}'s wage saved: {1}{2}\nTotal wages this month: {3}\nIf there is a mistake, type \"undo\" · For the calculation: \"monthly net\"",
-  "losses.006": "↩️ Reverted — {0}'s wage {1} removed."
+  "losses.006": "↩️ Reverted — {0}'s wage {1} removed.",
+  "import.030": "⚠️ This text will not be saved as a list — copied text cannot separate the columns (names and phones run together).\n\nSend the customer list as an .xlsx or .csv file. For the format, write \"import template customers\"."
 }
