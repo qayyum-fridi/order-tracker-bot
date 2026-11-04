@@ -1766,6 +1766,27 @@ public class MockupFeatureTests : IDisposable
         Assert.False((await db.Sellers.AsNoTracking().FirstAsync()).OnboardingComplete);
     }
 
+    [Theory]
+    [InlineData(true, false)]    // flag on, the AI says it fits: the report runs
+    [InlineData(true, true)]     // flag on, the AI says it does not fit: the sentence goes to the order reader
+    [InlineData(false, true)]    // flag off: the rule is never second-guessed
+    public async Task AReportRuleMatch_OnASentence_IsCheckedByTheAi_OnlyWhenTheFlagIsOn(bool flag, bool aiSaysNoFit)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, features: new FeatureOptions { RuleSecondOpinionReports = flag });
+        AiReturns(new AiMessageAnalysis { Intent = "unclear" });
+        _ai.Setup(a => a.ConfirmCommandMatchAsync(It.IsAny<string>(), "Profit", It.IsAny<CancellationToken>())).ReturnsAsync(!aiSaysNoFit);
+
+        await engine.HandleIncomingMessageAsync(Phone, "profit last month", default);          // 3 words, a Profit report by rule
+
+        var checkedByAi = flag ? Times.Once() : Times.Never();
+        _ai.Verify(a => a.ConfirmCommandMatchAsync("profit last month", "Profit", It.IsAny<CancellationToken>()), checkedByAi);
+        // Sent to the order reader only when the flag is on AND the AI said it does not fit.
+        var toReader = flag && aiSaysNoFit ? Times.Once() : Times.Never();
+        _ai.Verify(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), "profit last month", It.IsAny<CancellationToken>()), toReader);
+    }
+
     [Fact]
     public async Task YesInOwnWords_ToTheDraftQuestion_IsReadByTheAi_WhenItQuotesWordsThatAreInTheMessage()
     {
