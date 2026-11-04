@@ -1,6 +1,6 @@
 # Overall system test — master run sheet
 
-**One file to fill:** `docs/test-run/system-test-master.csv` — 1,307 cases, columns `ID · Suite · Section · Send · Expect · Needs · Result · Actual/notes`.
+**One file to fill:** `docs/test-run/system-test-master.csv` — 1,340 cases, columns `ID · Suite · Section · Send · Expect · Needs · Result · Actual/notes`.
 Open it in Excel / Google Sheets, fill **Result** with `PASS`, `FAIL`, `SKIP` (not applicable) or `BLOCKED` (could not reach the step), paste the bot's actual reply in the last column for every FAIL, and send the file back. I turn that into the report.
 
 ## Suites and order (run in this order — later suites assume earlier state)
@@ -13,6 +13,10 @@ Open it in Excel / Google Sheets, fill **Result** with `PASS`, `FAIL`, `SKIP` (n
 | 5 | Complex orders (`CO1-`, `CO2-`) | 88 | Multi-order, bulk status, tricky wording |
 | 6 | Per-industry (`IND-`) | 512 | 7 shop types: setup, catalog, orders, status/payment, reports in Roman Urdu / English / Urdu, data check, voice |
 | 7 | Live list (`LIVE-T`) | 383 | Command-by-command regression from real chats |
+| 8 | Dynamic understanding (`DYN-`) | 33 | Phases 1-5: yes/no and list answers in own words, colours from the seller's data, rule second opinion, voice amounts, product ranges and variants, router context, flags. Run these **first after deploying `main`**; most need an AI key (and some a voice note) |
+
+## Flags used by the `DYN-` suite
+`Features:DynamicAnswers`, `Features:RuleSecondOpinionReports`, `Features:RouterContext` are on in `appsettings.json`; set one to `false` to see the old behaviour (DYN-F1). Without `OpenAi:ApiKey` every `AI key` row falls back to the old flow: mark it `SKIP`, not FAIL.
 
 ## Before you start
 - Build running with the branch `claude/test-cases-writing-oaysj1` (it carries today's two voice/onboarding fixes — without it `TODAY-N09..N14` will fail).
