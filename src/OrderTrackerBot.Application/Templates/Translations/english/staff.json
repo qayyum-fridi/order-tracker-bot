@@ -1,0 +1,10 @@
+{
+  "staff.001": "✅ Staff saved: {0}{1}\n\nSee all staff: staff",
+  "staff.002": "ℹ️ {0} is already on the staff list. To change it, first type \"staff remove {0}\".",
+  "staff.003": "👥 Staff ({0}):\n{1}\n\nAdd: staff add Name 03001234567 job\nRemove: staff remove Name",
+  "staff.004": "👥 No staff saved yet.\n\nType: staff add Ali 03001234567 driver",
+  "staff.005": "✅ {0}'s record is switched off. Past wages stay as they were.",
+  "staff.006": "Staff not found: {0}. To see staff: staff",
+  "staff.007": "Please type a name. For example: staff add Ali 03001234567 driver",
+  "staff.008": "👥 {0} was also added to the staff list. To see it: staff"
+}

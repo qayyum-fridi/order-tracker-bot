@@ -106,6 +106,8 @@ public partial class ConversationEngine
             }
         }
 
+        // A wage is paid to a person: a name not yet on the staff list is added to it, so the owner's staff list stays complete.
+        var addedToStaff = await EnsureStaffForWageAsync(seller, worker, ct);
         var wage = new WageEntry { SellerId = seller.Id, WorkerName = worker, Amount = amount, Days = cmd.Number };
         _db.WageEntries.Add(wage);
         await _db.SaveChangesAsync(ct);
@@ -120,6 +122,7 @@ public partial class ConversationEngine
         var daysText = wage.Days is { } d ? $" ({d} din)" : "";
         await ReplyAsync(seller,
             MessageTemplates.Get("losses.005", worker, Formatters.Money(amount), daysText, Formatters.Money(monthTotal)), ct);
+        if (addedToStaff) await ReplyAsync(seller, MessageTemplates.Get("staff.008", worker), ct);
     }
 
     private async Task UndoWageAsync(Seller seller, ActionLog log, CancellationToken ct)

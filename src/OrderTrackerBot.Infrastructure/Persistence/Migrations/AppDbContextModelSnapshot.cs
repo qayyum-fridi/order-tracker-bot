@@ -1220,6 +1220,38 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     b.ToTable("PaymentMethods");
                 });
 
+            modelBuilder.Entity("OrderTrackerBot.Domain.Entities.StaffMember", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Phone")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Role")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("SellerId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("StaffMembers");
+                });
+
             modelBuilder.Entity("OrderTrackerBot.Domain.Entities.StrategyStat", b =>
                 {
                     b.Property<int>("Id")

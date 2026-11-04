@@ -1,0 +1,10 @@
+{
+  "staff.001": "✅ Staff save ho gaya: {0}{1}\n\nSab staff dekhne ke liye: staff",
+  "staff.002": "ℹ️ {0} pehle se staff mein hai. Badalne ke liye pehle \"staff remove {0}\" likhein.",
+  "staff.003": "👥 Staff ({0}):\n{1}\n\nNaya: staff add Naam 03001234567 kaam\nHatane ke liye: staff remove Naam",
+  "staff.004": "👥 Abhi koi staff save nahi hai.\n\nLikhein: staff add Ali 03001234567 driver",
+  "staff.005": "✅ {0} ka record band kar diya gaya. Purani tankhwahein utni hi rahengi.",
+  "staff.006": "Ye staff nahi mila: {0}. Staff dekhne ke liye: staff",
+  "staff.007": "Naam likhein. Jaise: staff add Ali 03001234567 driver",
+  "staff.008": "👥 {0} ko staff list mein bhi add kar diya. Dekhne ke liye: staff"
+}

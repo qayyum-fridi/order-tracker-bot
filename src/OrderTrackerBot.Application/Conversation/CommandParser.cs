@@ -85,6 +85,9 @@ public enum CommandKind
     ExpenseList,
     LossList,
     WageList,
+    StaffAdd,
+    StaffList,
+    StaffRemove,
     BuyerEnquiry,
     EnquiryReport,
     ExpenseEdit,
@@ -744,6 +747,28 @@ public static class CommandParser
             if (note.Length == 0 || PersonParticle.IsMatch(note)) continue;
             return new ParsedCommand { Kind = CommandKind.Expense, Amount = amount, Text = note };
         }
+        return null;
+    }
+
+    // Staff records (no login): "staff add Ali 03001234567 driver", "staff list" / "staff", "staff remove Ali". Text = name, Text2 = phone, Text3 = role.
+    private static readonly Regex StaffAddCmd = new(@"^staff\s+(?:add|naya|new)\s+(?<name>\p{L}[\p{L} .'-]{0,39}?)(?:\s+(?<phone>\+?\d[\d\- ]{6,15}\d))?(?:\s+(?<role>\p{L}[\p{L} .'-]{0,29}))?\s*$", Opts);
+    private static readonly Regex StaffRemoveCmd = new(@"^staff\s+(?:remove|hatao|delete)\s+(?<name>\p{L}[\p{L} .'-]{0,39})\s*$", Opts);
+    private static readonly Regex StaffListCmd = new(@"^staff(?:\s+(?:list|dikhao|dikhaen|sab))?\s*$", Opts);
+
+    private static ParsedCommand? TryParseStaff(string message)
+    {
+        var text = message.Trim();
+        if ((StaffAddCmd.Match(text)) is { Success: true } add)
+            return new ParsedCommand
+            {
+                Kind = CommandKind.StaffAdd,
+                Text = add.Groups["name"].Value.Trim(),
+                Text2 = add.Groups["phone"].Success ? new string(add.Groups["phone"].Value.Where(char.IsDigit).ToArray()) : null,
+                Text3 = add.Groups["role"].Success ? add.Groups["role"].Value.Trim() : null,
+            };
+        if (StaffRemoveCmd.Match(text) is { Success: true } remove)
+            return new ParsedCommand { Kind = CommandKind.StaffRemove, Text = remove.Groups["name"].Value.Trim() };
+        if (StaffListCmd.IsMatch(text)) return new ParsedCommand { Kind = CommandKind.StaffList };
         return null;
     }
 
@@ -1696,6 +1721,7 @@ public static class CommandParser
             if (word is "wages" or "wage" or "tankhwah" or "tankhah" or "تنخواہ")
                 return new ParsedCommand { Kind = CommandKind.WageList, Text = key };
         }
+        if (TryParseStaff(message) is { } staff) return staff;
         if (TryParseLossOrWage(message) is { } lossOrWage) return lossOrWage;
         if (TryParseExpenseNatural(message) is { } spent) return spent;
         if (StockList.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Stock };

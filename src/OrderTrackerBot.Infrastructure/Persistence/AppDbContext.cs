@@ -38,6 +38,7 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<StrategyStat> StrategyStats => Set<StrategyStat>();
     public DbSet<Loss> Losses => Set<Loss>();
     public DbSet<WageEntry> WageEntries => Set<WageEntry>();
+    public DbSet<StaffMember> StaffMembers => Set<StaffMember>();
     public DbSet<CashDrawerSession> CashDrawerSessions => Set<CashDrawerSession>();
     public DbSet<CashMovement> CashMovements => Set<CashMovement>();
     public DbSet<Payout> Payouts => Set<Payout>();

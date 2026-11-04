@@ -246,6 +246,15 @@ public partial class ConversationEngine
             case CommandKind.WageList:
                 await HandleWageListAsync(seller, cmd.Text, ct);
                 return;
+            case CommandKind.StaffAdd:
+                await HandleStaffAddAsync(seller, cmd, ct);
+                return;
+            case CommandKind.StaffList:
+                await HandleStaffListAsync(seller, ct);
+                return;
+            case CommandKind.StaffRemove:
+                await HandleStaffRemoveAsync(seller, cmd, ct);
+                return;
             case CommandKind.Wage:
                 await HandleWageAsync(seller, cmd, ct);
                 return;

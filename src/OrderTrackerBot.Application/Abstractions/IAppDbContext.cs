@@ -33,6 +33,7 @@ public interface IAppDbContext
     DbSet<BuyerEnquiry> BuyerEnquiries { get; }
     DbSet<Loss> Losses { get; }
     DbSet<WageEntry> WageEntries { get; }
+    DbSet<StaffMember> StaffMembers { get; }
     DbSet<CashDrawerSession> CashDrawerSessions { get; }
     DbSet<CashMovement> CashMovements { get; }
     DbSet<Payout> Payouts { get; }
