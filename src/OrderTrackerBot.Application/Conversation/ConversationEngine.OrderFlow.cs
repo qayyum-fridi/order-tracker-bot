@@ -80,6 +80,10 @@ public partial class ConversationEngine
         {
             if (await TryRunRoutedIntentAsync(seller, session, ctx, message, ct)) return;
             await RecordUnplacedAsync(seller, "freeform_" + (analysis.Intent == "" ? "ai_unavailable" : analysis.Intent), message, analysis.Intent, null, ct);
+            // Nothing placed it: offer the nearest catalog examples as taps (a model question, when the AI asked one, is kept).
+            // A message that names a feature area keeps its own question (HandleAnalysisAsync asks which command).
+            if (analysis.ClarificationQuestion is null && !TryKeywordClarification(message, out _, out _)
+                && await TrySendMissChoicesAsync(seller, message, ct)) return;
         }
         // The seller's own words beat the model: "delivery 300" in a single order is that order's delivery charge.
         if (analysis.Order is { } single && analysis.AdditionalOrders.Count == 0 && CommandParser.TryFindDeliveryInOrderText(message, out var delivery))
