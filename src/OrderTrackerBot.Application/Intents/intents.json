@@ -17,7 +17,10 @@
           "type": "number"
         }
       },
-      "template": "order {order}"
+      "template": "order {order}",
+      "keywords": [
+        "order"
+      ]
     },
     {
       "id": "order.list_today",
@@ -31,7 +34,11 @@
         "orders today"
       ],
       "slots": {},
-      "template": "orders today"
+      "template": "orders today",
+      "keywords": [
+        "orders",
+        "order"
+      ]
     },
     {
       "id": "order.list_period",
@@ -77,7 +84,11 @@
         "active orders"
       ],
       "slots": {},
-      "template": "pending orders"
+      "template": "pending orders",
+      "keywords": [
+        "pending",
+        "orders"
+      ]
     },
     {
       "id": "order.unpaid",
@@ -91,7 +102,12 @@
         "payment due list"
       ],
       "slots": {},
-      "template": "unpaid orders"
+      "template": "unpaid orders",
+      "keywords": [
+        "unpaid",
+        "payment",
+        "balance"
+      ]
     },
     {
       "id": "order.cod_pending",
@@ -126,7 +142,14 @@
           "required": true
         }
       },
-      "template": "mark {order} {status}"
+      "template": "mark {order} {status}",
+      "keywords": [
+        "order",
+        "shipped",
+        "delivered",
+        "deliver",
+        "bhej"
+      ]
     },
     {
       "id": "order.mark_all_shipped",
@@ -229,7 +252,11 @@
         "buyer ko account number bhejna hai"
       ],
       "slots": {},
-      "template": "payment link"
+      "template": "payment link",
+      "keywords": [
+        "payment",
+        "link"
+      ]
     },
     {
       "id": "order.add_payment_method",
@@ -293,7 +320,10 @@
           "type": "number"
         }
       },
-      "template": "order {order} delivery {amount}"
+      "template": "order {order} delivery {amount}",
+      "keywords": [
+        "delivery"
+      ]
     },
     {
       "id": "order.default_delivery",
@@ -406,7 +436,11 @@
           "required": true
         }
       },
-      "template": "add tracking: {order}, {tracking_no}"
+      "template": "add tracking: {order}, {tracking_no}",
+      "keywords": [
+        "tracking",
+        "courier"
+      ]
     },
     {
       "id": "order.tracking_find",
@@ -458,7 +492,11 @@
           "required": true
         }
       },
-      "template": "{customer} ka order"
+      "template": "{customer} ka order",
+      "keywords": [
+        "order",
+        "customer"
+      ]
     },
     {
       "id": "order.for_customer",
@@ -901,7 +939,12 @@
           "type": "number"
         }
       },
-      "template": "{name} - {price}"
+      "template": "{name} - {price}",
+      "keywords": [
+        "product",
+        "item",
+        "catalog"
+      ]
     },
     {
       "id": "product.create_detailed",
@@ -946,7 +989,12 @@
         "mera saman dikhao"
       ],
       "slots": {},
-      "template": "catalog"
+      "template": "catalog",
+      "keywords": [
+        "product",
+        "products",
+        "catalog"
+      ]
     },
     {
       "id": "product.search",
@@ -963,7 +1011,14 @@
           "required": true
         }
       },
-      "template": "catalog search {query}"
+      "template": "catalog search {query}",
+      "keywords": [
+        "catalog",
+        "product",
+        "search",
+        "dhoondo",
+        "find"
+      ]
     },
     {
       "id": "product.share",
@@ -1106,7 +1161,12 @@
           "type": "number"
         }
       },
-      "template": "edit product: {name} - {price}"
+      "template": "edit product: {name} - {price}",
+      "keywords": [
+        "price",
+        "rate",
+        "keemat"
+      ]
     },
     {
       "id": "product.delete",
@@ -1329,7 +1389,10 @@
         "stock report"
       ],
       "slots": {},
-      "template": "stock"
+      "template": "stock",
+      "keywords": [
+        "stock"
+      ]
     },
     {
       "id": "stock.low",
@@ -1364,7 +1427,10 @@
           "type": "number"
         }
       },
-      "template": "stock {product} {qty}"
+      "template": "stock {product} {qty}",
+      "keywords": [
+        "stock"
+      ]
     },
     {
       "id": "stock.add",
@@ -1947,7 +2013,12 @@
           "required": true
         }
       },
-      "template": "customer add {name}"
+      "template": "customer add {name}",
+      "keywords": [
+        "customer",
+        "client",
+        "grahak"
+      ]
     },
     {
       "id": "customer.add_full",
@@ -1982,7 +2053,13 @@
         "meri customer list"
       ],
       "slots": {},
-      "template": "customers"
+      "template": "customers",
+      "keywords": [
+        "customer",
+        "customers",
+        "client",
+        "grahak"
+      ]
     },
     {
       "id": "customer.list_period",
@@ -2016,7 +2093,12 @@
           "type": "number"
         }
       },
-      "template": "customer {id}"
+      "template": "customer {id}",
+      "keywords": [
+        "customer",
+        "profile",
+        "detail"
+      ]
     },
     {
       "id": "customer.search",
@@ -2033,7 +2115,13 @@
           "required": true
         }
       },
-      "template": "search customer {name}"
+      "template": "search customer {name}",
+      "keywords": [
+        "customer",
+        "search",
+        "dhoondo",
+        "find"
+      ]
     },
     {
       "id": "customer.update_phone",
@@ -2052,7 +2140,12 @@
           "required": true
         }
       },
-      "template": "{name} ka phone {phone}"
+      "template": "{name} ka phone {phone}",
+      "keywords": [
+        "phone",
+        "number",
+        "mobile"
+      ]
     },
     {
       "id": "customer.update_address",
@@ -2071,7 +2164,12 @@
           "required": true
         }
       },
-      "template": "{name} ka address {address}"
+      "template": "{name} ka address {address}",
+      "keywords": [
+        "address",
+        "pata",
+        "location"
+      ]
     },
     {
       "id": "customer.update_city",
@@ -2090,7 +2188,11 @@
           "required": true
         }
       },
-      "template": "{name} ki city {city}"
+      "template": "{name} ki city {city}",
+      "keywords": [
+        "city",
+        "shehar"
+      ]
     },
     {
       "id": "customer.update_email",
@@ -2109,7 +2211,10 @@
           "required": true
         }
       },
-      "template": "{name} ka email {email}"
+      "template": "{name} ka email {email}",
+      "keywords": [
+        "email"
+      ]
     },
     {
       "id": "customer.update_group",
@@ -2128,7 +2233,10 @@
           "required": true
         }
       },
-      "template": "{name} ka group {group}"
+      "template": "{name} ka group {group}",
+      "keywords": [
+        "group"
+      ]
     },
     {
       "id": "customer.delete",
@@ -2160,7 +2268,11 @@
           "required": true
         }
       },
-      "template": "restore customer {name}"
+      "template": "restore customer {name}",
+      "keywords": [
+        "restore",
+        "wapis"
+      ]
     },
     {
       "id": "customer.more",

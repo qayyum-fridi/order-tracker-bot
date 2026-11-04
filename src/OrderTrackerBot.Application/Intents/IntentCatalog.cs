@@ -17,7 +17,8 @@ public sealed record IntentDefinition(
     string Description,
     IReadOnlyList<string> Examples,
     IReadOnlyList<IntentSlot> Slots,
-    string Template);
+    string Template,
+    IReadOnlyList<string>? Keywords = null);
 
 /// <summary>A value the command needs. <see cref="IsNumber"/> slots are checked as plain numbers before they go into the command.</summary>
 public sealed record IntentSlot(string Name, bool Required, bool IsNumber);
@@ -89,7 +90,8 @@ public static class IntentCatalog
                 item.GetProperty("description").GetString()!,
                 item.GetProperty("examples").EnumerateArray().Select(e => e.GetString()!).ToList(),
                 slots,
-                item.GetProperty("template").GetString()!);
+                item.GetProperty("template").GetString()!,
+                item.TryGetProperty("keywords", out var keywords) ? keywords.EnumerateArray().Select(k => k.GetString()!.ToLowerInvariant()).ToList() : null);
             Validate(intent);
             intents.Add(intent);
         }
