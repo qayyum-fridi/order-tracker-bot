@@ -977,6 +977,7 @@ public class MockupFeatureTests : IDisposable
     [InlineData("wages Ali 5000", "✅ Rs.5000 dein")]
     [InlineData("cancel order 12", "✅ Order #12 cancel")]
     [InlineData("customer add Sara, Model Town", "✅ Customer save")]
+    [InlineData("customer Ayesha price 71000", "✅ Rs.71000 karo")]           // any other single step with one amount
     [InlineData("expense 123456789012 rent", "✅ Haan, karo")]               // the fact does not fit a 20-character button
     public void YesButton_NamesTheFactWorthReading(string step, string label)
     {

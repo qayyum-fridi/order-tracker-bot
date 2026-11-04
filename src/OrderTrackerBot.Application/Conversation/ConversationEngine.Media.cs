@@ -913,7 +913,15 @@ public partial class ConversationEngine
         if (SpokenNumbers.UnknownAmountWords(transcript) is not { Count: > 0 } unknown) return null;
         UnknownNumberWordLog.Record(unknown);
         var question = MessageTemplates.Get("voice-confirm.011", unknown[0]);
-        if (StepsAreRisky(steps)) return TurnDecision.Reject(question);
+        if (StepsAreRisky(steps))
+        {
+            // One risky step with ONE amount (a price change, an advance...) and no hedge: the amount word cannot be read by the list, but the seller can read the amount the
+            // bot understood. It is shown with a button that names that amount (YesButtonLabel); nothing runs before the tap. Hedged, several-step or amount-less
+            // risky notes are still refused.
+            if (steps.Count == 1 && !HedgeWord.IsMatch(transcript) && Regex.Matches(steps[0], @"(?<![\d.])\d{3,9}(?![\d.])").Count == 1)
+                return TurnDecision.Confirm(steps, MessageTemplates.Get("voice-confirm.030"));
+            return TurnDecision.Reject(question);
+        }
         // A harmless step (an expense, a counter sale...) whose rewrite carries an amount: the word list cannot check that amount, but the seller can. The command the
         // bot understood is shown with a button that names the amount, and nothing runs until the tap, so an unlisted spelling no longer ends in "say it again".
         // A rewrite with no amount in it (the model may have dropped the unreadable one) is still asked again.
