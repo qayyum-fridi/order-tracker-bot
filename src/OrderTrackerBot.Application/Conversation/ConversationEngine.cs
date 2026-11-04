@@ -518,6 +518,7 @@ public partial class ConversationEngine
         if (await TryHandlePictureLabelAsync(seller, session, ctx, message, ct)) return;
         if (await TryHandleOrderForCustomerItemsAsync(seller, session, ctx, message, ct)) return;
         if (await TryHandleItemsOnlyAsync(seller, session, ctx, message, ct)) return;
+        if (await TryHandleBackReferenceOrderAsync(seller, ctx, message, ct)) return;
 
         // A customer table copied from a chat or an app: its columns run together, so no rows can be read from it safely. Say to send a file instead.
         if (LooksLikePastedCustomerTable(message))

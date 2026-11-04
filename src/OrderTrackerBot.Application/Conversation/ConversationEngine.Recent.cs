@@ -1,3 +1,5 @@
+using OrderTrackerBot.Domain.Entities;
+
 namespace OrderTrackerBot.Application.Conversation;
 
 // Short memory (MVP): the customer the bot last updated is remembered for ten minutes, so "wahi ka address Gulberg" or
@@ -18,6 +20,26 @@ public partial class ConversationEngine
         && _clock.GetUtcNow().UtcDateTime - at <= RecentCustomerWindow
             ? id
             : null;
+
+    // "wahi order", "uska order", "wahi order dikhao": the order the seller saved or opened last, for ten minutes. Anything else is left alone.
+    private static readonly System.Text.RegularExpressions.Regex BackReferenceOrder = new(
+        @"^(?<w>\p{L}+)\s+orders?(?:\s+(?:dikhao|dikha\s+do|batao|kholo))?\s*[?؟]?$",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    private void RememberOrder(SessionContextData ctx, int orderId)
+    {
+        ctx.LastOrderId = orderId;
+        ctx.LastOrderAt = _clock.GetUtcNow().UtcDateTime;
+    }
+
+    /// <summary>Shows the remembered order when the message is a back-reference to it; false (nothing done) otherwise or when none is recent.</summary>
+    private async Task<bool> TryHandleBackReferenceOrderAsync(Seller seller, SessionContextData ctx, string message, CancellationToken ct)
+    {
+        if (BackReferenceOrder.Match(message.Trim()) is not { Success: true } m || !BackReferenceWords.Contains(m.Groups["w"].Value)) return false;
+        if (ctx.LastOrderId is not { } id || ctx.LastOrderAt is not { } at || _clock.GetUtcNow().UtcDateTime - at > RecentCustomerWindow) return false;
+        await HandleOrderDetailAsync(seller, ctx, id, ct, resolveList: false);
+        return true;
+    }
 
     private void RememberCustomer(SessionContextData ctx, int customerId)
     {

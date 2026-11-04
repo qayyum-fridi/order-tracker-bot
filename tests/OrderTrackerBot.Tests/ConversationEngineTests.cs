@@ -617,6 +617,23 @@ public class ConversationEngineTests : IDisposable
         Assert.Equal("Gulberg", (await db.Customers.FirstAsync(c => c.Name == "Sara Khan")).Address);
     }
 
+    // "wahi order" shows the order the seller opened last (ten minutes), the same reply as opening it.
+    [Fact]
+    public async Task BackReferenceOrder_ShowsTheLastOpenedOrder()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var ids = await SeedTwoPendingOrdersAsync(db);
+        var engine = CreateEngine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, $"order {ids[0]} dikhao", default);
+        var opened = _sentMessages.Last();
+        _sentMessages.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "wahi order", default);
+        Assert.Equal(opened, _sentMessages.Last());
+    }
+
     private sealed class TestClock : TimeProvider
     {
         private DateTimeOffset _now;

@@ -10,15 +10,16 @@ namespace OrderTrackerBot.Application.Conversation;
 // "order 12" (full details) and "order 12 advance 500" (part payments that add up until the order is fully paid).
 public partial class ConversationEngine
 {
-    private async Task HandleOrderDetailAsync(Seller seller, SessionContextData ctx, int number, CancellationToken ct)
+    private async Task HandleOrderDetailAsync(Seller seller, SessionContextData ctx, int number, CancellationToken ct, bool resolveList = true)
     {
-        var (orderId, fromList) = ResolveListNumber(ctx, number);
+        var (orderId, fromList) = resolveList ? ResolveListNumber(ctx, number) : (number, false);
         var order = await LoadOrderForEditAsync(seller, orderId, ct);
         if (order is null)
         {
             await ReplyAsync(seller, MessageTemplates.Get("commands.028", number), ct);
             return;
         }
+        RememberOrder(ctx, order.Id);
 
         var tz = SellerClock.Resolve(seller.TimeZoneId);
         var placed = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(order.CreatedAt, DateTimeKind.Utc), tz);
