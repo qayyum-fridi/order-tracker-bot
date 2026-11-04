@@ -84,6 +84,29 @@ public partial class ConversationEngine
     }
 
     /// <summary>
+    /// One line is one product, but "Lawn Suit - 3500; Kurti - 1800" may hold several separated by ';'.
+    /// A line that parses whole (including "cost 300; stock 10" details) is never split.
+    /// </summary>
+    private static IEnumerable<ProductLine?> ExpandProductLine(string line)
+    {
+        if (CommandParser.TryParseProductLine(line, out ProductLine? whole))
+        {
+            yield return whole;
+            yield break;
+        }
+
+        var parts = line.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length < 2)
+        {
+            yield return ParseLooseProductLine(line);
+            yield break;
+        }
+
+        foreach (var part in parts)
+            yield return CommandParser.TryParseProductLine(part, out ProductLine? p) ? p : ParseLooseProductLine(part);
+    }
+
+    /// <summary>
     /// A real order text typed while onboarding is still open ("Ayesha 2 lawn suit aur 1 kurti, 0300-1234567, Lahore, ...").
     /// Instead of rejecting it, treat it as an implicit "skip" of the rest of setup and hand it to the normal order flow —
     /// which already saves the customer and walks through adding unmatched products to the catalog.
@@ -404,6 +427,15 @@ public partial class ConversationEngine
                     await ExecuteCommandAsync(seller, session, ctx, helpCmd, ct);
                     return;
                 }
+                // A start-step button tapped here (e.g. "Purana data") is not an unknown shop type: answer it instead of apologising.
+                if (ButtonLikeOnboardingWords.Contains(ButtonWords(message)) || IsLanguageButton(message))
+                {
+                    if (ButtonWords(message) is "purana data" or "puraana data")
+                        await HandleImportHelpAsync(seller, ct);
+                    else
+                        await AskIndustryAsync(seller, null, ct);
+                    return;
+                }
                 var picked = PickIndustry(message);
                 if (picked is null && await TrySaveProductDuringOnboardingAsync(seller, session, message, ct)) return;
                 if ((picked is null || PhoneNumber.IsMatch(message))
@@ -497,7 +529,7 @@ public partial class ConversationEngine
                 }
 
                 var productLines = message.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                    .Select(l => CommandParser.TryParseProductLine(l, out ProductLine? p) ? p : ParseLooseProductLine(l))
+                    .SelectMany(ExpandProductLine)
                     .ToList();
                 if (productLines.Count > 0 && productLines.All(p => p is not null))
                 {
