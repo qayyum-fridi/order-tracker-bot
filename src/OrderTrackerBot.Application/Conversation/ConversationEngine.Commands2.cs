@@ -335,7 +335,7 @@ public partial class ConversationEngine
         }
 
         await ReplyAsync(seller,
-            MessageTemplates.Get("commands2.024", order.Customer?.Name, Formatters.ItemsSummary(order), Formatters.Money(order.Total), Formatters.Status(order.Status), $"{order.CreatedAt:ddd, hh:mm tt}", order.Customer?.Phone, order.Customer?.Address), ct);
+            MessageTemplates.Get("commands2.024", order.Customer?.Name, Formatters.ItemsSummary(order), Formatters.Money(order.Total), Formatters.Status(order.Status), $"{SellerClock.ToLocal(seller.TimeZoneId, order.CreatedAt):dd MMM yyyy, hh:mm tt}", order.Customer?.Phone, order.Customer?.Address), ct);
     }
 
     private async Task HandleFuzzyStatusUpdateAsync(Seller seller, ConversationSession session, SessionContextData ctx, ParsedCommand cmd, CancellationToken ct)
