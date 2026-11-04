@@ -584,7 +584,7 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         await OnboardAsync(db);
-        _media.Setup(m => m.DownloadAsync("voice-1", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
+        _media.Setup(m => m.DownloadAsync("voice-1", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[2500], "audio/ogg"));
         var transcriber = new Mock<IAudioTranscriber>();
         transcriber.SetupGet(t => t.IsConfigured).Returns(true);
         transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>())).ReturnsAsync("delivery 200");
@@ -602,7 +602,7 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         await OnboardAsync(db);
-        _media.Setup(m => m.DownloadAsync("voice-2", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
+        _media.Setup(m => m.DownloadAsync("voice-2", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[2500], "audio/ogg"));
         var transcriber = new Mock<IAudioTranscriber>();
         transcriber.SetupGet(t => t.IsConfigured).Returns(true);
         var issues = new Mock<IIssueReporter>();
@@ -633,7 +633,7 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         await OnboardAsync(db);
-        _media.Setup(m => m.DownloadAsync("voice-4", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
+        _media.Setup(m => m.DownloadAsync("voice-4", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[2500], "audio/ogg"));
         var transcriber = new Mock<IAudioTranscriber>();
         transcriber.SetupGet(t => t.IsConfigured).Returns(true);
         transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>()))
@@ -654,7 +654,7 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         await OnboardAsync(db);
-        _media.Setup(m => m.DownloadAsync("voice-5", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
+        _media.Setup(m => m.DownloadAsync("voice-5", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[2500], "audio/ogg"));
         var transcriber = new Mock<IAudioTranscriber>();
         transcriber.SetupGet(t => t.IsConfigured).Returns(true);
         transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>()))
@@ -675,7 +675,7 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         await OnboardAsync(db);
-        _media.Setup(m => m.DownloadAsync("voice-6", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
+        _media.Setup(m => m.DownloadAsync("voice-6", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[2500], "audio/ogg"));
         var transcriber = new Mock<IAudioTranscriber>();
         transcriber.SetupGet(t => t.IsConfigured).Returns(true);
         transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>()))
@@ -700,11 +700,430 @@ public class MockupFeatureTests : IDisposable
         foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections" })
             await setup.HandleIncomingMessageAsync(Phone, m, default);
         _sent.Clear();
-        _media.Setup(m => m.DownloadAsync("voice-ctx", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
+        _media.Setup(m => m.DownloadAsync("voice-ctx", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[2500], "audio/ogg"));
         var transcriber = new Mock<IAudioTranscriber>();
         transcriber.SetupGet(t => t.IsConfigured).Returns(true);
         transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>())).ReturnsAsync(transcript);
         return new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object);
+    }
+
+    [Theory]
+    [InlineData(10, "bohat chhota ya khaali")]
+    [InlineData(ConversationEngine.MaxVoiceBytes + 1, "bohat lamba")]
+    public async Task VoiceNote_EmptyOrOversized_IsNotTranscribed(int size, string reply)
+    {
+        using var db = _dbFactory.CreateContext();
+        var voice = await VoiceEngineAtAddProductAsync(db, "Lawn Suit - 3500");
+        _media.Setup(m => m.DownloadAsync("voice-size", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[size], "audio/ogg"));
+        var transcriber = new Mock<IAudioTranscriber>();
+        transcriber.SetupGet(t => t.IsConfigured).Returns(true);
+        voice = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object);
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-size", "wamid.size");
+
+        Assert.Contains(_sent, m => m.Contains(reply));
+        transcriber.Verify(t => t.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData("expense", "expense")]
+    [InlineData("yeh kharcha hai", "expense")]
+    [InlineData("mark as wages", "wages")]
+    [InlineData("تنخواہ", "wages")]
+    [InlineData("this is a customer", "customer")]
+    [InlineData("order", "order")]
+    [InlineData("other", "other")]
+    public void PictureLabel_IsReadFromAShortReply(string message, string kind)
+    {
+        Assert.True(PictureLabels.TryParseReply(message, out var found));
+        Assert.Equal(kind, found);
+    }
+
+    [Theory]
+    [InlineData("expense 500 petrol")]      // a real command, not a label
+    [InlineData("orders today")]
+    [InlineData("haan")]
+    [InlineData("")]
+    public void PictureLabel_IsNotAnythingElse(string message)
+    {
+        Assert.False(PictureLabels.TryParseReply(message, out _));
+    }
+
+    [Fact]
+    public void PictureStep_IsBuiltOnlyFromWhatWasRead_AndParsesAsTheRightCommand()
+    {
+        Assert.Equal("expense 800 petrol", ConversationEngine.BuildPictureStep("expense", new AiPictureReading { Amount = 800, Note = "petrol" }, ""));
+        Assert.Equal("wages Ali 5000", ConversationEngine.BuildPictureStep("wages", new AiPictureReading { Name = "Ali", Amount = 5000 }, ""));
+        Assert.Equal("customer add Sara, Model Town Lahore, 03001234567",
+            ConversationEngine.BuildPictureStep("customer", new AiPictureReading { Name = "Sara", Address = "Model Town", City = "Lahore", Phone = "0300-1234567" }, ""));
+        Assert.Null(ConversationEngine.BuildPictureStep("expense", new AiPictureReading { Note = "petrol" }, ""));   // no amount: never guessed
+        Assert.Null(ConversationEngine.BuildPictureStep("wages", new AiPictureReading { Amount = 5000 }, ""));        // no name
+        Assert.Null(ConversationEngine.BuildPictureStep("expense", null, ""));
+    }
+
+    [Fact]
+    public async Task Picture_WithAnExpenseCaption_IsReadAsAnExpense_AndSavedAfterYes()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        _media.Setup(m => m.DownloadAsync("pic-1", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[3000], "image/jpeg"));
+        _ai.Setup(a => a.ReadPictureAsync("expense", It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiPictureReading { Amount = 800, Note = "petrol" });
+        var withMedia = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object);
+        _sent.Clear();
+
+        await withMedia.HandleImageMessageAsync(Phone, "pic-1", "expense");
+
+        Assert.Contains(_sent, m => m.Contains("expense 800 petrol") && m.Contains("YES"));
+        Assert.Equal(0, await db.Expenses.CountAsync());                 // nothing saved before YES
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        Assert.Equal(1, await db.Expenses.CountAsync());
+    }
+
+    [Fact]
+    public async Task Picture_WithoutACaption_IsLabelledByTheNextMessage()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        _media.Setup(m => m.DownloadAsync("pic-2", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[3000], "image/jpeg"));
+        _ai.Setup(a => a.AnalyzeImageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "unclear" });
+        _ai.Setup(a => a.ReadPictureAsync("wages", It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiPictureReading { Name = "Ali", Amount = 5000 });
+        var withMedia = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object);
+
+        await withMedia.HandleImageMessageAsync(Phone, "pic-2", null);
+        _sent.Clear();
+        await withMedia.HandleIncomingMessageAsync(Phone, "yeh wages hai", default);
+
+        Assert.Contains(_sent, m => m.Contains("wages Ali 5000") && m.Contains("YES"));
+    }
+
+    [Fact]
+    public async Task SeveralPictures_OneLabel_ReadsAllOfThem_UnderOneYes()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        foreach (var id in new[] { "p1", "p2", "p3", "p4", "p5", "p6" })
+            _media.Setup(m => m.DownloadAsync(id, It.IsAny<CancellationToken>())).ReturnsAsync((new byte[3000], "image/jpeg"));
+        _ai.Setup(a => a.AnalyzeImageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "unclear" });
+        var amount = 100;
+        _ai.Setup(a => a.ReadPictureAsync("expense", It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new AiPictureReading { Amount = amount += 100, Note = "bill" });
+        var withMedia = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object);
+
+        foreach (var id in new[] { "p1", "p2", "p3", "p4", "p5", "p6" })
+            await withMedia.HandleImageMessageAsync(Phone, id, null);
+        _sent.Clear();
+        await withMedia.HandleIncomingMessageAsync(Phone, "expense", default);
+
+        // only the newest five are remembered, each read once, and one YES covers them all
+        _ai.Verify(a => a.ReadPictureAsync("expense", It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()), Times.Exactly(ConversationEngine.MaxPendingPictures));
+        Assert.Contains(_sent, m => m.Contains("expense 200 bill") && m.Contains("expense 600 bill") && m.Contains("YES"));
+        await withMedia.HandleIncomingMessageAsync(Phone, "yes", default);
+        Assert.Equal(ConversationEngine.MaxPendingPictures, await db.Expenses.CountAsync());
+    }
+
+    [Fact]
+    public void GuideTaps_AreCommandsTheParserKnows()
+    {
+        foreach (var (label, value) in ConversationEngine.GuideChoices)
+        {
+            Assert.NotNull(CommandParser.TryParse(value));
+            Assert.True(label.Length <= 24, label);                // a list row title
+        }
+    }
+
+    [Fact]
+    public async Task TwoNotUnderstoodMessagesInARow_GetTheThreeButtonGuide_OnceUnderstoodResetsTheCount()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis { Intent = "unclear" });
+        _sent.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "qwzx plmk", default);
+        Assert.DoesNotContain(_sent, m => m.Contains("sahi se samajh nahi pa raha"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "vbnm asdf", default);
+        Assert.Contains(_sent, m => m.Contains("sahi se samajh nahi pa raha"));
+        Assert.Single(_sent, m => m.Contains("sahi se samajh nahi pa raha"));
+
+        // an understood message in between starts the count again
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "orders today", default);
+        await engine.HandleIncomingMessageAsync(Phone, "poiu lkjh", default);
+        Assert.DoesNotContain(_sent, m => m.Contains("sahi se samajh nahi pa raha"));
+    }
+
+    [Fact]
+    public async Task LongNote_OneDoubtfulTask_DoesNotThrowAwayTheOthers()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var voice = VoiceEngine(db, "expense 300 petrol likh do aur expense 500 packaging likh do");
+        // the model got the second amount wrong (900 for the 500 that was said)
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation
+            {
+                Steps = { "expense 300 petrol", "expense 900 packaging" },
+                Actions = { "command", "command" },
+                Spans = { "expense 300 petrol likh do", "expense 500 packaging likh do" }
+            });
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.long");
+
+        var expenses = await db.Expenses.ToListAsync();
+        Assert.Single(expenses);                                       // the good task ran
+        Assert.Equal(300, expenses[0].Amount);
+        Assert.Contains(_sent, m => m.Contains("expense 900 packaging"));   // the doubtful one is listed as not done
+    }
+
+    [Theory]
+    [InlineData("shayad expense 300 petrol likh do aur expense 500 packaging likh do", "expense 300 petrol likh do", "expense 500 packaging likh do")]   // hedge in the note
+    [InlineData("expense 300 petrol likh do aur expense 500 packaging likh do", "expense 300 petrol hai", "expense 500 packaging likh do")]                 // span not in the note: not the seller's words
+    public async Task LongNote_PartialFallback_IsClosed_WhenTheSpansCannotBeTrusted(string transcript, string span1, string span2)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        var voice = VoiceEngine(db, transcript);
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation
+            {
+                Steps = { "expense 300 petrol", "expense 900 packaging" },
+                Actions = { "command", "command" },
+                Spans = { span1, span2 }
+            });
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.closed");
+
+        Assert.Equal(0, await db.Expenses.CountAsync());   // nothing ran: the whole note was asked again
+    }
+
+    [Fact]
+    public void PictureTypeTaps_AreWordsThePictureLabelParserKnows()
+    {
+        foreach (var (label, value) in ConversationEngine.PictureTypeChoices)
+        {
+            Assert.True(PictureLabels.TryParseReply(value, out _), value);
+            Assert.True(label.Length <= 24, label);
+        }
+    }
+
+    [Fact]
+    public async Task UnlabelledPicture_ThatIsNotAnOrderOrReceipt_AsksWhatItIs_AndATapLabelsIt()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        _media.Setup(m => m.DownloadAsync("pic-ask", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[3000], "image/jpeg"));
+        _ai.Setup(a => a.AnalyzeImageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "unclear" });
+        _ai.Setup(a => a.ReadPictureAsync("expense", It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiPictureReading { Amount = 450, Note = "chai" });
+        var withMedia = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object);
+        _sent.Clear();
+
+        await withMedia.HandleImageMessageAsync(Phone, "pic-ask", null);
+        Assert.Contains(_sent, m => m.Contains("Yeh tasveer kis cheez ki hai"));
+        _sent.Clear();
+
+        await withMedia.HandleIncomingMessageAsync(Phone, "expense", default);   // the tap sends the type word
+        Assert.Contains(_sent, m => m.Contains("expense 450 chai") && m.Contains("YES"));
+    }
+
+    [Fact]
+    public async Task PriceListPicture_BecomesProductLines_AndIsSavedAfterYes()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        _media.Setup(m => m.DownloadAsync("pic-list", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[3000], "image/jpeg"));
+        _ai.Setup(a => a.ReadPictureAsync("products", It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiPictureReading
+            {
+                Products =
+                {
+                    new AiPictureProduct { Name = "Raw Silk Suit", Price = 3500, Cost = 2400 },
+                    new AiPictureProduct { Name = "Pashmina Shawl", Price = 800 },
+                    new AiPictureProduct { Name = "Unclear item", Price = null },   // no readable price: left out
+                }
+            });
+        var withMedia = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object);
+        var before = await db.Products.CountAsync();
+        _sent.Clear();
+
+        await withMedia.HandleImageMessageAsync(Phone, "pic-list", "products");
+
+        Assert.Contains(_sent, m => m.Contains("Raw Silk Suit - 3500, cost 2400") && m.Contains("Pashmina Shawl - 800") && !m.Contains("Unclear") && m.Contains("YES"));
+        Assert.Equal(before, await db.Products.CountAsync());           // nothing is saved before YES
+        await withMedia.HandleIncomingMessageAsync(Phone, "yes", default);
+        Assert.Equal(before + 2, await db.Products.CountAsync());
+    }
+
+    [Fact]
+    public void VoiceStats_CountOutcomesByNameOnly()
+    {
+        VoiceStats.Clear();
+        VoiceStats.Record("decision_execute");
+        VoiceStats.Record("decision_execute");
+        VoiceStats.Record("refused_too_long");
+
+        Assert.Equal(new[] { ("decision_execute", 2), ("refused_too_long", 1) }, VoiceStats.Snapshot());
+    }
+
+    [Theory]
+    [InlineData("expense 800 petrol", "✅ Rs.800 likho")]
+    [InlineData("wages Ali 5000", "✅ Rs.5000 dein")]
+    [InlineData("cancel order 12", "✅ Order #12 cancel")]
+    [InlineData("customer add Sara, Model Town", "✅ Customer save")]
+    [InlineData("customer Ayesha price 71000", "✅ Rs.71000 karo")]           // any other single step with one amount
+    [InlineData("expense 123456789012 rent", "✅ Haan, karo")]               // the fact does not fit a 20-character button
+    public void YesButton_NamesTheFactWorthReading(string step, string label)
+    {
+        var yes = ConversationEngine.YesButtonLabel(new[] { step });
+
+        Assert.Equal(label, yes);
+        Assert.True(yes.Length <= 20);
+    }
+
+    [Fact]
+    public void YesButton_CountsTheEntriesWhenThereAreSeveral()
+    {
+        Assert.Equal("✅ 3 kaam karo", ConversationEngine.YesButtonLabel(new[] { "expense 100 a", "expense 200 b", "expense 300 c" }));
+        Assert.Equal("✅ 2 products", ConversationEngine.YesButtonLabel(new[] { "Suit - 3500\nShawl - 800" }));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ConfirmButtons_TapYesSavesAndTapNoDoesNot(bool tapYes)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        _media.Setup(m => m.DownloadAsync("pic-tap", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[3000], "image/jpeg"));
+        _ai.Setup(a => a.ReadPictureAsync("expense", It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiPictureReading { Amount = 800, Note = "petrol" });
+        var withMedia = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object);
+        _buttons.Clear();
+
+        await withMedia.HandleImageMessageAsync(Phone, "pic-tap", "expense");
+
+        var asked = Assert.Single(_buttons, b => b.Body.Contains("expense 800 petrol"));
+        Assert.Equal(new[] { "✅ Rs.800 likho", "❌ Nahi" }, asked.Buttons);
+        await withMedia.HandleIncomingMessageAsync(Phone, tapYes ? "✅ Rs.800 likho" : "❌ Nahi", default);
+        Assert.Equal(tapYes ? 1 : 0, await db.Expenses.CountAsync());
+    }
+
+    [Fact]
+    public async Task PictureExpense_AfterSixteenYeses_IsSavedWithoutAsking_AndUndoBringsTheQuestionBack()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        _media.Setup(m => m.DownloadAsync("pic-trust", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[3000], "image/jpeg"));
+        _ai.Setup(a => a.ReadPictureAsync("expense", It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiPictureReading { Amount = 800, Note = "petrol" });
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object,
+            features: new FeatureOptions { StrategyLearning = true, ShortcutButtons = false, ConfirmButtons = false, SuggestionButtons = false, SetupNudges = false, IndustryQuestion = false });
+
+        for (var i = 0; i < 16; i++)
+        {
+            await engine.HandleImageMessageAsync(Phone, "pic-trust", "expense");
+            await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        }
+        Assert.Equal(16, await db.Expenses.CountAsync());
+
+        _sent.Clear();
+        await engine.HandleImageMessageAsync(Phone, "pic-trust", "expense");             // 17th: no question
+        Assert.Equal(17, await db.Expenses.CountAsync());
+        Assert.Contains(_sent, m => m.Contains("undo"));
+        Assert.DoesNotContain(_sent, m => m.Contains("YES"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "undo", default);                  // a correction
+        Assert.Equal(16, await db.Expenses.CountAsync());
+        _sent.Clear();
+        await engine.HandleImageMessageAsync(Phone, "pic-trust", "expense");
+        Assert.Equal(16, await db.Expenses.CountAsync());                                 // asked again, nothing saved yet
+        Assert.Contains(_sent, m => m.Contains("YES"));
+    }
+
+    [Fact]
+    public async Task FirstUnlabelledPicture_GetsTheClearPhotoTip_OnlyOnce_AndALabelledOneNever()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        _media.Setup(m => m.DownloadAsync("pic-tip", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[3000], "image/jpeg"));
+        _ai.Setup(a => a.AnalyzeImageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "unclear" });
+        _ai.Setup(a => a.ReadPictureAsync("expense", It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiPictureReading { Amount = 100, Note = "x" });
+        var withMedia = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object);
+
+        _sent.Clear();
+        await withMedia.HandleImageMessageAsync(Phone, "pic-tip", "expense");          // labelled: the seller already knows
+        Assert.DoesNotContain(_sent, m => m.Contains("Saaf tasveer ke liye"));
+
+        await withMedia.HandleIncomingMessageAsync(Phone, "no", default);
+        _sent.Clear();
+        await withMedia.HandleImageMessageAsync(Phone, "pic-tip", null);               // first without a label
+        Assert.Contains(_sent, m => m.Contains("Saaf tasveer ke liye") && m.Contains("caption"));
+
+        _sent.Clear();
+        await withMedia.HandleImageMessageAsync(Phone, "pic-tip", null);               // not again
+        Assert.DoesNotContain(_sent, m => m.Contains("Saaf tasveer ke liye"));
+    }
+
+    [Fact]
+    public async Task LimitsCommand_ExplainsWhatTheBotAccepts_AndRozanaListsTheDailyJobs()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        _sent.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "limits", default);
+        Assert.Contains(_sent, m => m.Contains("Voice note: 5 minute tak") && m.Contains("Tasveerein"));
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "rozana", default);
+        Assert.Contains(_sent, m => m.Contains("Roz ke kaam"));
+    }
+
+    [Fact]
+    public async Task Picture_LabelledOther_SavesNothing()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        _media.Setup(m => m.DownloadAsync("pic-3", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[3000], "image/jpeg"));
+        var withMedia = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object);
+        _sent.Clear();
+
+        await withMedia.HandleImageMessageAsync(Phone, "pic-3", "other");
+
+        Assert.Contains(_sent, m => m.Contains("kuch save nahi kiya"));
+        _ai.Verify(a => a.ReadPictureAsync(It.IsAny<string>(), It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(true, "ikhatar hazar")]    // second model reads every amount word: its text is the note
+    [InlineData(false, "ekhatarr hazar")]  // second model has the same problem: the first text stays
+    public async Task VoiceNote_UnreadableAmountWord_GetsASecondOpinion(bool secondReadsCleanly, string expectedEcho)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        _media.Setup(m => m.DownloadAsync("voice-two", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[2500], "audio/ogg"));
+        var transcriber = new Mock<IAudioTranscriber>();
+        transcriber.SetupGet(t => t.IsConfigured).Returns(true);
+        transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>())).ReturnsAsync("ekhatarr hazar");
+        transcriber.Setup(t => t.TranscribeSecondOpinionAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(secondReadsCleanly ? "ikhatar hazar" : "ekhatarr hazar");
+        var voice = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object);
+        AiReturns(new AiMessageAnalysis { Intent = "unclear" });
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-two", "wamid.two");
+
+        Assert.Contains(_sent, m => m.Contains($"Maine suna: \"{expectedEcho}\""));
+        transcriber.Verify(t => t.TranscribeSecondOpinionAsync(It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -1048,6 +1467,387 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Theory]
+    [InlineData("naya product hoodie hai, paintees piece hain, cost paanch sau, price barah sau")]
+    [InlineData("نیا پروڈکٹ ہڈی ہے، پینتیس پیس ہیں، کوسٹ پانچ سو، پرائس بارہ سو")]
+    public async Task NewProduct_NumbersSaidInWords_AreKept_LikeNumbersWrittenInDigits(string spoken)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts = { new AiNewProduct { Name = "Hoodie", Price = 1200, Cost = 500, Stock = 35 } }
+        });
+
+        await engine.HandleIncomingMessageAsync(Phone, spoken, default);
+
+        // With confirmation on the draft is shown first; either way the three numbers must reach the reply or the saved product.
+        var saved = await db.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Name == "Hoodie");
+        if (saved is not null) Assert.Equal((1200m, 500m, 35), (saved.Price, saved.CostPrice!.Value, saved.StockQty!.Value));
+        else Assert.Contains(_sent, m => m.Contains("Hoodie") && m.Contains("1,200") && m.Contains("500") && m.Contains("35"));
+        Assert.DoesNotContain(_sent, m => m.Contains("sale price bata dein") && m.Contains("Hoodie"));
+    }
+
+    [Fact]
+    public async Task NewProduct_WithSeveralColoursAndSizes_BecomesOneListingPerCombination_WithoutSpreadingTheStock()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts = { new AiNewProduct { Name = "Hoodie", Price = 1200, Cost = 500, Stock = 35, Colors = { "red", "blue" }, Sizes = { "small", "large" } } }
+        });
+
+        await engine.HandleIncomingMessageAsync(Phone, "mere paas naya product hai hoodie 1200 ka, cost 500, 35 piece, red blue, small large", default);
+
+        var listings = await db.Products.AsNoTracking().Where(p => p.Name == "Hoodie").ToListAsync();
+        Assert.Equal(new[] { "blue/large", "blue/small", "red/large", "red/small" }, listings.Select(p => $"{p.Color}/{p.Size}").OrderBy(x => x).ToArray());
+        Assert.All(listings, p => Assert.Equal((1200m, 500m), (p.Price, p.CostPrice!.Value)));
+        // The 35 belonged to one of the four; the bot cannot tell which, so none of them gets it.
+        Assert.All(listings, p => Assert.Null(p.StockQty));
+    }
+
+    [Fact]
+    public async Task NewProduct_PriceRange_AsksForOnePrice_AndKeepsTheVariantsUntilItArrives()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts = { new AiNewProduct { Name = "Jacket", PriceLow = 1200, PriceHigh = 1700, Colors = { "red", "blue" } } }
+        });
+
+        await engine.HandleIncomingMessageAsync(Phone, "mere paas naya product hai jacket, 1200 se 1700 tak, red blue", default);
+
+        Assert.False(await db.Products.AnyAsync(p => p.Name == "Jacket"));
+        Assert.Contains(_sent, m => m.Contains("Jacket") && m.Contains("Rs.1,200") && m.Contains("Rs.1,700") && m.Contains("ek price"));
+
+        // The seller picks one price: both colours are created with it.
+        await engine.HandleIncomingMessageAsync(Phone, "1200", default);
+        var listings = await db.Products.AsNoTracking().Where(p => p.Name == "Jacket").ToListAsync();
+        Assert.Equal(new[] { "blue", "red" }, listings.Select(p => p.Color!).OrderBy(x => x).ToArray());
+        Assert.All(listings, p => Assert.Equal(1200m, p.Price));
+    }
+
+    [Fact]
+    public async Task NewProduct_ColourOrSizeThatWasNotSaid_IsNotMadeUp()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts = { new AiNewProduct { Name = "Scarf", Price = 400, Colors = { "green", "black" }, Sizes = { "xl", "xxl" } } }
+        });
+
+        await engine.HandleIncomingMessageAsync(Phone, "mere paas naya product hai scarf 400 ka", default);
+
+        var listings = await db.Products.AsNoTracking().Where(p => p.Name == "Scarf").ToListAsync();
+        Assert.Single(listings);
+        Assert.Null(listings[0].Color);
+        Assert.Null(listings[0].Size);
+    }
+
+    [Fact]
+    public async Task NewProduct_CostOrStockTheSellerNeverSaid_IsNotSaved_AndTheSellerIsToldInsteadOfSilence()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts = { new AiNewProduct { Name = "Muffler", Price = 300, Cost = 777, Stock = 9999 } }
+        });
+
+        await engine.HandleIncomingMessageAsync(Phone, "mere paas naya product hai muffler 300 ka", default);
+
+        var muffler = await db.Products.AsNoTracking().SingleAsync(p => p.Name == "Muffler");
+        Assert.Null(muffler.CostPrice);
+        Assert.Null(muffler.StockQty);
+        Assert.Contains(_sent, m => m.Contains("Muffler ki cost") && !m.Contains("777"));
+        Assert.Contains(_sent, m => m.Contains("Muffler ki stock") && !m.Contains("9999"));
+    }
+
+    [Fact]
+    public async Task NewProduct_NumberInAnUnlistedSpelling_IsBelieved_WhenTheModelQuotesWordsThatAreInTheMessage()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts = { new AiNewProduct { Name = "Coat", Price = 900, PriceWords = "nau sooo", Cost = 500, CostWords = "panch sarpe" } }
+        });
+
+        await engine.HandleIncomingMessageAsync(Phone, "mere paas naya product hai coat nau sooo ka, cost panch sarpe", default);
+
+        var coat = await db.Products.AsNoTracking().SingleAsync(p => p.Name == "Coat");
+        Assert.Equal((900m, 500m), (coat.Price, coat.CostPrice!.Value));
+    }
+
+    [Theory]
+    [InlineData("mere paas naya product hai coat ka", "nau sau")]            // the quoted words were never said
+    [InlineData("mere paas naya product hai coat 500 ka", "500 ka")]         // the quoted words name another amount than 900
+    [InlineData("mere paas naya product hai coat ka", null)]                 // no words to show
+    public async Task NewProduct_NumberWithNoRealWordsBehindIt_IsNotBelieved_AndThePriceIsAskedFor(string said, string? words)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts = { new AiNewProduct { Name = "Coat", Price = 900, PriceWords = words } }
+        });
+
+        await engine.HandleIncomingMessageAsync(Phone, said, default);
+
+        Assert.False(await db.Products.AnyAsync(p => p.Name == "Coat"));
+        Assert.Contains(_sent, m => m.Contains("Coat") && m.Contains("sale price bata dein"));
+    }
+
+    [Fact]
+    public async Task VoiceAnswer_ToANumberedProductQuestion_IsTheListNumber_EvenWhenNoDigitWasSpoken()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "new_order",
+            IsOrderAttempt = true,
+            Order = new AiOrderDraft { CustomerName = "Ali", Phone = "03001234567", Items = { new AiOrderItemDraft { ProductName = "Shampoo", Quantity = 1 } } }
+        });
+        await engine.HandleIncomingMessageAsync(Phone, "Ali ka order shampoo 1 03001234567", default);
+        Assert.Contains(_sent, m => m.Contains("catalog mein nahi mila"));
+        _sent.Clear();
+
+        _media.Setup(m => m.DownloadAsync("voice-pick", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[2500], "audio/ogg"));
+        var transcriber = new Mock<IAudioTranscriber>();
+        transcriber.SetupGet(t => t.IsConfigured).Returns(true);
+        transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("jee haan yeh naya product hai to yeh add kar lein catalog mein");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "1" }, Actions = { "choose" } });
+        var voice = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object);
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-pick", "wamid.pick");
+
+        Assert.DoesNotContain(_sent, m => m.Contains("kuch nahi chalaya"));
+        Assert.Contains(_sent, m => m.Contains("Shampoo") && m.Contains("price"));
+    }
+
+    [Theory]
+    [InlineData("price dedh sau rupay", 150)]
+    [InlineData("پرائزز ڈیڑھ سو روپے۔", 150)]
+    [InlineData("teen hazar paanch sau", 3500)]
+    public async Task VoiceNote_WithOneAmount_AnswersTheWaitingNewProductsPrice_WithoutNeedingTheRewrite(string spoken, int price)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "add_products", NewProducts = { new AiNewProduct { Name = "Shampoo" } } });
+        await engine.HandleIncomingMessageAsync(Phone, "mere paas naya product hai shampoo", default);
+        Assert.Contains(_sent, m => m.Contains("ki price bhejein"));
+
+        _media.Setup(m => m.DownloadAsync("voice-price", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[2500], "audio/ogg"));
+        var transcriber = new Mock<IAudioTranscriber>();
+        transcriber.SetupGet(t => t.IsConfigured).Returns(true);
+        transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>())).ReturnsAsync(spoken);
+        // The rewrite would have been useless here; the price must not depend on it.
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation());
+        var voice = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object);
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-price", "wamid.price");
+
+        Assert.Equal(price, (await db.Products.AsNoTracking().SingleAsync(p => p.Name == "Shampoo")).Price);
+    }
+
+    private async Task<ConversationEngine> DraftWaitingForYesAsync(AppDbContext db, bool dynamicAnswers)
+    {
+        await OnboardAsync(db);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, features: new FeatureOptions { DynamicAnswers = dynamicAnswers });
+        AiReturns(Order("Ali", "Kurti", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Ali ka order kurti 1 03001234567", default);
+        Assert.Equal(0, await db.Orders.CountAsync());   // a draft is waiting for the answer
+        return engine;
+    }
+
+    [Fact]
+    public async Task ATrailingColour_ThatTheSellerAlreadyUsed_IsSplitOff_WithoutAnyColourListedInCode()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await engine.HandleIncomingMessageAsync(Phone, "Eye laal - 300", default);              // "laal" is not known yet: it stays in the name
+        await engine.HandleIncomingMessageAsync(Phone, "Lipstick - 900, color laal", default);  // the seller names a colour on a product
+        _sent.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "Foundation laal - 1200", default);      // now "laal" is this seller's colour
+        await engine.HandleIncomingMessageAsync(Phone, "Eye laal - 350", default);              // a listing with this exact name already exists
+
+        var foundation = await db.Products.AsNoTracking().SingleAsync(p => p.Name == "Foundation");
+        Assert.Equal(("laal", 1200m), (foundation.Color, foundation.Price));
+        Assert.False(await db.Products.AnyAsync(p => p.Name == "Foundation laal"));
+        var eye = await db.Products.AsNoTracking().SingleAsync(p => p.Name == "Eye laal");
+        Assert.Equal(350m, eye.Price);
+        Assert.Null(eye.Color);
+        Assert.False(await db.Products.AnyAsync(p => p.Name == "Eye"));
+    }
+
+    [Fact]
+    public async Task ATrailingWord_ThatIsNotAColourThisSellerUsed_StaysInTheName()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await engine.HandleIncomingMessageAsync(Phone, "Lipstick - 900, color laal", default);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Foundation neela - 1200", default);
+
+        Assert.True(await db.Products.AnyAsync(p => p.Name == "Foundation neela" && p.Color == null));
+    }
+
+    private async Task<ConversationEngine> AtTheShopTypeQuestionAsync(AppDbContext db, bool dynamicAnswers)
+    {
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, null, _media.Object,
+            features: new FeatureOptions { ShortcutButtons = false, IndustryQuestion = true, DynamicAnswers = dynamicAnswers });
+        // The kind of shop is asked after the shop name AND the city step.
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections" })
+            await engine.HandleIncomingMessageAsync(Phone, m, default);
+        Assert.Contains(_sent, m => m.Contains("dukaan kis qism ki hai"));
+        _sent.Clear();
+        AiReturns(new AiMessageAnalysis { Intent = "unclear" });
+        return engine;
+    }
+
+    [Theory]
+    [InlineData("qalam")]
+    [InlineData("qalam dawaat aur kaghaz bechta hoon")]
+    public async Task ShopTypeInWords_MatchingNoAlias_IsReadByTheAi_WhenItQuotesWordsThatAreInTheMessage(string said)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await AtTheShopTypeQuestionAsync(db, dynamicAnswers: true);
+        _ai.Setup(a => a.ReadChoiceWithQuoteAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiChoiceReading { Option = 2, Quote = "qalam" });
+
+        await engine.HandleIncomingMessageAsync(Phone, said, default);
+
+        var seller = await db.Sellers.AsNoTracking().FirstAsync();
+        Assert.True(seller.OnboardingComplete);
+        Assert.Equal(IndustryProfiles.All.Append(IndustryProfiles.General).ElementAt(1).Title, seller.BusinessType);
+    }
+
+    [Theory]
+    [InlineData(2, "ghadi")]     // the quoted words are not in the message
+    [InlineData(0, "qalam")]     // the AI says none of them
+    [InlineData(9, "qalam")]     // not an option of the list
+    public async Task ShopTypeInWords_IsNotChosen_WithoutRealProof(int option, string quote)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await AtTheShopTypeQuestionAsync(db, dynamicAnswers: true);
+        _ai.Setup(a => a.ReadChoiceWithQuoteAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiChoiceReading { Option = option, Quote = quote });
+
+        await engine.HandleIncomingMessageAsync(Phone, "qalam dawaat aur kaghaz bechta hoon", default);
+
+        // Not chosen: setup is not finished and the list is shown again.
+        Assert.False((await db.Sellers.AsNoTracking().FirstAsync()).OnboardingComplete);
+        Assert.NotEmpty(_sent);
+    }
+
+    [Fact]
+    public async Task ShopTypeInWords_DoesNotCallTheAi_WhenTheFlagIsOff()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await AtTheShopTypeQuestionAsync(db, dynamicAnswers: false);
+
+        await engine.HandleIncomingMessageAsync(Phone, "qalam dawaat aur kaghaz bechta hoon", default);
+
+        _ai.Verify(a => a.ReadChoiceWithQuoteAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.False((await db.Sellers.AsNoTracking().FirstAsync()).OnboardingComplete);
+    }
+
+    [Theory]
+    [InlineData(true, false)]    // flag on, the AI says it fits: the report runs
+    [InlineData(true, true)]     // flag on, the AI says it does not fit: the sentence goes to the order reader
+    [InlineData(false, true)]    // flag off: the rule is never second-guessed
+    public async Task AReportRuleMatch_OnASentence_IsCheckedByTheAi_OnlyWhenTheFlagIsOn(bool flag, bool aiSaysNoFit)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, features: new FeatureOptions { RuleSecondOpinionReports = flag });
+        AiReturns(new AiMessageAnalysis { Intent = "unclear" });
+        _ai.Setup(a => a.ConfirmCommandMatchAsync(It.IsAny<string>(), "Profit", It.IsAny<CancellationToken>())).ReturnsAsync(!aiSaysNoFit);
+
+        await engine.HandleIncomingMessageAsync(Phone, "profit last month", default);          // 3 words, a Profit report by rule
+
+        var checkedByAi = flag ? Times.Once() : Times.Never();
+        _ai.Verify(a => a.ConfirmCommandMatchAsync("profit last month", "Profit", It.IsAny<CancellationToken>()), checkedByAi);
+        // Sent to the order reader only when the flag is on AND the AI said it does not fit.
+        var toReader = flag && aiSaysNoFit ? Times.Once() : Times.Never();
+        _ai.Verify(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), "profit last month", It.IsAny<CancellationToken>()), toReader);
+    }
+
+    [Fact]
+    public async Task YesInOwnWords_ToTheDraftQuestion_IsReadByTheAi_WhenItQuotesWordsThatAreInTheMessage()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await DraftWaitingForYesAsync(db, dynamicAnswers: true);
+        _ai.Setup(a => a.ReadYesNoWithQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiYesNoReading { Answer = "yes", Quote = "bilkul sahi" });
+
+        await engine.HandleIncomingMessageAsync(Phone, "jee bilkul sahi hai", default);
+
+        Assert.Equal(1, await db.Orders.CountAsync());
+    }
+
+    [Theory]
+    [InlineData("yes", "zaroor zaroor")]     // the quoted words are not in the message
+    [InlineData("other", "bilkul sahi")]     // the AI does not read it as a yes
+    [InlineData("no", "bilkul sahi")]        // a no never saves
+    public async Task YesInOwnWords_IsNotActedOn_WithoutRealProof(string answer, string quote)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await DraftWaitingForYesAsync(db, dynamicAnswers: true);
+        _ai.Setup(a => a.ReadYesNoWithQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiYesNoReading { Answer = answer, Quote = quote });
+
+        await engine.HandleIncomingMessageAsync(Phone, "jee bilkul sahi hai", default);
+
+        Assert.Equal(0, await db.Orders.CountAsync());
+    }
+
+    [Fact]
+    public async Task YesInOwnWords_DoesNothingNew_WhenTheFlagIsOff()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await DraftWaitingForYesAsync(db, dynamicAnswers: false);
+        _ai.Setup(a => a.ReadYesNoWithQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiYesNoReading { Answer = "yes", Quote = "bilkul sahi" });
+
+        await engine.HandleIncomingMessageAsync(Phone, "jee bilkul sahi hai", default);
+
+        Assert.Equal(0, await db.Orders.CountAsync());
+        _ai.Verify(a => a.ReadYesNoWithQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DynamicYesNo_NeverAppliesToACancelQuestion()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await DraftWaitingForYesAsync(db, dynamicAnswers: true);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);          // order #1 saved
+        _ai.Setup(a => a.ReadYesNoWithQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiYesNoReading { Answer = "yes", Quote = "bilkul sahi" });
+        await engine.HandleIncomingMessageAsync(Phone, "cancel 1", default);     // asks to confirm the cancel
+
+        await engine.HandleIncomingMessageAsync(Phone, "jee bilkul sahi hai", default);
+
+        Assert.NotEqual(OrderStatus.Cancelled, (await db.Orders.AsNoTracking().SingleAsync()).Status);
+        _ai.Verify(a => a.ReadYesNoWithQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
     [InlineData("suit 5000", false)]
     [InlineData("suit 5000 bas ho gaya", true)]
     public async Task VoiceNote_DoneStep_OnlyEndsSetup_WhenTheSellerSaidTheyAreFinished(string spoken, bool setupEnds)
@@ -1095,7 +1895,7 @@ public class MockupFeatureTests : IDisposable
 
     private ConversationEngine VoiceEngine(AppDbContext db, string transcript, Microsoft.Extensions.Logging.ILogger<ConversationEngine>? logger = null, FeatureOptions? features = null)
     {
-        _media.Setup(m => m.DownloadAsync("voice-ctx", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[] { 1 }, "audio/ogg"));
+        _media.Setup(m => m.DownloadAsync("voice-ctx", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[2500], "audio/ogg"));
         var transcriber = new Mock<IAudioTranscriber>();
         transcriber.SetupGet(t => t.IsConfigured).Returns(true);
         transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>())).ReturnsAsync(transcript);
@@ -1236,6 +2036,57 @@ public class MockupFeatureTests : IDisposable
 
         Assert.Contains(_sent, m => m.Contains("pehle wale voice note ke jawab"));
         Assert.DoesNotContain(_sent, m => m.Contains("Maine suna"));
+    }
+
+    [Fact]
+    public async Task VoiceNote_ReplyToTheNoteThatMadeOneOrder_IsReadAsACorrectionOfThatOrder()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await SaveSaraKurtiOrderAsync(engine, db);
+        var seller = await db.Sellers.Include(s => s.Session).SingleAsync();
+        var log = new ActionLog { SellerId = seller.Id, ActionType = ActionType.OrderEdited, OrderId = 1, PayloadJson = "{}" };
+        db.ActionLogs.Add(log);
+        await db.SaveChangesAsync();
+        var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
+        ctx.ProcessedVoiceNoteIds = new List<string> { "wamid.first" };
+        ctx.LastVoiceNoteMessageId = "wamid.first";
+        ctx.LastVoiceNoteStartLogId = log.Id - 1;
+        ctx.LastVoiceNoteEndLogId = log.Id;
+        seller.Session.ContextJson = ctx.ToJson();
+        await db.SaveChangesAsync();
+
+        var voice = VoiceEngine(db, "order 1 mein nahi 5 nahi 4");
+        AiVoiceContext? seen = null;
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<AiVoiceContext, string, CancellationToken>((c, _, _) => seen = c)
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "edit order 1" }, Actions = { "command" }, Spans = { "order 1" } });
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.second", "wamid.first");
+
+        Assert.DoesNotContain(_sent, m => m.Contains("pehle wale voice note ke jawab"));
+        Assert.Contains(_sent, m => m.Contains("Order #1 ki tabdeeli"));
+        Assert.Contains("Order #1", seen!.Situation);
+    }
+
+    [Theory]
+    [InlineData("sara ka order cancel kar do", false)]
+    [InlineData("pichla order cancel kar do", true)]
+    public async Task VoiceNote_RiskyStep_ShowsTheOrderItWillTouch_AndWarnsWhenTheNameWasNotSpoken(string spoken, bool warns)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await SaveSaraKurtiOrderAsync(engine, db);
+        var voice = VoiceEngine(db, spoken);
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "cancel 1" }, Actions = { "command" }, Spans = { "cancel" } });
+        _sent.Clear();
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.touch");
+
+        Assert.Contains(_sent, m => m.Contains("Order #1 —") && m.Contains("Kurti"));
+        Assert.Equal(warns, _sent.Any(m => m.Contains("yeh naam nahi suna gaya")));
     }
 
     [Fact]

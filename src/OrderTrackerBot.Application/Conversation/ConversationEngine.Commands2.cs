@@ -139,6 +139,12 @@ public partial class ConversationEngine
         }
 
         last.Undone = true;
+        // Undoing an expense that was saved without asking is a correction: the confirmation comes back.
+        if (last.ActionType == ActionType.ExpenseAdded && _turnCtx?.AutoExpenseLogId == last.Id)
+        {
+            await RetractAutoExpenseAsync(seller, ct);
+            _turnCtx.AutoExpenseLogId = null;
+        }
 
         switch (last.ActionType)
         {
@@ -497,6 +503,7 @@ public partial class ConversationEngine
 
         // The wipe is one SaveChanges, so it either fully applies or leaves the data as it was.
         await SellerAccountReset.ResetAsync(_db, seller, ct, _features.UnplacedCaptureSalt);
+        ctx.ResetToEmpty(); // the end-of-turn save writes this object back, so it must be emptied too, not only the stored JSON
         session.ContextJson = null; // the session context (catalog page, stock cart, feature memory) starts empty too
         await _db.SaveChangesAsync(ct); // persist before telling the seller it worked
         await ReplyAsync(seller, MessageTemplates.Get("commands2.036"), ct);

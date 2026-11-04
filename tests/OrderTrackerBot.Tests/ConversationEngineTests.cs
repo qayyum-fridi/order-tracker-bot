@@ -127,6 +127,35 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task ResetAccount_ClearsTheWholeSessionMemory_NotJustTheStoredJson()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        // Left over from earlier testing: names still waiting for a price, a shown tip, voice hashes, a catalog page, a switched-off bar.
+        var before = await db.Sellers.Include(s => s.Session).FirstAsync(s => s.WhatsAppPhoneNumber == Phone);
+        var old = SessionContextData.FromJson(before.Session!.ContextJson);
+        old.PendingPriceProducts = new List<string> { "Handbag", "Chadar" };
+        old.PendingPriceSetAt = DateTime.UtcNow;
+        old.PhotoTipShown = true;
+        old.ProcessedVoiceHashes = new List<string> { "ABC" };
+        old.CatalogPage = 3;
+        before.Session.ContextJson = old.ToJson();
+        await db.SaveChangesAsync();
+
+        await engine.HandleIncomingMessageAsync(Phone, "reset account", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        var seller = await db.Sellers.Include(s => s.Session).FirstAsync(s => s.WhatsAppPhoneNumber == Phone);
+        var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
+        Assert.Null(ctx.PendingPriceProducts);
+        Assert.Null(ctx.PendingPriceSetAt);
+        Assert.False(ctx.PhotoTipShown);
+        Assert.Null(ctx.ProcessedVoiceHashes);
+        Assert.Equal(new SessionContextData().CatalogPage, ctx.CatalogPage);
+    }
+
+    [Fact]
     public async Task ResetAccount_WithoutConfirmation_KeepsData()
     {
         using var db = _dbFactory.CreateContext();
@@ -363,6 +392,29 @@ public class ConversationEngineTests : IDisposable
         Assert.All(rows, r => Assert.True(r.Title.Length <= 24, r.Title));
 
         await engine.HandleIncomingMessageAsync(Phone, "2", default); // the tapped row arrives as its id
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sentMessages, m => m.Contains("mark 3 shipped"));
+    }
+
+    [Fact]
+    public async Task ClarificationOption_NamedInWords_IsReadByTheAi_AndRunsLikeTheTypedNumber()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, features: new FeatureOptions { DynamicAnswers = true });
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis
+            {
+                IsOrderAttempt = false,
+                ClarificationQuestion = "Maaf kijiye, mujhe aapki baat samajh nahi aayi 🙏 Kya aap yeh kehna chahte hain:",
+                ClarificationOptions = { "Naya order add karna chahte hain", "Kisi order ka status update karna chahte hain" }
+            });
+        await engine.HandleIncomingMessageAsync(Phone, "wo waala order kal tak bhej dena", default);
+        _ai.Setup(a => a.ReadChoiceWithQuoteAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiChoiceReading { Option = 2, Quote = "doosra" });
+
+        await engine.HandleIncomingMessageAsync(Phone, "doosra wala", default);          // in words, not "2"
+
         Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
         Assert.Contains(_sentMessages, m => m.Contains("mark 3 shipped"));
     }
@@ -1945,7 +1997,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "orders today", default);
         await engine.HandleIncomingMessageAsync(Phone, "orders today", default);
 
-        VerifyBar(new[] { "📖 Guide", "➕ Naya order", "📋 Menu" }, Times.Exactly(2));
+        VerifyBar(new[] { "📋 Rozana", "➕ Naya order", "📋 Menu" }, Times.Exactly(2));
         Assert.Contains("shortcut off", bodies[0]);
         Assert.Equal("⚡ Quick actions", bodies[1]);
     }
@@ -1961,7 +2013,7 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "menu", default);          // already an interactive list
         await engine.HandleIncomingMessageAsync(Phone, "reset account", default); // waiting for yes/no
 
-        VerifyBar(new[] { "📖 Guide", "➕ Naya order", "📋 Menu" }, Times.Never());
+        VerifyBar(new[] { "📋 Rozana", "➕ Naya order", "📋 Menu" }, Times.Never());
     }
 
     [Fact]
@@ -1970,7 +2022,7 @@ public class ConversationEngineTests : IDisposable
         using var db = _dbFactory.CreateContext();
         await OnboardSellerAsync(db);
         var engine = CreateShortcutEngine(db);
-        var bar = new[] { "📖 Guide", "➕ Naya order", "📋 Menu" };
+        var bar = new[] { "📋 Rozana", "➕ Naya order", "📋 Menu" };
         _sender.Invocations.Clear();
 
         await engine.HandleIncomingMessageAsync(Phone, "shortcut off", default);
@@ -1993,11 +2045,11 @@ public class ConversationEngineTests : IDisposable
         _sender.Invocations.Clear();
 
         await CreateShortcutEngine(db).HandleIncomingMessageAsync(Phone, "orders today", default);
-        VerifyBar(new[] { "📖 گائیڈ", "➕ نیا آرڈر", "📋 مینو" }, Times.Once());
+        VerifyBar(new[] { "📋 روزانہ", "➕ نیا آرڈر", "📋 مینو" }, Times.Once());
 
         _sender.Invocations.Clear();
         await CreateEngine(db).HandleIncomingMessageAsync(Phone, "orders today", default); // features unset = off
-        VerifyBar(new[] { "📖 گائیڈ", "➕ نیا آرڈر", "📋 مینو" }, Times.Never());
+        VerifyBar(new[] { "📋 روزانہ", "➕ نیا آرڈر", "📋 مینو" }, Times.Never());
     }
 
     [Fact]

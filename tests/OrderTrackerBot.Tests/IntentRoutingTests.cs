@@ -54,6 +54,46 @@ public class IntentRoutingTests : IDisposable
     }
 
     [Fact]
+    public async Task WithTheFlagOn_TheRouterIsToldAboutTheSeller_AndTheRoutedActionStillRuns()
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+        var seller = await db.Sellers.FirstAsync();
+        seller.BusinessType = "Grocery / Kiryana";
+        db.Products.Add(new Product { SellerId = seller.Id, Name = "Basmati Rice", Price = 300, UnitType = "kg", UnitQty = 1 });
+        db.Products.Add(new Product { SellerId = seller.Id, Name = "Sugar", Price = 150, UnitType = "kg", UnitQty = 1 });
+        await db.SaveChangesAsync();
+        AiRouteContext? told = null;
+        _ai.Setup(a => a.RouteIntentWithContextAsync("aaj 500 ka petrol kharcha hua", It.IsAny<IReadOnlyList<IntentDefinition>>(), It.IsAny<AiRouteContext>(), It.IsAny<CancellationToken>()))
+            .Callback<string, IReadOnlyList<IntentDefinition>, AiRouteContext, CancellationToken>((_, _, c, _) => told = c)
+            .ReturnsAsync(new IntentRoute("expense.add", new Dictionary<string, string> { ["amount"] = "500", ["note"] = "petrol" }, 0.9));
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, Mock.Of<IFounderAlertNotifier>(), features: new FeatureOptions { ShortcutButtons = false, RouterContext = true });
+
+        await engine.HandleIncomingMessageAsync(Phone, "aaj 500 ka petrol kharcha hua", default);
+
+        Assert.Equal(1, await db.Expenses.CountAsync());
+        Assert.NotNull(told);
+        Assert.Equal("Grocery / Kiryana", told!.ShopType);
+        Assert.Contains("Sugar", told.ProductNames);
+        Assert.Contains("Basmati Rice", told.ProductNames);
+        Assert.False(string.IsNullOrWhiteSpace(told.Situation));
+    }
+
+    [Fact]
+    public async Task WithTheFlagOff_TheRouterGetsOnlyTheMessage_AsBefore()
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+        _ai.Setup(a => a.RouteIntentAsync("aaj 500 ka petrol kharcha hua", It.IsAny<IReadOnlyList<IntentDefinition>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IntentRoute("expense.add", new Dictionary<string, string> { ["amount"] = "500", ["note"] = "petrol" }, 0.9));
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, "aaj 500 ka petrol kharcha hua", default);
+
+        Assert.Equal(1, await db.Expenses.CountAsync());
+        _ai.Verify(a => a.RouteIntentWithContextAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<IntentDefinition>>(), It.IsAny<AiRouteContext>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task RoutedCustomerWithoutName_GetsItsHowTo_AndSavesNothing()
     {
         using var db = _dbFactory.CreateContext();

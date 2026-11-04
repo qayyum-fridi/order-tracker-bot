@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
@@ -42,18 +43,79 @@ public partial class ConversationEngine
         return (safe, risky);
     }
 
-    /// <summary>Parks steps until the seller answers YES or NO; the echo of what was heard is shown with the question.</summary>
-    private async Task ParkVoiceStepsAsync(string fromPhoneNumber, Seller seller, IReadOnlyList<string> steps, string heard, CancellationToken ct)
+    internal const string NoButtonLabel = "❌ Nahi";
+
+    /// <summary>
+    /// The "yes" button for waiting steps. It names the one fact worth reading (the amount, the order number, how many entries), so tapping it means having seen it:
+    /// a button that always says the same thing gets tapped without looking. Falls back to a plain label when the fact does not fit a button (20 characters).
+    /// </summary>
+    internal static string YesButtonLabel(IReadOnlyList<string> steps)
     {
+        const string plain = "✅ Haan, karo";
+        string label;
+        if (steps.Count > 1) label = $"✅ {steps.Count} kaam karo";
+        else if (steps.Count == 1 && steps[0].Contains('\n')) label = $"✅ {steps[0].Split('\n').Length} products";
+        else if (steps.Count == 1 && CommandParser.TryParse(steps[0]) is { } command)
+            label = command.Kind switch
+            {
+                CommandKind.Expense when command.Amount is { } a => $"✅ Rs.{a:0.##} likho",
+                CommandKind.Wage when command.Amount is { } a => $"✅ Rs.{a:0.##} dein",
+                CommandKind.CancelOrder when command.Number is { } n => $"✅ Order #{n} cancel",
+                CommandKind.AddProduct => "✅ Product save",
+                CommandKind.CustomerAdd => "✅ Customer save",
+                _ => plain,
+            };
+        else label = plain;
+        // Any other single step that names one amount (a price change, an advance): the button shows it, so the tap means having read it.
+        if (label == plain && steps.Count == 1 && !steps[0].Contains('\n') && System.Text.RegularExpressions.Regex.Matches(steps[0], @"(?<![\d.])\d{3,9}(?![\d.])") is { Count: 1 } onlyAmount)
+            label = $"✅ Rs.{onlyAmount[0].Value} karo";
+        return label.Length <= 20 ? label : plain;
+    }
+
+    /// <summary>Parks steps until the seller answers YES or NO; the echo of what was heard is shown with the question.</summary>
+    private async Task ParkVoiceStepsAsync(string fromPhoneNumber, Seller seller, IReadOnlyList<string> steps, string heard, CancellationToken ct, string? transcript = null)
+    {
+        var touched = await DescribeTouchedOrdersAsync(seller, steps, transcript, ct);
+        if (touched.Length > 0) heard += "\n\n" + touched;
         var session = seller.Session!;
         var ctx = SessionContextData.FromJson(session.ContextJson);
         ctx.PendingVoiceSteps = steps.ToList();
+        ctx.PendingVoiceFromPicture = false;
         ctx.PendingVoiceParkedAt = DateTime.UtcNow;
         ctx.PendingVoiceSentAt = _sentAtUtc;
         ctx.PendingVoiceLogId = await NewestActionLogIdAsync(seller.Id, ct);
+        ctx.PendingVoiceYesLabel = YesButtonLabel(ctx.PendingVoiceSteps);
         SetState(session, ConversationState.AwaitingVoiceConfirmation);
-        await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("media.002", heard), ct);
+        await _sender.SendButtonsMessageAsync(fromPhoneNumber, MessageTemplates.Get("media.002", heard), new[] { ctx.PendingVoiceYesLabel, NoButtonLabel }, ct);
         await PersistAsync(session, ctx, ct);
+    }
+
+    /// <summary>
+    /// The orders the parked steps will touch (an id picked from a name or "pichla order" is a known number to the guard, so nothing else checks it),
+    /// with the customer and items, so a wrong pick is seen before YES. When the note was Latin script and never said the customer's name, that is said too.
+    /// </summary>
+    private async Task<string> DescribeTouchedOrdersAsync(Seller seller, IReadOnlyList<string> steps, string? transcript, CancellationToken ct)
+    {
+        var ids = steps.Select(s => CommandParser.TryParse(s))
+            .Where(c => c is { Number: not null, Kind: CommandKind.CancelOrder or CommandKind.EditOrder or CommandKind.OrderDeliveryCharge or CommandKind.OrderCourierFee or CommandKind.MarkStatus })
+            .Select(c => c!.Number!.Value).Distinct().Take(3).ToList();
+        if (ids.Count == 0) return "";
+
+        var orders = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
+            .Where(o => o.SellerId == seller.Id && ids.Contains(o.Id)).OrderBy(o => o.Id).ToListAsync(ct);
+        var latin = !string.IsNullOrWhiteSpace(transcript) && !Regex.IsMatch(transcript, @"\p{IsArabic}");
+        var spoken = latin ? SpeechWords(transcript!) : "";
+        var lines = new List<string>();
+        foreach (var o in orders)
+        {
+            var name = o.Customer?.Name ?? "-";
+            var items = string.Join(", ", o.Items.Take(3).Select(i => $"{i.ProductNameSnapshot} x{i.Quantity}"));
+            lines.Add(MessageTemplates.Get("voice-confirm.016", o.Id, name, items, o.Total.ToString("N0", System.Globalization.CultureInfo.InvariantCulture)));
+            var first = name.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
+            if (latin && first.Length >= 3 && !spoken.Contains($" {first.ToLowerInvariant()} "))
+                lines.Add(MessageTemplates.Get("voice-confirm.017", o.Id, name));
+        }
+        return string.Join("\n", lines);
     }
 
     private static bool IsOrderDraftState(ConversationState state) =>
@@ -156,14 +218,21 @@ public partial class ConversationEngine
         var parkedAt = ctx.PendingVoiceParkedAt;
         var parkedLogId = ctx.PendingVoiceLogId;
         var parkedSentAt = ctx.PendingVoiceSentAt;
+        var yesLabel = ctx.PendingVoiceYesLabel;
+        var fromPicture = ctx.PendingVoiceFromPicture;
+        ctx.PendingVoiceYesLabel = null;
+        ctx.PendingVoiceFromPicture = false;
         ctx.PendingVoiceSteps = null;
         ctx.PendingVoiceParkedAt = null;
         ctx.PendingVoiceSentAt = null;
         SetState(session, ConversationState.Idle);
         await PersistAsync(session, ctx, ct);
 
-        var message = (rawMessage ?? "").Trim();
-        if (steps is { Count: > 0 } && CommandParser.IsAffirmative(message))
+        // A tapped button comes back as its (possibly translated) label: map it to the label that was sent, then compare.
+        var message = _translator.RestoreButtonLabel((rawMessage ?? "").Trim()).Trim();
+        var tappedYes = yesLabel is not null && string.Equals(message, yesLabel, StringComparison.OrdinalIgnoreCase);
+        var tappedNo = string.Equals(message, NoButtonLabel, StringComparison.OrdinalIgnoreCase);
+        if (steps is { Count: > 0 } && (tappedYes || CommandParser.IsAffirmative(message)))
         {
             // The YES approves what was read out, against the orders as they were then. If time passed or anything changed meanwhile, drop it.
             var stale = parkedAt is null || DateTime.UtcNow - parkedAt.Value > VoiceConfirmWindow
@@ -176,11 +245,16 @@ public partial class ConversationEngine
                 return true;
             }
 
+            if (fromPicture && steps.Count == 1 && CommandParser.TryParse(steps[0])?.Kind == CommandKind.Expense)
+                await RecordExpenseConfirmAsync(seller, yes: true, ct);
             await RunVoiceStepsAsync(fromPhoneNumber, steps, parkedSentAt, ct);
             return true;
         }
 
-        if (CommandParser.IsNegative(message) || message.Equals("cancel", StringComparison.OrdinalIgnoreCase))
+        if (fromPicture && steps is { Count: 1 } && CommandParser.TryParse(steps[0])?.Kind == CommandKind.Expense && (tappedNo || CommandParser.IsNegative(message)))
+            await RecordExpenseConfirmAsync(seller, yes: false, ct);
+
+        if (tappedNo || CommandParser.IsNegative(message) || message.Equals("cancel", StringComparison.OrdinalIgnoreCase))
         {
             await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("voice-confirm.003"), ct);
             await _db.SaveChangesAsync(ct);

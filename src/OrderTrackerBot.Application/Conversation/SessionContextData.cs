@@ -201,6 +201,21 @@ public sealed class SessionContextData
     /// <summary>Action log ids (exclusive start, inclusive end) made by the last voice note, for "undo note".</summary>
     public int LastVoiceNoteStartLogId { get; set; }
     public int LastVoiceNoteEndLogId { get; set; }
+    /// <summary>WhatsApp id of that voice note, so a reply to it can be read as a correction of the order it made.</summary>
+    public string? LastVoiceNoteMessageId { get; set; }
+    /// <summary>The last pictures (up to 5) sent without a type word, and when the newest came (UTC): a following "expense" / "wages" / "customer" message labels them all.</summary>
+    public List<string>? PendingPictureMediaIds { get; set; }
+    public DateTime? PendingPictureAt { get; set; }
+    /// <summary>True while the steps waiting for YES were read from pictures, so more labelled pictures may be added to the same YES (never to a voice note's steps).</summary>
+    public bool PendingVoiceFromPicture { get; set; }
+    /// <summary>The text of the "yes" button that came with the waiting steps (it names the amount or order), so a tap on it counts as YES.</summary>
+    public string? PendingVoiceYesLabel { get; set; }
+    /// <summary>The action log id of the last expense saved without asking (earned trust): undoing exactly that one counts as a correction.</summary>
+    public int? AutoExpenseLogId { get; set; }
+    /// <summary>True once the seller was told, with their first unlabelled picture, how to send a clear one and how to label it.</summary>
+    public bool PhotoTipShown { get; set; }
+    /// <summary>Messages in a row the bot did not understand; at 2 the seller gets the three-button guide and the count starts again. Any understood message resets it.</summary>
+    public int ConsecutiveMisses { get; set; }
     /// <summary>SHA-256 of the audio of the last voice note that made actions, and of the latest notes that did (newest last).</summary>
     public string? LastVoiceNoteHash { get; set; }
     public List<string>? ProcessedVoiceHashes { get; set; }
@@ -218,6 +233,17 @@ public sealed class SessionContextData
     public ConversationState? GuideReturnState { get; set; }
 
     public string ToJson() => JsonSerializer.Serialize(this);
+
+    /// <summary>
+    /// Puts every setting back to what a new session has. The engine saves its in-memory context at the end of every turn, so clearing the stored
+    /// JSON alone (as "reset account" did) is undone by that save: the waiting-for-price names, voice hashes, tips and the rest came back.
+    /// </summary>
+    public void ResetToEmpty()
+    {
+        var fresh = new SessionContextData();
+        foreach (var property in typeof(SessionContextData).GetProperties().Where(p => p.CanWrite && p.GetIndexParameters().Length == 0))
+            property.SetValue(this, property.GetValue(fresh));
+    }
 
     public static SessionContextData FromJson(string? json) =>
         string.IsNullOrWhiteSpace(json)

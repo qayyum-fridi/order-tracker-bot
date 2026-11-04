@@ -2,7 +2,7 @@ using OrderTrackerBot.Application.Templates;
 namespace OrderTrackerBot.Application.Conversation;
 
 /// <summary>What the engine does with one seller turn: run it, ask for a missing or unclear detail, or refuse without changing anything.</summary>
-public enum DecisionKind { Execute, Clarify, Reject }
+public enum DecisionKind { Execute, Clarify, Reject, Confirm }
 
 /// <summary>
 /// The outcome of the safety gate. Steps are only set for <see cref="DecisionKind.Execute"/>; Message is the question or reply for the other two.
@@ -13,6 +13,9 @@ public sealed record TurnDecision(DecisionKind Kind, IReadOnlyList<string> Steps
 
     public static TurnDecision Clarify(string question, IReadOnlyList<string>? options = null) =>
         new(DecisionKind.Clarify, Array.Empty<string>(), question, options ?? Array.Empty<string>());
+
+    /// <summary>The steps are harmless but one number could not be checked: they wait for the seller's YES, with Message naming the doubt.</summary>
+    public static TurnDecision Confirm(IReadOnlyList<string> steps, string doubt) => new(DecisionKind.Confirm, steps, doubt);
 
     public static TurnDecision Reject(string reply) => new(DecisionKind.Reject, Array.Empty<string>(), reply);
 }

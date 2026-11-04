@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Api.Admin;
+using OrderTrackerBot.Application.Conversation;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
 using OrderTrackerBot.Infrastructure.Persistence;
@@ -40,6 +41,16 @@ public class AdminReportsController : ControllerBase
     [HttpGet("reports/pilot")]
     public async Task<ActionResult<PilotReportDto>> Pilot([FromQuery] int days = 7, CancellationToken ct = default) =>
         Ok(await PilotReport.BuildAsync(_db, days, DateTime.UtcNow, ct));
+
+    /// <summary>Number words voice notes used that the bot could not read, most frequent first (the word only, no transcript). Counted since the last restart: add real spellings to SpokenNumbers.</summary>
+    [HttpGet("reports/unknown-number-words")]
+    public ActionResult<object> UnknownNumberWords() =>
+        Ok(new { sinceRestart = true, words = UnknownNumberWordLog.Snapshot().Select(x => new { word = x.Word, count = x.Count }) });
+
+    /// <summary>What happened to voice notes, by outcome (ran as spoken, asked again, refused, too long...), counted since the last restart. Names only, no transcripts.</summary>
+    [HttpGet("reports/voice-stats")]
+    public ActionResult<object> VoiceOutcomes() =>
+        Ok(new { sinceRestart = true, outcomes = VoiceStats.Snapshot().Select(x => new { outcome = x.Outcome, count = x.Count }) });
 
     /// <summary>Messages the bot could not place in the last N days (default 7), masked. Input for the learning review.</summary>
     [HttpGet("reports/unplaced")]

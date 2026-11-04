@@ -106,6 +106,8 @@ public partial class ConversationEngine
         _turnSeller = null;
         _turnCtx = null;
         _stockWarnings.Clear();
+        _turnMissed = false;
+        _turnTracked = false;
         if (await TryHandleVoiceConfirmationAsync(fromPhoneNumber, rawMessage, ct)) return;
         var answeredDraft = IsOrderDraftState((await LoadOrCreateSellerAsync(fromPhoneNumber, ct)).Session!.State);
         _draftPutOnHold = false;
@@ -113,12 +115,53 @@ public partial class ConversationEngine
         if (_draftPutOnHold) await HoldParkedVoiceStepsAsync(fromPhoneNumber, ct);
         await ResumeVoiceContinueAsync(fromPhoneNumber, answeredDraft, ct);
         await FlushStockWarningsAsync(fromPhoneNumber, ct);
+        await RunAutoStepAsync(fromPhoneNumber, ct);
+        if (await TrackMissesAsync(fromPhoneNumber, ct)) return;
         await TrySendShortcutBarAsync(fromPhoneNumber, ct);
     }
+
+    /// <summary>Set when this turn ended in a "not understood" reply (see <see cref="LogNotUnderstood"/>).</summary>
+    private bool _turnMissed;
+    private bool _turnTracked;
+
+    /// <summary>
+    /// Counts messages in a row the bot did not understand. On the second, a short guide with three taps follows the normal reply, so a tired seller is never
+    /// left retyping the same thing: new order, today's account, or the menu. Returns true when the guide was sent.
+    /// </summary>
+    private async Task<bool> TrackMissesAsync(string fromPhoneNumber, CancellationToken ct)
+    {
+        // A voice note that ran its steps as typed messages was already counted by the last of them.
+        if (_turnTracked) return false;
+        _turnTracked = true;
+        var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
+        if (seller.Session is not { } session) return false;
+        var ctx = SessionContextData.FromJson(session.ContextJson);
+        var before = ctx.ConsecutiveMisses;
+        ctx.ConsecutiveMisses = _turnMissed ? before + 1 : 0;
+        var guide = _turnMissed && seller.OnboardingComplete && ctx.ConsecutiveMisses >= 2;
+        if (guide) ctx.ConsecutiveMisses = 0;
+        if (ctx.ConsecutiveMisses != before) await PersistAsync(session, ctx, ct);
+        if (!guide) return false;
+
+        await SendChoicesAsync(fromPhoneNumber, MessageTemplates.Get("voice-confirm.028", Industry(seller).MainLine),
+            GuideChoices.Select(c => new ChoiceOption(c.Label, c.Value)).ToList(), ct);
+        await _db.SaveChangesAsync(ct);
+        return true;
+    }
+
+    // The daily jobs in the seller's own words. Each value is a command the parser already knows (a test checks it), and the bare ones
+    // (expenses, wages, stock) answer with how to write an entry, so a tap also teaches the sentence.
+    internal static readonly (string Label, string Value)[] GuideChoices =
+    {
+        ("Naya order", "Naya order"), ("Aaj ka hisaab", "Aaj ka hisaab"), ("Kharcha likhna", "expenses"),
+        ("Tankhwah dena", "wages"), ("Stock dekhna", "stock"), ("Menu", "menu"),
+    };
 
     /// <summary>One log line for a message the bot did not understand: <c>grep NotUnderstood</c> in the server log lists the real phrasings to teach it.</summary>
     private void LogNotUnderstood(string path, ConversationState state, string? text)
     {
+        // A rule the AI overruled is not a miss for the seller: the message still goes on to be answered.
+        if (!path.StartsWith("rule-overruled", StringComparison.Ordinal)) _turnMissed = true;
         if (!_features.TurnLog || string.IsNullOrWhiteSpace(text)) return;
         _logger?.LogInformation("NotUnderstood path={Path} state={State} text={Text}", path, state, text.Length > 300 ? text[..300] : text);
     }
@@ -263,6 +306,25 @@ public partial class ConversationEngine
             await PersistAsync(session, ctx, ct);
             return;
         }
+
+        // A picture sent without a type word leaves the bot idle or asking "what is this?" (the clarification state): a type word right after it labels the picture.
+        if (ctx.PendingPictureMediaIds is { Count: > 0 } && session.State is ConversationState.Idle or ConversationState.AwaitingClarificationChoice
+            && PictureLabels.TryParseReply(message, out _))
+        {
+            if (session.State == ConversationState.AwaitingClarificationChoice)
+            {
+                ctx.ClarificationOptions = null;
+                SetState(session, ConversationState.Idle);
+            }
+            if (await TryHandlePictureLabelAsync(seller, session, ctx, message, ct))
+            {
+                await PersistAsync(session, ctx, ct);
+                return;
+            }
+        }
+
+        // A reply that is not a plain yes / no word is read by the AI (with a quoted proof) instead of being asked again.
+        if (await TryReadYesNoAsync(seller, session, ctx, message, ct) is { } readAnswer) message = readAnswer;
 
         if (await TryRouteMidFlowReplyAsync(seller, session, ctx, message, ct))
         {
@@ -442,6 +504,7 @@ public partial class ConversationEngine
             return;
         }
 
+        if (await TryHandlePictureLabelAsync(seller, session, ctx, message, ct)) return;
         if (await TryHandleOrderForCustomerItemsAsync(seller, session, ctx, message, ct)) return;
         if (await TryHandleItemsOnlyAsync(seller, session, ctx, message, ct)) return;
 
@@ -528,9 +591,18 @@ public partial class ConversationEngine
         CommandKind.Insight, CommandKind.FuzzyStatusUpdate, CommandKind.CustomerOrderLookup, CommandKind.ProductReport, CommandKind.CustomerSearch, CommandKind.OrderSearch, CommandKind.HowTo
     };
 
+    // Phase 4 of the dynamic-understanding plan: report and list commands only (they change nothing), so a wrong "no" from the AI costs a re-read by the order reader, never data.
+    private static readonly HashSet<CommandKind> ReadOnlyReportKinds = new()
+    {
+        CommandKind.Profit, CommandKind.Margin, CommandKind.CategorySales, CommandKind.TodaysSummary, CommandKind.TrendingProducts, CommandKind.SlowMovers,
+        CommandKind.CustomerList, CommandKind.CustomerDetail, CommandKind.UnpaidOrders, CommandKind.CodPending, CommandKind.PendingOrders, CommandKind.ExpenseList,
+        CommandKind.LossList, CommandKind.WageList, CommandKind.EnquiryReport, CommandKind.MonthlyNet, CommandKind.DiscountPerformance, CommandKind.LoyalCustomers,
+        CommandKind.CustomerFeedbackList, CommandKind.DiscountList, CommandKind.TrackingLookup, CommandKind.OrderDetail, CommandKind.CatalogFilter,
+    };
+
     private async Task<bool> LooseRuleMatchIsWrongAsync(ParsedCommand command, string message, CancellationToken ct)
     {
-        if (!LooseRuleKinds.Contains(command.Kind)) return false;
+        if (!LooseRuleKinds.Contains(command.Kind) && !(_features.RuleSecondOpinionReports && ReadOnlyReportKinds.Contains(command.Kind))) return false;
         if (message.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length < LooseRuleMinWords)
         {
             // Too short for the AI check (fewer than LooseRuleMinWords words): only recorded (with the text, Features:TurnLog) so the owner can see which short phrases the loose rules take.
@@ -660,6 +732,24 @@ public sealed class FeatureOptions
 
     /// <summary>Setup asks the kind of shop right after the shop name (taps); off = the old flow without that question (unit tests).</summary>
     public bool IndustryQuestion { get; set; }
+
+    /// <summary>
+    /// A reply that is not one of the plain yes / no words ("jee bilkul sahi hai") to a harmless yes / no question is read by the AI, which must quote the words it based
+    /// that on; the engine checks the quote is in the message. Off in code (unit tests keep the old flow), on in appsettings. Cancel / reset / delete questions never use it.
+    /// </summary>
+    public bool DynamicAnswers { get; set; }
+
+    /// <summary>
+    /// Read-only report / list commands found by a keyword rule on a sentence of 3+ words are checked by the AI ("does this really ask for that?") before they run, like the
+    /// loose rules already are, so a rule cannot take a sentence that means something else. Nothing that changes data is included. Off in code, on in appsettings.
+    /// </summary>
+    public bool RuleSecondOpinionReports { get; set; }
+
+    /// <summary>
+    /// The intent router is told about THIS seller (kind of shop, some of its products, what the bot was doing, the last messages) besides the message, so it can say what the
+    /// message is about. Off in code (unit tests keep the old call), on in appsettings.
+    /// </summary>
+    public bool RouterContext { get; set; }
 
     /// <summary>Learns how this seller answers the price question and applies the answer they always give without asking (see <c>StrategyPolicy</c>); off = always ask.</summary>
     public bool StrategyLearning { get; set; }

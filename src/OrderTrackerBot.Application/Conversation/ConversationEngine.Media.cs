@@ -29,7 +29,10 @@ public partial class ConversationEngine
             _logger?.LogInformation("Voice note: {LagMs} ms from WhatsApp's send time to the start of handling", (long)(DateTime.UtcNow - sentUtc).TotalMilliseconds);
         var startLogId = await NewestActionLogIdAsync((await LoadOrCreateSellerAsync(fromPhoneNumber, ct)).Id, ct);
         _lastAudioHash = null;
+        _turnMissed = false;
+        _turnTracked = false;
         await HandleAudioCoreAsync(fromPhoneNumber, mediaId, messageId, replyToId, ct);
+        await TrackMissesAsync(fromPhoneNumber, ct);
         _logger?.LogInformation("Voice note: handled in {TotalMs} ms, reply included", handling.ElapsedMilliseconds);
 
         // The actions this note made are remembered for "undo note". A note that made none (a refused reply) keeps the earlier range.
@@ -39,6 +42,7 @@ public partial class ConversationEngine
         var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
         ctx.LastVoiceNoteStartLogId = startLogId;
         ctx.LastVoiceNoteEndLogId = endLogId;
+        ctx.LastVoiceNoteMessageId = messageId;
         ctx.LastVoiceNoteHash = _lastAudioHash;
         if (_lastAudioHash is { } hash)
         {
@@ -49,6 +53,35 @@ public partial class ConversationEngine
         }
         await PersistAsync(seller.Session!, ctx, ct);
     }
+
+    /// <summary>Set while a voice note that replies to the last note is handled: the one open order that note made.</summary>
+    private int? _voiceCorrectionOrderId;
+
+    /// <summary>The single open order made by the last voice note when <paramref name="replyToId"/> is that note; null otherwise (none, several, undone, cancelled).</summary>
+    private async Task<int?> OrderOfVoiceNoteAsync(Seller seller, SessionContextData ctx, string replyToId, CancellationToken ct)
+    {
+        if (ctx.LastVoiceNoteMessageId != replyToId || ctx.LastVoiceNoteEndLogId <= ctx.LastVoiceNoteStartLogId) return null;
+        var ids = await _db.ActionLogs
+            .Where(l => l.SellerId == seller.Id && l.Id > ctx.LastVoiceNoteStartLogId && l.Id <= ctx.LastVoiceNoteEndLogId && !l.Undone && l.OrderId != null)
+            .Select(l => l.OrderId!.Value).Distinct().ToListAsync(ct);
+        if (ids.Count != 1) return null;
+        var id = ids[0];
+        var open = await _db.Orders.AnyAsync(o => o.Id == id && o.SellerId == seller.Id && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned, ct);
+        return open ? id : null;
+    }
+
+    // WhatsApp voice notes are about 2 KB per second: under ~1 s is silence or a tap, over ~3 MB is a recording of many minutes.
+    internal const int MinVoiceBytes = 2000;
+    internal const int MaxVoiceSeconds = 300;          // 5 minutes: longer is costly to transcribe and cannot be rewritten into at most 8 steps within the 3-minute handling limit
+    internal const int MaxVoiceBytes = 750 * 1024;     // the same limit by size (~2.5 KB per second) for a file whose length cannot be read
+
+    // The length in the file header is the sender's own claim, so it is never trusted alone: a file over this size is refused whatever it says
+    // (5 minutes of even a high-bitrate Opus note is well under it).
+    internal const int MaxVoiceHardBytes = 2 * 1024 * 1024;
+
+    internal static bool VoiceTooLong(byte[] audio) =>
+        audio.Length > MaxVoiceHardBytes
+        || (AudioInfo.OggOpusSeconds(audio) is { } seconds ? seconds > MaxVoiceSeconds : audio.Length > MaxVoiceBytes);
 
     /// <summary>SHA-256 of the audio being handled now (set by HandleAudioCoreAsync), recorded only when the note made actions.</summary>
     private string? _lastAudioHash;
@@ -63,12 +96,19 @@ public partial class ConversationEngine
 
         var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
         // A voice note sent as a reply to an earlier voice note is usually a correction of it: the earlier note's orders already exist,
-        // so nothing runs until the seller undoes them. This is said, not guessed.
-        if (replyToId is not null && SessionContextData.FromJson(seller.Session!.ContextJson).ProcessedVoiceNoteIds?.Contains(replyToId) == true)
+        // so nothing is created again. When that note made exactly one open order, the reply is read as a correction of it (edit order N, behind
+        // the usual YES); otherwise this is said, not guessed.
+        _voiceCorrectionOrderId = null;
+        var replyCtx = SessionContextData.FromJson(seller.Session!.ContextJson);
+        if (replyToId is not null && replyCtx.ProcessedVoiceNoteIds?.Contains(replyToId) == true)
         {
-            await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("voice-confirm.009"), ct);
-            await _db.SaveChangesAsync(ct);
-            return;
+            _voiceCorrectionOrderId = await OrderOfVoiceNoteAsync(seller, replyCtx, replyToId, ct);
+            if (_voiceCorrectionOrderId is null)
+            {
+                await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("voice-confirm.009"), ct);
+                await _db.SaveChangesAsync(ct);
+                return;
+            }
         }
         if (!TryTakeUsage(seller, fromPhoneNumber, MediaKind.Voice, out var voiceDecision, out var voiceWait))
         {
@@ -81,18 +121,48 @@ public partial class ConversationEngine
         var voiceClock = System.Diagnostics.Stopwatch.StartNew();
         var media = _media is null ? null : await _media.DownloadAsync(mediaId, ct);
         var downloadMs = voiceClock.ElapsedMilliseconds;
+        // An empty or tiny file has nothing to hear, and an oversized one is a long recording the speech model would charge in full: neither is transcribed.
+        // The length is read from the Ogg Opus file itself (5 minutes at most); any other format falls back to the file size.
+        if (media is { } audio && (audio.Bytes.Length < MinVoiceBytes || VoiceTooLong(audio.Bytes)))
+        {
+            VoiceStats.Record(audio.Bytes.Length < MinVoiceBytes ? "refused_too_short" : "refused_too_long");
+            await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get(audio.Bytes.Length < MinVoiceBytes ? "voice-confirm.018" : "voice-confirm.019"), ct);
+            await _db.SaveChangesAsync(ct);
+            return;
+        }
         _lastAudioHash = media is null ? null : Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(media.Value.Bytes));
         if (_lastAudioHash is not null && SessionContextData.FromJson(seller.Session!.ContextJson).ProcessedVoiceHashes?.Contains(_lastAudioHash) == true)
         {
+            VoiceStats.Record("duplicate_note");
             await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("voice-undo.003"), ct);
             await _db.SaveChangesAsync(ct);
             return;
         }
         var vocabularyStartMs = voiceClock.ElapsedMilliseconds;
-        var vocabulary = media is null ? null : await BuildVoiceVocabularyAsync(seller, ct);
+        // The catalog is read once and shared by the speech hints and the rewrite. The rewrite's own reads (orders, customers, chat) run
+        // while the transcription request is in flight; the transcription uses no database, so the DbContext is never used twice at once.
+        var catalog = media is null ? null : await LoadCatalogAsync(seller, ct);
+        var vocabulary = catalog is null ? null : await BuildVoiceVocabularyAsync(seller, catalog, ct);
         var vocabularyMs = voiceClock.ElapsedMilliseconds - vocabularyStartMs;
-        var text = media is null ? null : await _transcriber.TranscribeAsync(media.Value.Bytes, media.Value.MimeType, vocabulary, ct);
+        var transcription = media is null ? Task.FromResult<string?>(null) : _transcriber.TranscribeAsync(media.Value.Bytes, media.Value.MimeType, vocabulary, ct);
+        var prefetch = catalog is null ? null : await LoadVoiceContextAsync(seller, catalog, ct);
+        var text = await transcription;
+        // An amount word the bot cannot read refuses the whole note. The speech model may have misheard it, so a second model (when one is set up)
+        // hears the same audio once; its text is used only if every amount word in it is readable.
+        if (text is not null && media is { } heardAudio && SpokenNumbers.UnknownAmountWords(text).Count > 0)
+        {
+            UnknownNumberWordLog.Record(SpokenNumbers.UnknownAmountWords(text));
+            VoiceStats.Record("second_opinion_asked");
+            var second = await _transcriber.TranscribeSecondOpinionAsync(heardAudio.Bytes, heardAudio.MimeType, vocabulary, ct);
+            if (second is not null && SpokenNumbers.UnknownAmountWords(second).Count == 0)
+            {
+                _logger?.LogInformation("Voice note: the second speech model read every amount word the first one could not");
+                text = second;
+                VoiceStats.Record("second_opinion_used");
+            }
+        }
         var transcribedMs = voiceClock.ElapsedMilliseconds;
+        VoiceStats.Record(text is null ? "transcription_failed" : "note_transcribed");
         if (text is null)
         {
             if (_issues is not null)
@@ -106,6 +176,7 @@ public partial class ConversationEngine
 
         if (messageId is not null) await RememberVoiceNoteAsync(seller, messageId, ct);
         var heard = $"🎤 Maine suna: \"{text}\"";
+        if (_voiceCorrectionOrderId is { } correcting) heard += $"\n{MessageTemplates.Get("voice-confirm.015", correcting)}";
         // Variants (sizes / colours) that the seller says are in a sheet: the voice rewrite keeps only the product, so the variants
         // would be lost. Nothing is saved; the seller sends the file and the import handles the rows.
         if (VariantsInFile.IsMatch(text) && SessionContextData.FromJson(seller.Session!.ContextJson).PendingProductJson is null)
@@ -121,10 +192,10 @@ public partial class ConversationEngine
         _voiceChatRemark = false;
         var decision = joined.All(c => char.IsDigit(c) || c == '+') && IsPlausiblePhone(joined)
             ? TurnDecision.Execute(new[] { joined })
-            : await InterpretVoiceAsync(seller, text, ct);
+            : await InterpretVoiceAsync(seller, text, ct, prefetch);
         // The rewrite left nothing to run while idle ("naya product" said aloud): the intent catalog may still place the sentence.
         if (decision.Steps.Count == 0 && decision.Kind != DecisionKind.Reject && !_voiceChatRemark && seller.Session!.State == ConversationState.Idle
-            && await RouteIntentAsync(text, ct) is { } routed)
+            && await RouteIntentAsync(text, ct, seller) is { } routed)
         {
             _droppedVoiceSteps.Clear();
             // The routed command passes the same amount guard as a rewrite: a figure the seller never said must not be run (the model fills slots).
@@ -132,6 +203,7 @@ public partial class ConversationEngine
                 ? DecideRewrite(text, new[] { routed.Command }, null)
                 : TurnDecision.Clarify(MessageTemplates.Get("intent.howto", routed.Help!));
         }
+        VoiceStats.Record("decision_" + decision.Kind.ToString().ToLowerInvariant());
         if (decision.Kind != DecisionKind.Execute) LogNotUnderstood("voice-" + decision.Kind.ToString().ToLowerInvariant(), seller.Session!.State, text);
         if (decision.Kind != DecisionKind.Execute) await RecordUnplacedAsync(seller, "voice_" + decision.Kind.ToString().ToLowerInvariant(), text, null, null, ct);
         // Steps the AI made up or that do not match the words spoken are not run; the seller is told which ones, so nothing vanishes silently.
@@ -156,15 +228,30 @@ public partial class ConversationEngine
                 await _db.SaveChangesAsync(ct);
                 return;
             }
+            if (await ReaskIndustryAfterUnclearVoiceAsync(fromPhoneNumber, seller, heard, ct)) return;
             await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n❓ {decision.Message}", VoiceFallbackFor(seller).ToList(), ct);
             await _db.SaveChangesAsync(ct);
             return;
         }
         if (decision.Kind == DecisionKind.Reject)
         {
+            if (await ReaskIndustryAfterUnclearVoiceAsync(fromPhoneNumber, seller, heard, ct)) return;
             // Unsafe to run and not safe to offer as choices: say nothing changed. The taps are only safe reads (orders, menu), never an approval.
             await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n{decision.Message}", VoiceFallbackFor(seller), ct);
             await _db.SaveChangesAsync(ct);
+            return;
+        }
+        if (decision.Kind == DecisionKind.Confirm)
+        {
+            // Only an idle, set-up seller can park steps; mid-flow the plain "say it again" is safer than replacing the open question.
+            if (seller.Session!.State != ConversationState.Idle || !seller.OnboardingComplete)
+            {
+                await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n{UnfaithfulQuestion}", VoiceFallbackChoices.ToList(), ct);
+                await _db.SaveChangesAsync(ct);
+                return;
+            }
+            var understood = $"\n➡️ Samjha: {string.Join("  →  ", decision.Steps.Select(s => $"\"{s}\""))}";
+            await ParkVoiceStepsAsync(fromPhoneNumber, seller, decision.Steps, $"{heard}{understood}\n\n{decision.Message}", ct);
             return;
         }
         _logger?.LogInformation("Voice note: download {DownloadMs} ms, vocabulary {VocabularyMs} ms, up to transcript {TranscribedMs} ms, understood {TotalMs} ms (audio {Bytes} bytes, transcript {Words} words, decision {Kind})",
@@ -191,6 +278,9 @@ public partial class ConversationEngine
 
         if (steps.Count != 1 || !string.Equals(steps[0], text, StringComparison.OrdinalIgnoreCase))
             heard += $"\n➡️ Samjha: {string.Join("  →  ", steps.Select(s => $"\"{s}\""))}";
+        if (prefetch is not null)
+            foreach (var (nameHeard, nameMatched) in NameMatches(text, steps, prefetch.CustomerNames.Concat(prefetch.Catalog.Select(c => c.Label))).Take(3))
+                heard += $"\n{MessageTemplates.Get("voice-confirm.020", nameHeard, nameMatched)}";
 
         // Money-changing or hard-to-reverse actions (price edit, cancel, status change...) wait for a YES before anything runs.
         var (safe, risky) = SplitVoiceSteps(seller, steps);
@@ -202,7 +292,7 @@ public partial class ConversationEngine
         }
         if (safe.Count == 0)
         {
-            await ParkVoiceStepsAsync(fromPhoneNumber, seller, risky, heard, ct);
+            await ParkVoiceStepsAsync(fromPhoneNumber, seller, risky, heard, ct, text);
             return;
         }
 
@@ -211,7 +301,7 @@ public partial class ConversationEngine
         var after = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
         if (after.Session!.State == ConversationState.Idle)
         {
-            await ParkVoiceStepsAsync(fromPhoneNumber, after, risky, heard, ct);
+            await ParkVoiceStepsAsync(fromPhoneNumber, after, risky, heard, ct, text);
             return;
         }
         await _sender.SendTextMessageAsync(fromPhoneNumber, $"{heard}\n\n{MessageTemplates.Get("voice-confirm.005")}", ct);
@@ -259,15 +349,85 @@ public partial class ConversationEngine
         RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     /// <summary>The seller's own words (shop, customers, products) given to the speech model so names are heard correctly.</summary>
-    private async Task<List<string>> BuildVoiceVocabularyAsync(Seller seller, CancellationToken ct)
+    private async Task<List<string>> BuildVoiceVocabularyAsync(Seller seller, IReadOnlyList<CatalogEntry> catalog, CancellationToken ct)
     {
         // Bot vocabulary first (the keyword list is capped): "catalog mein add kar dein" was heard as "address mein".
         var names = new List<string> { "catalog", "product", "products", "order", "delivery" };
         if (!string.IsNullOrWhiteSpace(seller.BusinessName)) names.Add(seller.BusinessName);
-        names.AddRange(await _db.Customers.Where(c => c.SellerId == seller.Id && c.DeletedAt == null)
-            .OrderByDescending(c => c.Id).Select(c => c.Name).Take(40).ToListAsync(ct));
-        names.AddRange((await LoadCatalogAsync(seller, ct)).Take(30).Select(c => c.Label));
+        // The speech model takes about 50 keywords and drops the tail, so the order matters: products the seller really sells (most often, then most
+        // recently, from their last 200 orders), then the customers with the latest orders, then the rest of the catalog and the older customers.
+        var sold = await _db.Orders.Where(o => o.SellerId == seller.Id && o.Status != OrderStatus.Cancelled).OrderByDescending(o => o.Id).Take(200)
+            .SelectMany(o => o.Items).Select(i => i.ProductNameSnapshot).ToListAsync(ct);
+        var soldNames = sold.Select((name, index) => (Name: VariantSuffix.Replace(name ?? "", "").Trim(), Index: index)).Where(x => x.Name.Length > 0)
+            .GroupBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(g => g.Count()).ThenBy(g => g.Min(x => x.Index)).Select(g => g.Key).Take(20).ToList();
+        var customerNames = await _db.Customers.Where(c => c.SellerId == seller.Id && c.DeletedAt == null)
+            .OrderByDescending(c => c.Orders.Max(o => (int?)o.Id)).ThenByDescending(c => c.Id).Select(c => c.Name).Take(40).ToListAsync(ct);
+        names.AddRange(soldNames);
+        names.AddRange(customerNames.Take(15));
+        names.AddRange(catalog.Take(30).Select(c => c.Label));
+        names.AddRange(customerNames.Skip(15));
         return names;
+    }
+
+    /// <summary>A variant in brackets at the end of an order line's product name ("Polo Shirt (white)"): the catalog name is the word to listen for.</summary>
+    private static readonly Regex VariantSuffix = new(@"\s*\([^)]*\)\s*$", RegexOptions.Compiled);
+
+    /// <summary>What the voice rewrite needs from the database, read while the speech model is still transcribing.</summary>
+    private sealed record VoiceContextData(
+        IReadOnlyList<CatalogEntry> Catalog, List<Order> Recent, List<string> KnownCustomers, List<MessageLog> LastMessages, List<string> Exchanges, List<string> CustomerNames);
+
+    private async Task<VoiceContextData> LoadVoiceContextAsync(Seller seller, IReadOnlyList<CatalogEntry>? catalog, CancellationToken ct)
+    {
+        catalog ??= await LoadCatalogAsync(seller, ct);
+        var recent = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
+            .Where(o => o.SellerId == seller.Id).OrderByDescending(o => o.Id).Take(5).ToListAsync(ct);
+        // Only the 40 customers with the latest orders are sent to the model: pick them in SQL instead of loading every customer and order.
+        var customerRows = await _db.Customers.Include(c => c.Orders)
+            .Where(c => c.SellerId == seller.Id && c.DeletedAt == null)
+            .OrderByDescending(c => c.Orders.Max(o => (int?)o.Id)).ThenByDescending(c => c.Id).Take(40).ToListAsync(ct);
+        var knownCustomers = customerRows.Select(DescribeCustomerForVoice).ToList();
+        var lastMessages = await _db.MessageLogs.Where(m => m.Phone == seller.WhatsAppPhoneNumber)
+            .OrderByDescending(m => m.Id).Take(6).ToListAsync(ct);
+        var exchanges = lastMessages.AsEnumerable().Reverse()
+            .Select(m => $"{(m.Direction == "outbound" ? "Bot" : "Seller")}: {(m.RawText.Length > 300 ? m.RawText[..300] : m.RawText)}").ToList();
+        return new VoiceContextData(catalog, recent, knownCustomers, lastMessages, exchanges, customerRows.Select(c => c.Name).ToList());
+    }
+
+    /// <summary>
+    /// Saved names (customers, catalog products) that the rewrite uses but the seller did not say as written: the closest words of the transcript are
+    /// the "heard" side of a "heard X, understood Y" note, so a misheard Hussain turned into the saved Hassan is seen before anything runs.
+    /// Latin-script transcripts only (a saved name is Latin; Urdu script would differ every time). Plain text distance, no AI.
+    /// </summary>
+    internal static IReadOnlyList<(string Heard, string Matched)> NameMatches(string transcript, IReadOnlyList<string> steps, IEnumerable<string> names)
+    {
+        var result = new List<(string, string)>();
+        if (string.IsNullOrWhiteSpace(transcript) || Regex.IsMatch(transcript, @"\p{IsArabic}")) return result;
+        var spoken = WordsOf(transcript);
+        var used = WordsOf(string.Join(' ', steps)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var name in names.Where(n => !string.IsNullOrWhiteSpace(n)).Select(n => n.Trim()).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var parts = WordsOf(name);
+            if (name.Length < 4 || parts.Length is 0 or > 3 || !parts.All(used.Contains)) continue;
+            var wanted = string.Join(' ', parts);
+            var heard = Enumerable.Range(0, Math.Max(0, spoken.Length - parts.Length + 1)).Select(i => string.Join(' ', spoken.Skip(i).Take(parts.Length))).ToList();
+            if (heard.Contains(wanted, StringComparer.OrdinalIgnoreCase)) continue;
+            var limit = Math.Max(1, wanted.Length / 3);
+            var near = heard.Select(h => (Text: h, Distance: TextDistance.Levenshtein(h, wanted))).Where(x => x.Distance is > 0 && x.Distance <= limit)
+                .OrderBy(x => x.Distance).FirstOrDefault();
+            if (near.Text is not null) result.Add((near.Text, name));
+        }
+        return result;
+    }
+
+    /// <summary>At the kind-of-shop step an unclear voice note gets the list again (the product-writing help is no use there). True when it did.</summary>
+    private async Task<bool> ReaskIndustryAfterUnclearVoiceAsync(string fromPhoneNumber, Seller seller, string heard, CancellationToken ct)
+    {
+        if (seller.Session!.State != ConversationState.OnboardingIndustry) return false;
+        await _sender.SendTextMessageAsync(fromPhoneNumber, heard, ct);
+        await AskIndustryAsync(seller, null, ct);
+        await _db.SaveChangesAsync(ct);
+        return true;
     }
 
     /// <summary>
@@ -287,6 +447,64 @@ public partial class ConversationEngine
     {
         CommandKind.Help, CommandKind.Menu, CommandKind.OrdersToday, CommandKind.PendingOrders, CommandKind.TodaysSummary, CommandKind.Catalog, CommandKind.UnpaidOrders,
     };
+
+    // Plain, non-risky commands whose typed form is the whole instruction: spoken as digits and a clear sentence, the transcript runs as typed (no rewrite call).
+    private static readonly HashSet<CommandKind> DirectVoiceCommands = new()
+    {
+        CommandKind.Stock, CommandKind.Expense, CommandKind.ExpenseList, CommandKind.MonthlyNet,
+        CommandKind.Profit, CommandKind.DiscountList, CommandKind.OrderDetail, CommandKind.MarkStatus,
+    };
+
+    // States that wait for a yes or no: a bare spoken yes / no there needs no rewrite.
+    private static readonly HashSet<ConversationState> YesNoVoiceStates = new()
+    {
+        ConversationState.AwaitingOrderConfirmation, ConversationState.AwaitingCancelConfirmation, ConversationState.AwaitingBulkStatusConfirmation,
+        ConversationState.AwaitingDuplicateOrderConfirmation, ConversationState.AwaitingCodCollectedConfirmation, ConversationState.AwaitingResetConfirmation,
+        ConversationState.AwaitingDeleteCustomerConfirmation, ConversationState.AwaitingLoyaltyDiscountConfirmation, ConversationState.AwaitingMultiOrderConfirmation,
+        ConversationState.AwaitingSupportReplyConfirmation, ConversationState.AwaitingImportConfirmation, ConversationState.AwaitingVoiceConfirmation,
+    };
+
+    // Everyday ways to say yes / no out loud while the bot waits on one. Whole-phrase matches only: anything longer, hedged or with another word goes to the rewrite.
+    private static readonly HashSet<string> SpokenYes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "haan kar do", "han kar do", "ji kar do", "jee kar do", "haan ji", "han ji", "ji haan", "ji han", "jee haan", "bilkul", "bilkul kar do", "theek hai", "thik hai",
+        "theek hai kar do", "thik hai kar do", "ok kar do", "okay kar do", "kar do", "kardo", "sahi hai", "yes please", "ہاں کر دو", "جی کر دو", "جی ہاں", "ہاں جی", "بالکل",
+        "ٹھیک ہے", "ٹھیک ہے کر دو", "کر دو", "کردو", "صحیح ہے",
+    };
+
+    private static readonly HashSet<string> SpokenNo = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "nahi karo", "nahi kar do", "mat karo", "mat kar do", "nahi ji", "ji nahi", "nahi bilkul nahi", "bilkul nahi", "rehne do", "rahne do", "chhor do", "ruk jao",
+        "نہیں کرو", "نہیں کر دو", "مت کرو", "جی نہیں", "نہیں جی", "بالکل نہیں", "رہنے دو", "چھوڑ دو",
+    };
+
+    /// <summary>The typed "yes" / "no" for a spoken everyday phrase while the bot waits on a yes or no; false for anything else (the rewrite then decides).</summary>
+    internal static bool TryLocalYesNo(ConversationState state, string transcript, out string step)
+    {
+        step = "";
+        if (!YesNoVoiceStates.Contains(state)) return false;
+        var text = Regex.Replace(transcript.Trim().Trim('.', '!', '?', '،', '۔', ' ').ToLowerInvariant(), @"\s+", " ");
+        if (text.Length == 0 || text.Split(' ').Length > 3) return false;
+        if (SpokenYes.Contains(text)) { step = "yes"; return true; }
+        if (SpokenNo.Contains(text)) { step = "no"; return true; }
+        return false;
+    }
+
+    /// <summary>
+    /// True when a transcript can run exactly as typed, skipping the AI rewrite: a short sentence with no hedge, reversal, spoken or retracted amount, that is a bare
+    /// yes / no for a state waiting on one, or parses as a plain non-risky command (stock Kurti 20, expense 500 petrol, delivery 250). Anything else is rewritten.
+    /// </summary>
+    internal static bool CanRunVoiceAsTyped(ConversationState state, string transcript)
+    {
+        var text = transcript.Trim().Trim('.', '!', '?', '،', '۔', ' ');
+        if (text.Length == 0 || text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length > 8) return false;
+        if (YesNoVoiceStates.Contains(state) && (CommandParser.IsAffirmative(text) || CommandParser.IsNegative(text))) return true;
+        if (ReversalWord.IsMatch(text) || HedgeWord.IsMatch(text)) return false;
+        if (SpokenNumbers.WordAmounts(text).Count > 0 || SpokenNumbers.UnknownAmountWords(text).Count > 0
+            || SpokenNumbers.RetractedAmounts(text).Count > 0 || SpokenNumbers.NegatedAmounts(text).Count > 0) return false;
+        if (TurnGate.DecideTyped(text).Kind != DecisionKind.Execute || ActionRisk.IsRiskyStep(text)) return false;
+        return CommandParser.TryParse(text) is { } command && DirectVoiceCommands.Contains(command.Kind);
+    }
 
     private static readonly HashSet<string> SmallTalkWords = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -343,15 +561,44 @@ public partial class ConversationEngine
         return yes ? "yes" : words <= 3 ? "no" : null;
     }
 
-    private async Task<TurnDecision> InterpretVoiceAsync(Seller seller, string transcript, CancellationToken ct)
+    /// <summary>True while the bot shows a numbered list the seller answers with a number (a menu pick, or the "naya product / doosra naam" and similar order questions).</summary>
+    private static bool AwaitsNumberedAnswer(Seller seller)
+    {
+        var state = seller.Session!.State;
+        if (NumberedChoiceStates.Contains(state)) return true;
+        if (state != ConversationState.AwaitingOrderMissingFields) return false;
+        var ctx = SessionContextData.FromJson(seller.Session.ContextJson);
+        return ctx.PendingNewProductName is not null || ctx.PendingMissingField is "ProductChoice" or "VariantChoice" or "PriceChoice" or "DeliveryChoice";
+    }
+
+    private async Task<TurnDecision> InterpretVoiceAsync(Seller seller, string transcript, CancellationToken ct, VoiceContextData? prefetch = null)
     {
         if (NumberedChoiceStates.Contains(seller.Session!.State) && SpokenNumbers.ChoiceNumber(transcript) is { } pick)
             return TurnDecision.Execute(new[] { pick.ToString() });
+        // One new product is waiting for its price and the note is short and names exactly one amount ("price dedh sau rupay"): that amount is the price. It is
+        // read by the same amount reader as typed text and goes through the same price step, so it needs no rewrite that a gate could refuse. A note with a hedge, a
+        // taken-back amount or an unreadable amount word, or a longer sentence (which may be about something else), still goes the normal way.
+        if (seller.Session!.State == ConversationState.Idle
+            && SessionContextData.FromJson(seller.Session.ContextJson).PendingPriceProducts is { Count: 1 }
+            && transcript.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= 6
+            && !HedgeWord.IsMatch(transcript)
+            && SpokenNumbers.RetractedAmounts(transcript).Count == 0 && SpokenNumbers.NegatedAmounts(transcript).Count == 0
+            && SpokenNumbers.UnknownAmountWords(transcript).Count == 0
+            && SpokenNumbers.Amounts(transcript) is { Count: 1 } onlyAmount)
+            return TurnDecision.Execute(new[] { onlyAmount.Single().ToString(System.Globalization.CultureInfo.InvariantCulture) });
         // A greeting or small talk is not an order or a command: say so plainly, and do not let the model invent steps from it.
         if (IsSmallTalkOnly(transcript))
             return TurnDecision.Clarify(MessageTemplates.Get("voice.smalltalk"));
         // A plain read-only command ("orders today", "menu") needs no rewrite: it runs as spoken, the same as a typed one.
         if (CommandParser.TryParse(transcript) is { } readOnly && ReadOnlyVoiceCommands.Contains(readOnly.Kind))
+            return TurnDecision.Execute(new[] { transcript });
+        // A spoken "yeh expense hai" right after a picture is the label for it: it runs as typed, exactly like the typed word, with no rewrite to mishear it.
+        if (SessionContextData.FromJson(seller.Session!.ContextJson) is { PendingPictureMediaIds.Count: > 0 } pictureCtx && pictureCtx.PendingPictureAt is not null
+            && PictureLabels.TryParseReply(transcript, out _))
+            return TurnDecision.Execute(new[] { transcript });
+        if (TryLocalYesNo(seller.Session!.State, transcript, out var yesNoStep))
+            return TurnDecision.Execute(new[] { yesNoStep });
+        if (CanRunVoiceAsTyped(seller.Session!.State, transcript))
             return TurnDecision.Execute(new[] { transcript });
         // "setup mein abhi kya baqi hai?", "ab kya karna hai": a request for the next step is answered with the tip for the current step, as typed.
         if (CommandParser.IsGuidanceRequest(transcript))
@@ -380,34 +627,27 @@ public partial class ConversationEngine
                 _voiceChatRemark = true;
                 return TurnDecision.Clarify(MessageTemplates.Get("voice.smalltalk"));
             }
-            if (kind == "command" && await RouteIntentAsync(transcript, ct) is { } routed)
+            if (kind == "command" && await RouteIntentAsync(transcript, ct, seller) is { } routed)
                 return routed.Command is not null
                     ? DecideRewrite(transcript, new[] { routed.Command }, null)
                     : TurnDecision.Clarify(MessageTemplates.Get("intent.howto", routed.Help!));
         }
         var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
-        var catalog = await LoadCatalogAsync(seller, ct);
-        var recent = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
-            .Where(o => o.SellerId == seller.Id).OrderByDescending(o => o.Id).Take(5).ToListAsync(ct);
-        // Only the 40 customers with the latest orders are sent to the model: pick them in SQL instead of loading every customer and order.
-        var knownCustomers = (await _db.Customers.Include(c => c.Orders)
-            .Where(c => c.SellerId == seller.Id && c.DeletedAt == null)
-            .OrderByDescending(c => c.Orders.Max(o => (int?)o.Id)).ThenByDescending(c => c.Id).Take(40).ToListAsync(ct))
-            .Select(DescribeCustomerForVoice).ToList();
-        var lastMessages = await _db.MessageLogs.Where(m => m.Phone == seller.WhatsAppPhoneNumber)
-            .OrderByDescending(m => m.Id).Take(6).ToListAsync(ct);
-        var exchanges = lastMessages.AsEnumerable().Reverse()
-            .Select(m => $"{(m.Direction == "outbound" ? "Bot" : "Seller")}: {(m.RawText.Length > 300 ? m.RawText[..300] : m.RawText)}").ToList();
+        var (catalog, recent, knownCustomers, lastMessages, exchanges, _) = prefetch ?? await LoadVoiceContextAsync(seller, null, ct);
 
         // A spoken "cancel" while an order draft waits is a cancel, whatever the model would make of it ("kis order ko cancel karna hai?").
         if (ctx.PendingOrder is not null && OpensWithLeavePhrase(transcript.Trim().Trim('.', '!', '?', '،', '۔', ' ')))
             return TurnDecision.Execute(new[] { "cancel" });
 
         var rewriteClock = System.Diagnostics.Stopwatch.StartNew();
+        VoiceStats.Record("rewrite_called");
         var result = await _ai.InterpretVoiceAsync(new AiVoiceContext
         {
             BusinessName = seller.BusinessName ?? "",
-            Situation = DescribeVoiceSituation(seller, ctx),
+            Situation = DescribeVoiceSituation(seller, ctx) + (_voiceCorrectionOrderId is { } fixId
+                ? $" This note is a reply to the seller's previous voice note and corrects the order that note made, Order #{fixId}: " +
+                  $"never create a new order from it; return the steps \"edit order {fixId}\", then the edit lines (price 1 = 1500, qty 1 = 4, remove 2, delivery 250...), then \"done\"."
+                : ""),
             AllowedActions = AllowedVoiceActions(seller, seller.Session!.State).ToList(),
             CatalogNames = VoiceCatalogNames(catalog.Select(c => c.Label).ToList(), transcript),
             RecentOrders = recent.Select(DescribeOrderForVoice).ToList(),
@@ -421,7 +661,7 @@ public partial class ConversationEngine
         {
             // A step must come from the words actually spoken (its span) and carry only amounts said in those words; anything else is dropped.
             var known = KnownVoiceNumbers(recent, catalog, lastMessages.Select(m => m.RawText));
-            result = KeepSpokenSteps(transcript, result, known);
+            result = KeepSpokenSteps(transcript, result, known, AwaitsNumberedAnswer(seller));
             // Every step was dropped and the note asks to see orders: ask today or yesterday instead of refusing the note as unclear.
             if (result.Steps.Count == 0 && _droppedVoiceSteps.Count > 0 && AsksToSeeOrders(transcript))
             {
@@ -442,11 +682,29 @@ public partial class ConversationEngine
             {
                 // Waiting for dates: nothing here is money or an order, and dates legitimately add digits (a day, a year) the seller spoke as words ("yakum", "do hazar chhabees").
                 if (seller.Session!.State == ConversationState.AwaitingCustomDateRange) return TurnDecision.Execute(CorrectMarginQuestion(transcript, CorrectAccountReset(transcript, steps)));
+                // A numbered list is waiting and the model read the spoken answer as one of its numbers ("jee haan, yeh naya product hai" = 1): that is the answer, not an
+                // invented amount. The number picks an option the bot itself offered, so nothing is saved by it that the next question does not still confirm.
+                if (steps.Count == 1 && AwaitsNumberedAnswer(seller) && System.Text.RegularExpressions.Regex.IsMatch(steps[0].Trim(), @"^[1-9]$"))
+                    return TurnDecision.Execute(steps);
                 // A rewrite that changes what was said is not run, and neither is the raw transcript: the seller is asked again.
                 // Reason only (never the transcript text): makes refused rewrites visible in the logs.
                 if (WhyUnfaithful(transcript, string.Join("\n", steps), known) is { } why)
                     _logger?.LogWarning("Voice rewrite refused: {Reason} (risky={Risky})", why, StepsAreRisky(steps));
-                return DecideRewrite(transcript, CorrectMarginQuestion(transcript, CorrectAccountReset(transcript, steps)), known);
+                var whole = DecideRewrite(transcript, CorrectMarginQuestion(transcript, CorrectAccountReset(transcript, steps)), known);
+                // The model picks the spans, so the fallback never trusts them alone: it is closed to a refused (risky) note, to any risky step, and to a
+                // transcript with a hedge, a taken-back or refused amount or an unreadable amount word, all of which the whole-note gate sees and a span can hide.
+                if (whole.Kind is DecisionKind.Clarify or DecisionKind.Confirm && steps.Count == result.Spans.Count
+                    && !HedgeWord.IsMatch(transcript)
+                    && SpokenNumbers.RetractedAmounts(transcript).Count == 0 && SpokenNumbers.NegatedAmounts(transcript).Count == 0
+                    && SpokenNumbers.UnknownAmountWords(transcript).Count == 0
+                    && StepsThatStandOnTheirOwn(transcript, steps, result.Spans, known) is { Keep.Count: > 0 } standing
+                    && !StepsAreRisky(standing.Keep))
+                {
+                    VoiceStats.Record("partial_fallback");
+                    foreach (var step in standing.Dropped) _droppedVoiceSteps.Add((step, "voice-confirm.007"));
+                    return TurnDecision.Execute(CorrectMarginQuestion(transcript, CorrectAccountReset(transcript, standing.Keep)));
+                }
+                return whole;
             }
         }
         // The AI was unavailable: the transcript goes to the deterministic engine, as before, unless it has an amount word the engine cannot read.
@@ -455,6 +713,32 @@ public partial class ConversationEngine
         if (CommandParser.TryParse(transcript) is not null || CommandParser.IsAffirmative(transcript) || CommandParser.IsNegative(transcript))
             return TurnDecision.Execute(new[] { transcript });
         return TurnDecision.Clarify(MessageTemplates.Get("voice.parse", Industry(seller).SimpleProduct));
+    }
+
+    /// <summary>
+    /// A long note with several tasks: when the whole-note check refuses it, each task is checked against its OWN spoken words (its span) instead, so one doubtful
+    /// number does not throw away the others. Tasks that pass run (risky ones still wait for YES); the ones that do not are listed as not done. Applies only when at
+    /// least one task failed on its own (here or in <see cref="KeepSpokenSteps"/>), so a task the model left out entirely (which only the whole-note check can see) never lets a partial note through silently.
+    /// Returns the passing steps, or null when nothing failed individually or nothing passed.
+    /// </summary>
+    internal (List<string> Keep, List<string> Dropped)? StepsThatStandOnTheirOwn(string transcript, IReadOnlyList<string> steps, IReadOnlyList<string> spans, IReadOnlySet<long> known)
+    {
+        var keep = new List<string>();
+        var dropped = new List<string>();
+        var spoken = SpeechWords(transcript);
+        for (var i = 0; i < steps.Count; i++)
+        {
+            var span = spans[i];
+            // The span must be the seller's own words, verbatim: a span the model made up or trimmed proves nothing.
+            var ok = !string.IsNullOrWhiteSpace(span)
+                     && spoken.Contains(SpeechWords(span))
+                     && SpokenNumbers.UnknownAmountWords(span).Count == 0
+                     && WhyUnfaithful(span, steps[i], known) is null;
+            if (ok) keep.Add(steps[i]); else dropped.Add(steps[i]);
+        }
+        // Something must have failed on its own: here, or earlier in KeepSpokenSteps (whose dropped task is why the whole-note amounts no longer add up).
+        if (keep.Count == 0 || (dropped.Count == 0 && _droppedVoiceSteps.Count == 0)) return null;
+        return (keep, dropped);
     }
 
     /// <summary>Steps removed by <see cref="KeepSpokenSteps"/> for the current voice note; shown to the seller with the echo.</summary>
@@ -467,7 +751,7 @@ public partial class ConversationEngine
     /// Keeps the steps whose span is really in the transcript and whose amounts were said inside that span (or are known to the seller's data).
     /// Steps without a span keep the whole-note check. A dropped step is logged with its reason only, never with the transcript text.
     /// </summary>
-    private AiVoiceInterpretation KeepSpokenSteps(string transcript, AiVoiceInterpretation result, IReadOnlySet<long> known)
+    private AiVoiceInterpretation KeepSpokenSteps(string transcript, AiVoiceInterpretation result, IReadOnlySet<long> known, bool listPick = false)
     {
         var keepActions = result.Actions.Count == result.Steps.Count;
         var steps = new List<string>();
@@ -485,7 +769,7 @@ public partial class ConversationEngine
             }
             // A shop-name correction ("meri dukaan ka naam hai ...") is kept with the model's spelling: the name is often written in another script than it was said in.
             var shopNameRename = CommandParser.TryParseShopName(transcript, out _) && CommandParser.TryParseShopName(result.Steps[i], out _);
-            if (!shopNameRename && SpanProblem(transcript, result.Steps[i], span, known) is { } problem)
+            if (!shopNameRename && SpanProblem(transcript, result.Steps[i], span, known, listPick) is { } problem)
             {
                 _logger?.LogWarning("Voice step dropped: {Reason}", problem.Reason);
                 _droppedVoiceSteps.Add((result.Steps[i], problem.Template));
@@ -499,13 +783,15 @@ public partial class ConversationEngine
     }
 
     /// <summary>Why a step with a span must not run; null when it is fine or has no span (the whole-note check applies then).</summary>
-    private static (string Reason, string Template)? SpanProblem(string transcript, string step, string span, IReadOnlySet<long> known)
+    private static (string Reason, string Template)? SpanProblem(string transcript, string step, string span, IReadOnlySet<long> known, bool listPick = false)
     {
         var spoken = SpeechWords(span);
         if (spoken.Trim().Length == 0)
         {
             // A bare list number with no span ("2" for a correction read as a list pick) must have been said as digits.
             if (!System.Text.RegularExpressions.Regex.IsMatch(step.Trim(), @"^\d{1,2}$")) return null;
+            // While a numbered list is on the seller's screen, the model reading an answer in words ("haan, naya product hai") as that list number IS the answer.
+            if (listPick) return null;
             return System.Text.RegularExpressions.Regex.IsMatch(transcript, $@"(?<!\d){step.Trim()}(?!\d)") ? null : ("step number is not in the transcript", "voice-confirm.008");
         }
         if (!SpeechWords(transcript).Contains(spoken))
@@ -610,16 +896,46 @@ public partial class ConversationEngine
     {
         // An amount said with a number word we do not know ("ikhattar hazar") cannot be checked, and the rewrite may have dropped it: nothing runs.
         if (UnknownAmountDecision(transcript, steps) is { } unknownDecision) return unknownDecision;
-        if (WhyUnfaithful(transcript, string.Join("\n", steps), knownNumbers) is null) return TurnDecision.Execute(steps);
-        return StepsAreRisky(steps) ? TurnDecision.Reject(RejectedUnfaithful) : TurnDecision.Clarify(UnfaithfulQuestion);
+        if (WhyUnfaithful(transcript, string.Join("\n", steps), knownNumbers) is not { } why) return TurnDecision.Execute(steps);
+        // A doubt about one named number is said as such. Harmless steps wait for a YES (the seller sees what was understood);
+        // risky ones are still refused. Any other doubt (a refused item, a dropped condition, a hedge) keeps the plain "say it again".
+        // Where the bot has a best guess, it shows it and asks for one tap ("sahi hai?") instead of making the seller say everything again; the button names the
+        // amount or order, so the seller approves the exact command. Two doubts stay a plain "say it again": a rewrite that is empty or a paragraph, and a value the
+        // seller explicitly refused ("teen nahi, do"), which must never come back as the proposal.
+        // A hedged risky step ("shayad order 12 cancel kar dun") is also refused: a hesitant seller must not be nudged into a cancel by a button.
+        if (why is "empty rewrite" or "rewrite too long" || why.Contains("was refused") || (HedgeWord.IsMatch(transcript) && StepsAreRisky(steps)))
+            return StepsAreRisky(steps) ? TurnDecision.Reject(RejectedUnfaithful) : TurnDecision.Clarify(UnfaithfulQuestion);
+        var number = UncheckedNumber(why);
+        return TurnDecision.Confirm(steps, number is null ? MessageTemplates.Get("voice-confirm.030") : MessageTemplates.Get("voice-confirm.014", number));
     }
+
+    private static readonly Regex UncheckedNumberReason = new(@"^(?:spoken amount|amount|count) (\d+) (?:is missing|appears)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    /// <summary>The number a "missing" or "not said" guard reason is about; null for every other reason (including a number the seller refused).</summary>
+    private static string? UncheckedNumber(string reason) =>
+        UncheckedNumberReason.Match(reason) is { Success: true } m ? m.Groups[1].Value : null;
 
     /// <summary>The reply for a note with an amount word the bot cannot read; null when every amount word is known.</summary>
     private static TurnDecision? UnknownAmountDecision(string transcript, IReadOnlyList<string> steps)
     {
         if (SpokenNumbers.UnknownAmountWords(transcript) is not { Count: > 0 } unknown) return null;
+        UnknownNumberWordLog.Record(unknown);
         var question = MessageTemplates.Get("voice-confirm.011", unknown[0]);
-        return StepsAreRisky(steps) ? TurnDecision.Reject(question) : TurnDecision.Clarify(question);
+        if (StepsAreRisky(steps))
+        {
+            // One risky step with ONE amount (a price change, an advance...) and no hedge: the amount word cannot be read by the list, but the seller can read the amount the
+            // bot understood. It is shown with a button that names that amount (YesButtonLabel); nothing runs before the tap. Hedged, several-step or amount-less
+            // risky notes are still refused.
+            if (steps.Count == 1 && !HedgeWord.IsMatch(transcript) && Regex.Matches(steps[0], @"(?<![\d.])\d{3,9}(?![\d.])").Count == 1)
+                return TurnDecision.Confirm(steps, MessageTemplates.Get("voice-confirm.030"));
+            return TurnDecision.Reject(question);
+        }
+        // A harmless step (an expense, a counter sale...) whose rewrite carries an amount: the word list cannot check that amount, but the seller can. The command the
+        // bot understood is shown with a button that names the amount, and nothing runs until the tap, so an unlisted spelling no longer ends in "say it again".
+        // A rewrite with no amount in it (the model may have dropped the unreadable one) is still asked again.
+        if (steps.Count > 0 && steps.All(step => Regex.IsMatch(step, @"\d{2,}")))
+            return TurnDecision.Confirm(steps, MessageTemplates.Get("voice-confirm.030"));
+        return TurnDecision.Clarify(question);
     }
 
     private static bool StepsAreRisky(IEnumerable<string> steps) => steps.Any(ActionRisk.IsRiskyStep);
@@ -733,14 +1049,14 @@ public partial class ConversationEngine
         return null;
     }
 
-    private static readonly Regex HedgeWord = new(@"\b(?:agar|shayad|maybe|perhaps|if|soch\w*|dekh\w*|ruk\w*|wait|hmm+|pata\s+nahi|pata\s+nahin)\b",RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex HedgeWord = new(@"\b(?:agar|shayad|maybe|perhaps|if|soch\w*|dekh\w*|ruk\w*|wait|hmm+|pata\s+nahi|pata\s+nahin)\b|(?<!\p{L})(?:شاید|اگر|سوچ\p{L}*|رک(?:و|نا|یں|یے)?|ہمم+|پتا\s+نہیں|پتہ\s+نہیں)(?!\p{L})",RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     private static readonly Regex BareAffirmation = new(@"^(yes|y|ha|haan|han|hanji|ji|jee|ok|okay|theek hai|thik hai)[.!]*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
-    private static readonly Regex ReversalWord = new(@"(?:\b(?:lekin|magar|par|but|however|nahi|nahin|nahee|mat|na|no|ruk|ruko|rukna|pehle|phir|cancel|agar|shayad|soch|sochta|sochna|sochun|dekhta|dekhti|dekhungi|hmm|hmmm|baad|abhi|wait|if|maybe)\b)|\?|\.\.\.|…", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
-    private static readonly Regex Comparator = new(@"\bse\s+(?:kam|kum|zyada|zyaada|ziada|upar|neeche|less|more)\b|\bton\s+(?:ghatt|ghat|kam|chhota|zyada|vadh|vadha|upar)\b|\b(?:less|more)\s+than\b|\b(?:under|below|above|over|upto|up\s+to)\b|(?:\d|\b(?:hazaar|hazar|hajar|sau|lakh|k)\b)\s+tak\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex ReversalWord = new(@"(?:\b(?:lekin|magar|par|but|however|nahi|nahin|nahee|mat|na|no|ruk|ruko|rukna|pehle|phir|cancel|agar|shayad|soch|sochta|sochna|sochun|dekhta|dekhti|dekhungi|hmm|hmmm|baad|abhi|wait|if|maybe)\b)|(?<!\p{L})(?:لیکن|مگر|پر|نہیں|مت|رک(?:و|نا|یں|یے)?|پہلے|پھر|منسوخ|کینسل|اگر|شاید|سوچ\p{L}*|ہمم+|بعد|ابھی)(?!\p{L})|\?|؟|\.\.\.|…", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex Comparator = new(@"\bse\s+(?:kam|kum|zyada|zyaada|ziada|upar|neeche|less|more)\b|\bton\s+(?:ghatt|ghat|kam|chhota|zyada|vadh|vadha|upar)\b|\b(?:less|more)\s+than\b|\b(?:under|below|above|over|upto|up\s+to)\b|(?:\d|\b(?:hazaar|hazar|hajar|sau|lakh|k)\b)\s+tak\b|سے\s+(?:کم|کمتر|زیادہ|زیادہ|اوپر|نیچے)(?!\p{L})|(?:\d|ہزار|سو|لاکھ)\s*تک(?!\p{L})", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
     private static readonly Regex RewriteComparator = new(@"\b(?:under|below|above|over|less|more|upto|up\s+to|max|maximum|min|minimum|kam|zyada|tak|ghatt|vadh|vadha)\b|<|>|≤|≥", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
-    private static readonly Regex DeliveryWord = new(@"\b(?:delivery|shipping|courier|postage)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
-    private static readonly Regex InclusionWord = new(@"\b(?:including|included|inclusive|incl|shamil)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex DeliveryWord = new(@"\b(?:delivery|shipping|courier|postage)\b|ڈیلیوری|ڈلیوری|شپنگ|کوریئر|کورئیر",RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex InclusionWord = new(@"\b(?:including|included|inclusive|incl|shamil)\b|(?<!\p{L})(?:شامل|انکلوڈ(?:ڈ)?)(?!\p{L})",RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     // A count or index in a rewrite: 1-99 and not an id or index ("1 = 3", "remove 2", "order 12", "#7" are checked against ids and the amount rules instead).
     private static readonly Regex RewriteCount = new(@"(?<![\w#.])(?<!\b(?:remove|item|order|receipt|status|id|number|tracking)\s)(\d{1,2})(?![\w.])(?!\s*=)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
@@ -892,20 +1208,52 @@ public partial class ConversationEngine
             return;
         }
 
+        // A caption naming the type (expense, wages, customer, other) says what the picture is: read it for that type only. "order" continues below.
+        if (PictureLabels.TryParseCaption(caption, out var pictureKind, out var pictureNote) && pictureKind != PictureLabels.Order)
+        {
+            await ApplyPictureLabelAsync(seller, session, ctx, pictureKind, pictureNote, media.Value, ct);
+            await PersistAsync(session, ctx, ct);
+            await RunAutoStepAsync(fromPhoneNumber, ct);
+            return;
+        }
+
+        // The first picture without a type word: once, say how to send a clear one and how to label it, so later pictures arrive readable and named.
+        if (!ctx.PhotoTipShown)
+        {
+            ctx.PhotoTipShown = true;
+            await ReplyAsync(seller, MessageTemplates.Get("voice-confirm.036"), ct);
+        }
+
         // A screenshot starts fresh: any half-finished draft/prompt is dropped.
         ResetFlowContext(ctx);
         SetState(session, ConversationState.Idle);
+        // Without a type word the picture is read as an order or a payment receipt as before, and remembered for a few minutes:
+        // a following "expense" / "wages" / "customer" message (typed or spoken) then labels it.
+        RememberPicture(ctx, mediaId);
 
         var catalog = await LoadCatalogAsync(seller, ct);
         var analysis = await _ai.AnalyzeImageAsync(AiContext(seller, catalog), new AiImageInput(media.Value.Bytes, media.Value.MimeType, caption), ct);
 
         if (analysis.Receipt is { Amount: > 0 } receipt)
             await StartReceiptMatchAsync(seller, session, ctx, receipt, ct);
+        else if (analysis.Order is null && (analysis.AiUnavailable || analysis.Intent is "unclear" or "off_topic"))
+        {
+            // Not an order or a payment receipt: ask what the picture is, with taps, instead of a "samajh nahi aaya". A tap is the type word, and the picture
+            // was remembered above, so it is read as that type.
+            await SendChoicesAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("voice-confirm.029"),
+                PictureTypeChoices.Select(c => new ChoiceOption(c.Label, c.Value)).ToList(), ct);
+        }
         else
             await HandleAnalysisAsync(seller, session, ctx, analysis, catalog, fromScreenshot: true, ct);
 
         await PersistAsync(session, ctx, ct);
     }
+
+    // Each value is a type word PictureLabels understands (a test checks it), so a tap labels the remembered picture.
+    internal static readonly (string Label, string Value)[] PictureTypeChoices =
+    {
+        ("Kharcha (bill)", "expense"), ("Tankhwah", "wages"), ("Customer ki detail", "customer"), ("Products ki list", "products"), ("Order", "order"), ("Kuch nahi", "other"),
+    };
 
     private async Task StartReceiptMatchAsync(Seller seller, ConversationSession session, SessionContextData ctx, AiPaymentReceipt receipt, CancellationToken ct)
     {

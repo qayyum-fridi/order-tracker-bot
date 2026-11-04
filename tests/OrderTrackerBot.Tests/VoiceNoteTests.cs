@@ -45,6 +45,23 @@ public class VoiceNoteTests
         new(new HttpClient(handler), Options.Create(new OpenAiOptions { ApiKey = apiKey, TranscriptionModel = model }), NullLogger<OpenAiAudioTranscriber>.Instance);
 
     [Fact]
+    public async Task SecondOpinion_IsOff_UntilASecondModelIsSet_AndThenAsksThatModel()
+    {
+        var off = new FakeTranscriptionApi(HttpStatusCode.OK, "{\"text\":\"x\"}");
+        Assert.Null(await Transcriber(off).TranscribeSecondOpinionAsync(new byte[] { 1 }, "audio/ogg", null));
+        Assert.Null(off.RequestBody);                       // no call, no cost
+
+        var on = new FakeTranscriptionApi(HttpStatusCode.OK, "{\"text\":\" teen hazar \"}");
+        var second = new OpenAiAudioTranscriber(new HttpClient(on),
+            Options.Create(new OpenAiOptions { ApiKey = "k", TranscriptionModel = "gpt-transcribe", TranscriptionSecondModel = "whisper-1" }),
+            NullLogger<OpenAiAudioTranscriber>.Instance);
+
+        Assert.Equal("teen hazar", await second.TranscribeSecondOpinionAsync(new byte[] { 1 }, "audio/ogg", null));
+        Assert.Contains("whisper-1", on.RequestBody);
+        Assert.DoesNotContain("gpt-transcribe", on.RequestBody);
+    }
+
+    [Fact]
     public async Task Transcriber_Whisper_SendsModelPromptAndOggFile_AndReturnsTrimmedText()
     {
         var api = new FakeTranscriptionApi(HttpStatusCode.OK, "{\"text\":\"  Ayesha 2 lawn suit 03001234567  \"}");
@@ -67,7 +84,7 @@ public class VoiceNoteTests
     {
         var api = new FakeTranscriptionApi(HttpStatusCode.OK, "{\"text\":\"Boski 5000\"}");
 
-        var text = await Transcriber(api, model: "gpt-transcribe").TranscribeAsync(new byte[] { 1 }, "audio/ogg", new[] { "Boski", "Hassan Ali", "boski" });
+        var text = await Transcriber(api, model: "gpt-transcribe").TranscribeAsync(new byte[2500], "audio/ogg", new[] { "Boski", "Hassan Ali", "boski" });
 
         Assert.Equal("Boski 5000", text);
         Assert.Contains("gpt-transcribe", api.RequestBody);
@@ -95,7 +112,7 @@ public class VoiceNoteTests
     {
         var api = new RejectHintsThenAccept();
 
-        var text = await Transcriber(api, model: "gpt-transcribe").TranscribeAsync(new byte[] { 1 }, "audio/ogg", new[] { "Boski" });
+        var text = await Transcriber(api, model: "gpt-transcribe").TranscribeAsync(new byte[2500], "audio/ogg", new[] { "Boski" });
 
         Assert.Equal("theek hai", text);
         Assert.Equal(2, api.Bodies.Count);
@@ -107,6 +124,6 @@ public class VoiceNoteTests
     public async Task Transcriber_WithoutKeyOrOnError_ReturnsNull()
     {
         Assert.False(Transcriber(new FakeTranscriptionApi(HttpStatusCode.OK, "{}"), apiKey: "").IsConfigured);
-        Assert.Null(await Transcriber(new FakeTranscriptionApi(HttpStatusCode.InternalServerError, "oops")).TranscribeAsync(new byte[] { 1 }, "audio/ogg", null));
+        Assert.Null(await Transcriber(new FakeTranscriptionApi(HttpStatusCode.InternalServerError, "oops")).TranscribeAsync(new byte[2500], "audio/ogg", null));
     }
 }

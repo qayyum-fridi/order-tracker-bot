@@ -229,7 +229,7 @@ public class VoiceTranscriptReport(ITestOutputHelper output)
         {
             new VoiceSample("price 3500 kar do", null),
             new VoiceSample("price teen hazar paanch sau", null),
-            new VoiceSample("kurti pachpanx hazar ki", null),            // unknown word before a multiplier -> no amount parsed
+            new VoiceSample("kurti pachpanxx hazar ki", null),            // unknown word before a multiplier -> no amount parsed
             new VoiceSample("kurti hazr ki", null),                       // misspelt multiplier
             new VoiceSample("orders today", null),
             new VoiceSample("order 03001234567 ka price teen sau", "order 03001234567 price 300 3000"), // rewrite invents an extra amount
@@ -239,7 +239,7 @@ public class VoiceTranscriptReport(ITestOutputHelper output)
         Assert.Contains("digits only : 1 (16.7%)", report);
         Assert.Contains("words only  : 2 (33.3%)", report);
         Assert.Contains("hazar", report);
-        Assert.Contains("pachpanx", report);                              // listed before the multiplier
+        Assert.Contains("pachpanxx", report);                              // listed before the multiplier
         Assert.Contains("hazr (looks like hazar)", report);
         Assert.Contains("NO amount parsed: 1", report);
         Assert.Contains("amount 3000 appears in the rewrite but was not said", report);

@@ -17,6 +17,11 @@ public class OpenAiOptions
     public int VoiceFastMaxWords { get; set; } = 8;
     /// <summary>Speech-to-text model for voice notes. whisper-1 / gpt-4o-transcribe are being shut down on 2027-02-26; gpt-transcribe replaces them.</summary>
     public string TranscriptionModel { get; set; } = "gpt-transcribe";
+    /// <summary>
+    /// A different speech model asked once for a second transcript when the first one has a number word the bot cannot read. Empty = off (no extra cost).
+    /// Set it to another model than <see cref="TranscriptionModel"/>, e.g. whisper-1 until it is shut down.
+    /// </summary>
+    public string TranscriptionSecondModel { get; set; } = "";
     /// <summary>ISO 639 language hints sent to gpt-transcribe (the seller speaks Urdu mixed with English). Ignored by whisper-1.</summary>
     public List<string> TranscriptionLanguages { get; set; } = new() { "ur", "en" };
     /// <summary>Style hint for transcription: the language mix and formats sellers use (names, quantities, phone digits).</summary>

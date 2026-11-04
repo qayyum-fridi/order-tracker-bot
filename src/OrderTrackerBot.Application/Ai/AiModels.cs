@@ -80,6 +80,29 @@ public sealed class AiMessageAnalysis
 }
 
 /// <summary>A product the seller named while describing what they sell; the price is null when they did not say it.</summary>
+/// <summary>The AI's reading of a reply to a numbered list: the 1-based option (0 = none) and the exact words of the reply it based that on.</summary>
+/// <summary>What the router is told about THIS seller besides the message: the kind of shop, some of its products, what the bot was doing and the last few messages.</summary>
+public sealed class AiRouteContext
+{
+    public string? ShopType { get; init; }
+    public List<string> ProductNames { get; init; } = new();
+    public string? Situation { get; init; }
+    public List<string> RecentMessages { get; init; } = new();
+}
+
+public sealed class AiChoiceReading
+{
+    public int Option { get; init; }
+    public string Quote { get; init; } = "";
+}
+
+/// <summary>The AI's reading of a reply to a yes / no question: "yes", "no" or "other", plus the exact words of the reply it based that on.</summary>
+public sealed class AiYesNoReading
+{
+    public string Answer { get; init; } = "other";
+    public string Quote { get; init; } = "";
+}
+
 public sealed class AiNewProduct
 {
     public string Name { get; init; } = "";
@@ -90,6 +113,21 @@ public sealed class AiNewProduct
     public int? Stock { get; init; }
     /// <summary>Other facts the seller gave ("fabric" = "cotton", "color" = "white"); empty when none.</summary>
     public Dictionary<string, string> Attributes { get; init; } = new();
+    /// <summary>A price range the seller gave ("X se Y tak"): its low and high end. <see cref="Price"/> stays null, since one listing has one price.</summary>
+    public decimal? PriceLow { get; init; }
+    public decimal? PriceHigh { get; init; }
+    /// <summary>Several colours / sizes the seller named for this one product (variants), each in the seller's own words; each combination becomes a listing.</summary>
+    public List<string> Colors { get; init; } = new();
+    public List<string> Sizes { get; init; } = new();
+    /// <summary>
+    /// For each number above, the exact words the seller used to say it (same spelling and script as in their message), or null. The bot checks that the words really
+    /// are in the message, so a number needs no entry in a word list to be believed, and a number the model made up has no words to show.
+    /// </summary>
+    public string? PriceWords { get; init; }
+    public string? CostWords { get; init; }
+    public string? StockWords { get; init; }
+    public string? PriceLowWords { get; init; }
+    public string? PriceHighWords { get; init; }
 }
 
 /// <summary>A buyer the seller is saving before any order; phone, address and city are null when the seller did not say them.</summary>
@@ -132,12 +170,38 @@ public sealed class AiPaymentReceipt
 
 public sealed record AiImageInput(byte[] Bytes, string MimeType, string? Caption);
 
+/// <summary>What was read off a picture once its type is known. Only the fields of that type are filled: expense = Amount + Note, wages = Name + Amount, customer = Name + Phone + Address + City.</summary>
+public sealed class AiPictureReading
+{
+    public string? Name { get; set; }
+    public decimal? Amount { get; set; }
+    public string? Note { get; set; }
+    public string? Phone { get; set; }
+    public string? Address { get; set; }
+    public string? City { get; set; }
+    /// <summary>For a price list: every item with a clear price (Cost only when the picture shows what it cost).</summary>
+    public List<AiPictureProduct> Products { get; set; } = new();
+}
+
+public sealed class AiPictureProduct
+{
+    public string? Name { get; set; }
+    public decimal? Price { get; set; }
+    public decimal? Cost { get; set; }
+}
+
 public interface IAiOrderAssistant
 {
     Task<AiMessageAnalysis> AnalyzeMessageAsync(AiAnalysisContext context, string message, CancellationToken cancellationToken = default);
 
     /// <summary>Same analysis for a forwarded screenshot (Instagram/TikTok DM order, or a payment receipt).</summary>
     Task<AiMessageAnalysis> AnalyzeImageAsync(AiAnalysisContext context, AiImageInput image, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads a picture the seller labelled as <paramref name="kind"/> ("expense", "wages" or "customer") for that type's fields only; the seller's own words
+    /// (<see cref="AiImageInput.Caption"/>) win over the picture. Null when AI is unavailable or nothing could be read.
+    /// </summary>
+    Task<AiPictureReading?> ReadPictureAsync(string kind, AiImageInput image, CancellationToken cancellationToken = default) => Task.FromResult<AiPictureReading?>(null);
 
     /// <summary>Classifies an IG comment. Returns null when AI is unavailable — callers fall back to keyword rules.</summary>
     Task<AiCommentClassification?> ClassifyCommentAsync(string businessName, string commentText, CancellationToken cancellationToken = default);
@@ -160,6 +224,18 @@ public interface IAiOrderAssistant
     /// </summary>
     Task<bool?> ConfirmCommandMatchAsync(string message, string commandKind, CancellationToken cancellationToken = default) => Task.FromResult<bool?>(null);
 
+    /// <summary>
+    /// The bot asked a yes / no question (<paramref name="situation"/>) and the reply is not one of the plain yes / no words: does it say yes, no, or neither? The model also
+    /// quotes the exact words of the reply that say so; the engine only acts when that quote really is in the message. Null = unknown / no AI.
+    /// </summary>
+    Task<AiYesNoReading?> ReadYesNoWithQuoteAsync(string situation, string message, CancellationToken cancellationToken = default) => Task.FromResult<AiYesNoReading?>(null);
+
+    /// <summary>
+    /// The bot showed a numbered list (<paramref name="options"/>) and the reply is not a number: which option does it mean? 1-based, 0 = none of them / unclear / another request.
+    /// The model also quotes the exact words of the reply it based that on; the engine acts only when the quote is really in the message. Null = unknown / no AI.
+    /// </summary>
+    Task<AiChoiceReading?> ReadChoiceWithQuoteAsync(string situation, IReadOnlyList<string> options, string message, CancellationToken cancellationToken = default) => Task.FromResult<AiChoiceReading?>(null);
+
     /// <summary>A seller once taught that <paramref name="taughtPhrase"/> means a command; they now wrote <paramref name="newPhrase"/>. Do both ask for the same thing? <c>null</c> = unknown / no AI.</summary>
     Task<bool?> ConfirmSamePhraseAsync(string taughtPhrase, string newPhrase, CancellationToken cancellationToken = default) => Task.FromResult<bool?>(null);
 
@@ -167,6 +243,9 @@ public interface IAiOrderAssistant
     /// Picks ONE action from <paramref name="catalog"/> for a message the order reader could not place, and fills its slots from the words said.
     /// Null when AI is unavailable or the answer is unusable. The engine re-checks the id and the slots; the model never writes a command.
     /// </summary>
+    Task<IntentRoute?> RouteIntentWithContextAsync(string message, IReadOnlyList<IntentDefinition> catalog, AiRouteContext context, CancellationToken cancellationToken = default) =>
+        RouteIntentAsync(message, catalog, cancellationToken);
+
     Task<IntentRoute?> RouteIntentAsync(string message, IReadOnlyList<IntentDefinition> catalog, CancellationToken cancellationToken = default) =>
         Task.FromResult<IntentRoute?>(null);
 

@@ -17,9 +17,9 @@ public static class SpokenNumbers
     private static readonly Dictionary<string, decimal> Words = BuildWords();
     private static readonly Dictionary<string, long> Multipliers = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["sau"] = 100, ["so"] = 100, ["hundred"] = 100, ["سو"] = 100,
-        ["hazar"] = 1_000, ["hazaar"] = 1_000, ["hajar"] = 1_000, ["thousand"] = 1_000, ["ہزار"] = 1_000,
-        ["lakh"] = 100_000, ["lac"] = 100_000, ["lakhs"] = 100_000, ["لاکھ"] = 100_000
+        ["sau"] = 100, ["so"] = 100, ["sou"] = 100, ["hundred"] = 100, ["سو"] = 100,
+        ["hazar"] = 1_000, ["hazaar"] = 1_000, ["hajar"] = 1_000, ["hajaar"] = 1_000, ["hazzar"] = 1_000, ["thousand"] = 1_000, ["ہزار"] = 1_000,
+        ["lakh"] = 100_000, ["lac"] = 100_000, ["lakhs"] = 100_000, ["lakkh"] = 100_000, ["لاکھ"] = 100_000
     };
 
     private static Dictionary<string, decimal> BuildWords()
@@ -59,6 +59,9 @@ public static class SpokenNumbers
 
         // Punjabi spellings that differ from Roman Urdu ("dass hazaar", "atth sau", "vee hazaar"). "saath"/"sath" stay 60; "satt" is 7.
         Add(1, "ikk"); Add(2, "dho"); Add(3, "tinn", "tin"); Add(7, "satt"); Add(8, "atth"); Add(10, "dass"); Add(20, "vee", "veeh", "vih"); Add(40, "chali");
+
+        // More spellings the speech model and Punjabi speakers produce. Only forms that cannot be another number or an everyday word.
+        Add(1, "ik"); Add(5, "paanj", "panjj"); Add(6, "chheh", "chhey"); Add(10, "dus", "duss"); Add(12, "baarah"); Add(20, "bis");
 
         // "one and a half / two and a half": dedh sau = 150, dhai hazar = 2500
         Add(1.5m, "dedh", "derh"); Add(2.5m, "dhai", "dhaai");
@@ -162,7 +165,34 @@ public static class SpokenNumbers
 
     private static string Normalize(string text) => ExpandThousands(GroupedDigits.Replace(AsciiDigits(StripMarks(text)), ""));
 
-    private static List<string> Tokens(string text) => Token.Matches(Normalize(text)).Select(m => m.Value).ToList();
+    private static List<string> Tokens(string text) => FuzzyNumberWords(Token.Matches(Normalize(text)).Select(m => m.Value).ToList());
+
+    // Words never corrected by the one-edit match: one letter apart from a number word of another value ("saat" 7 / "saath" 60), or everyday words that sit next to an amount.
+    private static readonly HashSet<string> NeverFuzzy = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "saat", "saath", "sath", "satt", "sati", "sathi", "saathi", "saathy", "sabit", "sirf", "sabse", "bahut", "bohat", "aathwan", "rupay", "rupaye", "rupees", "paise", "paisay",
+    };
+
+    /// <summary>
+    /// A misspelt number word right beside "sau / hazar / lakh" ("ikhatar hazar") is read as the one number word it is a single letter away from.
+    /// Only a Latin word of 5+ letters, only next to a multiplier, and only when every number word one edit away has the same value: a word that could be
+    /// two different numbers ("saat" / "saath"), or no number, stays unknown so the note is refused as before.
+    /// </summary>
+    private static List<string> FuzzyNumberWords(List<string> tokens)
+    {
+        for (var i = 0; i < tokens.Count; i++)
+        {
+            var word = tokens[i];
+            if (word.Length < 5 || !word.All(c => c is >= 'a' and <= 'z' or >= 'A' and <= 'Z')) continue;
+            if (Words.ContainsKey(word) || FractionWords.ContainsKey(word) || Multipliers.ContainsKey(word) || NotAmountWords.Contains(word) || NeverFuzzy.Contains(word)) continue;
+            var nextToMultiplier = (i + 1 < tokens.Count && Multipliers.ContainsKey(tokens[i + 1])) || (i > 0 && Multipliers.ContainsKey(tokens[i - 1]));
+            if (!nextToMultiplier) continue;
+            var lower = word.ToLowerInvariant();
+            var near = Words.Where(w => w.Key.Length >= 4 && w.Key.All(c => c is >= 'a' and <= 'z' or >= 'A' and <= 'Z') && TextDistance.Levenshtein(lower, w.Key) == 1).ToList();
+            if (near.Count > 0 && near.Select(w => w.Value).Distinct().Count() == 1) tokens[i] = near[0].Key.ToLowerInvariant();
+        }
+        return tokens;
+    }
 
     private static List<AmountSpan> DigitSpans(IReadOnlyList<string> tokens)
     {
@@ -414,6 +444,15 @@ public static class SpokenNumbers
         "bola", "boli", "bole", "tha", "thi", "the", "main", "mein", "ne", "bhi", "sirf",
         "نمبر", "والا", "والی", "والے", "میرے", "میری", "میرا", "ہے", "ہیں", "چاہیے", "یہ",
         "بولا", "بولی", "بولے", "تھا", "تھی", "تھے", "میں", "نے", "بھی", "صرف",
+        // "ji number one wala select karte hain / kar do": the polite and the "pick it" words around a pick.
+        "ji", "jee", "select", "karte", "karti", "karein", "karen", "karo", "kijiye", "kijiyega", "kar", "please", "plz", "choose", "chunein", "chun", "lo", "lein",
+        "جی", "سلیکٹ", "کرتے", "کرتی", "کریں", "کرو", "کیجیے", "کیجئے", "کر", "پلیز", "چنیں", "چنیے", "لو", "لیں",
+    };
+
+    // English number words as the speech model writes them in Urdu script ("نمبر ون"). Only read as a pick from a list: in an amount "ون" would be noise.
+    private static readonly Dictionary<string, int> ChoiceUrduScriptEnglish = new()
+    {
+        ["ون"] = 1, ["ٹو"] = 2, ["تھری"] = 3, ["فور"] = 4, ["فائیو"] = 5, ["فائو"] = 5, ["سکس"] = 6, ["سیون"] = 7, ["ایٹ"] = 8, ["نائن"] = 9,
     };
 
     /// <summary>
@@ -423,11 +462,17 @@ public static class SpokenNumbers
     public static int? ChoiceNumber(string text)
     {
         int? pick = null;
+        string? previous = null;
         foreach (var token in Tokens(text))
         {
+            var before = previous;
+            previous = token;
             if (ChoiceFiller.Contains(token)) continue;
+            // "kar do" / "کر دو" is "do it", not the number two.
+            if ((token is "do" or "دو") && (before is "kar" or "کر" or "karo" or "کرو")) continue;
             int? value =
-                Ordinals.TryGetValue(token, out var ordinal) ? ordinal
+                ChoiceUrduScriptEnglish.TryGetValue(token, out var english) ? english
+                : Ordinals.TryGetValue(token, out var ordinal) ? ordinal
                 : int.TryParse(token, NumberStyles.None, CultureInfo.InvariantCulture, out var digit) ? digit
                 : Words.TryGetValue(token, out var word) && word == decimal.Truncate(word) ? (int)word
                 : null;
