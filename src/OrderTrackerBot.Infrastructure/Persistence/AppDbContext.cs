@@ -42,6 +42,7 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<CashMovement> CashMovements => Set<CashMovement>();
     public DbSet<Payout> Payouts => Set<Payout>();
     public DbSet<UnplacedUtterance> UnplacedUtterances => Set<UnplacedUtterance>();
+    public DbSet<UnknownNumberWord> UnknownNumberWords => Set<UnknownNumberWord>();
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -55,6 +56,7 @@ public class AppDbContext : DbContext, IAppDbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<UnplacedUtterance>(e => e.HasIndex(u => u.CreatedAt));
+        modelBuilder.Entity<UnknownNumberWord>(e => { e.HasIndex(w => w.Word).IsUnique(); e.Property(w => w.Word).HasMaxLength(40); });
         modelBuilder.Entity<Seller>(e =>
         {
             e.HasIndex(s => s.WhatsAppPhoneNumber).IsUnique();

@@ -5,6 +5,7 @@ using Xunit;
 namespace OrderTrackerBot.Tests;
 
 // The voice safety gate: a faithful rewrite runs; an unfaithful one asks again, or refuses when it would change money or an order.
+[Collection("UnknownNumberWordLog")]
 public class TurnDecisionTests
 {
     [Fact]

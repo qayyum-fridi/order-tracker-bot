@@ -44,8 +44,13 @@ public class AdminReportsController : ControllerBase
 
     /// <summary>Number words voice notes used that the bot could not read, most frequent first (the word only, no transcript). Counted since the last restart: add real spellings to SpokenNumbers.</summary>
     [HttpGet("reports/unknown-number-words")]
-    public ActionResult<object> UnknownNumberWords() =>
-        Ok(new { sinceRestart = true, words = UnknownNumberWordLog.Snapshot().Select(x => new { word = x.Word, count = x.Count }) });
+    public async Task<ActionResult<object>> UnknownNumberWords(CancellationToken ct) =>
+        Ok(new
+        {
+            sinceRestart = UnknownNumberWordLog.Snapshot().Select(x => new { word = x.Word, count = x.Count }),
+            saved = (await UnknownNumberWordLog.StoredAsync(_db, ct)).Select(x => new { word = x.Word, count = x.Count }),
+            note = "saved = counts kept across restarts (written every scheduler tick); sinceRestart = this process only."
+        });
 
     /// <summary>What happened to voice notes, by outcome (ran as spoken, asked again, refused, too long...), counted since the last restart. Names only, no transcripts.</summary>
     [HttpGet("reports/voice-stats")]

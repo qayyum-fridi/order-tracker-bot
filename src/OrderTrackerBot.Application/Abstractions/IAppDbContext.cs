@@ -38,6 +38,7 @@ public interface IAppDbContext
     DbSet<Payout> Payouts { get; }
     DbSet<UnplacedUtterance> UnplacedUtterances { get; }
     DbSet<StrategyStat> StrategyStats { get; }
+    DbSet<UnknownNumberWord> UnknownNumberWords { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
