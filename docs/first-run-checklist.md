@@ -6,8 +6,8 @@ Time each run from the first "hi" to the sale result. Use a WhatsApp number that
 |---|---|---|---|
 | 1 | Sends `hi`, taps language | Shop name prompt | 5s |
 | 2 | Types the shop name | Shop type taps | 5s |
-| 3 | Taps the shop type (e.g. Kapray / Lawn) | Product example | 5s |
-| 4 | Sends products in one message: `Lawn Suit - 3500, stock 10; Kurti - 1800; Dupatta - 600` | Products saved, count shown | 15s |
+| 3 | Taps the shop type (e.g. Kapray / Lawn) | Setup complete, menu | 5s |
+| 4 | After setup, sends products in one message: `Lawn Suit - 3500, stock 10; Kurti - 1800; Dupatta - 600` | Products saved, count shown | 15s |
 | 5 | Sends a sale: `Ayesha, 1 lawn suit, 03001234567` and taps ✅ Save | Order saved | 15s |
 | 6 | Reads the result (sale total, balance, buttons `mark paid` / `orders today`) | Result shown | 5s |
 

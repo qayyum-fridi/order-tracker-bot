@@ -84,12 +84,6 @@ public partial class ConversationEngine
     }
 
     /// <summary>
-    /// A real order text typed while onboarding is still open ("Ayesha 2 lawn suit aur 1 kurti, 0300-1234567, Lahore, ...").
-    /// Instead of rejecting it, treat it as an implicit "skip" of the rest of setup and hand it to the normal order flow —
-    /// which already saves the customer and walks through adding unmatched products to the catalog.
-    /// <paramref name="requirePhoneHint"/> avoids an AI call on steps where free text is normally something else (business name, city...).
-    /// </summary>
-    /// <summary>
     /// One line is one product, but "Lawn Suit - 3500; Kurti - 1800" may hold several separated by ';'.
     /// A line that parses whole (including "cost 300; stock 10" details) is never split.
     /// </summary>
@@ -112,6 +106,12 @@ public partial class ConversationEngine
             yield return CommandParser.TryParseProductLine(part, out ProductLine? p) ? p : ParseLooseProductLine(part);
     }
 
+    /// <summary>
+    /// A real order text typed while onboarding is still open ("Ayesha 2 lawn suit aur 1 kurti, 0300-1234567, Lahore, ...").
+    /// Instead of rejecting it, treat it as an implicit "skip" of the rest of setup and hand it to the normal order flow —
+    /// which already saves the customer and walks through adding unmatched products to the catalog.
+    /// <paramref name="requirePhoneHint"/> avoids an AI call on steps where free text is normally something else (business name, city...).
+    /// </summary>
     private async Task<bool> TryOrderDuringOnboardingAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message,
         bool requirePhoneHint, CancellationToken ct, OnboardingProbe? probe = null)
     {
