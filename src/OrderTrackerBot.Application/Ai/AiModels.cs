@@ -80,6 +80,13 @@ public sealed class AiMessageAnalysis
 }
 
 /// <summary>A product the seller named while describing what they sell; the price is null when they did not say it.</summary>
+/// <summary>The AI's reading of a reply to a numbered list: the 1-based option (0 = none) and the exact words of the reply it based that on.</summary>
+public sealed class AiChoiceReading
+{
+    public int Option { get; init; }
+    public string Quote { get; init; } = "";
+}
+
 /// <summary>The AI's reading of a reply to a yes / no question: "yes", "no" or "other", plus the exact words of the reply it based that on.</summary>
 public sealed class AiYesNoReading
 {
@@ -213,6 +220,12 @@ public interface IAiOrderAssistant
     /// quotes the exact words of the reply that say so; the engine only acts when that quote really is in the message. Null = unknown / no AI.
     /// </summary>
     Task<AiYesNoReading?> ReadYesNoWithQuoteAsync(string situation, string message, CancellationToken cancellationToken = default) => Task.FromResult<AiYesNoReading?>(null);
+
+    /// <summary>
+    /// The bot showed a numbered list (<paramref name="options"/>) and the reply is not a number: which option does it mean? 1-based, 0 = none of them / unclear / another request.
+    /// The model also quotes the exact words of the reply it based that on; the engine acts only when the quote is really in the message. Null = unknown / no AI.
+    /// </summary>
+    Task<AiChoiceReading?> ReadChoiceWithQuoteAsync(string situation, IReadOnlyList<string> options, string message, CancellationToken cancellationToken = default) => Task.FromResult<AiChoiceReading?>(null);
 
     /// <summary>A seller once taught that <paramref name="taughtPhrase"/> means a command; they now wrote <paramref name="newPhrase"/>. Do both ask for the same thing? <c>null</c> = unknown / no AI.</summary>
     Task<bool?> ConfirmSamePhraseAsync(string taughtPhrase, string newPhrase, CancellationToken cancellationToken = default) => Task.FromResult<bool?>(null);

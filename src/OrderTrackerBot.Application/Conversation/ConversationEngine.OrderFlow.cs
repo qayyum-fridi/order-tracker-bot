@@ -1470,6 +1470,8 @@ public partial class ConversationEngine
         var pick = int.TryParse(message.Trim(), out var typedNumber) && typedNumber >= 1 && typedNumber <= options.Count
             ? typedNumber
             : options.FindIndex(o => string.Equals(o, message.Trim(), StringComparison.OrdinalIgnoreCase)) + 1;
+        // Not a number: "doosra wala" / "status wala" in words. The AI reads which option it means, quoting the words (flag DynamicAnswers); otherwise the old flow below.
+        if (pick < 1 && await TryReadChoiceAsync(DescribeVoiceSituation(seller, ctx), options, message, ct) is { } byMeaning) pick = byMeaning;
         if (pick >= 1)
         {
             ctx.ClarificationOptions = null;

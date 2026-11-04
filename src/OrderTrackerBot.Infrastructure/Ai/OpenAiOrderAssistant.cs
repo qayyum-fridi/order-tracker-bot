@@ -263,6 +263,31 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         }
     }
 
+    public async Task<AiChoiceReading?> ReadChoiceWithQuoteAsync(string situation, IReadOnlyList<string> options, string message, CancellationToken cancellationToken = default)
+    {
+        if (options.Count == 0) return null;
+        var list = string.Join("\n", options.Select((o, i) => $"{i + 1}) {o}"));
+        var json = await CompleteTextAsync(
+            "A WhatsApp order-tracking bot for a small shop owner (the seller) showed the seller a numbered list and the seller replied in words instead of a number. The reply may be in Roman Urdu, " +
+            "Urdu script or English, in any wording or spelling. Decide which ONE option the reply means. " +
+            "Return ONLY JSON {\"option\": <the option number, or 0>, \"quote\": \"<the exact words of the reply that point to it, copied as written>\"}. " +
+            "Use 0 when the reply matches none of the options, matches more than one, is unclear, or is a different request (a new order, a command, a question). " +
+            "The quote must be copied from the reply; never write words that are not in it.",
+            $"What the bot asked: {situation}\nOptions:\n{list}\nSeller's reply: {message}", 0, "choice reading", cancellationToken, jsonMode: true);
+        if (json is null) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var option = doc.RootElement.TryGetProperty("option", out var o) && o.ValueKind == JsonValueKind.Number && o.TryGetInt32(out var n) ? n : -1;
+            var quote = doc.RootElement.TryGetProperty("quote", out var q) && q.ValueKind == JsonValueKind.String ? q.GetString() : null;
+            return option >= 0 && option <= options.Count ? new AiChoiceReading { Option = option, Quote = quote?.Trim() ?? "" } : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     public async Task<string?> ClassifyMidFlowReplyAsync(string situation, string message, CancellationToken cancellationToken = default)
     {
         var json = await CompleteTextAsync(
