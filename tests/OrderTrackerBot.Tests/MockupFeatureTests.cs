@@ -96,16 +96,14 @@ public class MockupFeatureTests : IDisposable
         var engine = IndustryEngine(db);
         foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
-        await engine.HandleIncomingMessageAsync(Phone, "Lahore, Clothing, @ayesha.collections", default);
         Assert.Contains(_sent, m => m.Contains("dukaan kis qism ki hai"));
 
-        // The kind of shop is the last required basic: setup is complete, the city and Instagram given above are kept.
+        // The kind of shop is the last required basic: setup is complete. The city and Instagram are optional and not asked.
         await engine.HandleIncomingMessageAsync(Phone, "clothing", default);
 
         var seller = await db.Sellers.FirstAsync();
-        Assert.Equal("Lahore", seller.City);
+        Assert.Null(seller.City);
         Assert.Equal("Kapray / Lawn / Boutique", seller.BusinessType);
-        Assert.Equal("@ayesha.collections", seller.InstagramHandle);
         Assert.NotNull(seller.TrialEndsAt);
         Assert.Contains(_sent, m => m.Contains("14-din FREE trial"));
     }
@@ -1725,8 +1723,8 @@ public class MockupFeatureTests : IDisposable
     {
         var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, null, _media.Object,
             features: new FeatureOptions { ShortcutButtons = false, IndustryQuestion = true, DynamicAnswers = dynamicAnswers });
-        // The kind of shop is asked after the shop name AND the city step.
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections" })
+        // The kind of shop is asked right after the shop name (the city is optional and not asked).
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         Assert.Contains(_sent, m => m.Contains("dukaan kis qism ki hai"));
         _sent.Clear();
@@ -2273,7 +2271,7 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = IndustryEngine(db);
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "clothing" })
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "clothing" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         _sent.Clear();
 
@@ -2645,17 +2643,13 @@ public class MockupFeatureTests : IDisposable
         await db.SaveChangesAsync();
         var engine = VoiceEngine(db, "سرگودھا کلوتھنگ", features: IndustryFeatures);
         _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "Sargodha", "Clothing" } });
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "Clothing" } });
         _sent.Clear();
 
         await engine.HandleAudioMessageAsync(Phone, "voice-ctx");
 
         seller = await db.Sellers.AsNoTracking().FirstAsync();
-        Assert.Equal("Sargodha", seller.City);
-        Assert.Equal(ConversationState.OnboardingIndustry, (await db.Sessions.AsNoTracking().FirstAsync()).State);
-
-        // The kind of shop is picked from the taps, so the stale value is replaced by the tap.
-        await engine.HandleIncomingMessageAsync(Phone, "clothing", default);
+        // The spoken kind of shop replaces the stale value and completes setup (the city is not asked).
 
         seller = await db.Sellers.AsNoTracking().FirstAsync();
         Assert.Equal("Kapray / Lawn / Boutique", seller.BusinessType);
