@@ -102,6 +102,9 @@ public sealed class SessionContextData
     public Dictionary<string, int>? LearnedVotes { get; set; }
     /// <summary>The name the seller typed when it matched several customers (the list was shown); the next exact name they send is the pick.</summary>
     public string? LastAmbiguousCustomerText { get; set; }
+    /// <summary>The customer the bot last updated for this seller, and when; "wahi" / "uska" points to them for ten minutes (ConversationEngine.Recent.cs).</summary>
+    public int? LastCustomerId { get; set; }
+    public DateTime? LastCustomerAt { get; set; }
     /// <summary>Customer learning (MVP): ambiguous name (normalised) -> the customer id the seller picked by typing the exact name.</summary>
     public Dictionary<string, int>? LearnedCustomerIds { get; set; }
     /// <summary>How many times the seller picked that customer for that name; the pick is used from the second time.</summary>

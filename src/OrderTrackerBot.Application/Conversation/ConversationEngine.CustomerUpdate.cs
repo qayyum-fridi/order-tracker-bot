@@ -17,6 +17,9 @@ public partial class ConversationEngine
         var matches = customers.Where(c => string.Equals(c.Name, wanted, StringComparison.OrdinalIgnoreCase)).ToList();
         if (matches.Count == 0)
             matches = customers.Where(c => c.Name.Contains(wanted, StringComparison.OrdinalIgnoreCase)).ToList();
+        // "wahi ka address …" right after an update of a customer: the customer just handled, for ten minutes.
+        if (RecentCustomerFor(ctx, wanted) is { } recentId && customers.FirstOrDefault(c => c.Id == recentId) is { } recent)
+            matches = new List<Customer> { recent };
 
         if (matches.Count == 0)
         {
@@ -40,6 +43,7 @@ public partial class ConversationEngine
         if (ctx.LastAmbiguousCustomerText is { } ambiguous && string.Equals(customer.Name, wanted, StringComparison.OrdinalIgnoreCase))
             LearnCustomerPick(ctx, ambiguous, customer.Id);
         ctx.LastAmbiguousCustomerText = null;
+        RememberCustomer(ctx, customer.Id);
         var previous = cmd.Text2 switch { "phone" => customer.Phone, "address" => customer.Address, "city" => customer.City, "email" => customer.Email, "group" => customer.PriceGroup, _ => customer.Name };
         _db.ActionLogs.Add(new ActionLog
         {

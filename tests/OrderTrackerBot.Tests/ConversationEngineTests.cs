@@ -593,6 +593,38 @@ public class ConversationEngineTests : IDisposable
         Assert.Contains(_sentMessages, m => m.Contains("Sara Khan") && m.Contains("Sara Ali"));
     }
 
+    // Short memory (MVP): "wahi" points to the customer just updated, for ten minutes only.
+    [Fact]
+    public async Task BackReference_PointsToTheLastUpdatedCustomer_WithinTenMinutes()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var seller = await db.Sellers.FirstAsync();
+        db.Customers.AddRange(
+            new OrderTrackerBot.Domain.Entities.Customer { SellerId = seller.Id, Name = "Sara Khan", Phone = "03001110001" },
+            new OrderTrackerBot.Domain.Entities.Customer { SellerId = seller.Id, Name = "Ali Raza", Phone = "03001110002" });
+        await db.SaveChangesAsync();
+        var clock = new TestClock(new DateTimeOffset(2026, 11, 4, 10, 0, 0, TimeSpan.Zero));
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, catalogSheets: _catalogSheets.Object, clock: clock);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara Khan ka address Model Town", default);
+        await engine.HandleIncomingMessageAsync(Phone, "wahi ka address Gulberg", default);
+        Assert.Equal("Gulberg", (await db.Customers.FirstAsync(c => c.Name == "Sara Khan")).Address);
+        Assert.Null((await db.Customers.FirstAsync(c => c.Name == "Ali Raza")).Address);
+
+        clock.Advance(TimeSpan.FromMinutes(11));
+        await engine.HandleIncomingMessageAsync(Phone, "wahi ka address Lahore", default);
+        Assert.Equal("Gulberg", (await db.Customers.FirstAsync(c => c.Name == "Sara Khan")).Address);
+    }
+
+    private sealed class TestClock : TimeProvider
+    {
+        private DateTimeOffset _now;
+        public TestClock(DateTimeOffset start) => _now = start;
+        public void Advance(TimeSpan by) => _now = _now.Add(by);
+        public override DateTimeOffset GetUtcNow() => _now;
+    }
+
     private async Task<List<int>> SeedTwoPendingOrdersAsync(AppDbContext db)
     {
         var seller = await db.Sellers.FirstAsync();
