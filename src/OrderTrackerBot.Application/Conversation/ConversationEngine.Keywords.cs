@@ -45,7 +45,7 @@ public partial class ConversationEngine
             new[] { "add payment" }),
         ("🌟 Customers / loyalty ke baare mein — aap kya karna chahte hain?",
             new(@"(?<![\p{L}\p{N}])(?:loyal\w*|customers?|گاہک|کسٹمرز?)(?![\p{L}\p{N}])", KeywordOpts),
-            new[] { "loyal customers", "create loyalty" }),
+            new[] { "customer list", "loyal customers", "create loyalty" }),
         ("📈 Sales / profit ke baare mein — aap kya dekhna chahte hain?",
             new(@"(?<![\p{L}\p{N}])(?:profit|munafa|nafa|sales?|summary|منافع|نفع)(?![\p{L}\p{N}])", KeywordOpts),
             new[] { "profit", "monthly net", "orders today" }),
