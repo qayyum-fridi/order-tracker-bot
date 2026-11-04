@@ -413,6 +413,13 @@ public partial class ConversationEngine
                 if (await TrySaveProductDuringOnboardingAsync(seller, session, message, ct)) return;
                 if (await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: true, ct)) return;
                 seller.BusinessName = CommandParser.TryParseShopName(message, out var typedName) ? typedName : message;
+                // Setup needs only the shop name and the kind of shop: the kind comes next (taps) and setup completes on that pick. The city is optional and not asked here.
+                if (_features.IndustryQuestion)
+                {
+                    SetState(session, ConversationState.OnboardingIndustry);
+                    await AskIndustryAsync(seller, null, ct);
+                    return;
+                }
                 // The city comes first, then the kind of shop (taps); the Instagram handle is not asked in the MVP.
                 SetState(session, ConversationState.OnboardingOptionalDetails);
                 // Skip is a tap, not a word to type. A real order sent at any step also ends setup (TryOrderDuringOnboardingAsync), and the seller is told so.

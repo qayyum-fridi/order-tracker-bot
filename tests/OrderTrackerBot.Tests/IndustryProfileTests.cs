@@ -340,10 +340,8 @@ public class IndustryQuestionTests : IDisposable
         var (db, engine, seller) = await StartAsync();
 
         await engine.HandleIncomingMessageAsync(Phone, "Bilal Mart", default);
-        Assert.Equal(ConversationState.OnboardingOptionalDetails, (await db.Sessions.FirstAsync()).State);
+        Assert.Equal(ConversationState.OnboardingIndustry, (await db.Sessions.FirstAsync()).State);
 
-        _sent.Clear();
-        await engine.HandleIncomingMessageAsync(Phone, "Karachi", default);
         var ask = string.Join("\n", _sent);
         Assert.Contains("dukaan kis qism ki hai", ask);
         Assert.Contains("industry grocery", ask);
@@ -389,7 +387,6 @@ public class IndustryQuestionTests : IDisposable
     {
         var (db, engine, seller) = await StartAsync();
         await engine.HandleIncomingMessageAsync(Phone, "Bilal Mart", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Karachi", default);
         _sent.Clear();
         await engine.HandleIncomingMessageAsync(Phone, "xyzzy qqq", default);
         Assert.Contains("samajh nahi aaya", string.Join("\n", _sent));
@@ -402,10 +399,9 @@ public class IndustryQuestionTests : IDisposable
     {
         var (db, engine, seller) = await StartAsync();
         await engine.HandleIncomingMessageAsync(Phone, "Bilal Mart", default);
-        await engine.HandleIncomingMessageAsync(Phone, "Karachi", default);
         await engine.HandleIncomingMessageAsync(Phone, "industry grocery", default);
         var saved = await db.Sellers.FindAsync(seller.Id);
         Assert.Equal("Grocery / Kiryana", saved!.BusinessType);
-        Assert.Equal("Karachi", saved.City);
+        Assert.Null(saved.City); // the city is optional and was never asked
     }
 }
