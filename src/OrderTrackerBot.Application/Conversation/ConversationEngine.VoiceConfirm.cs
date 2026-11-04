@@ -66,6 +66,9 @@ public partial class ConversationEngine
                 _ => plain,
             };
         else label = plain;
+        // Any other single step that names one amount (a price change, an advance): the button shows it, so the tap means having read it.
+        if (label == plain && steps.Count == 1 && !steps[0].Contains('\n') && System.Text.RegularExpressions.Regex.Matches(steps[0], @"(?<![\d.])\d{3,9}(?![\d.])") is { Count: 1 } onlyAmount)
+            label = $"✅ Rs.{onlyAmount[0].Value} karo";
         return label.Length <= 20 ? label : plain;
     }
 

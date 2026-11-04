@@ -8,11 +8,24 @@ namespace OrderTrackerBot.Tests;
 public class TurnDecisionTests
 {
     [Fact]
-    public void AmountWordTheEngineCannotRead_AsksForDigits_AndRunsNothing()
+    public void AmountWordTheEngineCannotRead_OnARiskyStepWithOneAmount_IsShownForATapNamingThatAmount()
     {
         var decision = ConversationEngine.DecideRewrite("Ayesha ko ekhatarr hazar ka order", new[] { "customer Ayesha price 71000" }, null);
 
-        // The price step is risky, so it is refused rather than offered as a choice; either way nothing runs and the reply names the word.
+        // The price step is risky and the word cannot be checked, so nothing runs by itself: the understood step is offered, the button names the amount.
+        Assert.Equal(DecisionKind.Confirm, decision.Kind);
+        Assert.Equal(new[] { "customer Ayesha price 71000" }, decision.Steps);
+        Assert.Equal("✅ Rs.71000 karo", ConversationEngine.YesButtonLabel(decision.Steps));
+    }
+
+    [Theory]
+    [InlineData("shayad Ayesha ko ekhatarr hazar ka order", "customer Ayesha price 71000")]      // a hedge: refused
+    [InlineData("Ayesha ko ekhatarr hazar ka order", "customer Ayesha price 71000\nprice 2 = 500")]  // two steps / two amounts: refused
+    [InlineData("Ayesha ko ekhatarr hazar ka order", "customer Ayesha price")]                  // no amount at all: refused
+    public void AmountWordTheEngineCannotRead_OnARiskyNoteThatIsHedgedOrUnclear_IsStillRefused(string said, string step)
+    {
+        var decision = ConversationEngine.DecideRewrite(said, step.Split('\n'), null);
+
         Assert.Equal(DecisionKind.Reject, decision.Kind);
         Assert.Empty(decision.Steps);
         Assert.Contains("ekhatarr", decision.Message);

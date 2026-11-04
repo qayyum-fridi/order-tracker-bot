@@ -219,6 +219,29 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "ProductReport" => "a sales report for one named product",
             "CustomerSearch" => "finding a saved customer",
             "HowTo" => "asking how to do something with the bot",
+            "Profit" => "showing the shop's profit for a period",
+            "Margin" => "showing the profit margin of products",
+            "CategorySales" => "showing sales per product category",
+            "TodaysSummary" => "a sales summary for a day or a period",
+            "TrendingProducts" => "showing the best-selling / trending products",
+            "SlowMovers" => "showing the slow-moving products",
+            "CustomerList" => "listing the saved customers",
+            "CustomerDetail" => "showing the details of one named customer",
+            "UnpaidOrders" => "listing the unpaid orders",
+            "CodPending" => "listing the cash-on-delivery orders still pending",
+            "PendingOrders" => "listing the pending orders",
+            "ExpenseList" => "listing the recorded expenses",
+            "LossList" => "listing the recorded losses",
+            "WageList" => "listing the recorded wages",
+            "EnquiryReport" => "a report of the buyers' enquiries per product",
+            "MonthlyNet" => "the net result of the month (sales minus expenses)",
+            "DiscountPerformance" => "how the discount codes performed",
+            "LoyalCustomers" => "listing the loyal customers",
+            "CustomerFeedbackList" => "listing the customer feedback",
+            "DiscountList" => "listing the discounts",
+            "TrackingLookup" => "looking up the tracking of an order",
+            "OrderDetail" => "showing one order in full",
+            "CatalogFilter" => "listing or filtering the catalog products",
             _ => commandKind
         };
         var json = await CompleteTextAsync(
@@ -311,7 +334,25 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         }
     }
 
-    public async Task<IntentRoute?> RouteIntentAsync(string message, IReadOnlyList<IntentDefinition> catalog, CancellationToken cancellationToken = default)
+    public Task<IntentRoute?> RouteIntentAsync(string message, IReadOnlyList<IntentDefinition> catalog, CancellationToken cancellationToken = default) =>
+        RouteIntentCoreAsync(message, catalog, null, cancellationToken);
+
+    public Task<IntentRoute?> RouteIntentWithContextAsync(string message, IReadOnlyList<IntentDefinition> catalog, AiRouteContext context, CancellationToken cancellationToken = default) =>
+        RouteIntentCoreAsync(message, catalog, context, cancellationToken);
+
+    private static string RouteUserText(string message, AiRouteContext? context)
+    {
+        if (context is null) return message;
+        var lines = new List<string>();
+        if (!string.IsNullOrWhiteSpace(context.ShopType)) lines.Add($"Kind of shop: {context.ShopType}");
+        if (context.ProductNames.Count > 0) lines.Add($"Some of this shop's products: {string.Join(", ", context.ProductNames)}");
+        if (!string.IsNullOrWhiteSpace(context.Situation)) lines.Add($"What the bot was doing with the seller: {context.Situation}");
+        if (context.RecentMessages.Count > 0) lines.Add("The seller's last messages (oldest first): " + string.Join(" | ", context.RecentMessages));
+        lines.Add($"Message to route: {message}");
+        return string.Join("\n", lines);
+    }
+
+    private async Task<IntentRoute?> RouteIntentCoreAsync(string message, IReadOnlyList<IntentDefinition> catalog, AiRouteContext? context, CancellationToken cancellationToken)
     {
         if (catalog.Count == 0) return null;
         var menu = string.Join("\n", catalog.Select(i =>
@@ -321,8 +362,10 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "You route a message from a small shop owner (Pakistan; Roman Urdu, Urdu script or English; spelling and word order vary) to ONE action from this list:\n" + menu + "\n" +
             "Return ONLY JSON {\"intent\": \"<id from the list, or none>\", \"slots\": {\"<slot name>\": \"<value>\"}, \"confidence\": <0 to 1>}. " +
             "Slot values are the seller's own words (a number as digits). Never invent a name, number or code that is not in the message; leave the slot out when it is not said. " +
-            "Use none for a new order (customer plus items), a question about an existing order, small talk, or anything not in the list. When unsure, use none.",
-            message, 0, "intent routing", cancellationToken, jsonMode: true);
+            "Use none for a new order (customer plus items), a question about an existing order, small talk, or anything not in the list. When unsure, use none." +
+            (context is null ? "" : " The lines before \"Message to route\" describe THIS seller's shop; use them only to understand what the message is about (which kind of work it belongs to, which product it may mean). " +
+                "Never copy a name, number or code from them into a slot: slot values come only from the message itself."),
+            RouteUserText(message, context), 0, "intent routing", cancellationToken, jsonMode: true);
         if (json is null) return null;
 
         try

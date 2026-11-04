@@ -81,6 +81,15 @@ public sealed class AiMessageAnalysis
 
 /// <summary>A product the seller named while describing what they sell; the price is null when they did not say it.</summary>
 /// <summary>The AI's reading of a reply to a numbered list: the 1-based option (0 = none) and the exact words of the reply it based that on.</summary>
+/// <summary>What the router is told about THIS seller besides the message: the kind of shop, some of its products, what the bot was doing and the last few messages.</summary>
+public sealed class AiRouteContext
+{
+    public string? ShopType { get; init; }
+    public List<string> ProductNames { get; init; } = new();
+    public string? Situation { get; init; }
+    public List<string> RecentMessages { get; init; } = new();
+}
+
 public sealed class AiChoiceReading
 {
     public int Option { get; init; }
@@ -234,6 +243,9 @@ public interface IAiOrderAssistant
     /// Picks ONE action from <paramref name="catalog"/> for a message the order reader could not place, and fills its slots from the words said.
     /// Null when AI is unavailable or the answer is unusable. The engine re-checks the id and the slots; the model never writes a command.
     /// </summary>
+    Task<IntentRoute?> RouteIntentWithContextAsync(string message, IReadOnlyList<IntentDefinition> catalog, AiRouteContext context, CancellationToken cancellationToken = default) =>
+        RouteIntentAsync(message, catalog, cancellationToken);
+
     Task<IntentRoute?> RouteIntentAsync(string message, IReadOnlyList<IntentDefinition> catalog, CancellationToken cancellationToken = default) =>
         Task.FromResult<IntentRoute?>(null);
 
