@@ -2365,6 +2365,8 @@ public class MockupFeatureTests : IDisposable
         await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
 
         _ai.Verify(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        // Nothing is placed from a chat remark, so the idle router fallback does not try either (no extra call, no command from a remark).
+        _ai.Verify(a => a.RouteIntentAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<OrderTrackerBot.Application.Intents.IntentDefinition>>(), It.IsAny<CancellationToken>()), Times.Never);
         Assert.Equal(0, await db.Orders.CountAsync());
     }
 
