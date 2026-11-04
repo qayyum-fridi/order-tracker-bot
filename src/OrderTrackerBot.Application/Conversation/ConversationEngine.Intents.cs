@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using OrderTrackerBot.Application.Ai;
 using Microsoft.Extensions.Logging;
 using OrderTrackerBot.Application.Intents;
 using OrderTrackerBot.Application.Templates;
