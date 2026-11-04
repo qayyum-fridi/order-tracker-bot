@@ -249,6 +249,12 @@ public partial class ConversationEngine
             case CommandKind.StaffAdd:
                 await HandleStaffAddAsync(seller, cmd, ct);
                 return;
+            case CommandKind.PhotoImport:
+                await HandlePhotoImportMenuAsync(seller, ct);
+                return;
+            case CommandKind.PhotoKind:
+                await HandlePhotoKindAsync(seller, ctx, cmd.Text!, ct);
+                return;
             case CommandKind.StaffList:
                 await HandleStaffListAsync(seller, ct);
                 return;

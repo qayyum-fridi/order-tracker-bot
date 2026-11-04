@@ -88,6 +88,8 @@ public enum CommandKind
     StaffAdd,
     StaffList,
     StaffRemove,
+    PhotoImport,
+    PhotoKind,
     BuyerEnquiry,
     EnquiryReport,
     ExpenseEdit,
@@ -769,6 +771,19 @@ public static class CommandParser
         if (StaffRemoveCmd.Match(text) is { Success: true } remove)
             return new ParsedCommand { Kind = CommandKind.StaffRemove, Text = remove.Groups["name"].Value.Trim() };
         if (StaffListCmd.IsMatch(text)) return new ParsedCommand { Kind = CommandKind.StaffList };
+        return null;
+    }
+
+    // Photo import: "photo import" (the menu of what to photograph) and "photo customers|products|wages|orders" (Text = the kind).
+    private static readonly Regex PhotoImportCmd = new(@"^(?:📷\s*)?(?:photo|picture|tasveer|تصویر)\s+(?:import|imports|upload)(?:\s+karein)?$", Opts);
+    private static readonly Regex PhotoKindCmd = new(@"^(?:📷\s*)?(?:photo|picture|tasveer|تصویر)\s+(?<k>customers?|products?|catalog|wages?|salary|orders?)$", Opts);
+
+    private static ParsedCommand? TryParsePhoto(string message)
+    {
+        var text = message.Trim();
+        if (PhotoImportCmd.IsMatch(text)) return new ParsedCommand { Kind = CommandKind.PhotoImport };
+        if (PhotoKindCmd.Match(text) is { Success: true } kind)
+            return new ParsedCommand { Kind = CommandKind.PhotoKind, Text = kind.Groups["k"].Value.ToLowerInvariant() };
         return null;
     }
 
@@ -1722,6 +1737,7 @@ public static class CommandParser
                 return new ParsedCommand { Kind = CommandKind.WageList, Text = key };
         }
         if (TryParseStaff(message) is { } staff) return staff;
+        if (TryParsePhoto(message) is { } photo) return photo;
         if (TryParseLossOrWage(message) is { } lossOrWage) return lossOrWage;
         if (TryParseExpenseNatural(message) is { } spent) return spent;
         if (StockList.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Stock };

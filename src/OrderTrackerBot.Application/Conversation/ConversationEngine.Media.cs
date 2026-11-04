@@ -1165,6 +1165,8 @@ public partial class ConversationEngine
         var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
         var session = seller.Session!;
         var ctx = SessionContextData.FromJson(session.ContextJson);
+        // A photo sent after "photo customers" (etc.) is read as that kind, when it has no caption of its own.
+        caption = PhotoCaptionFor(ctx, caption);
 
         if (!seller.OnboardingComplete)
         {

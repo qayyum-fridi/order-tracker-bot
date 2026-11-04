@@ -106,6 +106,9 @@ public sealed class SessionContextData
     public int? LastCustomerId { get; set; }
     public DateTime? LastCustomerAt { get; set; }
     /// <summary>The order the seller last saved or opened, and when; "wahi order" / "uska order" points to it for ten minutes (ConversationEngine.Recent.cs).</summary>
+    /// <summary>Photo import: the kind the seller chose ("customer", "products", "wages", or "order"), and when. The next photo is read as that kind (ten minutes).</summary>
+    public string? PendingPhotoKind { get; set; }
+    public DateTime? PendingPhotoAt { get; set; }
     public int? LastOrderId { get; set; }
     public DateTime? LastOrderAt { get; set; }
     /// <summary>Customer learning (MVP): ambiguous name (normalised) -> the customer id the seller picked by typing the exact name.</summary>
