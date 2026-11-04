@@ -1206,6 +1206,7 @@ public partial class ConversationEngine
     // Variants is the listings the line's name shares (same pack). Product is null when the line names no variant and several exist: nothing is written.
     private async Task<(Product? Product, bool Updated, List<Product> Variants)> UpsertProductAsync(Seller seller, ProductLine line, CancellationToken ct)
     {
+        line = await SplitSellerColourAsync(seller, line, ct);
         var variants = await SameNameListingsAsync(seller, line.Name, line.UnitType, line.UnitQty, ct);
         var (existing, ambiguous) = ProductVariants.MatchListing(variants, line.Extras?.Size, line.Extras?.Color);
         if (ambiguous) return (null, false, variants);
@@ -1225,6 +1226,23 @@ public partial class ConversationEngine
         await _db.SaveChangesAsync(ct);
         SuggestNext("catalog", "menu");
         return (product, false, variants);
+    }
+
+    /// <summary>
+    /// "Foundation laal - 1200": the parser splits a trailing colour only for the few colours its own list knows. A colour THIS seller has already used on a product (their
+    /// own catalog, in any language or script) is split here too, so no colour has to be listed in code. A line whose full name already is a listing is that product and is left
+    /// alone, so nothing that was saved under the longer name is turned into a variant.
+    /// </summary>
+    private async Task<ProductLine> SplitSellerColourAsync(Seller seller, ProductLine line, CancellationToken ct)
+    {
+        if (line.Extras?.Color is not null) return line;
+        var words = line.Name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length < 2 || words[^1].Length < 2 || words[^1].Any(char.IsDigit)) return line;
+        if ((await SameNameListingsAsync(seller, line.Name, line.UnitType, line.UnitQty, ct)).Count > 0) return line;
+        var knownColours = await _db.Products.Where(p => p.SellerId == seller.Id && p.Color != null).Select(p => p.Color!).Distinct().ToListAsync(ct);
+        if (!knownColours.Any(colour => colour.Trim().Equals(words[^1], StringComparison.OrdinalIgnoreCase))) return line;
+        var extras = line.Extras ?? new ProductExtras(null, null, null, null, null, null, null);
+        return line with { Name = string.Join(' ', words[..^1]), Extras = extras with { Color = words[^1] } };
     }
 
     private async Task<List<Product>> SameNameListingsAsync(Seller seller, string name, string unitType, decimal unitQty, CancellationToken ct)

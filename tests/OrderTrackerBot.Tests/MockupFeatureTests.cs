@@ -1674,6 +1674,39 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task ATrailingColour_ThatTheSellerAlreadyUsed_IsSplitOff_WithoutAnyColourListedInCode()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await engine.HandleIncomingMessageAsync(Phone, "Eye laal - 300", default);              // "laal" is not known yet: it stays in the name
+        await engine.HandleIncomingMessageAsync(Phone, "Lipstick - 900, color laal", default);  // the seller names a colour on a product
+        _sent.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "Foundation laal - 1200", default);      // now "laal" is this seller's colour
+        await engine.HandleIncomingMessageAsync(Phone, "Eye laal - 350", default);              // a listing with this exact name already exists
+
+        var foundation = await db.Products.AsNoTracking().SingleAsync(p => p.Name == "Foundation");
+        Assert.Equal(("laal", 1200m), (foundation.Color, foundation.Price));
+        Assert.False(await db.Products.AnyAsync(p => p.Name == "Foundation laal"));
+        var eye = await db.Products.AsNoTracking().SingleAsync(p => p.Name == "Eye laal");
+        Assert.Equal(350m, eye.Price);
+        Assert.Null(eye.Color);
+        Assert.False(await db.Products.AnyAsync(p => p.Name == "Eye"));
+    }
+
+    [Fact]
+    public async Task ATrailingWord_ThatIsNotAColourThisSellerUsed_StaysInTheName()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await engine.HandleIncomingMessageAsync(Phone, "Lipstick - 900, color laal", default);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Foundation neela - 1200", default);
+
+        Assert.True(await db.Products.AnyAsync(p => p.Name == "Foundation neela" && p.Color == null));
+    }
+
+    [Fact]
     public async Task YesInOwnWords_ToTheDraftQuestion_IsReadByTheAi_WhenItQuotesWordsThatAreInTheMessage()
     {
         using var db = _dbFactory.CreateContext();
