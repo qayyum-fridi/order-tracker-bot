@@ -137,8 +137,6 @@ shared-state action: confirm with the user and get SSH/host details first.
   is kept for the seller's next message only if that send fails. The trial-ending reminder still reaches only
   sellers who messaged in the last 24h.
 - EF migrations: one SQL Server baseline (`SqlServerBaseline`, covers the whole model as of PR #62; the old Sqlite-typed `InitialCreate`/`MockupParity`/`InstagramLeadsAndSupportQueries` were replaced). Every "no SQL Server migration yet" note below is now covered by it; new model changes need a new migration, generated with `Database__Provider=SqlServer ASPNETCORE_ENVIRONMENT=Production dotnet ef migrations add <Name> ...` (Sqlite output would carry INTEGER/TEXT types). Check with `dotnet ef migrations has-pending-model-changes` under the same env. Never run against a live SQL Server yet: the script was only generated, not applied.
-- An order naming two unmatched catalog products only walks through add-new/map-existing
-  for the first one.
 - Time zone is Pakistan for every seller: `SellerClock.Resolve` ignores `Seller.TimeZoneId`, and "last N days" cut-offs use
   `SellerClock.DaysAgoUtc` (Pakistan midnight), never `UtcNow.AddDays(-N)`. Keep new report windows on `SellerClock`.
 - Per-product profit and margin: `profit per product` / `product wise profit` (`InsightProductProfitAsync`, topic `productprofit`) rank

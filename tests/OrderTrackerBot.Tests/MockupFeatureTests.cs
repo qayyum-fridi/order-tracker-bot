@@ -341,6 +341,20 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task OrderLookup_ShowsTheOrderDateInSellerTime()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var order = await SaveSaraKurtiOrderAsync(engine, db);
+        var local = OrderTrackerBot.Application.Time.SellerClock.ToLocal(null, order.CreatedAt);
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "Sara ka order", default);
+
+        Assert.Contains(_sent, m => m.Contains("Ordered: ") && m.Contains(local.ToString("dd MMM yyyy")));
+    }
+
+    [Fact]
     public async Task EditOrder_ChangesItemsCustomerAndDelivery_ThenDone_ThenUndoRestoresEverything()
     {
         using var db = _dbFactory.CreateContext();
