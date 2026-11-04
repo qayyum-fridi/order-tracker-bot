@@ -3,5 +3,6 @@
   "photo.002": "👥 Customers ki list ki photo\n\nTips:\n1. Poori list ek photo mein frame ho\n2. Roshni achhi ho, kaghaz seedha ho, dhundla na ho\n3. Naam aur phone number saaf parhe jaa sakein\n4. Ek page = ek photo\n\nAb photo bhejein. Bot list dikhayega; YES likhne tak kuch save nahi hoga.",
   "photo.003": "📦 Products ki price list ki photo\n\nTips:\n1. Naam aur price saaf dikhein\n2. Cost bhi likha ho to woh bhi dikhayein\n3. Ek page = ek photo\n\nAb photo bhejein. Bot list dikhayega; YES likhne tak kuch save nahi hoga.",
   "photo.004": "👷 Tankhwah ki list ki photo\n\nTips:\n1. Naam aur raqam saaf dikhein\n2. Ek page = ek photo\n\nAb photo bhejein. Bot list dikhayega; YES likhne tak kuch save nahi hoga.",
-  "photo.005": "🧾 Order ki screenshot bhejein. Bot draft dikhayega; Save dabane ya likhne tak kuch save nahi hota."
+  "photo.005": "🧾 Order ki screenshot bhejein. Bot draft dikhayega; Save dabane ya likhne tak kuch save nahi hota.",
+  "photo.006": "⚠️ Tasveer se padhi gayi cheezein galat ho sakti hain, khaas kar likhai, naam, phone aur price. YES likhne se pehle list zaroor check karein."
 }

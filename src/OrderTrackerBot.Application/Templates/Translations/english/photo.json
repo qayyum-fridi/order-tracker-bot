@@ -3,5 +3,6 @@
   "photo.002": "👥 Customers list photo\n\nTips:\n1. The whole list is inside the frame\n2. Good light, paper flat, not blurred\n3. Names and phone numbers are clear to read\n4. One page = one photo\n\nNow send the photo. The bot shows the list; nothing is saved until you reply YES.",
   "photo.003": "📦 Products price list photo\n\nTips:\n1. Names and prices are clear\n2. Include the cost if it is written\n3. One page = one photo\n\nNow send the photo. The bot shows the list; nothing is saved until you reply YES.",
   "photo.004": "👷 Wages list photo\n\nTips:\n1. Names and amounts are clear\n2. One page = one photo\n\nNow send the photo. The bot shows the list; nothing is saved until you reply YES.",
-  "photo.005": "🧾 Send the order screenshot. The bot shows a draft; nothing is saved until you press Save."
+  "photo.005": "🧾 Send the order screenshot. The bot shows a draft; nothing is saved until you press Save.",
+  "photo.006": "⚠️ What the bot read from a photo can be wrong, especially handwriting, names, phone numbers and prices. Please check the list before you reply YES."
 }

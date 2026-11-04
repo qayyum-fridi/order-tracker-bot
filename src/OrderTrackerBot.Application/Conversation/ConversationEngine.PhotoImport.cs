@@ -51,14 +51,25 @@ public partial class ConversationEngine
     {
         var chosen = ctx.PendingPhotoKind;
         var at = ctx.PendingPhotoAt;
-        ClearPendingPhoto(ctx);
-        if (!string.IsNullOrWhiteSpace(caption) || chosen is null || at is not { } chosenAt) return caption;
-        return _clock.GetUtcNow().UtcDateTime - chosenAt > PendingPhotoWindow ? caption : chosen;
+        var pages = ctx.PendingPhotoPages;
+        if (!string.IsNullOrWhiteSpace(caption) || chosen is null || at is not { } chosenAt
+            || _clock.GetUtcNow().UtcDateTime - chosenAt > PendingPhotoWindow || pages >= MaxPhotoPagesPerRound)
+        {
+            ClearPendingPhoto(ctx);
+            return caption;
+        }
+        // Several pages of one book: the kind stays for the next photos, up to the round limit; the seller then taps the kind again.
+        ctx.PendingPhotoPages = pages + 1;
+        return chosen;
     }
+
+    /// <summary>Pages read for one chosen kind before the seller must choose the kind again (the YES list holds them together).</summary>
+    private const int MaxPhotoPagesPerRound = 5;
 
     private static void ClearPendingPhoto(SessionContextData ctx)
     {
         ctx.PendingPhotoKind = null;
         ctx.PendingPhotoAt = null;
+        ctx.PendingPhotoPages = 0;
     }
 }

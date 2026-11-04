@@ -156,6 +156,8 @@ public partial class ConversationEngine
         if (failed > 0) text = MessageTemplates.Get("voice-confirm.027", failed) + "\n" + text;
         // What the reports need for an exact result, said where the seller is already looking at the products.
         if (kind == PictureLabels.Products) text += "\n\n" + MessageTemplates.Get("voice-confirm.035");
+        // Every picture read is a machine reading: names, phones and prices can be wrong, so the list is checked before YES.
+        text += "\n\n" + MessageTemplates.Get("photo.006");
         await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, text, new[] { ctx.PendingVoiceYesLabel, NoButtonLabel }, ct);
     }
 
