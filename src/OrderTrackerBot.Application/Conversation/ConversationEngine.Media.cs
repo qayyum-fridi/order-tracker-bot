@@ -194,7 +194,7 @@ public partial class ConversationEngine
             : await InterpretVoiceAsync(seller, text, ct, prefetch);
         // The rewrite left nothing to run while idle ("naya product" said aloud): the intent catalog may still place the sentence.
         if (decision.Steps.Count == 0 && decision.Kind != DecisionKind.Reject && seller.Session!.State == ConversationState.Idle
-            && await RouteIntentAsync(text, ct) is { } routed)
+            && await RouteIntentAsync(text, ct, seller) is { } routed)
         {
             _droppedVoiceSteps.Clear();
             // The routed command passes the same amount guard as a rewrite: a figure the seller never said must not be run (the model fills slots).
@@ -622,7 +622,7 @@ public partial class ConversationEngine
             var kind = await _ai.ClassifyVoiceKindAsync(transcript, ct);
             _logger?.LogInformation("Voice kind: the model read the note as {Kind}", kind ?? "unavailable");
             if (kind == "chat") return TurnDecision.Clarify(MessageTemplates.Get("voice.smalltalk"));
-            if (kind == "command" && await RouteIntentAsync(transcript, ct) is { } routed)
+            if (kind == "command" && await RouteIntentAsync(transcript, ct, seller) is { } routed)
                 return routed.Command is not null
                     ? DecideRewrite(transcript, new[] { routed.Command }, null)
                     : TurnDecision.Clarify(MessageTemplates.Get("intent.howto", routed.Help!));

@@ -745,6 +745,12 @@ public sealed class FeatureOptions
     /// </summary>
     public bool RuleSecondOpinionReports { get; set; }
 
+    /// <summary>
+    /// The intent router is told about THIS seller (kind of shop, some of its products, what the bot was doing, the last messages) besides the message, so it can say what the
+    /// message is about. Off in code (unit tests keep the old call), on in appsettings.
+    /// </summary>
+    public bool RouterContext { get; set; }
+
     /// <summary>Learns how this seller answers the price question and applies the answer they always give without asking (see <c>StrategyPolicy</c>); off = always ask.</summary>
     public bool StrategyLearning { get; set; }
 
