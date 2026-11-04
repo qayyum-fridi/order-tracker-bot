@@ -341,6 +341,20 @@ public class MockupFeatureTests : IDisposable
     }
 
     [Fact]
+    public async Task OrderLookup_ShowsTheOrderDateInSellerTime()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        var order = await SaveSaraKurtiOrderAsync(engine, db);
+        var local = OrderTrackerBot.Application.Time.SellerClock.ToLocal(null, order.CreatedAt);
+
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "Sara ka order", default);
+
+        Assert.Contains(_sent, m => m.Contains("Ordered: ") && m.Contains(local.ToString("dd MMM yyyy")));
+    }
+
+    [Fact]
     public async Task EditOrder_ChangesItemsCustomerAndDelivery_ThenDone_ThenUndoRestoresEverything()
     {
         using var db = _dbFactory.CreateContext();
@@ -977,6 +991,7 @@ public class MockupFeatureTests : IDisposable
     [InlineData("wages Ali 5000", "✅ Rs.5000 dein")]
     [InlineData("cancel order 12", "✅ Order #12 cancel")]
     [InlineData("customer add Sara, Model Town", "✅ Customer save")]
+    [InlineData("customer Ayesha price 71000", "✅ Rs.71000 karo")]           // any other single step with one amount
     [InlineData("expense 123456789012 rent", "✅ Haan, karo")]               // the fact does not fit a 20-character button
     public void YesButton_NamesTheFactWorthReading(string step, string label)
     {
@@ -1463,6 +1478,387 @@ public class MockupFeatureTests : IDisposable
         var polo = await db.Products.AsNoTracking().SingleAsync(p => p.Name == "Polo Shirt");
         Assert.Equal("Shirts", polo.Category);
         Assert.Contains("\"vendor\"", polo.AttributesJson);
+    }
+
+    [Theory]
+    [InlineData("naya product hoodie hai, paintees piece hain, cost paanch sau, price barah sau")]
+    [InlineData("نیا پروڈکٹ ہڈی ہے، پینتیس پیس ہیں، کوسٹ پانچ سو، پرائس بارہ سو")]
+    public async Task NewProduct_NumbersSaidInWords_AreKept_LikeNumbersWrittenInDigits(string spoken)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts = { new AiNewProduct { Name = "Hoodie", Price = 1200, Cost = 500, Stock = 35 } }
+        });
+
+        await engine.HandleIncomingMessageAsync(Phone, spoken, default);
+
+        // With confirmation on the draft is shown first; either way the three numbers must reach the reply or the saved product.
+        var saved = await db.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Name == "Hoodie");
+        if (saved is not null) Assert.Equal((1200m, 500m, 35), (saved.Price, saved.CostPrice!.Value, saved.StockQty!.Value));
+        else Assert.Contains(_sent, m => m.Contains("Hoodie") && m.Contains("1,200") && m.Contains("500") && m.Contains("35"));
+        Assert.DoesNotContain(_sent, m => m.Contains("sale price bata dein") && m.Contains("Hoodie"));
+    }
+
+    [Fact]
+    public async Task NewProduct_WithSeveralColoursAndSizes_BecomesOneListingPerCombination_WithoutSpreadingTheStock()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts = { new AiNewProduct { Name = "Hoodie", Price = 1200, Cost = 500, Stock = 35, Colors = { "red", "blue" }, Sizes = { "small", "large" } } }
+        });
+
+        await engine.HandleIncomingMessageAsync(Phone, "mere paas naya product hai hoodie 1200 ka, cost 500, 35 piece, red blue, small large", default);
+
+        var listings = await db.Products.AsNoTracking().Where(p => p.Name == "Hoodie").ToListAsync();
+        Assert.Equal(new[] { "blue/large", "blue/small", "red/large", "red/small" }, listings.Select(p => $"{p.Color}/{p.Size}").OrderBy(x => x).ToArray());
+        Assert.All(listings, p => Assert.Equal((1200m, 500m), (p.Price, p.CostPrice!.Value)));
+        // The 35 belonged to one of the four; the bot cannot tell which, so none of them gets it.
+        Assert.All(listings, p => Assert.Null(p.StockQty));
+    }
+
+    [Fact]
+    public async Task NewProduct_PriceRange_AsksForOnePrice_AndKeepsTheVariantsUntilItArrives()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts = { new AiNewProduct { Name = "Jacket", PriceLow = 1200, PriceHigh = 1700, Colors = { "red", "blue" } } }
+        });
+
+        await engine.HandleIncomingMessageAsync(Phone, "mere paas naya product hai jacket, 1200 se 1700 tak, red blue", default);
+
+        Assert.False(await db.Products.AnyAsync(p => p.Name == "Jacket"));
+        Assert.Contains(_sent, m => m.Contains("Jacket") && m.Contains("Rs.1,200") && m.Contains("Rs.1,700") && m.Contains("ek price"));
+
+        // The seller picks one price: both colours are created with it.
+        await engine.HandleIncomingMessageAsync(Phone, "1200", default);
+        var listings = await db.Products.AsNoTracking().Where(p => p.Name == "Jacket").ToListAsync();
+        Assert.Equal(new[] { "blue", "red" }, listings.Select(p => p.Color!).OrderBy(x => x).ToArray());
+        Assert.All(listings, p => Assert.Equal(1200m, p.Price));
+    }
+
+    [Fact]
+    public async Task NewProduct_ColourOrSizeThatWasNotSaid_IsNotMadeUp()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts = { new AiNewProduct { Name = "Scarf", Price = 400, Colors = { "green", "black" }, Sizes = { "xl", "xxl" } } }
+        });
+
+        await engine.HandleIncomingMessageAsync(Phone, "mere paas naya product hai scarf 400 ka", default);
+
+        var listings = await db.Products.AsNoTracking().Where(p => p.Name == "Scarf").ToListAsync();
+        Assert.Single(listings);
+        Assert.Null(listings[0].Color);
+        Assert.Null(listings[0].Size);
+    }
+
+    [Fact]
+    public async Task NewProduct_CostOrStockTheSellerNeverSaid_IsNotSaved_AndTheSellerIsToldInsteadOfSilence()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts = { new AiNewProduct { Name = "Muffler", Price = 300, Cost = 777, Stock = 9999 } }
+        });
+
+        await engine.HandleIncomingMessageAsync(Phone, "mere paas naya product hai muffler 300 ka", default);
+
+        var muffler = await db.Products.AsNoTracking().SingleAsync(p => p.Name == "Muffler");
+        Assert.Null(muffler.CostPrice);
+        Assert.Null(muffler.StockQty);
+        Assert.Contains(_sent, m => m.Contains("Muffler ki cost") && !m.Contains("777"));
+        Assert.Contains(_sent, m => m.Contains("Muffler ki stock") && !m.Contains("9999"));
+    }
+
+    [Fact]
+    public async Task NewProduct_NumberInAnUnlistedSpelling_IsBelieved_WhenTheModelQuotesWordsThatAreInTheMessage()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts = { new AiNewProduct { Name = "Coat", Price = 900, PriceWords = "nau sooo", Cost = 500, CostWords = "panch sarpe" } }
+        });
+
+        await engine.HandleIncomingMessageAsync(Phone, "mere paas naya product hai coat nau sooo ka, cost panch sarpe", default);
+
+        var coat = await db.Products.AsNoTracking().SingleAsync(p => p.Name == "Coat");
+        Assert.Equal((900m, 500m), (coat.Price, coat.CostPrice!.Value));
+    }
+
+    [Theory]
+    [InlineData("mere paas naya product hai coat ka", "nau sau")]            // the quoted words were never said
+    [InlineData("mere paas naya product hai coat 500 ka", "500 ka")]         // the quoted words name another amount than 900
+    [InlineData("mere paas naya product hai coat ka", null)]                 // no words to show
+    public async Task NewProduct_NumberWithNoRealWordsBehindIt_IsNotBelieved_AndThePriceIsAskedFor(string said, string? words)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "add_products",
+            NewProducts = { new AiNewProduct { Name = "Coat", Price = 900, PriceWords = words } }
+        });
+
+        await engine.HandleIncomingMessageAsync(Phone, said, default);
+
+        Assert.False(await db.Products.AnyAsync(p => p.Name == "Coat"));
+        Assert.Contains(_sent, m => m.Contains("Coat") && m.Contains("sale price bata dein"));
+    }
+
+    [Fact]
+    public async Task VoiceAnswer_ToANumberedProductQuestion_IsTheListNumber_EvenWhenNoDigitWasSpoken()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(new AiMessageAnalysis
+        {
+            Intent = "new_order",
+            IsOrderAttempt = true,
+            Order = new AiOrderDraft { CustomerName = "Ali", Phone = "03001234567", Items = { new AiOrderItemDraft { ProductName = "Shampoo", Quantity = 1 } } }
+        });
+        await engine.HandleIncomingMessageAsync(Phone, "Ali ka order shampoo 1 03001234567", default);
+        Assert.Contains(_sent, m => m.Contains("catalog mein nahi mila"));
+        _sent.Clear();
+
+        _media.Setup(m => m.DownloadAsync("voice-pick", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[2500], "audio/ogg"));
+        var transcriber = new Mock<IAudioTranscriber>();
+        transcriber.SetupGet(t => t.IsConfigured).Returns(true);
+        transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("jee haan yeh naya product hai to yeh add kar lein catalog mein");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation { Steps = { "1" }, Actions = { "choose" } });
+        var voice = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object);
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-pick", "wamid.pick");
+
+        Assert.DoesNotContain(_sent, m => m.Contains("kuch nahi chalaya"));
+        Assert.Contains(_sent, m => m.Contains("Shampoo") && m.Contains("price"));
+    }
+
+    [Theory]
+    [InlineData("price dedh sau rupay", 150)]
+    [InlineData("پرائزز ڈیڑھ سو روپے۔", 150)]
+    [InlineData("teen hazar paanch sau", 3500)]
+    public async Task VoiceNote_WithOneAmount_AnswersTheWaitingNewProductsPrice_WithoutNeedingTheRewrite(string spoken, int price)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "add_products", NewProducts = { new AiNewProduct { Name = "Shampoo" } } });
+        await engine.HandleIncomingMessageAsync(Phone, "mere paas naya product hai shampoo", default);
+        Assert.Contains(_sent, m => m.Contains("ki price bhejein"));
+
+        _media.Setup(m => m.DownloadAsync("voice-price", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[2500], "audio/ogg"));
+        var transcriber = new Mock<IAudioTranscriber>();
+        transcriber.SetupGet(t => t.IsConfigured).Returns(true);
+        transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>())).ReturnsAsync(spoken);
+        // The rewrite would have been useless here; the price must not depend on it.
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation());
+        var voice = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: _media.Object, transcriber: transcriber.Object);
+
+        await voice.HandleAudioMessageAsync(Phone, "voice-price", "wamid.price");
+
+        Assert.Equal(price, (await db.Products.AsNoTracking().SingleAsync(p => p.Name == "Shampoo")).Price);
+    }
+
+    private async Task<ConversationEngine> DraftWaitingForYesAsync(AppDbContext db, bool dynamicAnswers)
+    {
+        await OnboardAsync(db);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, features: new FeatureOptions { DynamicAnswers = dynamicAnswers });
+        AiReturns(Order("Ali", "Kurti", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Ali ka order kurti 1 03001234567", default);
+        Assert.Equal(0, await db.Orders.CountAsync());   // a draft is waiting for the answer
+        return engine;
+    }
+
+    [Fact]
+    public async Task ATrailingColour_ThatTheSellerAlreadyUsed_IsSplitOff_WithoutAnyColourListedInCode()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await engine.HandleIncomingMessageAsync(Phone, "Eye laal - 300", default);              // "laal" is not known yet: it stays in the name
+        await engine.HandleIncomingMessageAsync(Phone, "Lipstick - 900, color laal", default);  // the seller names a colour on a product
+        _sent.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "Foundation laal - 1200", default);      // now "laal" is this seller's colour
+        await engine.HandleIncomingMessageAsync(Phone, "Eye laal - 350", default);              // a listing with this exact name already exists
+
+        var foundation = await db.Products.AsNoTracking().SingleAsync(p => p.Name == "Foundation");
+        Assert.Equal(("laal", 1200m), (foundation.Color, foundation.Price));
+        Assert.False(await db.Products.AnyAsync(p => p.Name == "Foundation laal"));
+        var eye = await db.Products.AsNoTracking().SingleAsync(p => p.Name == "Eye laal");
+        Assert.Equal(350m, eye.Price);
+        Assert.Null(eye.Color);
+        Assert.False(await db.Products.AnyAsync(p => p.Name == "Eye"));
+    }
+
+    [Fact]
+    public async Task ATrailingWord_ThatIsNotAColourThisSellerUsed_StaysInTheName()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        await engine.HandleIncomingMessageAsync(Phone, "Lipstick - 900, color laal", default);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Foundation neela - 1200", default);
+
+        Assert.True(await db.Products.AnyAsync(p => p.Name == "Foundation neela" && p.Color == null));
+    }
+
+    private async Task<ConversationEngine> AtTheShopTypeQuestionAsync(AppDbContext db, bool dynamicAnswers)
+    {
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, null, _media.Object,
+            features: new FeatureOptions { ShortcutButtons = false, IndustryQuestion = true, DynamicAnswers = dynamicAnswers });
+        // The kind of shop is asked after the shop name AND the city step.
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections" })
+            await engine.HandleIncomingMessageAsync(Phone, m, default);
+        Assert.Contains(_sent, m => m.Contains("dukaan kis qism ki hai"));
+        _sent.Clear();
+        AiReturns(new AiMessageAnalysis { Intent = "unclear" });
+        return engine;
+    }
+
+    [Theory]
+    [InlineData("qalam")]
+    [InlineData("qalam dawaat aur kaghaz bechta hoon")]
+    public async Task ShopTypeInWords_MatchingNoAlias_IsReadByTheAi_WhenItQuotesWordsThatAreInTheMessage(string said)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await AtTheShopTypeQuestionAsync(db, dynamicAnswers: true);
+        _ai.Setup(a => a.ReadChoiceWithQuoteAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiChoiceReading { Option = 2, Quote = "qalam" });
+
+        await engine.HandleIncomingMessageAsync(Phone, said, default);
+
+        var seller = await db.Sellers.AsNoTracking().FirstAsync();
+        Assert.True(seller.OnboardingComplete);
+        Assert.Equal(IndustryProfiles.All.Append(IndustryProfiles.General).ElementAt(1).Title, seller.BusinessType);
+    }
+
+    [Theory]
+    [InlineData(2, "ghadi")]     // the quoted words are not in the message
+    [InlineData(0, "qalam")]     // the AI says none of them
+    [InlineData(9, "qalam")]     // not an option of the list
+    public async Task ShopTypeInWords_IsNotChosen_WithoutRealProof(int option, string quote)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await AtTheShopTypeQuestionAsync(db, dynamicAnswers: true);
+        _ai.Setup(a => a.ReadChoiceWithQuoteAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiChoiceReading { Option = option, Quote = quote });
+
+        await engine.HandleIncomingMessageAsync(Phone, "qalam dawaat aur kaghaz bechta hoon", default);
+
+        // Not chosen: setup is not finished and the list is shown again.
+        Assert.False((await db.Sellers.AsNoTracking().FirstAsync()).OnboardingComplete);
+        Assert.NotEmpty(_sent);
+    }
+
+    [Fact]
+    public async Task ShopTypeInWords_DoesNotCallTheAi_WhenTheFlagIsOff()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await AtTheShopTypeQuestionAsync(db, dynamicAnswers: false);
+
+        await engine.HandleIncomingMessageAsync(Phone, "qalam dawaat aur kaghaz bechta hoon", default);
+
+        _ai.Verify(a => a.ReadChoiceWithQuoteAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.False((await db.Sellers.AsNoTracking().FirstAsync()).OnboardingComplete);
+    }
+
+    [Theory]
+    [InlineData(true, false)]    // flag on, the AI says it fits: the report runs
+    [InlineData(true, true)]     // flag on, the AI says it does not fit: the sentence goes to the order reader
+    [InlineData(false, true)]    // flag off: the rule is never second-guessed
+    public async Task AReportRuleMatch_OnASentence_IsCheckedByTheAi_OnlyWhenTheFlagIsOn(bool flag, bool aiSaysNoFit)
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, features: new FeatureOptions { RuleSecondOpinionReports = flag });
+        AiReturns(new AiMessageAnalysis { Intent = "unclear" });
+        _ai.Setup(a => a.ConfirmCommandMatchAsync(It.IsAny<string>(), "Profit", It.IsAny<CancellationToken>())).ReturnsAsync(!aiSaysNoFit);
+
+        await engine.HandleIncomingMessageAsync(Phone, "profit last month", default);          // 3 words, a Profit report by rule
+
+        var checkedByAi = flag ? Times.Once() : Times.Never();
+        _ai.Verify(a => a.ConfirmCommandMatchAsync("profit last month", "Profit", It.IsAny<CancellationToken>()), checkedByAi);
+        // Sent to the order reader only when the flag is on AND the AI said it does not fit.
+        var toReader = flag && aiSaysNoFit ? Times.Once() : Times.Never();
+        _ai.Verify(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), "profit last month", It.IsAny<CancellationToken>()), toReader);
+    }
+
+    [Fact]
+    public async Task YesInOwnWords_ToTheDraftQuestion_IsReadByTheAi_WhenItQuotesWordsThatAreInTheMessage()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await DraftWaitingForYesAsync(db, dynamicAnswers: true);
+        _ai.Setup(a => a.ReadYesNoWithQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiYesNoReading { Answer = "yes", Quote = "bilkul sahi" });
+
+        await engine.HandleIncomingMessageAsync(Phone, "jee bilkul sahi hai", default);
+
+        Assert.Equal(1, await db.Orders.CountAsync());
+    }
+
+    [Theory]
+    [InlineData("yes", "zaroor zaroor")]     // the quoted words are not in the message
+    [InlineData("other", "bilkul sahi")]     // the AI does not read it as a yes
+    [InlineData("no", "bilkul sahi")]        // a no never saves
+    public async Task YesInOwnWords_IsNotActedOn_WithoutRealProof(string answer, string quote)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await DraftWaitingForYesAsync(db, dynamicAnswers: true);
+        _ai.Setup(a => a.ReadYesNoWithQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiYesNoReading { Answer = answer, Quote = quote });
+
+        await engine.HandleIncomingMessageAsync(Phone, "jee bilkul sahi hai", default);
+
+        Assert.Equal(0, await db.Orders.CountAsync());
+    }
+
+    [Fact]
+    public async Task YesInOwnWords_DoesNothingNew_WhenTheFlagIsOff()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await DraftWaitingForYesAsync(db, dynamicAnswers: false);
+        _ai.Setup(a => a.ReadYesNoWithQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiYesNoReading { Answer = "yes", Quote = "bilkul sahi" });
+
+        await engine.HandleIncomingMessageAsync(Phone, "jee bilkul sahi hai", default);
+
+        Assert.Equal(0, await db.Orders.CountAsync());
+        _ai.Verify(a => a.ReadYesNoWithQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DynamicYesNo_NeverAppliesToACancelQuestion()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await DraftWaitingForYesAsync(db, dynamicAnswers: true);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);          // order #1 saved
+        _ai.Setup(a => a.ReadYesNoWithQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiYesNoReading { Answer = "yes", Quote = "bilkul sahi" });
+        await engine.HandleIncomingMessageAsync(Phone, "cancel 1", default);     // asks to confirm the cancel
+
+        await engine.HandleIncomingMessageAsync(Phone, "jee bilkul sahi hai", default);
+
+        Assert.NotEqual(OrderStatus.Cancelled, (await db.Orders.AsNoTracking().SingleAsync()).Status);
+        _ai.Verify(a => a.ReadYesNoWithQuoteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Theory]
@@ -1983,6 +2379,8 @@ public class MockupFeatureTests : IDisposable
         await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
 
         _ai.Verify(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        // Nothing is placed from a chat remark, so the idle router fallback does not try either (no extra call, no command from a remark).
+        _ai.Verify(a => a.RouteIntentAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<OrderTrackerBot.Application.Intents.IntentDefinition>>(), It.IsAny<CancellationToken>()), Times.Never);
         Assert.Equal(0, await db.Orders.CountAsync());
     }
 

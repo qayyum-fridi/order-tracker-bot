@@ -54,6 +54,8 @@
   "commands.052": "🔎 These products will be saved like this:\n{0}\n\nIf it is correct, press ✅ Save or type \"yes\". If it is wrong, press ❌ Cancel and write the correct details again.",
   "commands.053": "📄 No product has been saved yet. For products whose variants (size / colour) are in an Excel file, send that file — one variant per row, with columns: Name, Size, Colour, Price, Cost, Stock, Category. I will import the file and show a summary; it is saved after YES.",
   "commands.054": "📄 The variants are in an Excel file — send the file: one variant per row (Name, Size, Colour, Price, Cost, Stock, Category). Press ✅ Save or type \"yes\" for the product above; the variants will be imported from the file.",
+  "commands.055": "ℹ️ {0}: you said {1} to {2}. A listing has one price, so please send one price; you can change the price of each size or colour separately afterwards.",
+  "commands.056": "ℹ️ I could not make out the {1} of {0} clearly, so I did not save it. Please send it in writing, like: {2}",
   "commands2.001": "⚠️ Confirm cancelling Order #{0} ({1}, {2})?\nReply YES to cancel.",
   "commands2.002": "Okay, not cancelled.",
   "commands2.003": "✅ Order #{0} CANCELLED.",

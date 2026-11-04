@@ -84,6 +84,29 @@ public partial class ConversationEngine
     }
 
     /// <summary>
+    /// One line is one product, but "Lawn Suit - 3500; Kurti - 1800" may hold several separated by ';'.
+    /// A line that parses whole (including "cost 300; stock 10" details) is never split.
+    /// </summary>
+    private static IEnumerable<ProductLine?> ExpandProductLine(string line)
+    {
+        if (CommandParser.TryParseProductLine(line, out ProductLine? whole))
+        {
+            yield return whole;
+            yield break;
+        }
+
+        var parts = line.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length < 2)
+        {
+            yield return ParseLooseProductLine(line);
+            yield break;
+        }
+
+        foreach (var part in parts)
+            yield return CommandParser.TryParseProductLine(part, out ProductLine? p) ? p : ParseLooseProductLine(part);
+    }
+
+    /// <summary>
     /// A real order text typed while onboarding is still open ("Ayesha 2 lawn suit aur 1 kurti, 0300-1234567, Lahore, ...").
     /// Instead of rejecting it, treat it as an implicit "skip" of the rest of setup and hand it to the normal order flow —
     /// which already saves the customer and walks through adding unmatched products to the catalog.
@@ -240,13 +263,14 @@ public partial class ConversationEngine
     }
 
     /// <summary>Ends setup: the free trial starts, the seller is idle and gets the menu and the guide offer. "done" / "skip", or a real command once a product is saved.</summary>
-    private async Task CompleteSetupAsync(Seller seller, ConversationSession session, bool skipped, CancellationToken ct)
+    private async Task CompleteSetupAsync(Seller seller, ConversationSession session, bool skipped, CancellationToken ct, string? shopType = null)
     {
         seller.OnboardingComplete = true;
         StartTrial(seller);
         SetState(session, ConversationState.Idle);
+        // Picking the kind of shop ends setup: say which one was set, so a tap or a spoken number visibly "took".
         var reply = skipped
-            ? MessageTemplates.Get("onboarding.024", TrialStartedText(seller))
+            ? (shopType is null ? MessageTemplates.Get("onboarding.024", TrialStartedText(seller)) : MessageTemplates.Get("onboarding.039", shopType, TrialStartedText(seller)))
             : MessageTemplates.Get("onboarding.025", TrialStartedText(seller));
         await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("onboarding.013", reply.TrimEnd()),
             "Options dekhein", AfterSetupSections, ct);
@@ -403,10 +427,26 @@ public partial class ConversationEngine
                     await ExecuteCommandAsync(seller, session, ctx, helpCmd, ct);
                     return;
                 }
+                // A start-step button tapped here (e.g. "Purana data") is not an unknown shop type: answer it instead of apologising.
+                if (ButtonLikeOnboardingWords.Contains(ButtonWords(message)) || IsLanguageButton(message))
+                {
+                    if (ButtonWords(message) is "purana data" or "puraana data")
+                        await HandleImportHelpAsync(seller, ct);
+                    else
+                        await AskIndustryAsync(seller, null, ct);
+                    return;
+                }
                 var picked = PickIndustry(message);
                 if (picked is null && await TrySaveProductDuringOnboardingAsync(seller, session, message, ct)) return;
                 if ((picked is null || PhoneNumber.IsMatch(message))
                     && await TryOrderDuringOnboardingAsync(seller, session, ctx, message, requirePhoneHint: true, ct)) return;
+                // "joote bechta hoon" matches no alias: the AI reads which kind of shop it is, quoting the words (flag DynamicAnswers); the aliases stay the free first check.
+                if (picked is null)
+                {
+                    var shops = IndustryProfiles.All.Append(IndustryProfiles.General).ToList();
+                    if (await TryReadChoiceAsync(DescribeVoiceSituation(seller, ctx), shops.Select(p => p.Title).ToList(), message, ct) is { } shopNumber)
+                        picked = shops[shopNumber - 1];
+                }
                 if (picked is null)
                 {
                     // A real command here (e.g. "orders today") runs only after setup: say so, then show the list again.
@@ -422,7 +462,7 @@ public partial class ConversationEngine
                 seller.BusinessType = picked.Title;
                 await _db.SaveChangesAsync(ct);
                 // Setup needs only the shop name and the kind of shop; the rest (city, products, customers) is added later.
-                await CompleteSetupAsync(seller, session, skipped: true, ct);
+                await CompleteSetupAsync(seller, session, skipped: true, ct, picked.Title);
                 return;
             }
 
@@ -489,7 +529,7 @@ public partial class ConversationEngine
                 }
 
                 var productLines = message.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                    .Select(l => CommandParser.TryParseProductLine(l, out ProductLine? p) ? p : ParseLooseProductLine(l))
+                    .SelectMany(ExpandProductLine)
                     .ToList();
                 if (productLines.Count > 0 && productLines.All(p => p is not null))
                 {

@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Abstractions;
@@ -323,6 +324,9 @@ public partial class ConversationEngine
             }
         }
 
+        // A reply that is not a plain yes / no word is read by the AI (with a quoted proof) instead of being asked again.
+        if (await TryReadYesNoAsync(seller, session, ctx, message, ct) is { } readAnswer) message = readAnswer;
+
         if (await TryRouteMidFlowReplyAsync(seller, session, ctx, message, ct))
         {
             await PersistAsync(session, ctx, ct);
@@ -492,6 +496,16 @@ public partial class ConversationEngine
         }
     }
 
+    // Three or more lines and a header line naming both a name and a phone column ("Customer Name Phone Number City Address").
+    private static bool LooksLikePastedCustomerTable(string message)
+    {
+        var lines = message.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (lines.Length < 3) return false;
+        var header = lines[0];
+        return Regex.IsMatch(header, @"\bname\b", RegexOptions.IgnoreCase)
+            && Regex.IsMatch(header, @"(phone|mobile|number|contact)", RegexOptions.IgnoreCase);
+    }
+
     private async Task HandleIdleCoreAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         var decision = TurnGate.DecideTyped(message);
@@ -504,6 +518,13 @@ public partial class ConversationEngine
         if (await TryHandlePictureLabelAsync(seller, session, ctx, message, ct)) return;
         if (await TryHandleOrderForCustomerItemsAsync(seller, session, ctx, message, ct)) return;
         if (await TryHandleItemsOnlyAsync(seller, session, ctx, message, ct)) return;
+
+        // A customer table copied from a chat or an app: its columns run together, so no rows can be read from it safely. Say to send a file instead.
+        if (LooksLikePastedCustomerTable(message))
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("import.030"), ct);
+            return;
+        }
 
         // Waiting for the price of ONE new product and the seller sends just an amount ("9000", "Rs. 9,000"): that is its price. Plain code, no AI guess.
         if (ctx.PendingPriceProducts is { Count: 1 } waiting && BareAmount.Match(message.Trim()) is { Success: true } bare
@@ -588,9 +609,18 @@ public partial class ConversationEngine
         CommandKind.Insight, CommandKind.FuzzyStatusUpdate, CommandKind.CustomerOrderLookup, CommandKind.ProductReport, CommandKind.CustomerSearch, CommandKind.OrderSearch, CommandKind.HowTo
     };
 
+    // Phase 4 of the dynamic-understanding plan: report and list commands only (they change nothing), so a wrong "no" from the AI costs a re-read by the order reader, never data.
+    private static readonly HashSet<CommandKind> ReadOnlyReportKinds = new()
+    {
+        CommandKind.Profit, CommandKind.Margin, CommandKind.CategorySales, CommandKind.TodaysSummary, CommandKind.TrendingProducts, CommandKind.SlowMovers,
+        CommandKind.CustomerList, CommandKind.CustomerDetail, CommandKind.UnpaidOrders, CommandKind.CodPending, CommandKind.PendingOrders, CommandKind.ExpenseList,
+        CommandKind.LossList, CommandKind.WageList, CommandKind.EnquiryReport, CommandKind.MonthlyNet, CommandKind.DiscountPerformance, CommandKind.LoyalCustomers,
+        CommandKind.CustomerFeedbackList, CommandKind.DiscountList, CommandKind.TrackingLookup, CommandKind.OrderDetail, CommandKind.CatalogFilter,
+    };
+
     private async Task<bool> LooseRuleMatchIsWrongAsync(ParsedCommand command, string message, CancellationToken ct)
     {
-        if (!LooseRuleKinds.Contains(command.Kind)) return false;
+        if (!LooseRuleKinds.Contains(command.Kind) && !(_features.RuleSecondOpinionReports && ReadOnlyReportKinds.Contains(command.Kind))) return false;
         if (message.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length < LooseRuleMinWords)
         {
             // Too short for the AI check (fewer than LooseRuleMinWords words): only recorded (with the text, Features:TurnLog) so the owner can see which short phrases the loose rules take.
@@ -720,6 +750,24 @@ public sealed class FeatureOptions
 
     /// <summary>Setup asks the kind of shop right after the shop name (taps); off = the old flow without that question (unit tests).</summary>
     public bool IndustryQuestion { get; set; }
+
+    /// <summary>
+    /// A reply that is not one of the plain yes / no words ("jee bilkul sahi hai") to a harmless yes / no question is read by the AI, which must quote the words it based
+    /// that on; the engine checks the quote is in the message. Off in code (unit tests keep the old flow), on in appsettings. Cancel / reset / delete questions never use it.
+    /// </summary>
+    public bool DynamicAnswers { get; set; }
+
+    /// <summary>
+    /// Read-only report / list commands found by a keyword rule on a sentence of 3+ words are checked by the AI ("does this really ask for that?") before they run, like the
+    /// loose rules already are, so a rule cannot take a sentence that means something else. Nothing that changes data is included. Off in code, on in appsettings.
+    /// </summary>
+    public bool RuleSecondOpinionReports { get; set; }
+
+    /// <summary>
+    /// The intent router is told about THIS seller (kind of shop, some of its products, what the bot was doing, the last messages) besides the message, so it can say what the
+    /// message is about. Off in code (unit tests keep the old call), on in appsettings.
+    /// </summary>
+    public bool RouterContext { get; set; }
 
     /// <summary>Learns how this seller answers the price question and applies the answer they always give without asking (see <c>StrategyPolicy</c>); off = always ask.</summary>
     public bool StrategyLearning { get; set; }

@@ -127,6 +127,35 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task ResetAccount_ClearsTheWholeSessionMemory_NotJustTheStoredJson()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+        // Left over from earlier testing: names still waiting for a price, a shown tip, voice hashes, a catalog page, a switched-off bar.
+        var before = await db.Sellers.Include(s => s.Session).FirstAsync(s => s.WhatsAppPhoneNumber == Phone);
+        var old = SessionContextData.FromJson(before.Session!.ContextJson);
+        old.PendingPriceProducts = new List<string> { "Handbag", "Chadar" };
+        old.PendingPriceSetAt = DateTime.UtcNow;
+        old.PhotoTipShown = true;
+        old.ProcessedVoiceHashes = new List<string> { "ABC" };
+        old.CatalogPage = 3;
+        before.Session.ContextJson = old.ToJson();
+        await db.SaveChangesAsync();
+
+        await engine.HandleIncomingMessageAsync(Phone, "reset account", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        var seller = await db.Sellers.Include(s => s.Session).FirstAsync(s => s.WhatsAppPhoneNumber == Phone);
+        var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
+        Assert.Null(ctx.PendingPriceProducts);
+        Assert.Null(ctx.PendingPriceSetAt);
+        Assert.False(ctx.PhotoTipShown);
+        Assert.Null(ctx.ProcessedVoiceHashes);
+        Assert.Equal(new SessionContextData().CatalogPage, ctx.CatalogPage);
+    }
+
+    [Fact]
     public async Task ResetAccount_WithoutConfirmation_KeepsData()
     {
         using var db = _dbFactory.CreateContext();
@@ -363,6 +392,29 @@ public class ConversationEngineTests : IDisposable
         Assert.All(rows, r => Assert.True(r.Title.Length <= 24, r.Title));
 
         await engine.HandleIncomingMessageAsync(Phone, "2", default); // the tapped row arrives as its id
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+        Assert.Contains(_sentMessages, m => m.Contains("mark 3 shipped"));
+    }
+
+    [Fact]
+    public async Task ClarificationOption_NamedInWords_IsReadByTheAi_AndRunsLikeTheTypedNumber()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, features: new FeatureOptions { DynamicAnswers = true });
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis
+            {
+                IsOrderAttempt = false,
+                ClarificationQuestion = "Maaf kijiye, mujhe aapki baat samajh nahi aayi 🙏 Kya aap yeh kehna chahte hain:",
+                ClarificationOptions = { "Naya order add karna chahte hain", "Kisi order ka status update karna chahte hain" }
+            });
+        await engine.HandleIncomingMessageAsync(Phone, "wo waala order kal tak bhej dena", default);
+        _ai.Setup(a => a.ReadChoiceWithQuoteAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiChoiceReading { Option = 2, Quote = "doosra" });
+
+        await engine.HandleIncomingMessageAsync(Phone, "doosra wala", default);          // in words, not "2"
+
         Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
         Assert.Contains(_sentMessages, m => m.Contains("mark 3 shipped"));
     }
@@ -2934,6 +2986,47 @@ public class ConversationEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "trending products last quarter", default);
 
         Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
+    }
+
+    [Fact]
+    public async Task TwoUnknownProducts_BothWalkedThrough_AddNewThenMapExisting()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var engine = CreateEngine(db);
+
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis
+            {
+                IsOrderAttempt = true,
+                Order = new AiOrderDraft
+                {
+                    CustomerName = "Hina",
+                    Phone = "03211234567",
+                    Items =
+                    {
+                        new AiOrderItemDraft { ProductName = "Sharara", MatchedCatalogProductName = null, Quantity = 1 },
+                        new AiOrderItemDraft { ProductName = "Lawn", MatchedCatalogProductName = null, Quantity = 2 }
+                    }
+                }
+            });
+
+        await engine.HandleIncomingMessageAsync(Phone, "Hina, sharara + 2 lawn, 03211234567", default);
+        Assert.Contains(_sentMessages, m => m.Contains("Sharara") && m.Contains("nahi mila"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "1", default);
+        _sentMessages.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "4200", default);
+        Assert.Contains(_sentMessages, m => m.Contains("Lawn") && m.Contains("nahi mila"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "2", default);
+        _sentMessages.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "Lawn Suit", default);
+        Assert.Contains(_sentMessages, m => m.Contains("Confirm order"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        var order = await db.Orders.Include(o => o.Items).SingleAsync();
+        Assert.Equal(4200m + 2 * 3500m, order.Total);
     }
 
     public void Dispose() => _dbFactory.Dispose();

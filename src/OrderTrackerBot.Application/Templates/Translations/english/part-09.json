@@ -169,5 +169,6 @@
   "data-lists.001": "ℹ️ No losses recorded for {0}.",
   "data-lists.002": "📉 Losses ({0}):\n{1}\n\nTotal loss: {2}",
   "data-lists.003": "ℹ️ No wages recorded for {0}.",
-  "data-lists.004": "👷 Wages ({0}):\n{1}\n\nTotal: {2}"
+  "data-lists.004": "👷 Wages ({0}):\n{1}\n\nTotal: {2}",
+  "customers.012": "⚠️ The whole customer list cannot be deleted at once.\n\n• To delete one customer: \"delete customer <name>\"\n• To see the list: \"customer list\"\n• To undo a list that was just imported, write \"undo\" right after the import."
 }

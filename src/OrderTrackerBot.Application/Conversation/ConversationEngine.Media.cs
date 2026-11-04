@@ -189,12 +189,13 @@ public partial class ConversationEngine
         // A transcript that is only a phone number needs no rewrite (a second, slow model call): it is the answer as typed.
         var joined = JoinSpacedPhones(text.Trim().Trim('.', '!', '?', '،', '۔', ' '));
         _droppedVoiceSteps.Clear();
+        _voiceChatRemark = false;
         var decision = joined.All(c => char.IsDigit(c) || c == '+') && IsPlausiblePhone(joined)
             ? TurnDecision.Execute(new[] { joined })
             : await InterpretVoiceAsync(seller, text, ct, prefetch);
         // The rewrite left nothing to run while idle ("naya product" said aloud): the intent catalog may still place the sentence.
-        if (decision.Steps.Count == 0 && decision.Kind != DecisionKind.Reject && seller.Session!.State == ConversationState.Idle
-            && await RouteIntentAsync(text, ct) is { } routed)
+        if (decision.Steps.Count == 0 && decision.Kind != DecisionKind.Reject && !_voiceChatRemark && seller.Session!.State == ConversationState.Idle
+            && await RouteIntentAsync(text, ct, seller) is { } routed)
         {
             _droppedVoiceSteps.Clear();
             // The routed command passes the same amount guard as a rewrite: a figure the seller never said must not be run (the model fills slots).
@@ -227,12 +228,14 @@ public partial class ConversationEngine
                 await _db.SaveChangesAsync(ct);
                 return;
             }
+            if (await ReaskIndustryAfterUnclearVoiceAsync(fromPhoneNumber, seller, heard, ct)) return;
             await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n❓ {decision.Message}", VoiceFallbackFor(seller).ToList(), ct);
             await _db.SaveChangesAsync(ct);
             return;
         }
         if (decision.Kind == DecisionKind.Reject)
         {
+            if (await ReaskIndustryAfterUnclearVoiceAsync(fromPhoneNumber, seller, heard, ct)) return;
             // Unsafe to run and not safe to offer as choices: say nothing changed. The taps are only safe reads (orders, menu), never an approval.
             await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n{decision.Message}", VoiceFallbackFor(seller), ct);
             await _db.SaveChangesAsync(ct);
@@ -417,6 +420,16 @@ public partial class ConversationEngine
         return result;
     }
 
+    /// <summary>At the kind-of-shop step an unclear voice note gets the list again (the product-writing help is no use there). True when it did.</summary>
+    private async Task<bool> ReaskIndustryAfterUnclearVoiceAsync(string fromPhoneNumber, Seller seller, string heard, CancellationToken ct)
+    {
+        if (seller.Session!.State != ConversationState.OnboardingIndustry) return false;
+        await _sender.SendTextMessageAsync(fromPhoneNumber, heard, ct);
+        await AskIndustryAsync(seller, null, ct);
+        await _db.SaveChangesAsync(ct);
+        return true;
+    }
+
     /// <summary>
     /// One AI call that rewrites the transcript into what the seller would have typed for the bot's current question
     /// ("pehla wala" -> "1", "haan kar do" -> "yes", "mere paas 4 lawn suit 3500" -> "Lawn Suit - 3500"). The rewrite still goes through the
@@ -548,10 +561,31 @@ public partial class ConversationEngine
         return yes ? "yes" : words <= 3 ? "no" : null;
     }
 
+    /// <summary>True while the bot shows a numbered list the seller answers with a number (a menu pick, or the "naya product / doosra naam" and similar order questions).</summary>
+    private static bool AwaitsNumberedAnswer(Seller seller)
+    {
+        var state = seller.Session!.State;
+        if (NumberedChoiceStates.Contains(state)) return true;
+        if (state != ConversationState.AwaitingOrderMissingFields) return false;
+        var ctx = SessionContextData.FromJson(seller.Session.ContextJson);
+        return ctx.PendingNewProductName is not null || ctx.PendingMissingField is "ProductChoice" or "VariantChoice" or "PriceChoice" or "DeliveryChoice";
+    }
+
     private async Task<TurnDecision> InterpretVoiceAsync(Seller seller, string transcript, CancellationToken ct, VoiceContextData? prefetch = null)
     {
         if (NumberedChoiceStates.Contains(seller.Session!.State) && SpokenNumbers.ChoiceNumber(transcript) is { } pick)
             return TurnDecision.Execute(new[] { pick.ToString() });
+        // One new product is waiting for its price and the note is short and names exactly one amount ("price dedh sau rupay"): that amount is the price. It is
+        // read by the same amount reader as typed text and goes through the same price step, so it needs no rewrite that a gate could refuse. A note with a hedge, a
+        // taken-back amount or an unreadable amount word, or a longer sentence (which may be about something else), still goes the normal way.
+        if (seller.Session!.State == ConversationState.Idle
+            && SessionContextData.FromJson(seller.Session.ContextJson).PendingPriceProducts is { Count: 1 }
+            && transcript.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= 6
+            && !HedgeWord.IsMatch(transcript)
+            && SpokenNumbers.RetractedAmounts(transcript).Count == 0 && SpokenNumbers.NegatedAmounts(transcript).Count == 0
+            && SpokenNumbers.UnknownAmountWords(transcript).Count == 0
+            && SpokenNumbers.Amounts(transcript) is { Count: 1 } onlyAmount)
+            return TurnDecision.Execute(new[] { onlyAmount.Single().ToString(System.Globalization.CultureInfo.InvariantCulture) });
         // A greeting or small talk is not an order or a command: say so plainly, and do not let the model invent steps from it.
         if (IsSmallTalkOnly(transcript))
             return TurnDecision.Clarify(MessageTemplates.Get("voice.smalltalk"));
@@ -588,8 +622,12 @@ public partial class ConversationEngine
         {
             var kind = await _ai.ClassifyVoiceKindAsync(transcript, ct);
             _logger?.LogInformation("Voice kind: the model read the note as {Kind}", kind ?? "unavailable");
-            if (kind == "chat") return TurnDecision.Clarify(MessageTemplates.Get("voice.smalltalk"));
-            if (kind == "command" && await RouteIntentAsync(transcript, ct) is { } routed)
+            if (kind == "chat")
+            {
+                _voiceChatRemark = true;
+                return TurnDecision.Clarify(MessageTemplates.Get("voice.smalltalk"));
+            }
+            if (kind == "command" && await RouteIntentAsync(transcript, ct, seller) is { } routed)
                 return routed.Command is not null
                     ? DecideRewrite(transcript, new[] { routed.Command }, null)
                     : TurnDecision.Clarify(MessageTemplates.Get("intent.howto", routed.Help!));
@@ -623,7 +661,7 @@ public partial class ConversationEngine
         {
             // A step must come from the words actually spoken (its span) and carry only amounts said in those words; anything else is dropped.
             var known = KnownVoiceNumbers(recent, catalog, lastMessages.Select(m => m.RawText));
-            result = KeepSpokenSteps(transcript, result, known);
+            result = KeepSpokenSteps(transcript, result, known, AwaitsNumberedAnswer(seller));
             // Every step was dropped and the note asks to see orders: ask today or yesterday instead of refusing the note as unclear.
             if (result.Steps.Count == 0 && _droppedVoiceSteps.Count > 0 && AsksToSeeOrders(transcript))
             {
@@ -644,6 +682,10 @@ public partial class ConversationEngine
             {
                 // Waiting for dates: nothing here is money or an order, and dates legitimately add digits (a day, a year) the seller spoke as words ("yakum", "do hazar chhabees").
                 if (seller.Session!.State == ConversationState.AwaitingCustomDateRange) return TurnDecision.Execute(CorrectMarginQuestion(transcript, CorrectAccountReset(transcript, steps)));
+                // A numbered list is waiting and the model read the spoken answer as one of its numbers ("jee haan, yeh naya product hai" = 1): that is the answer, not an
+                // invented amount. The number picks an option the bot itself offered, so nothing is saved by it that the next question does not still confirm.
+                if (steps.Count == 1 && AwaitsNumberedAnswer(seller) && System.Text.RegularExpressions.Regex.IsMatch(steps[0].Trim(), @"^[1-9]$"))
+                    return TurnDecision.Execute(steps);
                 // A rewrite that changes what was said is not run, and neither is the raw transcript: the seller is asked again.
                 // Reason only (never the transcript text): makes refused rewrites visible in the logs.
                 if (WhyUnfaithful(transcript, string.Join("\n", steps), known) is { } why)
@@ -702,11 +744,14 @@ public partial class ConversationEngine
     /// <summary>Steps removed by <see cref="KeepSpokenSteps"/> for the current voice note; shown to the seller with the echo.</summary>
     private readonly List<(string Step, string Template)> _droppedVoiceSteps = new();
 
+    /// <summary>Set when the note was read as a chat remark: nothing is placed from it, so the idle router fallback must not try either.</summary>
+    private bool _voiceChatRemark;
+
     /// <summary>
     /// Keeps the steps whose span is really in the transcript and whose amounts were said inside that span (or are known to the seller's data).
     /// Steps without a span keep the whole-note check. A dropped step is logged with its reason only, never with the transcript text.
     /// </summary>
-    private AiVoiceInterpretation KeepSpokenSteps(string transcript, AiVoiceInterpretation result, IReadOnlySet<long> known)
+    private AiVoiceInterpretation KeepSpokenSteps(string transcript, AiVoiceInterpretation result, IReadOnlySet<long> known, bool listPick = false)
     {
         var keepActions = result.Actions.Count == result.Steps.Count;
         var steps = new List<string>();
@@ -724,7 +769,7 @@ public partial class ConversationEngine
             }
             // A shop-name correction ("meri dukaan ka naam hai ...") is kept with the model's spelling: the name is often written in another script than it was said in.
             var shopNameRename = CommandParser.TryParseShopName(transcript, out _) && CommandParser.TryParseShopName(result.Steps[i], out _);
-            if (!shopNameRename && SpanProblem(transcript, result.Steps[i], span, known) is { } problem)
+            if (!shopNameRename && SpanProblem(transcript, result.Steps[i], span, known, listPick) is { } problem)
             {
                 _logger?.LogWarning("Voice step dropped: {Reason}", problem.Reason);
                 _droppedVoiceSteps.Add((result.Steps[i], problem.Template));
@@ -738,13 +783,15 @@ public partial class ConversationEngine
     }
 
     /// <summary>Why a step with a span must not run; null when it is fine or has no span (the whole-note check applies then).</summary>
-    private static (string Reason, string Template)? SpanProblem(string transcript, string step, string span, IReadOnlySet<long> known)
+    private static (string Reason, string Template)? SpanProblem(string transcript, string step, string span, IReadOnlySet<long> known, bool listPick = false)
     {
         var spoken = SpeechWords(span);
         if (spoken.Trim().Length == 0)
         {
             // A bare list number with no span ("2" for a correction read as a list pick) must have been said as digits.
             if (!System.Text.RegularExpressions.Regex.IsMatch(step.Trim(), @"^\d{1,2}$")) return null;
+            // While a numbered list is on the seller's screen, the model reading an answer in words ("haan, naya product hai") as that list number IS the answer.
+            if (listPick) return null;
             return System.Text.RegularExpressions.Regex.IsMatch(transcript, $@"(?<!\d){step.Trim()}(?!\d)") ? null : ("step number is not in the transcript", "voice-confirm.008");
         }
         if (!SpeechWords(transcript).Contains(spoken))
@@ -874,7 +921,21 @@ public partial class ConversationEngine
         if (SpokenNumbers.UnknownAmountWords(transcript) is not { Count: > 0 } unknown) return null;
         UnknownNumberWordLog.Record(unknown);
         var question = MessageTemplates.Get("voice-confirm.011", unknown[0]);
-        return StepsAreRisky(steps) ? TurnDecision.Reject(question) : TurnDecision.Clarify(question);
+        if (StepsAreRisky(steps))
+        {
+            // One risky step with ONE amount (a price change, an advance...) and no hedge: the amount word cannot be read by the list, but the seller can read the amount the
+            // bot understood. It is shown with a button that names that amount (YesButtonLabel); nothing runs before the tap. Hedged, several-step or amount-less
+            // risky notes are still refused.
+            if (steps.Count == 1 && !HedgeWord.IsMatch(transcript) && Regex.Matches(steps[0], @"(?<![\d.])\d{3,9}(?![\d.])").Count == 1)
+                return TurnDecision.Confirm(steps, MessageTemplates.Get("voice-confirm.030"));
+            return TurnDecision.Reject(question);
+        }
+        // A harmless step (an expense, a counter sale...) whose rewrite carries an amount: the word list cannot check that amount, but the seller can. The command the
+        // bot understood is shown with a button that names the amount, and nothing runs until the tap, so an unlisted spelling no longer ends in "say it again".
+        // A rewrite with no amount in it (the model may have dropped the unreadable one) is still asked again.
+        if (steps.Count > 0 && steps.All(step => Regex.IsMatch(step, @"\d{2,}")))
+            return TurnDecision.Confirm(steps, MessageTemplates.Get("voice-confirm.030"));
+        return TurnDecision.Clarify(question);
     }
 
     private static bool StepsAreRisky(IEnumerable<string> steps) => steps.Any(ActionRisk.IsRiskyStep);
@@ -1073,7 +1134,11 @@ public partial class ConversationEngine
             ConversationState.AwaitingCancelConfirmation or ConversationState.AwaitingBulkStatusConfirmation or ConversationState.AwaitingDuplicateOrderConfirmation
                 or ConversationState.AwaitingCodCollectedConfirmation or ConversationState.AwaitingResetConfirmation or ConversationState.AwaitingDeleteCustomerConfirmation
                 or ConversationState.AwaitingLoyaltyDiscountConfirmation or ConversationState.AwaitingMultiOrderConfirmation
-                or ConversationState.AwaitingSupportReplyConfirmation or ConversationState.AwaitingImportConfirmation => "Waiting for a yes or no confirmation.",
+                or ConversationState.AwaitingSupportReplyConfirmation => "Waiting for a yes or no confirmation.",
+            ConversationState.AwaitingImportConfirmation =>
+                "Waiting for yes or no to import the customer/product file the seller just sent (its summary was shown). " +
+                "\"yes\", \"haan\", \"import karo\", \"save karo\", and any sentence asking to read, import, save or add that file or its customers (\"ye file import karo\", \"is ko read karein aur customers add karein\") mean \"yes\". " +
+                "\"no\", \"cancel\" or \"nahi\" mean \"no\". Never answer with a menu.",
             ConversationState.AwaitingVoiceConfirmation => "Waiting for yes or no on the actions the bot just listed from the seller's previous voice note.",
             ConversationState.AwaitingClarificationChoice or ConversationState.AwaitingOrderGroupingChoice or ConversationState.AwaitingRuntimeFilterChoice
                 or ConversationState.AwaitingBroadcastAudienceChoice or ConversationState.AwaitingBroadcastChannelChoice or ConversationState.AwaitingReceiptOrderChoice

@@ -25,6 +25,9 @@ public static class SellerClock
     /// </summary>
     public static DateTime DaysAgoUtc(int days, DateTime utcNow) => StartOfLocalDayUtc(null, utcNow.AddDays(-days));
 
+    public static DateTime ToLocal(string? timeZoneId, DateTime utc) =>
+        TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), Resolve(timeZoneId));
+
     public static DateTime StartOfLocalDayUtc(string? timeZoneId, DateTime utcNow)
     {
         var tz = Resolve(timeZoneId);

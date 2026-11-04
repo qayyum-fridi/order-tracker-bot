@@ -84,6 +84,12 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "set is_order_attempt=false and list each product in new_products with its price in rupees when the seller said one, else null; the name " +
             "is the product only, without a unit or quantity word such as thaan/gaz/kg. Also fill cost_price (what it cost the seller to buy, \"kharid/cost\"), " +
             "stock_qty (how many they have) and attributes (other facts, each as name+value, e.g. colour, size, fabric) ONLY when the seller said them, else null / an empty list; " +
+            "If the seller gives a price RANGE (\"X se Y tak\", \"between X and Y\") fill price_low and price_high and leave price null. If the seller names several colours or " +
+            "sizes of the SAME product (variants), list them in colors / sizes, one entry each, instead of making several products. Voice notes are speech-to-text and contain " +
+            "mistakes and filler words: write spoken numbers as digits, ignore filler, and never turn a word you cannot read into a number; copy product names, colours and sizes " +
+            "as the seller said them, in their own script. For every number you fill (price, cost_price, stock_qty, price_low, price_high) also copy into price_words, " +
+            "cost_words, stock_words, price_low_words, price_high_words the exact words from the seller's message that state that number, spelled and written exactly as in the " +
+            "message (a misspelt or odd word included), else null; never write words that are not in the message; " +
             "a number is never copied from the catalog), add_customer (the seller is saving a new buyer before any order, e.g. \"naya client hai Muhammad Ali, address Model Town Lahore, phone baad mein\": no items and no price, so set is_order_attempt=false and fill new_customer with name, phone (digits only, else null), address and city, null when not said), create_discount (the seller wants to make/add a discount code or offer, in any wording or just " +
             "describing it — \"naya discount banain\", \"ye ek naya discount hai jo product ke liye hoga\": not an order, not off_topic; set is_order_attempt=false), unclear. " +
             "For new_order put one entry per customer in orders (two different customers in one message = two entries). Quantity is the number " +
@@ -213,6 +219,29 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "ProductReport" => "a sales report for one named product",
             "CustomerSearch" => "finding a saved customer",
             "HowTo" => "asking how to do something with the bot",
+            "Profit" => "showing the shop's profit for a period",
+            "Margin" => "showing the profit margin of products",
+            "CategorySales" => "showing sales per product category",
+            "TodaysSummary" => "a sales summary for a day or a period",
+            "TrendingProducts" => "showing the best-selling / trending products",
+            "SlowMovers" => "showing the slow-moving products",
+            "CustomerList" => "listing the saved customers",
+            "CustomerDetail" => "showing the details of one named customer",
+            "UnpaidOrders" => "listing the unpaid orders",
+            "CodPending" => "listing the cash-on-delivery orders still pending",
+            "PendingOrders" => "listing the pending orders",
+            "ExpenseList" => "listing the recorded expenses",
+            "LossList" => "listing the recorded losses",
+            "WageList" => "listing the recorded wages",
+            "EnquiryReport" => "a report of the buyers' enquiries per product",
+            "MonthlyNet" => "the net result of the month (sales minus expenses)",
+            "DiscountPerformance" => "how the discount codes performed",
+            "LoyalCustomers" => "listing the loyal customers",
+            "CustomerFeedbackList" => "listing the customer feedback",
+            "DiscountList" => "listing the discounts",
+            "TrackingLookup" => "looking up the tracking of an order",
+            "OrderDetail" => "showing one order in full",
+            "CatalogFilter" => "listing or filtering the catalog products",
             _ => commandKind
         };
         var json = await CompleteTextAsync(
@@ -228,6 +257,53 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             if (fits.ValueKind == JsonValueKind.True) return true;
             if (fits.ValueKind == JsonValueKind.False) return false;
             return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<AiYesNoReading?> ReadYesNoWithQuoteAsync(string situation, string message, CancellationToken cancellationToken = default)
+    {
+        var json = await CompleteTextAsync(
+            "A WhatsApp order-tracking bot for a small shop owner (the seller) asked the seller a yes / no question. The reply may be in Roman Urdu, Urdu script or English, in any wording or spelling. " +
+            "Decide whether the reply says yes (agrees, approves, go ahead), no (refuses, does not want it), or other (anything else: a new request, a question, a different answer, unclear, hesitant). " +
+            "Return ONLY JSON {\"answer\": \"yes\"|\"no\"|\"other\", \"quote\": \"<the exact words of the reply that say it, copied as written>\"}. " +
+            "The quote must be copied from the reply; never write words that are not in it. If the reply asks for something else first, adds a condition, or is unsure, answer other.",
+            $"Bot's question: {situation}\nSeller's reply: {message}", 0, "yes/no reading", cancellationToken, jsonMode: true);
+        if (json is null) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var answer = doc.RootElement.TryGetProperty("answer", out var a) && a.ValueKind == JsonValueKind.String ? a.GetString() : null;
+            var quote = doc.RootElement.TryGetProperty("quote", out var q) && q.ValueKind == JsonValueKind.String ? q.GetString() : null;
+            return answer is "yes" or "no" or "other" ? new AiYesNoReading { Answer = answer, Quote = quote?.Trim() ?? "" } : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<AiChoiceReading?> ReadChoiceWithQuoteAsync(string situation, IReadOnlyList<string> options, string message, CancellationToken cancellationToken = default)
+    {
+        if (options.Count == 0) return null;
+        var list = string.Join("\n", options.Select((o, i) => $"{i + 1}) {o}"));
+        var json = await CompleteTextAsync(
+            "A WhatsApp order-tracking bot for a small shop owner (the seller) showed the seller a numbered list and the seller replied in words instead of a number. The reply may be in Roman Urdu, " +
+            "Urdu script or English, in any wording or spelling. Decide which ONE option the reply means. " +
+            "Return ONLY JSON {\"option\": <the option number, or 0>, \"quote\": \"<the exact words of the reply that point to it, copied as written>\"}. " +
+            "Use 0 when the reply matches none of the options, matches more than one, is unclear, or is a different request (a new order, a command, a question). " +
+            "The quote must be copied from the reply; never write words that are not in it.",
+            $"What the bot asked: {situation}\nOptions:\n{list}\nSeller's reply: {message}", 0, "choice reading", cancellationToken, jsonMode: true);
+        if (json is null) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var option = doc.RootElement.TryGetProperty("option", out var o) && o.ValueKind == JsonValueKind.Number && o.TryGetInt32(out var n) ? n : -1;
+            var quote = doc.RootElement.TryGetProperty("quote", out var q) && q.ValueKind == JsonValueKind.String ? q.GetString() : null;
+            return option >= 0 && option <= options.Count ? new AiChoiceReading { Option = option, Quote = quote?.Trim() ?? "" } : null;
         }
         catch (JsonException)
         {
@@ -258,7 +334,25 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         }
     }
 
-    public async Task<IntentRoute?> RouteIntentAsync(string message, IReadOnlyList<IntentDefinition> catalog, CancellationToken cancellationToken = default)
+    public Task<IntentRoute?> RouteIntentAsync(string message, IReadOnlyList<IntentDefinition> catalog, CancellationToken cancellationToken = default) =>
+        RouteIntentCoreAsync(message, catalog, null, cancellationToken);
+
+    public Task<IntentRoute?> RouteIntentWithContextAsync(string message, IReadOnlyList<IntentDefinition> catalog, AiRouteContext context, CancellationToken cancellationToken = default) =>
+        RouteIntentCoreAsync(message, catalog, context, cancellationToken);
+
+    private static string RouteUserText(string message, AiRouteContext? context)
+    {
+        if (context is null) return message;
+        var lines = new List<string>();
+        if (!string.IsNullOrWhiteSpace(context.ShopType)) lines.Add($"Kind of shop: {context.ShopType}");
+        if (context.ProductNames.Count > 0) lines.Add($"Some of this shop's products: {string.Join(", ", context.ProductNames)}");
+        if (!string.IsNullOrWhiteSpace(context.Situation)) lines.Add($"What the bot was doing with the seller: {context.Situation}");
+        if (context.RecentMessages.Count > 0) lines.Add("The seller's last messages (oldest first): " + string.Join(" | ", context.RecentMessages));
+        lines.Add($"Message to route: {message}");
+        return string.Join("\n", lines);
+    }
+
+    private async Task<IntentRoute?> RouteIntentCoreAsync(string message, IReadOnlyList<IntentDefinition> catalog, AiRouteContext? context, CancellationToken cancellationToken)
     {
         if (catalog.Count == 0) return null;
         var menu = string.Join("\n", catalog.Select(i =>
@@ -268,8 +362,10 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "You route a message from a small shop owner (Pakistan; Roman Urdu, Urdu script or English; spelling and word order vary) to ONE action from this list:\n" + menu + "\n" +
             "Return ONLY JSON {\"intent\": \"<id from the list, or none>\", \"slots\": {\"<slot name>\": \"<value>\"}, \"confidence\": <0 to 1>}. " +
             "Slot values are the seller's own words (a number as digits). Never invent a name, number or code that is not in the message; leave the slot out when it is not said. " +
-            "Use none for a new order (customer plus items), a question about an existing order, small talk, or anything not in the list. When unsure, use none.",
-            message, 0, "intent routing", cancellationToken, jsonMode: true);
+            "Use none for a new order (customer plus items), a question about an existing order, small talk, or anything not in the list. When unsure, use none." +
+            (context is null ? "" : " The lines before \"Message to route\" describe THIS seller's shop; use them only to understand what the message is about (which kind of work it belongs to, which product it may mean). " +
+                "Never copy a name, number or code from them into a slot: slot values come only from the message itself."),
+            RouteUserText(message, context), 0, "intent routing", cancellationToken, jsonMode: true);
         if (json is null) return null;
 
         try
@@ -712,6 +808,15 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
                             && costPrice.TryGetDecimal(out var costValue) && costValue > 0 ? costValue : null,
                         Stock = p.TryGetProperty("stock_qty", out var stockQty) && stockQty.ValueKind == JsonValueKind.Number
                             && stockQty.TryGetInt32(out var stockValue) && stockValue >= 0 ? stockValue : null,
+                        PriceWords = GetNullableString(p, "price_words")?.Trim(),
+                        CostWords = GetNullableString(p, "cost_words")?.Trim(),
+                        StockWords = GetNullableString(p, "stock_words")?.Trim(),
+                        PriceLowWords = GetNullableString(p, "price_low_words")?.Trim(),
+                        PriceHighWords = GetNullableString(p, "price_high_words")?.Trim(),
+                        PriceLow = PositiveDecimal(p, "price_low"),
+                        PriceHigh = PositiveDecimal(p, "price_high"),
+                        Colors = StringList(p, "colors"),
+                        Sizes = StringList(p, "sizes"),
                         Attributes = p.TryGetProperty("attributes", out var attrs) && attrs.ValueKind == JsonValueKind.Array
                             ? attrs.EnumerateArray().Where(a => a.ValueKind == JsonValueKind.Object)
                                 .Select(a => (Name: GetNullableString(a, "name")?.Trim(), Value: GetNullableString(a, "value")?.Trim()))
@@ -792,6 +897,15 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         return order;
     }
 
+    private static decimal? PositiveDecimal(JsonElement element, string property) =>
+        element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetDecimal(out var number) && number > 0 ? number : null;
+
+    private static List<string> StringList(JsonElement element, string property) =>
+        element.TryGetProperty(property, out var list) && list.ValueKind == JsonValueKind.Array
+            ? list.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()!.Trim()).Where(x => x.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase).Take(12).ToList()
+            : new List<string>();
+
     private static string? GetNullableString(JsonElement element, string property) =>
         element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
@@ -844,6 +958,15 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
                     ["price"] = new JsonObject { ["type"] = new JsonArray { "number", "null" } },
                     ["cost_price"] = new JsonObject { ["type"] = new JsonArray { "number", "null" } },
                     ["stock_qty"] = new JsonObject { ["type"] = new JsonArray { "integer", "null" } },
+                    ["price_words"] = NullableString(),
+                    ["cost_words"] = NullableString(),
+                    ["stock_words"] = NullableString(),
+                    ["price_low_words"] = NullableString(),
+                    ["price_high_words"] = NullableString(),
+                    ["price_low"] = new JsonObject { ["type"] = new JsonArray { "number", "null" } },
+                    ["price_high"] = new JsonObject { ["type"] = new JsonArray { "number", "null" } },
+                    ["colors"] = new JsonObject { ["type"] = "array", ["items"] = new JsonObject { ["type"] = "string" } },
+                    ["sizes"] = new JsonObject { ["type"] = "array", ["items"] = new JsonObject { ["type"] = "string" } },
                     ["attributes"] = new JsonObject
                     {
                         ["type"] = "array",
