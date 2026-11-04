@@ -189,11 +189,12 @@ public partial class ConversationEngine
         // A transcript that is only a phone number needs no rewrite (a second, slow model call): it is the answer as typed.
         var joined = JoinSpacedPhones(text.Trim().Trim('.', '!', '?', '،', '۔', ' '));
         _droppedVoiceSteps.Clear();
+        _voiceChatRemark = false;
         var decision = joined.All(c => char.IsDigit(c) || c == '+') && IsPlausiblePhone(joined)
             ? TurnDecision.Execute(new[] { joined })
             : await InterpretVoiceAsync(seller, text, ct, prefetch);
         // The rewrite left nothing to run while idle ("naya product" said aloud): the intent catalog may still place the sentence.
-        if (decision.Steps.Count == 0 && decision.Kind != DecisionKind.Reject && seller.Session!.State == ConversationState.Idle
+        if (decision.Steps.Count == 0 && decision.Kind != DecisionKind.Reject && !_voiceChatRemark && seller.Session!.State == ConversationState.Idle
             && await RouteIntentAsync(text, ct, seller) is { } routed)
         {
             _droppedVoiceSteps.Clear();
@@ -621,7 +622,11 @@ public partial class ConversationEngine
         {
             var kind = await _ai.ClassifyVoiceKindAsync(transcript, ct);
             _logger?.LogInformation("Voice kind: the model read the note as {Kind}", kind ?? "unavailable");
-            if (kind == "chat") return TurnDecision.Clarify(MessageTemplates.Get("voice.smalltalk"));
+            if (kind == "chat")
+            {
+                _voiceChatRemark = true;
+                return TurnDecision.Clarify(MessageTemplates.Get("voice.smalltalk"));
+            }
             if (kind == "command" && await RouteIntentAsync(transcript, ct, seller) is { } routed)
                 return routed.Command is not null
                     ? DecideRewrite(transcript, new[] { routed.Command }, null)
@@ -738,6 +743,9 @@ public partial class ConversationEngine
 
     /// <summary>Steps removed by <see cref="KeepSpokenSteps"/> for the current voice note; shown to the seller with the echo.</summary>
     private readonly List<(string Step, string Template)> _droppedVoiceSteps = new();
+
+    /// <summary>Set when the note was read as a chat remark: nothing is placed from it, so the idle router fallback must not try either.</summary>
+    private bool _voiceChatRemark;
 
     /// <summary>
     /// Keeps the steps whose span is really in the transcript and whose amounts were said inside that span (or are known to the seller's data).
