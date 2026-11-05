@@ -571,6 +571,9 @@ public partial class ConversationEngine
         return ctx.PendingNewProductName is not null || ctx.PendingMissingField is "ProductChoice" or "VariantChoice" or "PriceChoice" or "DeliveryChoice";
     }
 
+    /// <summary>Longest voice note (in words) that is first tried as a single intent, as said, before the rewrite.</summary>
+    private const int MaxSpokenRouteWords = 12;
+
     private async Task<TurnDecision> InterpretVoiceAsync(Seller seller, string transcript, CancellationToken ct, VoiceContextData? prefetch = null)
     {
         if (NumberedChoiceStates.Contains(seller.Session!.State) && SpokenNumbers.ChoiceNumber(transcript) is { } pick)
@@ -632,6 +635,14 @@ public partial class ConversationEngine
                     ? DecideRewrite(transcript, new[] { routed.Command }, null)
                     : TurnDecision.Clarify(MessageTemplates.Get("intent.howto", routed.Help!));
         }
+        // A short note from an idle seller goes next to the same router the typed text uses, with the words as they were said. The rewrite can change
+        // the words ("kitne customers" became "kis tarah ka customer"), so it runs only when nothing routes. The amount guard checks the spoken words.
+        if (seller.OnboardingComplete && seller.Session!.State == ConversationState.Idle
+            && transcript.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= MaxSpokenRouteWords
+            && await RouteIntentAsync(transcript, ct, seller) is { } spoken)
+            return spoken.Command is not null
+                ? DecideRewrite(transcript, new[] { spoken.Command }, null)
+                : TurnDecision.Clarify(MessageTemplates.Get("intent.howto", spoken.Help!));
         var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
         var (catalog, recent, knownCustomers, lastMessages, exchanges, _) = prefetch ?? await LoadVoiceContextAsync(seller, null, ct);
 

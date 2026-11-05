@@ -58,4 +58,31 @@ public class SellerQuestionTests : IDisposable
         Assert.DoesNotContain(_sent, m => m.Contains("Customer query samjha"));
         Assert.Equal(0, await db.SupportQueries.CountAsync());
     }
+
+    [Fact]
+    public async Task ShortSpokenCount_IsRoutedAsSaid_NotThroughTheWrongRewrite()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardAsync(db);
+        var transcriber = new Mock<IAudioTranscriber>();
+        transcriber.SetupGet(t => t.IsConfigured).Returns(true);
+        transcriber.Setup(t => t.TranscribeAsync(It.IsAny<byte[]>(), "audio/ogg", It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("mere paas kitne customers hain");
+        _media.Setup(m => m.DownloadAsync("voice-count", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[2500], "audio/ogg"));
+        // The rewrite got the words wrong; the router, given the words as said, places the count intent.
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiVoiceInterpretation
+            {
+                Steps = { "Kis tarah ka customer hai?" }, Actions = { "command" }, Spans = { "mere paas kitne customers hain" },
+            });
+        var count = new OrderTrackerBot.Application.Intents.IntentRoute("count.total", new Dictionary<string, string> { ["entity"] = "customers" }, 0.9);
+        _ai.Setup(a => a.RouteIntentAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<OrderTrackerBot.Application.Intents.IntentDefinition>>(), It.IsAny<CancellationToken>())).ReturnsAsync(count);
+        _ai.Setup(a => a.RouteIntentWithContextAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<OrderTrackerBot.Application.Intents.IntentDefinition>>(), It.IsAny<AiRouteContext>(), It.IsAny<CancellationToken>())).ReturnsAsync(count);
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, null, _media.Object, transcriber: transcriber.Object);
+        _sent.Clear();
+
+        await engine.HandleAudioMessageAsync(Phone, "voice-count", "wamid.count");
+
+        Assert.Contains(_sent, m => m.Contains("customers hain"));
+    }
 }
