@@ -41,6 +41,27 @@ public static class IntentKeywords
     }
 
     /// <summary>
+    /// Single-word keywords matched with a plural or singular form ("orders" for "order", "customers" for "customer"). Only a fallback for
+    /// <see cref="Match"/>: exact matches always win, so a plural never changes what an exact word already routes.
+    /// </summary>
+    public static IReadOnlyList<string> MatchPlural(string? text, IEnumerable<IntentDefinition> intents)
+    {
+        var tokens = Tokens(text);
+        var forms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var t in tokens)
+        {
+            forms.Add(t);
+            if (t.EndsWith("es", StringComparison.Ordinal)) forms.Add(t[..^2]);
+            if (t.EndsWith('s')) forms.Add(t[..^1]);
+            forms.Add(t + "s");
+        }
+        return intents
+            .Where(intent => KeywordsOf(intent).Any(k => !k.Contains(' ') && forms.Contains(k)))
+            .Select(intent => intent.Id)
+            .ToList();
+    }
+
+    /// <summary>
     /// <see cref="Match"/>, plus intents with a single-word keyword the message spells nearly: same first two letters, one edit or the same consonants, four letters or
     /// more ("kasa" for "kaise"). Used for how-to words, where a typo should not hide the question; a wrong catch only costs a how-to answer.
     /// </summary>
