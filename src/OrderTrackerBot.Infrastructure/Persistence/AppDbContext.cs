@@ -47,6 +47,8 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<LearnedKeyword> LearnedKeywords => Set<LearnedKeyword>();
     public DbSet<KeywordRule> KeywordRules => Set<KeywordRule>();
     public DbSet<MessageTemplateRow> MessageTemplateRows => Set<MessageTemplateRow>();
+    public DbSet<FeatureAreaRow> FeatureAreas => Set<FeatureAreaRow>();
+    public DbSet<LearnedKeywordVote> LearnedKeywordVotes => Set<LearnedKeywordVote>();
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -61,6 +63,19 @@ public class AppDbContext : DbContext, IAppDbContext
     {
         modelBuilder.Entity<UnplacedUtterance>(e => e.HasIndex(u => u.CreatedAt));
         modelBuilder.Entity<UnknownNumberWord>(e => { e.HasIndex(w => w.Word).IsUnique(); e.Property(w => w.Word).HasMaxLength(40); });
+        modelBuilder.Entity<LearnedKeywordVote>(e =>
+        {
+            e.HasIndex(v => new { v.Word, v.IntentId, v.SellerId }).IsUnique();
+            e.Property(v => v.Word).HasMaxLength(40);
+            e.Property(v => v.IntentId).HasMaxLength(80);
+        });
+        modelBuilder.Entity<FeatureAreaRow>(e =>
+        {
+            e.HasIndex(a => a.Question).IsUnique();
+            e.Property(a => a.Question).HasMaxLength(200);
+            e.Property(a => a.Pattern).HasMaxLength(2000);
+            e.Property(a => a.Options).HasMaxLength(2000);
+        });
         modelBuilder.Entity<MessageTemplateRow>(e =>
         {
             e.HasIndex(t => new { t.Language, t.Key }).IsUnique();

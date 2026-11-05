@@ -486,6 +486,43 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     b.ToTable("Expenses");
                 });
 
+            modelBuilder.Entity("OrderTrackerBot.Domain.Entities.FeatureAreaRow", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Options")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Pattern")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Question")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Question")
+                        .IsUnique();
+
+                    b.ToTable("FeatureAreas");
+                });
+
             modelBuilder.Entity("OrderTrackerBot.Domain.Entities.InstagramConnection", b =>
                 {
                     b.Property<int>("Id")
@@ -634,6 +671,38 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("LearnedKeywords");
+                });
+
+            modelBuilder.Entity("OrderTrackerBot.Domain.Entities.LearnedKeywordVote", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("IntentId")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<int>("SellerId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Word")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Word", "IntentId", "SellerId")
+                        .IsUnique();
+
+                    b.ToTable("LearnedKeywordVotes");
                 });
 
             modelBuilder.Entity("OrderTrackerBot.Domain.Entities.Loss", b =>

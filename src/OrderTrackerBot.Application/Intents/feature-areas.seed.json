@@ -1,0 +1,84 @@
+{
+  "areas": [
+    {
+      "question": "🎟️ Discount ke baare mein — aap kya karna chahte hain?",
+      "pattern": "(?<![\\p{L}\\p{N}])(?:discounts?|coupons?|promo(?:\\s*code)?|offers?|ڈسکاؤنٹ\\w*|کوپن|چھوٹ|رعایت)(?![\\p{L}\\p{N}])",
+      "options": [ "create discount", "discount list", "discount performance" ]
+    },
+    {
+      "question": "💸 Kharche ke baare mein — aap kya dekhna chahte hain?",
+      "pattern": "(?<![\\p{L}\\p{N}])(?:expenses?|kharcha|kharch|kharcay|خرچہ|خرچ)(?![\\p{L}\\p{N}])",
+      "options": [ "expenses", "monthly net" ]
+    },
+    {
+      "question": "🏦 Payout ke baare mein — aap kya dekhna / karna chahte hain?",
+      "pattern": "(?<![\\p{L}\\p{N}])(?:payouts?|settlements?|پے\\s*آؤٹ)(?![\\p{L}\\p{N}])",
+      "options": [ "payout pending", "payouts", "payout undo" ]
+    },
+    {
+      "question": "💵 Galla / cash drawer ke baare mein — aap kya karna chahte hain?",
+      "pattern": "(?<![\\p{L}\\p{N}])(?:galla|gallay|drawer|cash\\s*box|cashbox|cash\\s*drawer|گلہ)(?![\\p{L}\\p{N}])",
+      "options": [ "drawer", "drawer open", "cash in", "cash out", "drawer close" ]
+    },
+    {
+      "question": "🏷️ Label ke baare mein — aap kya chahte hain?",
+      "pattern": "(?<![\\p{L}\\p{N}])(?:labels?|stickers?|لیبل)(?![\\p{L}\\p{N}])",
+      "options": [ "label", "business label", "label size" ]
+    },
+    {
+      "question": "📷 Barcode / scanner ke baare mein — aap kya karna chahte hain?",
+      "pattern": "(?<![\\p{L}\\p{N}])(?:barcodes?|scanner|scanning|scan|بارکوڈ|اسکین)(?![\\p{L}\\p{N}])",
+      "options": [ "scan", "scan cart", "barcode" ]
+    },
+    {
+      "question": "🖨️ Printer / email ke baare mein — aap kya karna chahte hain?",
+      "pattern": "(?<![\\p{L}\\p{N}])(?:printers?|printing|thermal|e-?mails?|پرنٹر|ای\\s*میل)(?![\\p{L}\\p{N}])",
+      "options": [ "printer", "receipt settings", "email receipt" ]
+    },
+    {
+      "question": "🧾 Receipt ke baare mein — aap kya karna chahte hain?",
+      "pattern": "(?<![\\p{L}\\p{N}])(?:receipts?|rasid|raseed|رسید)(?![\\p{L}\\p{N}])",
+      "options": [ "receipt", "receipt settings", "printer" ]
+    },
+    {
+      "question": "📤 Export ke baare mein — aap kya chahte hain?",
+      "pattern": "(?<![\\p{L}\\p{N}])(?:export|excel|xlsx|ایکسپورٹ)(?![\\p{L}\\p{N}])",
+      "options": [ "export" ]
+    },
+    {
+      "question": "💳 Payment ke baare mein — aap kya karna chahte hain?",
+      "pattern": "(?<![\\p{L}\\p{N}])(?:payments?|jazzcash|easypaisa|safepay|ادائیگی)(?![\\p{L}\\p{N}])",
+      "options": [ "add payment" ]
+    },
+    {
+      "question": "🌟 Customers / loyalty ke baare mein — aap kya karna chahte hain?",
+      "pattern": "(?<![\\p{L}\\p{N}])(?:loyal\\w*|customers?|گاہک|کسٹمرز?)(?![\\p{L}\\p{N}])",
+      "options": [ "customer list", "loyal customers", "create loyalty" ]
+    },
+    {
+      "question": "📈 Sales / profit ke baare mein — aap kya dekhna chahte hain?",
+      "pattern": "(?<![\\p{L}\\p{N}])(?:profit|munafa|nafa|sales?|summary|منافع|نفع)(?![\\p{L}\\p{N}])",
+      "options": [ "profit", "monthly net", "orders today" ]
+    },
+    {
+      "question": "🔄 Order status ke baare mein — aap kya karna chahte hain?",
+      "pattern": "(?<![\\p{L}\\p{N}])(?:status|ship(?:ped|ping)?|delivered|complete\\w*|mukammal|اسٹیٹس|شپ\\w*|ڈیلیور(?:ڈ)?|مکمل|کمپلیٹ\\w*)(?![\\p{L}\\p{N}])",
+      "options": [ "status", "orders today" ]
+    },
+    {
+      "question": "📦 Stock ke baare mein — aap kya karna chahte hain?",
+      "pattern": "(?<![\\p{L}\\p{N}])(?:stock|inventory|maal|اسٹاک)(?![\\p{L}\\p{N}])",
+      "options": [ "stock", "catalog" ]
+    },
+    {
+      "question": "🛍️ Products ke baare mein — aap kya karna chahte hain?",
+      "pattern": "(?<![\\p{L}\\p{N}])(?:products?|catalog(?:ue)?|پروڈکٹس?|کیٹلاگ)(?![\\p{L}\\p{N}])",
+      "options": [ "add product", "catalog" ]
+    },
+    {
+      "question": "📋 Orders ke baare mein — aap kya karna chahte hain?",
+      "pattern": "(?<![\\p{L}\\p{N}])(?:orders?|آرڈرز?)(?![\\p{L}\\p{N}])",
+      "options": [ "new order", "orders today" ]
+    }
+  ]
+}

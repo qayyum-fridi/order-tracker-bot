@@ -84,14 +84,14 @@ public class LearnedKeywordTests : IDisposable
         using var db = _dbFactory.CreateContext();
         var now = DateTime.UtcNow;
 
-        for (var i = 0; i < LearnedKeywordLog.MinVotes - 1; i++)
+        for (var seller = 1; seller < LearnedKeywordLog.MinVotes; seller++)
         {
-            LearnedKeywordLog.Record(new[] { "bikri" }, "order.list_today");
+            LearnedKeywordLog.Record(new[] { "bikri" }, "order.list_today", seller);
             await LearnedKeywordLog.FlushAsync(db, now, default);
         }
         Assert.Empty(LearnedKeywordLog.HintsFor(new[] { "bikri" }));
 
-        LearnedKeywordLog.Record(new[] { "bikri" }, "order.list_today");
+        LearnedKeywordLog.Record(new[] { "bikri" }, "order.list_today", LearnedKeywordLog.MinVotes);
         await LearnedKeywordLog.FlushAsync(db, now, default);
 
         Assert.Equal(new[] { "order.list_today" }, LearnedKeywordLog.HintsFor(new[] { "bikri" }));
@@ -101,14 +101,30 @@ public class LearnedKeywordTests : IDisposable
     }
 
     [Fact]
+    public async Task OneSellerRepeatingAWord_NeverMakesItAHint()
+    {
+        using var db = _dbFactory.CreateContext();
+        var now = DateTime.UtcNow;
+        for (var i = 0; i < 10; i++)
+        {
+            LearnedKeywordLog.Record(new[] { "zxqspam" }, "order.list_today", 7);
+            await LearnedKeywordLog.FlushAsync(db, now, default);
+        }
+
+        Assert.Empty(LearnedKeywordLog.HintsFor(new[] { "zxqspam" }));
+        var stored = await db.LearnedKeywords.AsNoTracking().SingleAsync(k => k.Word == "zxqspam");
+        Assert.Equal(1, stored.Votes);
+    }
+
+    [Fact]
     public async Task WordLearnedForTwoIntents_ReturnsTheStrongerOne()
     {
         using var db = _dbFactory.CreateContext();
         var now = DateTime.UtcNow;
-        LearnedKeywordLog.Record(new[] { "dhoondo" }, "customer.search");
-        LearnedKeywordLog.Record(new[] { "dhoondo" }, "catalog.search");
-        LearnedKeywordLog.Record(new[] { "dhoondo" }, "catalog.search");
-        LearnedKeywordLog.Record(new[] { "dhoondo" }, "catalog.search");
+        LearnedKeywordLog.Record(new[] { "dhoondo" }, "customer.search", 10);
+        LearnedKeywordLog.Record(new[] { "dhoondo" }, "catalog.search", 1);
+        LearnedKeywordLog.Record(new[] { "dhoondo" }, "catalog.search", 2);
+        LearnedKeywordLog.Record(new[] { "dhoondo" }, "catalog.search", 3);
         await LearnedKeywordLog.FlushAsync(db, now, default);
 
         Assert.Equal(new[] { "catalog.search" }, LearnedKeywordLog.HintsFor(new[] { "dhoondo" }));

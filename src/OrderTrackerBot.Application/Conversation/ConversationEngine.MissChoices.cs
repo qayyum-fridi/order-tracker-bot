@@ -13,21 +13,14 @@ public partial class ConversationEngine
     private const int MaxMissChoices = 3;
     private const int MaxMissLabel = 20;
 
-    // Words that every command shares ("dikhao", "kitna", "add"): they never decide which options fit a message.
-    private static readonly HashSet<string> GenericMissWords = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "dikhao", "dikha", "batao", "bata", "karo", "kar", "kardo", "badlo", "badal", "hai", "hua", "hain", "kya", "kitna", "kitni", "kitne",
-        "mein", "wale", "wala", "list", "add", "para", "dena", "dedo", "chahiye", "number", "wali", "sab", "tak", "abhi", "aaj", "kal", "kaise",
-        "dekho", "dekhna", "bhejo", "bhej", "kahan", "kab", "kaun", "kuch", "aur", "naya", "nayi", "daal", "likho", "likhna"
-    };
-
     // A word that appears in more intents than this is too common to point at one action.
     private const int MaxIntentsPerMissWord = 8;
 
     /// <summary>The catalog examples nearest to the message: each option's label is the text the seller would send, so a tap runs it.</summary>
     internal static IReadOnlyList<ChoiceOption> MissChoiceOptions(string message)
     {
-        var mine = PhraseTokens(message).Where(t => t.Length >= 3 && !GenericMissWords.Contains(t)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // Generic words (dikhao, kitna, add: the runtime list in KeywordStore) never decide which options fit a message.
+        var mine = PhraseTokens(message).Where(t => t.Length >= 3 && !KeywordStore.IsGenericMissWord(t)).ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (mine.Count == 0) return Array.Empty<ChoiceOption>();
 
         var wordsPerIntent = IntentCatalog.All.Select(intent =>

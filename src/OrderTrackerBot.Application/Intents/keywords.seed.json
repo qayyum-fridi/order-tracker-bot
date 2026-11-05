@@ -5,5 +5,10 @@
     "aur", "kya", "kitna", "kitni", "kitne", "bhi", "nahi", "haan", "ji", "bhai", "sir", "wala", "wali", "wale", "yeh", "yah", "woh", "wo",
     "ye", "us", "uska", "uski", "uske", "wahi", "naya", "naye", "nai", "abhi", "aaj", "kal",
     "وہ", "یہ", "کا", "کی", "کے", "کو", "میں", "ہے", "ہیں", "اور", "کیا"
+  ],
+  "genericWords": [
+    "dikhao", "dikha", "batao", "bata", "karo", "kar", "kardo", "badlo", "badal", "hai", "hua", "hain", "kya", "kitna", "kitni", "kitne",
+    "mein", "wale", "wala", "list", "add", "para", "dena", "dedo", "chahiye", "number", "wali", "sab", "tak", "abhi", "aaj", "kal", "kaise",
+    "dekho", "dekhna", "bhejo", "bhej", "kahan", "kab", "kaun", "kuch", "aur", "naya", "nayi", "daal", "likho", "likhna"
   ]
 }

@@ -59,14 +59,12 @@ public partial class ConversationEngine
     private async Task LearnRoutedWordsAsync(Seller? seller, string message, string intentId, CancellationToken ct)
     {
         var words = IntentKeywords.Tokens(message);
-        if (words.Count == 0) return;
-        if (seller is not null)
-        {
-            var products = await _db.Products.Where(p => p.SellerId == seller.Id).Select(p => p.Name).Take(500).ToListAsync(ct);
-            var customers = await _db.Customers.Where(c => c.SellerId == seller.Id).Select(c => c.Name).Take(500).ToListAsync(ct);
-            words.ExceptWith(products.Concat(customers).SelectMany(IntentKeywords.Tokens));
-        }
-        if (words.Count > 0) LearnedKeywordLog.Record(words, intentId);
+        // A vote needs a seller: each seller counts once per word, so an unknown sender cannot vote.
+        if (seller is null || words.Count == 0) return;
+        var products = await _db.Products.Where(p => p.SellerId == seller.Id).Select(p => p.Name).Take(500).ToListAsync(ct);
+        var customers = await _db.Customers.Where(c => c.SellerId == seller.Id).Select(c => c.Name).Take(500).ToListAsync(ct);
+        words.ExceptWith(products.Concat(customers).SelectMany(IntentKeywords.Tokens));
+        if (words.Count > 0) LearnedKeywordLog.Record(words, intentId, seller.Id);
     }
 
     /// <summary>

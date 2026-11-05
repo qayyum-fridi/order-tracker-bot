@@ -21,6 +21,18 @@ public sealed class ScheduledMessagesService : BackgroundService
         _logger = logger;
     }
 
+    private async Task RunStepAsync(string name, Func<Task> step, CancellationToken stoppingToken)
+    {
+        try
+        {
+            await step();
+        }
+        catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
+        {
+            _logger.LogError(ex, "Scheduled step {Step} failed", name);
+        }
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var timer = new PeriodicTimer(Interval);
@@ -31,12 +43,13 @@ public sealed class ScheduledMessagesService : BackgroundService
                 using var scope = _scopes.CreateScope();
                 await scope.ServiceProvider.GetRequiredService<ConversationEngine>().RunScheduledJobsAsync(DateTime.UtcNow, stoppingToken);
                 await UnplacedReport.PurgeOlderThanAsync(scope.ServiceProvider.GetRequiredService<IAppDbContext>(), DateTime.UtcNow, stoppingToken);
-                await UnknownNumberWordLog.FlushAsync(scope.ServiceProvider.GetRequiredService<IAppDbContext>(), DateTime.UtcNow, stoppingToken);
-                await KeywordStore.SyncAsync(scope.ServiceProvider.GetRequiredService<IAppDbContext>(), stoppingToken);
-                await TemplateStore.SyncAsync(scope.ServiceProvider.GetRequiredService<IAppDbContext>(), stoppingToken);
-                await LearnedKeywordLog.FlushAsync(scope.ServiceProvider.GetRequiredService<IAppDbContext>(), DateTime.UtcNow, stoppingToken);
-                await scope.ServiceProvider.GetRequiredService<InstagramClient>().RefreshExpiringTokensAsync(
-                    scope.ServiceProvider.GetRequiredService<IAppDbContext>(), DateTime.UtcNow, stoppingToken);
+                // Each learning / wording step runs on its own: a failure in one is logged and does not stop the others or the token refresh.
+                await RunStepAsync("unknown number words", () => UnknownNumberWordLog.FlushAsync(scope.ServiceProvider.GetRequiredService<IAppDbContext>(), DateTime.UtcNow, stoppingToken), stoppingToken);
+                await RunStepAsync("keywords", () => KeywordStore.SyncAsync(scope.ServiceProvider.GetRequiredService<IAppDbContext>(), stoppingToken), stoppingToken);
+                await RunStepAsync("message templates", () => TemplateStore.SyncAsync(scope.ServiceProvider.GetRequiredService<IAppDbContext>(), stoppingToken), stoppingToken);
+                await RunStepAsync("learned keywords", () => LearnedKeywordLog.FlushAsync(scope.ServiceProvider.GetRequiredService<IAppDbContext>(), DateTime.UtcNow, stoppingToken), stoppingToken);
+                await RunStepAsync("instagram tokens", () => scope.ServiceProvider.GetRequiredService<InstagramClient>().RefreshExpiringTokensAsync(
+                    scope.ServiceProvider.GetRequiredService<IAppDbContext>(), DateTime.UtcNow, stoppingToken), stoppingToken);
             }
             catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
             {

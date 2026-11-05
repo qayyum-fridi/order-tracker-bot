@@ -43,6 +43,8 @@ public interface IAppDbContext
     DbSet<LearnedKeyword> LearnedKeywords { get; }
     DbSet<KeywordRule> KeywordRules { get; }
     DbSet<MessageTemplateRow> MessageTemplateRows { get; }
+    DbSet<FeatureAreaRow> FeatureAreas { get; }
+    DbSet<LearnedKeywordVote> LearnedKeywordVotes { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
