@@ -157,7 +157,9 @@ public partial class ConversationEngine
             return;
         }
 
-        if (analysis.Intent == "support_query" && analysis.SupportQuery is { } supportQuery)
+        // A buyer's question is one the seller forwards with the buyer named ("Bilal ne poocha ..."). Without a named buyer it is the seller's own
+        // question (how many orders, status): it goes on to the intent router instead of a reply draft for a customer.
+        if (analysis.Intent == "support_query" && analysis.SupportQuery is { } supportQuery && !string.IsNullOrWhiteSpace(supportQuery.CustomerName))
         {
             await HandleForwardedQueryAsync(seller, session, ctx, supportQuery.CustomerName, supportQuery.Question, ct);
             return;
