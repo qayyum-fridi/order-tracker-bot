@@ -1025,6 +1025,39 @@
       "template": "{name} - {price}, cost {cost}, stock {stock}, category: {category}"
     },
     {
+      "id": "product.create_attribute",
+      "entity": "product",
+      "action": "create_attribute",
+      "kind": "AddProduct",
+      "description": "Save a custom attribute (extra detail such as fabric, brand, warranty, material) with a product: write 'attribute: value' after the price.",
+      "examples": [
+        "custom attribute product mein kaise save karun",
+        "product ke saath extra detail kaise likhun",
+        "how can I save a custom attribute with a product",
+        "پروڈکٹ کے ساتھ کسٹم اٹریبیوٹ کیسے محفوظ کروں"
+      ],
+      "slots": {
+        "name": {
+          "required": true,
+          "sample": "Polo Shirt"
+        },
+        "price": {
+          "required": true,
+          "type": "number",
+          "sample": "500"
+        },
+        "attribute": {
+          "required": true,
+          "sample": "fabric"
+        },
+        "value": {
+          "required": true,
+          "sample": "cotton"
+        }
+      },
+      "template": "{name} - {price}, {attribute}: {value}"
+    },
+    {
       "id": "product.show",
       "entity": "product",
       "action": "show",
@@ -4002,6 +4035,9 @@
         "kaise",
         "kese",
         "kaisay",
+        "kasa",
+        "kaisey",
+        "kesay",
         "kis tarah",
         "tarika",
         "tariqa",

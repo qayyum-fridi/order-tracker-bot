@@ -65,6 +65,35 @@ public class GuideHowToTests : IDisposable
         _ai.Verify(a => a.RouteIntentAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<IntentDefinition>>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    // Seen live: "Custom attribute product ma kasa sath save kar saktha han" got the generic Products taps.
+    [Theory]
+    [InlineData("Custom attribute product ma kasa sath save kar saktha han")]
+    [InlineData("custom attribute product mein kaise save karun")]
+    [InlineData("how can I save a custom attribute with a product")]
+    public async Task HowToSaveACustomAttribute_ShowsTheProductLineWithAnAttribute_AndSavesNothing(string question)
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, question, default);
+
+        Assert.Contains("[name] - [price], [attribute]: [value]", Replies);
+        Assert.Contains("Polo Shirt - 500, fabric: cotton", Replies);
+        Assert.DoesNotContain("samajh nahi", Replies);
+        Assert.Equal(0, await db.Products.CountAsync());
+        _ai.Verify(a => a.RouteIntentAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<IntentDefinition>>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData("kasa")]
+    [InlineData("kaisey")]
+    [InlineData("kesay")]
+    public void HowToSpellings_AreHowToQuestions(string word)
+    {
+        var howTo = IntentCatalog.Find(IntentCatalog.HowToId)!;
+        Assert.NotEmpty(IntentKeywords.Match($"staff member {word} add karte hain", new[] { howTo }));
+    }
+
     [Fact]
     public async Task HowToQuestion_IsNeverRun_EvenWhenTheMessageNamesTheValues()
     {
