@@ -138,6 +138,14 @@ public class GuideHowToTests : IDisposable
         Assert.Contains("staff add", Replies);
     }
 
+    // The real cause of that live reply: a customer word plus a bare "karo" was read as "create a customer" (a form that is off), not as a search.
+    [Theory]
+    [InlineData("Ali koi customers ha mera pass تلاش karo")]
+    [InlineData("customer Ali talash karo")]
+    [InlineData("Ali naam ka customer dhoondo")]
+    public void SearchSentences_WithACustomerWord_AreNotCreateCustomerHelp(string message) =>
+        Assert.NotEqual(CommandKind.DetailedForm, CommandParser.TryParse(message)?.Kind);
+
     // Seen live: "Ali koi customers ha mera pass تلاش karo" went to loyalty ("feature not available").
     [Fact]
     public async Task CustomerSearchWords_AreCatalogKeywords_AndTheRoutedSearchRuns()
