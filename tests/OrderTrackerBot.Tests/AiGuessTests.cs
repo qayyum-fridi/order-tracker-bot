@@ -87,5 +87,10 @@ public class AiGuessTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "stock", default);
 
         Assert.True(await db.LearnedKeywordVotes.AnyAsync(v => v.Word == "inventory"), "no vote for the message's words");
+
+        // The same seller asking again is answered directly, not with the keyword question.
+        _sent.Clear();
+        await engine.HandleIncomingMessageAsync(Phone, "how many my inventory is", default);
+        Assert.DoesNotContain(_sent, m => m.Contains("Stock ke baare mein"));
     }
 }

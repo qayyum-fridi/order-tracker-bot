@@ -27,6 +27,8 @@ public partial class ConversationEngine
     {
         // A message that only one intent's catalog keywords claim, and that needs no slot, runs without a model call.
         if (DirectKeywordRoute(message) is { } direct) return direct;
+        // Words this seller taught (a tap or a confirmed guess) route their own next message, without waiting for other sellers.
+        if (seller is not null && await SellerTaughtRouteAsync(seller, message, ct) is { } taught) return taught;
 
         // With the flag on and a seller known, the router also gets the seller's context (what kind of shop, its products, what the bot was doing, the last messages).
         var route = seller is not null && _features.RouterContext
@@ -46,6 +48,27 @@ public partial class ConversationEngine
         if (CommandParser.TryParse(built.Command) is not { } parsed || parsed.Kind.ToString() != intent.Kind) return null;
         _logger?.LogInformation("Intent {Intent} routed to {Kind}", intent.Id, parsed.Kind);
         await LearnRoutedWordsAsync(seller, message, intent.Id, ct);
+        if (ActionRisk.RiskyCommands.Contains(parsed.Kind)) return new RoutedIntent(null, built.Command);
+        return new RoutedIntent(built.Command, null);
+    }
+
+    /// <summary>
+    /// A seller's own taught words: when every word of the message that this seller voted for points at one intent, and that intent needs no
+    /// slot, the message runs that intent. Only this seller's votes are used.
+    /// </summary>
+    private async Task<RoutedIntent?> SellerTaughtRouteAsync(Seller seller, string message, CancellationToken ct)
+    {
+        var words = IntentKeywords.Tokens(message).ToList();
+        if (words.Count == 0) return null;
+        var taught = (await _db.LearnedKeywordVotes.AsNoTracking()
+                .Where(v => v.SellerId == seller.Id && words.Contains(v.Word))
+                .Select(v => v.IntentId).ToListAsync(ct))
+            .Distinct().ToList();
+        if (taught.Count != 1 || IntentCatalog.Find(taught[0]) is not { } intent || intent.Slots.Any(s => s.Required)) return null;
+
+        var built = IntentCatalog.Build(intent, new Dictionary<string, string>());
+        if (built.Command is null || CommandParser.TryParse(built.Command) is not { } parsed || parsed.Kind.ToString() != intent.Kind) return null;
+        _turnRouteIntent = intent.Id;
         if (ActionRisk.RiskyCommands.Contains(parsed.Kind)) return new RoutedIntent(null, built.Command);
         return new RoutedIntent(built.Command, null);
     }
