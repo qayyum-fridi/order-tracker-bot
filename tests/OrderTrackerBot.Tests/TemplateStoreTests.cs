@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Conversation;
+using OrderTrackerBot.Application.Intents;
+using OrderTrackerBot.Application.Intents;
 using OrderTrackerBot.Application.Templates;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Infrastructure.Persistence;
@@ -56,6 +58,41 @@ public class TemplateStoreTests : IDisposable
 
         var seeded = await db.MessageTemplateRows.CountAsync(r => r.Language == "industry");
         Assert.Equal(IndustryProfiles.EmbeddedTemplateJson.Count, seeded);
+    }
+
+    [Fact]
+    public async Task ChangedShippedText_FollowsIntoUntouchedRows_AndNeverOverwritesAnEdit()
+    {
+        using var db = _dbFactory.CreateContext();
+        // "untouched": text still matches the fingerprint of the older shipped text it was seeded with.
+        db.MessageTemplateRows.Add(new MessageTemplateRow
+        {
+            Language = TemplateStore.RomanUrdu, Key = "count.unknown", Text = "OLD SHIPPED", SeedHash = SeedHash.Of("OLD SHIPPED"),
+        });
+        // "edited": an operator changed the text after it was seeded.
+        db.MessageTemplateRows.Add(new MessageTemplateRow
+        {
+            Language = TemplateStore.RomanUrdu, Key = "setup.status.pending", Text = "OPERATOR EDIT", SeedHash = SeedHash.Of("SOME OLD SHIPPED"),
+        });
+        await db.SaveChangesAsync();
+
+        await TemplateStore.SyncAsync(db, default);
+
+        var untouched = await db.MessageTemplateRows.AsNoTracking().SingleAsync(r => r.Key == "count.unknown" && r.Language == TemplateStore.RomanUrdu);
+        var edited = await db.MessageTemplateRows.AsNoTracking().SingleAsync(r => r.Key == "setup.status.pending" && r.Language == TemplateStore.RomanUrdu);
+        Assert.Equal(MessageTemplates.EmbeddedEntries["count.unknown"], untouched.Text);
+        Assert.Equal("OPERATOR EDIT", edited.Text);
+    }
+
+    [Fact]
+    public void SeedHashDecision_FollowsOnlyRowsThatWereNeverEdited()
+    {
+        var shipped = SeedHash.Of("new");
+        Assert.Equal(SeedAction.None, SeedHash.Decide(shipped, SeedHash.Of("anything"), shipped));
+        Assert.Equal(SeedAction.Stamp, SeedHash.Decide(null, shipped, shipped));
+        Assert.Equal(SeedAction.Leave, SeedHash.Decide(null, SeedHash.Of("stale or edited"), shipped));
+        Assert.Equal(SeedAction.Update, SeedHash.Decide(SeedHash.Of("old"), SeedHash.Of("old"), shipped));
+        Assert.Equal(SeedAction.Leave, SeedHash.Decide(SeedHash.Of("old"), SeedHash.Of("edited"), shipped));
     }
 
     [Fact]

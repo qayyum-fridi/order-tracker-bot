@@ -71,13 +71,30 @@ public static class KeywordStore
                     added = true;
                 }
 
-        var areaQuestions = (await db.FeatureAreas.AsNoTracking().ToListAsync(ct)).Select(a => a.Question).ToHashSet(StringComparer.Ordinal);
+        // A shipped area that changed follows into rows nobody edited (their stored seed hash still matches their text); edited rows are left alone.
+        var areaByQuestion = (await db.FeatureAreas.ToListAsync(ct)).ToDictionary(a => a.Question, StringComparer.Ordinal);
         foreach (var (question, pattern, options) in SeedAreas())
-            if (areaQuestions.Add(question))
+        {
+            var optionsJson = JsonSerializer.Serialize(options);
+            var shipped = SeedHash.Of(pattern, optionsJson);
+            if (!areaByQuestion.TryGetValue(question, out var area))
             {
-                db.FeatureAreas.Add(new FeatureAreaRow { Question = question, Pattern = pattern, Options = JsonSerializer.Serialize(options) });
+                db.FeatureAreas.Add(new FeatureAreaRow { Question = question, Pattern = pattern, Options = optionsJson, SeedHash = shipped });
                 added = true;
+                continue;
             }
+            switch (SeedHash.Decide(area.SeedHash, SeedHash.Of(area.Pattern, area.Options), shipped))
+            {
+                case SeedAction.Stamp:
+                    area.SeedHash = shipped;
+                    added = true;
+                    break;
+                case SeedAction.Update:
+                    (area.Pattern, area.Options, area.SeedHash) = (pattern, optionsJson, shipped);
+                    added = true;
+                    break;
+            }
+        }
         if (added) await db.SaveChangesAsync(ct);
 
         var rows = await db.KeywordRules.AsNoTracking().ToListAsync(ct);

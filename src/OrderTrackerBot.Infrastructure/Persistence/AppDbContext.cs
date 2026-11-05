@@ -82,12 +82,14 @@ public class AppDbContext : DbContext, IAppDbContext
             e.Property(a => a.Question).HasMaxLength(200);
             e.Property(a => a.Pattern).HasMaxLength(2000);
             e.Property(a => a.Options).HasMaxLength(2000);
+            e.Property(a => a.SeedHash).HasMaxLength(64);
         });
         modelBuilder.Entity<MessageTemplateRow>(e =>
         {
             e.HasIndex(t => new { t.Language, t.Key }).IsUnique();
             e.Property(t => t.Language).HasMaxLength(20);
             e.Property(t => t.Key).HasMaxLength(120);
+            e.Property(t => t.SeedHash).HasMaxLength(64);
         });
         modelBuilder.Entity<KeywordRule>(e =>
         {

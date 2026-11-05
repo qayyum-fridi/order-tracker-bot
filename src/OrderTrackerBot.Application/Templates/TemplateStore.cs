@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Conversation;
+using OrderTrackerBot.Application.Intents;
 using OrderTrackerBot.Domain.Entities;
 
 namespace OrderTrackerBot.Application.Templates;
@@ -29,11 +30,41 @@ public static class TemplateStore
         foreach (var (language, key, text) in Seed())
             if (present.Add((language, key)))
             {
-                db.MessageTemplateRows.Add(new MessageTemplateRow { Language = language, Key = key, Text = text });
+                db.MessageTemplateRows.Add(new MessageTemplateRow { Language = language, Key = key, Text = text, SeedHash = SeedHash.Of(text) });
                 added = true;
             }
         if (added)
         {
+            await db.SaveChangesAsync(ct);
+            rows = await db.MessageTemplateRows.AsNoTracking().ToListAsync(ct);
+        }
+
+        // A shipped text that changed follows into rows nobody edited (their stored seed hash still matches their text); edited rows are left alone.
+        var byKey = rows.ToDictionary(r => (r.Language, r.Key));
+        var changes = new List<(int Id, string Text, string Hash, bool Update)>();
+        foreach (var (language, key, text) in Seed())
+        {
+            if (!byKey.TryGetValue((language, key), out var row)) continue;
+            var shipped = SeedHash.Of(text);
+            switch (SeedHash.Decide(row.SeedHash, SeedHash.Of(row.Text), shipped))
+            {
+                case SeedAction.Stamp: changes.Add((row.Id, text, shipped, false)); break;
+                case SeedAction.Update: changes.Add((row.Id, text, shipped, true)); break;
+            }
+        }
+        if (changes.Count > 0)
+        {
+            foreach (var chunk in changes.Chunk(500))
+            {
+                var ids = chunk.Select(c => c.Id).ToList();
+                var tracked = await db.MessageTemplateRows.Where(r => ids.Contains(r.Id)).ToDictionaryAsync(r => r.Id, ct);
+                foreach (var change in chunk)
+                {
+                    var target = tracked[change.Id];
+                    if (change.Update) (target.Text, target.UpdatedAt) = (change.Text, DateTime.UtcNow);
+                    target.SeedHash = change.Hash;
+                }
+            }
             await db.SaveChangesAsync(ct);
             rows = await db.MessageTemplateRows.AsNoTracking().ToListAsync(ct);
         }

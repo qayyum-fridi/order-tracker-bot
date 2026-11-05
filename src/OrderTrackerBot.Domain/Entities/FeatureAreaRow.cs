@@ -12,5 +12,7 @@ public class FeatureAreaRow
     public required string Pattern { get; set; }
     public required string Options { get; set; }
     public bool Active { get; set; } = true;
+    /// <summary>Fingerprint of the shipped pattern and options this row was seeded with; lets a changed seed reach rows nobody edited.</summary>
+    public string? SeedHash { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

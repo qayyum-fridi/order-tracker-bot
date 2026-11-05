@@ -12,5 +12,7 @@ public class MessageTemplateRow
     public required string Key { get; set; }
     public required string Text { get; set; }
     public bool Active { get; set; } = true;
+    /// <summary>Fingerprint of the shipped text this row was seeded with; lets a changed seed reach rows nobody edited.</summary>
+    public string? SeedHash { get; set; }
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }
