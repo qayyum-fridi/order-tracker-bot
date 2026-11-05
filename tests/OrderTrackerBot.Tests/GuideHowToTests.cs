@@ -178,8 +178,10 @@ public class GuideHowToTests : IDisposable
 
         await Engine(db).HandleIncomingMessageAsync(Phone, "Mera kis kam ki yah application ha", default);
 
-        Assert.NotEmpty(_text);
-        Assert.DoesNotContain("samajh nahi", Replies);
+        // The guide may go out as text, buttons or a list: look at everything the sender was given.
+        var sent = string.Join("\n", _sender.Invocations.SelectMany(i => i.Arguments).OfType<string>());
+        Assert.NotEmpty(sent);
+        Assert.DoesNotContain("samajh nahi", sent);
         Assert.Contains("what is this app for", IntentCatalog.Find("account.guide")!.Examples);
     }
 
