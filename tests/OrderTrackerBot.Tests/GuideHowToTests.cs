@@ -84,6 +84,49 @@ public class GuideHowToTests : IDisposable
         _ai.Verify(a => a.RouteIntentAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<IntentDefinition>>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    // Seen live: "Customers support ka document do" showed the customer list ("customers" alone claimed it).
+    [Fact]
+    public async Task CustomersSupport_IsSupport_NotTheCustomerList()
+    {
+        using var db = _dbFactory.CreateContext();
+        var seller = await SeedAsync(db);
+        db.Customers.Add(new Customer { SellerId = seller.Id, Name = "Sara", Phone = "03001234567" });
+        await db.SaveChangesAsync();
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, "Customers support ka document do", default);
+
+        Assert.DoesNotContain("Aapke Customers", Replies);
+        Assert.NotEmpty(_text);
+    }
+
+    [Fact]
+    public async Task PlainCustomers_StillShowsTheCustomerList()
+    {
+        using var db = _dbFactory.CreateContext();
+        var seller = await SeedAsync(db);
+        db.Customers.Add(new Customer { SellerId = seller.Id, Name = "Sara", Phone = "03001234567" });
+        await db.SaveChangesAsync();
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, "customers", default);
+
+        Assert.Contains("Aapke Customers", Replies);
+    }
+
+    [Fact]
+    public async Task CustomerList_UrduName_IsIsolated_AndTheLineStaysLeftToRight()
+    {
+        using var db = _dbFactory.CreateContext();
+        var seller = await SeedAsync(db);
+        db.Customers.Add(new Customer { SellerId = seller.Id, Name = "محمد سجاد", Phone = "03001234567" });
+        db.Customers.Add(new Customer { SellerId = seller.Id, Name = "Sara", Phone = "03007654321" });
+        await db.SaveChangesAsync();
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, "customers", default);
+
+        Assert.Matches("‎\\d ⁨محمد سجاد⁩ - 03001234567 - 0 orders", Replies);
+        Assert.Matches(@"\d Sara - 03007654321 - 0 orders", Replies); // Latin names are left untouched
+    }
+
     [Theory]
     [InlineData("kasa")]
     [InlineData("kaisey")]

@@ -7,6 +7,17 @@ public static class TextHygiene
     /// bidi embedding/isolate controls, word joiner, BOM. Copy-pasting from Urdu apps brings them along. The zero-width (non-)joiners
     /// U+200C/U+200D are kept: Urdu/Persian spelling uses them.
     /// </summary>
+    /// <summary>
+    /// A list line that holds a right-to-left name (Urdu script) next to numbers and Latin text: the line is pinned left-to-right (LRM) and the name
+    /// is wrapped in a first-strong isolate (FSI ... PDI), so WhatsApp does not flip the rest of the line. Text without RTL letters is returned as is.
+    /// </summary>
+    public static string PinLine(string prefix, string name, string suffix)
+    {
+        if (!name.Any(ch => ch is (>= '֐' and <= 'ࣿ') or (>= 'יִ' and <= '﷿') or (>= 'ﹰ' and <= '﻿')))
+            return prefix + name + suffix;
+        return "‎" + prefix + "⁨" + name + "⁩" + suffix;
+    }
+
     public static string StripInvisible(string text)
     {
         if (text.Length == 0) return text;

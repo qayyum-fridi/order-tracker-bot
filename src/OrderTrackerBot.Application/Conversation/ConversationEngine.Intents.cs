@@ -118,6 +118,9 @@ public partial class ConversationEngine
     private RoutedIntent? DirectKeywordRoute(string message)
     {
         var hits = IntentKeywords.Match(message, IntentCatalog.All);
+        // "Customers support ka document do": a single word ("customers") and a phrase ("customers support") both match; the phrase is what was meant.
+        if (hits.Count > 1 && IntentKeywords.MatchPhrase(message, hits.Select(IntentCatalog.Find).OfType<IntentDefinition>()) is { Count: 1 } phrase)
+            hits = phrase;
         return hits.Count == 1 && IntentCatalog.Find(hits[0]) is { } intent && intent.Id != IntentCatalog.HowToId ? RunnableRoute(intent) : null;
     }
 

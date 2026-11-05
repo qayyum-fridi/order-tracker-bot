@@ -40,6 +40,16 @@ public static class IntentKeywords
             .ToList();
     }
 
+    /// <summary>The intents (among those given) that the message matches through a multi-word keyword, which is more specific than a single word.</summary>
+    public static IReadOnlyList<string> MatchPhrase(string? text, IEnumerable<IntentDefinition> intents)
+    {
+        var spaced = " " + string.Join(" ", Split.Split((text ?? "").ToLowerInvariant()).Where(p => p.Length > 0)) + " ";
+        return intents
+            .Where(intent => KeywordsOf(intent).Any(k => k.Contains(' ') && spaced.Contains(" " + k.Trim() + " ", StringComparison.OrdinalIgnoreCase)))
+            .Select(intent => intent.Id)
+            .ToList();
+    }
+
     /// <summary>The runtime keywords of an intent (database), or the catalog keywords when the database has none for it.</summary>
     private static IEnumerable<string> KeywordsOf(IntentDefinition intent) =>
         KeywordStore.IntentWords(intent.Id) ?? (IEnumerable<string>?)intent.Keywords ?? Array.Empty<string>();
