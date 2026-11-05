@@ -219,6 +219,30 @@ public static class CommandParser
 
     private static readonly Regex MarginCmd = new(@"^(?:margins?|margin\s+(?:list|report)|profit\s+margins?|discount\s+(?:room|limit)|munafa\s+per\s+product)$", Opts);
     private static readonly Regex CategorySalesCmd = new(@"^(?:category[\s-]*wise\s+(?:sales?|report)|sales?\s+by\s+category|category\s+(?:sales?|report)|category\s+ki\s+sale|categories\s+sales?)(?:\s+(?<p>.+))?$", Opts);
+    // "language urdu", "change language to english", "urdu mein karo", "اردو ma tabdeel karo": the seller names the language, so the bot switches without the picker.
+    private const string LanguageWord = @"urdu|اردو|english|انگریزی|roman\s*urdu|roman";
+    private static readonly Regex LanguageSetCommand = new(@"^(?:language|change\s+language|zabaan|zaban|زبان)\s+(?:to\s+|ko\s+)?(?<lang>" + LanguageWord + @")$", Opts);
+    private static readonly Regex LanguageNamed = new(@"(?<lang>" + LanguageWord + @")", Opts);
+    private static readonly Regex LanguageChangeWord = new(@"tabdeel|tabdil|badal|badlo|badlein|change|switch|karo|kar\s*do|kar\s*dein|kardo|kardiya|kar\s*diya|تبدیل|بدل|کردیا|کردو|کریں", Opts);
+
+    private static ParsedCommand? TryParseLanguageSet(string message)
+    {
+        var match = LanguageSetCommand.Match(message);
+        if (!match.Success && message.Length <= 40 && message.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= 6
+            && LanguageChangeWord.IsMatch(message))
+            match = LanguageNamed.Match(message);
+        if (!match.Success) return null;
+        var word = match.Groups["lang"].Value.ToLowerInvariant().Replace(" ", "");
+        // Targets are the words Lang.Resolve understands.
+        var target = word switch
+        {
+            "urdu" or "اردو" => "اردو",
+            "english" or "انگریزی" => "english",
+            _ => "roman urdu",
+        };
+        return new ParsedCommand { Kind = CommandKind.ChangeLanguage, Text = target };
+    }
+
     private static readonly Regex GuideLater = new(@"^baad\s+mein$", Opts);
     private static readonly Regex ChangeLanguage = new(@"^(change\s+language|language(\s+(badlein|badlo|change))?|zabaan\s+badlein|language\s+badal(na|ein)?|زبان\s+بدلیں)$", Opts);
     private static readonly Regex BusinessSetup = new(@"^(business\s+setup|setup|settings)$", Opts);
@@ -1637,6 +1661,7 @@ public static class CommandParser
         if (Greeting.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Greeting };
         if (Help.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Help };
         if (ChangeLanguage.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ChangeLanguage };
+        if (TryParseLanguageSet(message) is { } setLanguage) return setLanguage;
         if (BusinessSetup.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.BusinessSetup };
         if (PaymentMethodPrompt.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.PaymentMethodPrompt };
         if (Guide.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Guide, Text = message.Contains("dekh", StringComparison.OrdinalIgnoreCase) || message.StartsWith("poora", StringComparison.OrdinalIgnoreCase) ? "full" : null };
