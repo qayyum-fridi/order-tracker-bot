@@ -1050,12 +1050,12 @@
           "required": true,
           "sample": "fabric"
         },
-        "value": {
+        "attribute_value": {
           "required": true,
           "sample": "cotton"
         }
       },
-      "template": "{name} - {price}, {attribute}: {value}"
+      "template": "{name} - {price}, {attribute}: {attribute_value}"
     },
     {
       "id": "product.show",

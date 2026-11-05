@@ -77,7 +77,7 @@ public class GuideHowToTests : IDisposable
 
         await Engine(db).HandleIncomingMessageAsync(Phone, question, default);
 
-        Assert.Contains("[name] - [price], [attribute]: [value]", Replies);
+        Assert.Contains("[name] - [price], [attribute]: [attribute_value]", Replies);
         Assert.Contains("Polo Shirt - 500, fabric: cotton", Replies);
         Assert.DoesNotContain("samajh nahi", Replies);
         Assert.Equal(0, await db.Products.CountAsync());
