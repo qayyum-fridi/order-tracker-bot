@@ -53,9 +53,8 @@ public partial class ConversationEngine
     }
 
     /// <summary>Asks "did you mean" for the one misspelt keyword in an unplaced message. False (nothing sent) when there is no clear typo.</summary>
-    private async Task<bool> TrySuggestWordFixAsync(Seller seller, string message, CancellationToken ct)
+    private async Task<bool> TrySuggestWordFixAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
-        if (seller.Session is not { } session) return false;
         var names = (await _db.Products.Where(p => p.SellerId == seller.Id).Select(p => p.Name).Take(500).ToListAsync(ct))
             .Concat(await _db.Customers.Where(c => c.SellerId == seller.Id).Select(c => c.Name).Take(500).ToListAsync(ct));
         var protectedWords = names.SelectMany(IntentKeywords.Tokens).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -63,7 +62,6 @@ public partial class ConversationEngine
         var candidate = FindOneWordFix(message, KeywordStore.IntentVocabulary(), protectedWords);
         if (candidate is null) return false;
 
-        var ctx = SessionContextData.FromJson(session.ContextJson);
         ctx.PendingWordFix = new PendingWordFixData
         {
             Original = message, From = candidate.From, To = candidate.To, Corrected = candidate.Corrected,
@@ -71,6 +69,24 @@ public partial class ConversationEngine
         };
         await PersistAsync(session, ctx, ct);
         await SendChoicesAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("word-fix.001", candidate.From, candidate.To),
+            new List<ChoiceOption> { new(WordFixYes, WordFixYes), new(WordFixNo, WordFixNo) }, ct);
+        return true;
+    }
+
+    /// <summary>
+    /// The router was not sure, but it named one command: the seller is asked "do you mean ...?" with Yes / No taps. Yes runs that command
+    /// (and learns the message's words for its intent); No falls through to the keyword question and the usual options.
+    /// </summary>
+    private async Task<bool> TrySuggestAiGuessAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
+    {
+        if (_turnGuess is not { } guess) return false;
+        ctx.PendingWordFix = new PendingWordFixData
+        {
+            Original = message, From = "", To = guess.Command, Corrected = guess.Command,
+            Intent = guess.IntentId, At = _clock.GetUtcNow().UtcDateTime,
+        };
+        await PersistAsync(session, ctx, ct);
+        await SendChoicesAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("ai-guess.001", guess.Command),
             new List<ChoiceOption> { new(WordFixYes, WordFixYes), new(WordFixNo, WordFixNo) }, ct);
         return true;
     }

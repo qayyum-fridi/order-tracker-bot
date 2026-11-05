@@ -111,6 +111,7 @@ public partial class ConversationEngine
         _turnTracked = false;
         _turnVotes = new List<LearnedKeywordVote>();
         _turnRouteIntent = null;
+        _turnGuess = null;
         await LearnFromMissTapAsync(fromPhoneNumber, rawMessage, ct);
         // An answer to "did you mean ...?": Yes continues with the corrected message, No has already sent the usual options.
         var (answered, corrected) = await TakeWordFixAnswerAsync(fromPhoneNumber, rawMessage, ct);

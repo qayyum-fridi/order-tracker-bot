@@ -79,11 +79,13 @@ public partial class ConversationEngine
         if ((analysis.AiUnavailable || analysis.Intent is "unclear" or "off_topic") && analysis.Order is null && session.State == ConversationState.Idle)
         {
             if (await TryRunRoutedIntentAsync(seller, session, ctx, message, ct)) return;
+            // The router was not sure: ask "do you mean ...?" with the command it guessed, before any keyword question.
+            if (await TrySuggestAiGuessAsync(seller, session, ctx, message, ct)) return;
             await RecordUnplacedAsync(seller, "freeform_" + (analysis.Intent == "" ? "ai_unavailable" : analysis.Intent), message, analysis.Intent, null, ct);
             // Nothing placed it: offer the nearest catalog examples as taps (a model question, when the AI asked one, is kept).
             // A message that names a feature area keeps its own question (HandleAnalysisAsync asks which command).
             if (analysis.ClarificationQuestion is null && !TryKeywordClarification(message, out _, out _)
-                && await TrySuggestWordFixAsync(seller, message, ct)) return;
+                && await TrySuggestWordFixAsync(seller, session, ctx, message, ct)) return;
             if (analysis.ClarificationQuestion is null && !TryKeywordClarification(message, out _, out _)
                 && await TrySendMissChoicesAsync(seller, message, ct)) return;
         }

@@ -14,6 +14,12 @@ public partial class ConversationEngine
     /// <summary>Below this the router's guess is not trusted: the seller gets the usual "not understood" reply.</summary>
     private const double MinRouteConfidence = 0.7;
 
+    /// <summary>Below the route bar but at least this sure, the router's guess is offered as a Yes / No question (ConversationEngine.WordFix.cs).</summary>
+    private const double MinGuessConfidence = 0.4;
+
+    /// <summary>The command the router guessed (no slots to fill) and its intent, for this turn only.</summary>
+    private (string Command, string IntentId)? _turnGuess;
+
     /// <summary>What the router decided for one message: a typed command to run, or the line the seller should type (<c>Help</c>).</summary>
     private sealed record RoutedIntent(string? Command, string? Help);
 
@@ -26,6 +32,10 @@ public partial class ConversationEngine
         var route = seller is not null && _features.RouterContext
             ? await _ai.RouteIntentWithContextAsync(message, IntentCatalog.All, await BuildRouteContextAsync(seller, message, ct), ct)
             : await _ai.RouteIntentAsync(message, IntentCatalog.All, ct);
+        // A guess the router is not sure of (between the two bars) is offered to the seller as a Yes / No tap instead of run.
+        if (route is not null && route.Confidence >= MinGuessConfidence && route.Confidence < MinRouteConfidence
+            && IntentCatalog.Find(route.Intent) is { } guessed && IntentCatalog.Build(guessed, new Dictionary<string, string>()).Command is { } guessCommand)
+            _turnGuess = (guessCommand, guessed.Id);
         if (route is null || route.Confidence < MinRouteConfidence || IntentCatalog.Find(route.Intent) is not { } intent) return null;
 
         var built = IntentCatalog.Build(intent, route.Slots);
