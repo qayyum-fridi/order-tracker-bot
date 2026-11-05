@@ -159,6 +159,22 @@ public class GuideHowToTests : IDisposable
         Assert.DoesNotContain("available nahi", Replies);
     }
 
+    // Seen live: "Mera kis kam ki yah application ha" offered "low stock".
+    [Fact]
+    public async Task WhatIsThisAppFor_RoutedToTheGuide_IsAnswered_NotAskedAgain()
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+        _ai.Setup(a => a.RouteIntentAsync("Mera kis kam ki yah application ha", It.IsAny<IReadOnlyList<IntentDefinition>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IntentRoute("account.guide", new Dictionary<string, string>(), 0.95));
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, "Mera kis kam ki yah application ha", default);
+
+        Assert.NotEmpty(_text);
+        Assert.DoesNotContain("samajh nahi", Replies);
+        Assert.Contains("what is this app for", IntentCatalog.Find("account.guide")!.Examples);
+    }
+
     // Seen live: "Customers support ka document do" showed the customer list ("customers" alone claimed it).
     [Fact]
     public async Task CustomersSupport_IsSupport_NotTheCustomerList()

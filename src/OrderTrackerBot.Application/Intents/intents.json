@@ -2616,9 +2616,16 @@
       "entity": "account",
       "action": "guide",
       "kind": "Guide",
-      "description": "Step-by-step guide.",
+      "description": "Step-by-step guide, and what this bot or application is for and what it can do.",
       "examples": [
-        "guide"
+        "guide",
+        "yeh application kis kaam ki hai",
+        "yeh bot kya karta hai",
+        "is app se kya kya ho sakta hai",
+        "what is this app for",
+        "what can this bot do",
+        "یہ ایپ کس کام کی ہے",
+        "یہ بوٹ کیا کرتا ہے"
       ],
       "slots": {},
       "template": "guide"
