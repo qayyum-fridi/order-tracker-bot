@@ -112,6 +112,10 @@ public partial class ConversationEngine
         _turnVotes = new List<LearnedKeywordVote>();
         _turnRouteIntent = null;
         await LearnFromMissTapAsync(fromPhoneNumber, rawMessage, ct);
+        // An answer to "did you mean ...?": Yes continues with the corrected message, No has already sent the usual options.
+        var (answered, corrected) = await TakeWordFixAnswerAsync(fromPhoneNumber, rawMessage, ct);
+        if (corrected is not null) rawMessage = corrected;
+        else if (answered) return;
         if (await TryHandleVoiceConfirmationAsync(fromPhoneNumber, rawMessage, ct)) return;
         var answeredDraft = IsOrderDraftState((await LoadOrCreateSellerAsync(fromPhoneNumber, ct)).Session!.State);
         _draftPutOnHold = false;

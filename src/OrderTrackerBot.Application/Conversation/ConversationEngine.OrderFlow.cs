@@ -83,6 +83,8 @@ public partial class ConversationEngine
             // Nothing placed it: offer the nearest catalog examples as taps (a model question, when the AI asked one, is kept).
             // A message that names a feature area keeps its own question (HandleAnalysisAsync asks which command).
             if (analysis.ClarificationQuestion is null && !TryKeywordClarification(message, out _, out _)
+                && await TrySuggestWordFixAsync(seller, message, ct)) return;
+            if (analysis.ClarificationQuestion is null && !TryKeywordClarification(message, out _, out _)
                 && await TrySendMissChoicesAsync(seller, message, ct)) return;
         }
         // The seller's own words beat the model: "delivery 300" in a single order is that order's delivery charge.

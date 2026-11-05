@@ -113,6 +113,8 @@ public sealed class SessionContextData
     public List<string>? MissChoiceWords { get; set; }
     public Dictionary<string, string>? MissChoiceIntents { get; set; }
     public DateTime? MissChoiceAt { get; set; }
+    /// <summary>A "did you mean" question about one misspelt keyword (ConversationEngine.WordFix.cs), waiting for Yes / No.</summary>
+    public PendingWordFixData? PendingWordFix { get; set; }
     /// <summary>How many pages were read for the chosen kind (see MaxPhotoPagesPerRound).</summary>
     public int PendingPhotoPages { get; set; }
     public int? LastOrderId { get; set; }

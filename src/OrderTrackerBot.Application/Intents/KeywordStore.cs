@@ -36,6 +36,10 @@ public static class KeywordStore
     public static IReadOnlyCollection<string>? IntentWords(string intentId) =>
         _current.IntentWords.TryGetValue(intentId, out var words) ? words : null;
 
+    /// <summary>Every intent keyword in use, with the intent it belongs to (the vocabulary a misspelt word is compared with).</summary>
+    public static IReadOnlyList<(string Word, string IntentId)> IntentVocabulary() =>
+        _current.IntentWords.SelectMany(p => p.Value.Select(w => (w, p.Key))).ToList();
+
     /// <summary>The feature areas in use, in order: the first whose keywords match a message decides the question.</summary>
     public static IReadOnlyList<CommandArea> CommandAreas => _current.Areas;
 
