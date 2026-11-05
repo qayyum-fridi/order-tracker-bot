@@ -183,7 +183,7 @@ public partial class ConversationEngine
                 (question, options) = (kwQuestion, kwOptions);
             LogNotUnderstood("ai-clarify", session.State, sourceText);
             ctx.ClarifiedText = sourceText;
-            await AskClarificationAsync(seller, session, ctx, question, options, ct);
+            await AskClarificationAsync(seller, session, ctx, question, options, ct, sourceText);
             return;
         }
 
