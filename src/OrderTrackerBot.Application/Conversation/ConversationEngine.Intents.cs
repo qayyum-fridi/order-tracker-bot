@@ -29,6 +29,9 @@ public partial class ConversationEngine
         if (DirectKeywordRoute(message) is { } direct) return direct;
         // Words this seller taught (a tap or a confirmed guess) route their own next message, without waiting for other sellers.
         if (seller is not null && await SellerTaughtRouteAsync(seller, message, ct) is { } taught) return taught;
+        // Words that three or more sellers agreed on route the same way (only when they all point to one intent).
+        if (LearnedKeywordLog.HintsFor(IntentKeywords.Tokens(message)).Distinct(StringComparer.Ordinal).ToList() is { Count: 1 } shared
+            && TaughtIntentRoute(shared[0]) is { } shareRoute) return shareRoute;
 
         // With the flag on and a seller known, the router also gets the seller's context (what kind of shop, its products, what the bot was doing, the last messages).
         var route = seller is not null && _features.RouterContext
@@ -64,7 +67,16 @@ public partial class ConversationEngine
                 .Where(v => v.SellerId == seller.Id && words.Contains(v.Word))
                 .Select(v => v.IntentId).ToListAsync(ct))
             .Distinct().ToList();
-        if (taught.Count != 1 || IntentCatalog.Find(taught[0]) is not { } intent || intent.Slots.Any(s => s.Required)) return null;
+        return taught.Count == 1 ? TaughtIntentRoute(taught[0]) : null;
+    }
+
+    /// <summary>
+    /// The route for an intent that learned words point to: only when it needs no slot, its command parses to its kind, and it is not risky.
+    /// Risky intents are returned as the line to type, never run.
+    /// </summary>
+    private RoutedIntent? TaughtIntentRoute(string intentId)
+    {
+        if (IntentCatalog.Find(intentId) is not { } intent || intent.Slots.Any(s => s.Required)) return null;
 
         var built = IntentCatalog.Build(intent, new Dictionary<string, string>());
         if (built.Command is null || CommandParser.TryParse(built.Command) is not { } parsed || parsed.Kind.ToString() != intent.Kind) return null;

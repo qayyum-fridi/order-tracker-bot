@@ -93,4 +93,19 @@ public class AiGuessTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "how many my inventory is", default);
         Assert.DoesNotContain(_sent, m => m.Contains("Stock ke baare mein"));
     }
+
+    [Fact]
+    public async Task WordThreeSellersAgreedOn_RoutesTheSameWayForAnyone()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        foreach (var other in new[] { 101, 102, 103 })
+            await LearnedKeywordLog.AddVotesAsync(db, other, new[] { "zxqshared" }, "setup.status", default);
+        await db.SaveChangesAsync();
+        await LearnedKeywordLog.FlushAsync(db, DateTime.UtcNow, default);
+
+        await engine.HandleIncomingMessageAsync(Phone, "zxqshared", default);
+
+        Assert.Contains(_sent, m => m.Contains("setup mukammal"));
+    }
 }
