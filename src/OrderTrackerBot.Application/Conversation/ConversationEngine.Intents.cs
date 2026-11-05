@@ -133,8 +133,8 @@ public partial class ConversationEngine
     private async Task<HashSet<string>> OwnFilteredWordsAsync(Seller seller, HashSet<string> words, CancellationToken ct)
     {
         if (words.Count == 0) return words;
-        var products = await _db.Products.Where(p => p.SellerId == seller.Id).Select(p => p.Name).Take(500).ToListAsync(ct);
-        var customers = await _db.Customers.Where(c => c.SellerId == seller.Id).Select(c => c.Name).Take(500).ToListAsync(ct);
+        var products = await _db.Products.Where(p => p.SellerId == seller.Id).OrderByDescending(p => p.Id).Select(p => p.Name).Take(500).ToListAsync(ct);
+        var customers = await _db.Customers.Where(c => c.SellerId == seller.Id).OrderByDescending(c => c.Id).Select(c => c.Name).Take(500).ToListAsync(ct);
         words.ExceptWith(products.Concat(customers).SelectMany(IntentKeywords.Tokens));
         return words;
     }

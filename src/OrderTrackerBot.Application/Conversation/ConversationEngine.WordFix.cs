@@ -55,8 +55,8 @@ public partial class ConversationEngine
     /// <summary>Asks "did you mean" for the one misspelt keyword in an unplaced message. False (nothing sent) when there is no clear typo.</summary>
     private async Task<bool> TrySuggestWordFixAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
-        var names = (await _db.Products.Where(p => p.SellerId == seller.Id).Select(p => p.Name).Take(500).ToListAsync(ct))
-            .Concat(await _db.Customers.Where(c => c.SellerId == seller.Id).Select(c => c.Name).Take(500).ToListAsync(ct));
+        var names = (await _db.Products.Where(p => p.SellerId == seller.Id).OrderByDescending(p => p.Id).Select(p => p.Name).Take(500).ToListAsync(ct))
+            .Concat(await _db.Customers.Where(c => c.SellerId == seller.Id).OrderByDescending(c => c.Id).Select(c => c.Name).Take(500).ToListAsync(ct));
         var protectedWords = names.SelectMany(IntentKeywords.Tokens).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var candidate = FindOneWordFix(message, KeywordStore.IntentVocabulary(), protectedWords);
