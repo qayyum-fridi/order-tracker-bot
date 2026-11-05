@@ -2644,6 +2644,21 @@
       "template": "change language"
     },
     {
+      "id": "account.reports",
+      "entity": "account",
+      "action": "reports",
+      "kind": "ReportMenu",
+      "description": "Show the list of reports as taps (orders today, unpaid, customers, expenses, stock, today's account).",
+      "examples": [
+        "reports dikhao",
+        "report list",
+        "reports",
+        "کون سی رپورٹ دیکھوں"
+      ],
+      "slots": {},
+      "template": "reports"
+    },
+    {
       "id": "account.language_set",
       "entity": "account",
       "action": "language_set",

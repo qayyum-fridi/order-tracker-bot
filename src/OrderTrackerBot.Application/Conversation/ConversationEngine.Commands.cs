@@ -411,6 +411,9 @@ public partial class ConversationEngine
             case CommandKind.Subscribe:
                 await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("billing.003", PlansText), PlanButtons, ct);
                 return;
+            case CommandKind.ReportMenu:
+                await SendReportMenuAsync(seller, ct);
+                return;
             case CommandKind.ChangeLanguage when cmd.Text is not null:
                 // The seller named the language ("urdu mein karo"): switch now, no picker.
                 seller.PreferredLanguage = Lang.Resolve(cmd.Text);
