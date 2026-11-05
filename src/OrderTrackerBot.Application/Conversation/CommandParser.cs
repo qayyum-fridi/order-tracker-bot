@@ -110,6 +110,7 @@ public enum CommandKind
     DiscountPerformance,
     NewOrderHelp,
     Guide,
+    ReportMenu,
     Version,
     /// <summary>"setup status" / "is setup complete": whether the seller's setup is finished, and the shop it was set for.</summary>
     SetupStatus,
@@ -243,6 +244,8 @@ public static class CommandParser
         return new ParsedCommand { Kind = CommandKind.ChangeLanguage, Text = target };
     }
 
+    // "reports" alone: the report list as taps (ConversationEngine.ReportMenu.cs).
+    private static readonly Regex ReportMenuCmd = new(@"^(?:reports|reports\s+menu|report\s+menu|رپورٹس)$", Opts);
     private static readonly Regex GuideLater = new(@"^baad\s+mein$", Opts);
     private static readonly Regex ChangeLanguage = new(@"^(change\s+language|language(\s+(badlein|badlo|change))?|zabaan\s+badlein|language\s+badal(na|ein)?|زبان\s+بدلیں)$", Opts);
     private static readonly Regex BusinessSetup = new(@"^(business\s+setup|setup|settings)$", Opts);
@@ -1664,6 +1667,7 @@ public static class CommandParser
         if (TryParseLanguageSet(message) is { } setLanguage) return setLanguage;
         if (BusinessSetup.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.BusinessSetup };
         if (PaymentMethodPrompt.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.PaymentMethodPrompt };
+        if (ReportMenuCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ReportMenu };
         if (Guide.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Guide, Text = message.Contains("dekh", StringComparison.OrdinalIgnoreCase) || message.StartsWith("poora", StringComparison.OrdinalIgnoreCase) ? "full" : null };
         if (CategorySalesCmd.Match(message) is { Success: true } catSales)
         {
