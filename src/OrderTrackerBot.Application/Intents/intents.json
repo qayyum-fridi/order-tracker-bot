@@ -266,7 +266,6 @@
       "examples": [
         "order 12 mein tabdeeli karni hai",
         "order 12 edit karna hai",
-        "order ko edit kana ka tarika",
         "order edit kaise karte hain",
         "how do I edit an order",
         "آرڈر ایڈٹ کرنے کا طریقہ"
@@ -289,7 +288,6 @@
       "examples": [
         "aakhri order edit karo",
         "latest order mein change",
-        "order ko edit kana ka tarika",
         "how do I edit an order"
       ],
       "slots": {},
@@ -4042,9 +4040,6 @@
         "kaise",
         "kese",
         "kaisay",
-        "kasa",
-        "kaisey",
-        "kesay",
         "kis tarah",
         "tarika",
         "tariqa",

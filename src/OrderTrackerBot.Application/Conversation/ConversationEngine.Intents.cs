@@ -68,10 +68,10 @@ public partial class ConversationEngine
             });
         // A how-to question is never left with "not understood": the closest command was tried above, so say where to look.
         if (route is null || route.Confidence < MinRouteConfidence || IntentCatalog.Find(route.Intent) is not { } intent)
-            return isHowTo ? new RoutedIntent(null, null, MessageTemplates.Get("guide.howto.none")) : null;
+            return isHowTo ? HowToFallback(message) : null;
         // The model placed the question on the catalog's own how-to entry: name the closest command, or say where to look.
         if (intent.Id == IntentCatalog.HowToId)
-            return HowToRoute(message) ?? new RoutedIntent(null, null, MessageTemplates.Get("guide.howto.none"));
+            return HowToRoute(message) ?? HowToFallback(message);
 
         var built = IntentCatalog.Build(intent, route.Slots);
         // A question is answered with the line to type, not by doing it (except an entry that is only help or contact, which is what was asked for).
@@ -136,7 +136,7 @@ public partial class ConversationEngine
 
     /// <summary>True when the message carries one of the how-to words (the keywords of the guide.howto entry): "kaise", "how do I", "طریقہ"...</summary>
     private static bool IsHowToQuestion(string message) =>
-        IntentCatalog.Find(IntentCatalog.HowToId) is { } howTo && IntentKeywords.Match(message, new[] { howTo }).Count > 0;
+        IntentCatalog.Find(IntentCatalog.HowToId) is { } howTo && IntentKeywords.MatchTolerant(message, new[] { howTo }).Count > 0;
 
     /// <summary>
     /// The answer to a how-to question: the closest command (a second one when it is nearly as close) with the line to type and a worked example.
@@ -154,14 +154,28 @@ public partial class ConversationEngine
         return new RoutedIntent(null, null, HowToReply(shown));
     }
 
-    /// <summary>The how-to message for one or two intents: the line to type, with a worked example when the entry has sample values.</summary>
-    private static string HowToReply(IReadOnlyList<IntentDefinition> intents) =>
-        MessageTemplates.Get("guide.howto.line", string.Join("\n\n", intents.Select(i =>
+    /// <summary>A how-to question nothing matched well: the weakly closest command is offered as a guess; with nothing close, the places to look.</summary>
+    private const double MinHowToGuessScore = 0.1;
+
+    private static RoutedIntent HowToFallback(string message)
+    {
+        var closest = IntentCatalog.Closest(message, 1);
+        return closest.Count > 0 && closest[0].Score >= MinHowToGuessScore && !closest[0].Intent.RunOnHowTo
+            ? new RoutedIntent(null, null, MessageTemplates.Get("guide.howto.guess", HowToLines(new[] { closest[0].Intent })))
+            : new RoutedIntent(null, null, MessageTemplates.Get("guide.howto.none"));
+    }
+
+    private static string HowToLines(IReadOnlyList<IntentDefinition> intents) =>
+        string.Join("\n\n", intents.Select(i =>
         {
             var line = IntentCatalog.Example(i);
             var sample = IntentCatalog.SampleCommand(i);
             return sample is null || sample == line ? line : MessageTemplates.Get("guide.howto.example", line, sample);
-        })));
+        }));
+
+    /// <summary>The how-to message for one or two intents: the line to type, with a worked example when the entry has sample values.</summary>
+    private static string HowToReply(IReadOnlyList<IntentDefinition> intents) =>
+        MessageTemplates.Get("guide.howto.line", HowToLines(intents));
 
     /// <summary>
     /// Learns the words of a routed message for the intent the router chose. The seller's own product and customer names are left out,

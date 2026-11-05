@@ -68,7 +68,15 @@ public static class IntentCatalog
     {
         var words = IntentKeywords.Tokens(message);
         // The how-to words themselves ("kaise", "how", "tarika") say nothing about which command is meant.
-        if (Find(HowToId) is { } howTo) words.ExceptWith(IntentKeywords.Tokens(string.Join(' ', howTo.Keywords ?? Array.Empty<string>())));
+        if (Find(HowToId) is { } howTo)
+        {
+            var howWords = IntentKeywords.Tokens(string.Join(' ', howTo.Keywords ?? Array.Empty<string>()));
+            words.ExceptWith(howWords);
+            words.RemoveWhere(w => howWords.Any(k => IntentKeywords.IsNear(w, k)));
+        }
+        // A word the catalog has never seen is read as its nearest catalog word ("kana" -> "karna"), so a typo still counts.
+        var vocabulary = Vocabulary.Value;
+        words = words.Select(w => vocabulary.Contains(w) ? w : TextDistance.Closest(w, vocabulary) ?? w).ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (words.Count == 0) return Array.Empty<(IntentDefinition, double)>();
 
         var candidates = All.Where(i => i.Id != HowToId).Select(i => (Intent: i, Words: IntentWords(i))).ToList();
@@ -79,6 +87,9 @@ public static class IntentCatalog
             .OrderByDescending(c => c.Score)
             .Take(take).ToList();
     }
+
+    private static readonly Lazy<HashSet<string>> Vocabulary = new(() =>
+        All.Where(i => i.Id != HowToId).SelectMany(IntentWords).ToHashSet(StringComparer.OrdinalIgnoreCase));
 
     private static HashSet<string> IntentWords(IntentDefinition intent) =>
         IntentKeywords.Tokens(string.Join(' ', intent.Examples.Concat(intent.Keywords ?? Array.Empty<string>()).Append(intent.Description).Append(intent.Entity).Append(intent.Action)));

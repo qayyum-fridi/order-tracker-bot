@@ -12,5 +12,6 @@
   "intent.howto": "✏️ Type it like this:\n\n{0}\n\nFor the menu: menu",
   "guide.howto.line": "✏️ Here is how to do it:\n\n{0}\n\nFor more help type \"guide\" or \"menu\". To talk to a person type \"support\".",
   "guide.howto.example": "{0}\nExample: {1}",
+  "guide.howto.guess": "🙏 I am not sure, but you may be asking about this:\n\n{0}\n\nFor more help type \"guide\" or \"menu\". To talk to a person type \"support\".",
   "guide.howto.none": "🙏 Sorry, I could not find how to do that. Type \"guide\" for the full walkthrough, \"menu\" to see everything I can do, or \"support\" to talk to our team."
 }
