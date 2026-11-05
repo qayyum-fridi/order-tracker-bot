@@ -555,6 +555,15 @@ public partial class ConversationEngine
         if (await TryHandleScannedCodeAsync(seller, ctx, message, ct)) return;
 
         var command = CommandParser.TryParse(message);
+        // Flagged (Features:InsightRouter): a question the rules read as an insight is also offered to the intent router, which may place it on a catalog command.
+        if (_features.InsightRouter && command?.Kind == CommandKind.Insight
+            && await RouteIntentAsync(message, ct, seller) is { Command: not null } routedInsight
+            && CommandParser.TryParse(routedInsight.Command) is { } routedCommand && routedCommand.Kind != CommandKind.Insight)
+        {
+            _logger?.LogInformation("Insight question placed by the router on {Kind}", routedCommand.Kind);
+            await ExecuteCommandAsync(seller, session, ctx, routedCommand, ct);
+            return;
+        }
         // A sentence the rules do not know but THIS seller once taught (by picking the right option) is understood without asking again.
         if (command is null && LearnedCommandFor(ctx, message) is { } learnedCommand)
         {
@@ -747,6 +756,12 @@ public partial class ConversationEngine
 public sealed class FeatureOptions
 {
     public const string SectionName = "Features";
+
+    /// <summary>
+    /// A business question the rules read as an insight is also offered to the intent router, which may place it on a catalog command.
+    /// Off by default: the rules answer as before until the router eval shows it is at least as good.
+    /// </summary>
+    public bool InsightRouter { get; set; } = false;
 
     /// <summary>Quick-action buttons (Guide / New order / Menu) after finished replies.</summary>
     public bool ShortcutButtons { get; set; } = true;
