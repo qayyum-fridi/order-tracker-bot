@@ -1517,6 +1517,8 @@ public static class CommandParser
         (new Regex(@"^order\s+\d+\s+undo$", CasualOpts), "notice.undo.001"),
         (new Regex(@"^(?:last|pichla|aakhri)\s+(?:expense|kharcha)\s+(?:wapas|undo)(?:\s+karo|\s+kar\s*do)?$", CasualOpts), "notice.undo.001"),
         (new Regex(@"^[^\d,:]{2,40}?\s+(?:ka|ki)\s+(?:phone|number|mobile)\s+[^\s\d]+$", CasualOpts), "notice.phone.001"),
+        // Changing a saved order's date: an order word, a date word and a change word in any order ("order ki date kaise badlein", "change order date").
+        (new Regex(@"^(?=.*\b(?:order|orders|آرڈر)\b)(?=.*\b(?:date|tareekh|tarikh|تاریخ)\b)(?=.*\b(?:change|badal\w*|tabdeel\w*|edit|update|بدل\w*|تبدیل\w*)\b).{8,}$", CasualOpts), "notice.orderdate.001"),
     };
 
     private static ParsedCommand? ParseNotice(string text)
