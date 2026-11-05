@@ -1,6 +1,35 @@
 {
   "intents": [
     {
+      "id": "count.total",
+      "entity": "count",
+      "action": "total",
+      "kind": "Count",
+      "description": "How many of something the seller has, from their own records: customers, products, wages, orders or expenses (with the money for wages and expenses).",
+      "examples": [
+        "mere paas kitne customers hain",
+        "how many products do I have",
+        "kitni tankhwah di hai",
+        "kitne orders hain",
+        "total expenses kitne hain"
+      ],
+      "slots": {
+        "entity": {
+          "required": true
+        }
+      },
+      "template": "count {entity}",
+      "keywords": [
+        "kitne customers",
+        "kitne products",
+        "kitne orders",
+        "kitne expenses",
+        "how many customers",
+        "how many products",
+        "how many orders"
+      ]
+    },
+    {
       "id": "setup.status",
       "entity": "setup",
       "action": "status",

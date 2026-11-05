@@ -1,0 +1,9 @@
+{
+  "count.customers": "👥 Aap ke paas {0} customers hain.",
+  "count.products": "📦 Aap ke paas {0} active products hain.",
+  "count.wages": "👷 Tankhwah ki {0} entries hain, kul rakam {1}.",
+  "count.orders": "🧾 Aap ke {0} orders save hain.",
+  "count.expenses": "💸 {0} kharche hain, kul rakam {1}.",
+  "count.unknown": "ℹ️ Maaf kijiye, yeh cheez ginne ke liye \"count customers\", \"count products\", \"count wages\", \"count orders\" ya \"count expenses\" likhein.",
+  "understood.001": "🔎 Main yeh samajh raha hoon: \"{0}\""
+}

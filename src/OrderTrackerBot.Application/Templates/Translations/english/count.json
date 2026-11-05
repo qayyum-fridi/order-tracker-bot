@@ -1,0 +1,9 @@
+{
+  "count.customers": "👥 You have {0} customers.",
+  "count.products": "📦 You have {0} active products.",
+  "count.wages": "👷 {0} wage entries, total {1}.",
+  "count.orders": "🧾 You have {0} saved orders.",
+  "count.expenses": "💸 {0} expenses, total {1}.",
+  "count.unknown": "ℹ️ Sorry, to count something type \"count customers\", \"count products\", \"count wages\", \"count orders\" or \"count expenses\".",
+  "understood.001": "🔎 I understood: \"{0}\""
+}

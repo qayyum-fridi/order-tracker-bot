@@ -18,7 +18,7 @@ public class IntentCatalogTests
         ["size"] = "25", ["page"] = "2", ["phone"] = "03001234567", ["address"] = "Model Town", ["city"] = "Lahore",
         ["email"] = "sara@mail.com", ["message"] = "naya stock aaya", ["courier"] = "TCS", ["id"] = "12", ["text"] = "Lahore Branch",
         ["paper"] = "80mm", ["label_size"] = "a6", ["industry"] = "kiryana", ["days"] = "30", ["old_price"] = "500", ["new_price"] = "550",
-        ["percent"] = "10", ["period"] = "last week", ["place"] = "Model Town",
+        ["percent"] = "10", ["period"] = "last week", ["place"] = "Model Town", ["entity"] = "customers",
     };
 
     public static IEnumerable<object[]> Intents() => IntentCatalog.All.Select(i => new object[] { i.Id });

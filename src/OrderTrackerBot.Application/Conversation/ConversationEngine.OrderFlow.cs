@@ -1469,7 +1469,9 @@ public partial class ConversationEngine
         // A tap on a command option teaches the words of the message it was asked about (the same learning as the other taps).
         if (learnFromMessage is not null && options.Count > 0)
             await OfferTapLearningAsync(seller, session, ctx, learnFromMessage, options.Where(o => CommandParser.TryParse(o) is not null).ToList(), ct);
-        await SendChoicesAsync(seller.WhatsAppPhoneNumber, question, choices, ct);
+        // The seller sees what the bot understood, above the choices (so a wrong reading is visible at once).
+        var shown = learnFromMessage is null ? question : MessageTemplates.Get("understood.001", learnFromMessage) + "\n\n" + question;
+        await SendChoicesAsync(seller.WhatsAppPhoneNumber, shown, choices, ct);
     }
 
     private async Task HandleClarificationChoiceAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)

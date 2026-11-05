@@ -432,6 +432,9 @@ public partial class ConversationEngine
             case CommandKind.SetupStatus:
                 await HandleSetupStatusAsync(seller, ct);
                 break;
+            case CommandKind.Count:
+                await HandleCountAsync(seller, cmd.Text, ct);
+                break;
             case CommandKind.Limits:
                 {
                     // 0 means no limit is set; the numbers come from the live settings, never typed into the text.
