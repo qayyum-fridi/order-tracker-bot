@@ -74,4 +74,18 @@ public class AiGuessTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "✅ Haan, sahi hai", default);
         Assert.Contains(_sent, m => m.Contains("setup mukammal"));
     }
+
+    [Fact]
+    public async Task TapOnTheKeywordQuestion_TeachesTheMessageWords()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        // The router has no answer: the keyword question about stock is what the seller sees.
+        await engine.HandleIncomingMessageAsync(Phone, "how many my inventory is", default);
+        Assert.Contains(_sent, m => m.Contains("Stock ke baare mein"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "stock", default);
+
+        Assert.True(await db.LearnedKeywordVotes.AnyAsync(v => v.Word == "inventory"), "no vote for the message's words");
+    }
 }

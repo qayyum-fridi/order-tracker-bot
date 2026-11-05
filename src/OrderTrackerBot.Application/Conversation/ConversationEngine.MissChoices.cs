@@ -57,11 +57,11 @@ public partial class ConversationEngine
     }
 
     /// <summary>Sends the tap options for an unplaced idle message. False (nothing sent) when no catalog example is close enough.</summary>
-    private async Task<bool> TrySendMissChoicesAsync(Seller seller, string message, CancellationToken ct)
+    private async Task<bool> TrySendMissChoicesAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         var options = MissChoiceOptions(message);
         if (options.Count == 0) return false;
-        await RememberMissChoicesAsync(seller, message, options, ct);
+        await OfferTapLearningAsync(seller, session, ctx, message, options.Select(o => o.Value).ToList(), ct);
         await SendChoicesAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("miss-choices.001"), options, ct);
         return true;
     }
@@ -69,24 +69,34 @@ public partial class ConversationEngine
     /// <summary>How long a tap on the offered options still counts as an answer to the unplaced message.</summary>
     private static readonly TimeSpan MissChoiceWindow = TimeSpan.FromMinutes(10);
 
-    /// <summary>Keeps the words of the unplaced message and the intent of each option, so a tap can vote them for that intent.</summary>
-    private async Task RememberMissChoicesAsync(Seller seller, string message, IReadOnlyList<ChoiceOption> options, CancellationToken ct)
+    /// <summary>
+    /// Keeps the words of the message and the intent of each offered option, in the caller's own session context (so the turn's save keeps it).
+    /// A tap on an option then votes those words for that intent (<see cref="LearnFromMissTapAsync"/>).
+    /// </summary>
+    internal async Task OfferTapLearningAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, IReadOnlyList<string> optionValues, CancellationToken ct)
     {
-        if (seller.Session is not { } session) return;
         var words = await OwnFilteredWordsAsync(seller, IntentKeywords.Tokens(message), ct);
         words.RemoveWhere(KeywordStore.IsGenericMissWord);
-        var ctx = SessionContextData.FromJson(session.ContextJson);
         ctx.MissChoiceWords = words.ToList();
-        ctx.MissChoiceIntents = options
-            .Where(o => IntentFor(o.Value) is not null)
-            .ToDictionary(o => o.Value, o => IntentFor(o.Value)!, StringComparer.OrdinalIgnoreCase);
+        ctx.MissChoiceIntents = optionValues
+            .Where(v => IntentFor(v) is not null)
+            .GroupBy(v => v, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => IntentFor(g.Key)!, StringComparer.OrdinalIgnoreCase);
         ctx.MissChoiceAt = _clock.GetUtcNow().UtcDateTime;
         await PersistAsync(session, ctx, ct);
     }
 
-    /// <summary>The intent whose catalog examples include this option text (the first in catalog order).</summary>
-    private static string? IntentFor(string example) =>
-        IntentCatalog.All.FirstOrDefault(i => i.Examples.Contains(example, StringComparer.OrdinalIgnoreCase))?.Id;
+    /// <summary>
+    /// The intent an option text means: the intent whose catalog examples include it, else the first intent of the kind the option parses to
+    /// (so a feature-area option such as "stock" maps to the stock intent).
+    /// </summary>
+    private static string? IntentFor(string option)
+    {
+        var byExample = IntentCatalog.All.FirstOrDefault(i => i.Examples.Contains(option, StringComparer.OrdinalIgnoreCase))?.Id;
+        if (byExample is not null) return byExample;
+        var kind = CommandParser.TryParse(option)?.Kind.ToString();
+        return kind is null ? null : IntentCatalog.All.FirstOrDefault(i => string.Equals(i.Kind, kind, StringComparison.Ordinal))?.Id;
+    }
 
     /// <summary>
     /// A tap on one of the options offered for an unplaced message is an explicit choice: the words of that message vote for the tapped intent

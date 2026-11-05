@@ -87,7 +87,7 @@ public partial class ConversationEngine
             if (analysis.ClarificationQuestion is null && !TryKeywordClarification(message, out _, out _)
                 && await TrySuggestWordFixAsync(seller, session, ctx, message, ct)) return;
             if (analysis.ClarificationQuestion is null && !TryKeywordClarification(message, out _, out _)
-                && await TrySendMissChoicesAsync(seller, message, ct)) return;
+                && await TrySendMissChoicesAsync(seller, session, ctx, message, ct)) return;
         }
         // The seller's own words beat the model: "delivery 300" in a single order is that order's delivery charge.
         if (analysis.Order is { } single && analysis.AdditionalOrders.Count == 0 && CommandParser.TryFindDeliveryInOrderText(message, out var delivery))
@@ -123,7 +123,7 @@ public partial class ConversationEngine
         if (analysis.Intent is "off_topic" or "unclear" && analysis.Order is null && analysis.ClarificationOptions.Count == 0
             && TryKeywordClarification(sourceText, out var keywordQuestion, out var keywordOptions))
         {
-            await AskClarificationAsync(seller, session, ctx, keywordQuestion, keywordOptions, ct);
+            await AskClarificationAsync(seller, session, ctx, keywordQuestion, keywordOptions, ct, sourceText);
             return;
         }
 
@@ -1458,13 +1458,17 @@ public partial class ConversationEngine
         return usable.Count > 0 ? usable : DefaultClarificationOptions.ToList();
     }
 
-    private async Task AskClarificationAsync(Seller seller, ConversationSession session, SessionContextData ctx, string question, List<string> options, CancellationToken ct)
+    private async Task AskClarificationAsync(Seller seller, ConversationSession session, SessionContextData ctx, string question, List<string> options, CancellationToken ct,
+        string? learnFromMessage = null)
     {
         options = UsableClarificationOptions(options);
         ctx.ClarificationOptions = options;
         SetState(session, ConversationState.AwaitingClarificationChoice);
         // A tap sends the command itself when the option is one ("create discount"), otherwise its number (handled by HandleClarificationChoiceAsync).
         var choices = options.Select((o, i) => new ChoiceOption(o, CommandParser.TryParse(o) is not null ? o : (i + 1).ToString())).ToList();
+        // A tap on a command option teaches the words of the message it was asked about (the same learning as the other taps).
+        if (learnFromMessage is not null && options.Count > 0)
+            await OfferTapLearningAsync(seller, session, ctx, learnFromMessage, options.Where(o => CommandParser.TryParse(o) is not null).ToList(), ct);
         await SendChoicesAsync(seller.WhatsAppPhoneNumber, question, choices, ct);
     }
 

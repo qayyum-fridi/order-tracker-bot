@@ -117,7 +117,7 @@ public partial class ConversationEngine
         }
         if (text == WordFixNo || CommandParser.IsNegative(text))
         {
-            await TrySendMissChoicesAsync(seller, fix.Original, ct);
+            await TrySendMissChoicesAsync(seller, session, ctx, fix.Original, ct);
             return (true, null);
         }
         return (false, null);
