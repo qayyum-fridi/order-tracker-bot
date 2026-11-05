@@ -50,8 +50,8 @@ internal static class InsightParser
     private static readonly Regex Pct = new(@"(?<n>\d{1,3}(?:\.\d+)?)\s*(?:%|percent|pc|fisad|فیصد)", Opts);
     private static readonly Regex Given = W(@"diya|diye|dia|given|gave|give|dene|dete|دیا|دیے");
 
-    private static readonly Regex Customer = W(@"customers?|gahak|gaahak|clients?|buyers?|کسٹمرز?|گاہک\w*|خریدار\w*");
-    private static readonly Regex Away = W(@"nahi\s+aa\w*|nahin\s+aa\w*|wapas\s+nahi\w*|wapis\s+nahi\w*|vapas\s+nahi\w*|inactive|dormant|churn\w*|gayab|ghayab|lost|nahi\s+khareed\w*|nahi\s+kharid\w*|order\s+nahi\s+(?:kiya|diya)|not\s+(?:come|come\s+back|returned|ordered|back)|haven'?t\s+(?:come|returned|ordered)|did\s+not\s+(?:come|return|order)|واپس\s+نہیں|نہیں\s+آئے|نہیں\s+آیا|غائب");
+    private static readonly Regex Customer = W(@"customers?|gahak|gaahak|clients?|buyers?|کسٹمرز?|گاہ\w*|خریدار\w*");
+    private static readonly Regex Away = W(@"nahi\s+aa\w*|nahin\s+aa\w*|wapas\s+nahi\w*|wapis\s+nahi\w*|vapas\s+nahi\w*|inactive|dormant|churn\w*|gayab|ghayab|lost|nahi\s+khareed\w*|nahi\s+kharid\w*|order\s+nahi\s+(?:kiy\w*|diy\w*)|nahi\s+kiy\w*|not\s+(?:come|come\s+back|returned|ordered|back)|haven'?t\s+(?:come|returned|ordered)|did\s+not\s+(?:come|return|order)|واپس\s+نہیں|نہیں\s+آئے|نہیں\s+آیا|غائب");
     private static readonly Regex BigWord = W(@"sab\s+se\s+(?:bada|bara|zyada|acha|achha|achcha)|top|best|biggest|highest|largest|سب\s+سے\s+(?:بڑا|زیادہ)|بڑا");
     private static readonly Regex BuyWord = W(@"khareed\w*|kharid\w*|spend\w*|spent|purchas\w*|shopping|business|total|خرید\w*|خریداری");
     private static readonly Regex Repeat = W(@"repeat\w*|baar\s+baar|bar\s+bar|dobara|returning|regular|بار\s+بار|ریپیٹ|دوبارہ");

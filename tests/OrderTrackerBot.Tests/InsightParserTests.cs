@@ -146,6 +146,8 @@ public class InsightParserTests
     [InlineData("kaun se customers pichle ek mahine se wapas nahi aaye", 30)]
     [InlineData("customers who haven't ordered in 14 days", 14)]
     [InlineData("kaun se customers 2 mahine se nahi aaye", 60)]
+    [InlineData("Kitna گاہوں na order nhi kiyah abhi tak", 30)]
+    [InlineData("kitne customers ne order nahi kiya abhi tak", 30)]
     public void InactiveCustomers(string text, int days)
     {
         var parsed = Parse(text);
