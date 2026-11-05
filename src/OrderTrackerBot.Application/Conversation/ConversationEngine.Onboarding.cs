@@ -272,7 +272,7 @@ public partial class ConversationEngine
         var reply = skipped
             ? (shopType is null ? MessageTemplates.Get("onboarding.024", TrialStartedText(seller)) : MessageTemplates.Get("onboarding.039", shopType, TrialStartedText(seller)))
             : MessageTemplates.Get("onboarding.025", TrialStartedText(seller));
-        await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("onboarding.013", reply.TrimEnd()),
+        await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("onboarding.013", reply.TrimEnd() + "\n\n" + MessageTemplates.Get("disclaimer.001")),
             "Options dekhein", AfterSetupSections, ct);
         await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
             MessageTemplates.Get("onboarding.014"), GuideOfferButtons, ct);

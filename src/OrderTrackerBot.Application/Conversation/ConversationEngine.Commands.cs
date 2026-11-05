@@ -436,7 +436,7 @@ public partial class ConversationEngine
                     var limiter = _mediaLimiter;
                     await ReplyAsync(seller, MessageTemplates.Get("voice-confirm.031", MaxVoiceSeconds / 60,
                         Per(limiter?.LimitFor(MediaKind.Text) ?? 0), Per(limiter?.LimitFor(MediaKind.Voice) ?? 0), Per(limiter?.LimitFor(MediaKind.Image) ?? 0),
-                        MaxPendingPictures, (int)PictureLabelWindow.TotalMinutes), ct);
+                        MaxPendingPictures, (int)PictureLabelWindow.TotalMinutes) + "\n\n" + MessageTemplates.Get("disclaimer.001"), ct);
                     break;
                 }
             case CommandKind.DailyJobs:

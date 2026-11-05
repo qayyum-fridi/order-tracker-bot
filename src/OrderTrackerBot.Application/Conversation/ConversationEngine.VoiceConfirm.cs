@@ -86,7 +86,7 @@ public partial class ConversationEngine
         ctx.PendingVoiceLogId = await NewestActionLogIdAsync(seller.Id, ct);
         ctx.PendingVoiceYesLabel = YesButtonLabel(ctx.PendingVoiceSteps);
         SetState(session, ConversationState.AwaitingVoiceConfirmation);
-        await _sender.SendButtonsMessageAsync(fromPhoneNumber, MessageTemplates.Get("media.002", heard), new[] { ctx.PendingVoiceYesLabel, NoButtonLabel }, ct);
+        await _sender.SendButtonsMessageAsync(fromPhoneNumber, MessageTemplates.Get("media.002", heard) + "\n\n" + MessageTemplates.Get("disclaimer.001"), new[] { ctx.PendingVoiceYesLabel, NoButtonLabel }, ct);
         await PersistAsync(session, ctx, ct);
     }
 
