@@ -1,6 +1,24 @@
 {
   "intents": [
     {
+      "id": "setup.status",
+      "entity": "setup",
+      "action": "status",
+      "kind": "SetupStatus",
+      "description": "Say whether the seller's setup is complete, and the shop it was set for.",
+      "examples": [
+        "setup complete hai?",
+        "is setup complete",
+        "setup complete"
+      ],
+      "slots": {},
+      "template": "setup complete",
+      "keywords": [
+        "setup complete",
+        "mukammal"
+      ]
+    },
+    {
       "id": "order.show",
       "entity": "order",
       "action": "show",

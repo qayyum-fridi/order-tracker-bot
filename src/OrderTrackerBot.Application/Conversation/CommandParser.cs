@@ -110,6 +110,8 @@ public enum CommandKind
     NewOrderHelp,
     Guide,
     Version,
+    /// <summary>"setup status" / "is setup complete": whether the seller's setup is finished, and the shop it was set for.</summary>
+    SetupStatus,
     /// <summary>"limits" / "hadood": what the bot accepts (voice note length, pictures and messages per hour).</summary>
     Limits,
     /// <summary>"rozana" / "roz ka kaam": the daily jobs as taps (new order, today's account, expense, wages, stock, menu).</summary>
@@ -198,6 +200,8 @@ public static class CommandParser
     private static readonly Regex LimitsCmd = new(@"^(?:limits?|hadood|hadd|meri\s+limits?|kitni\s+limits?|حد|حدود)$", Opts);
     private static readonly Regex DailyJobsCmd = new(@"^(?:rozana|roz\s+ka\s+kaam|rozana\s+kaam|daily\s+(?:jobs?|work)|روزانہ|روز\s+کا\s+کام)$", Opts);
     private static readonly Regex VersionCmd =new(@"^(?:bot\s+)?(?:version|build|ورژن)$", Opts);
+    // The typed command only. Other ways of asking ("is setup complete") are placed by the intent catalog (DB keywords, then the AI router).
+    private static readonly Regex SetupStatusCmd = new(@"^setup\s+complete$", Opts);
     // "data help" / "how to add" / "kaise dalein": the formats and the typed commands for every kind of data.
     private static readonly Regex DataEntryHelpCmd = new(@"^(?:data\s+(?:entry|help)|entry\s+help|how\s+to\s+add|kaise\s+(?:dalein|daalein)|ڈیٹا\s+کیسے\s+(?:ڈالیں|ڈالوں)|ڈیٹا\s+کا\s+طریقہ)$", Opts);
     private static readonly Regex ClientLoginCmd = new(@"^(?:dashboard\s+)?(?:login|log\s+in|لاگ\s*ان)$", Opts);
@@ -1646,6 +1650,7 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.Industry, Text = industry.Groups["v"].Success ? industry.Groups["v"].Value.Trim() : null };
         if (SetupCheckCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.SetupCheck };
         if (VersionCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Version };
+        if (SetupStatusCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.SetupStatus };
         if (LimitsCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Limits };
         if (DailyJobsCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DailyJobs };
         if (DataEntryHelpCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.DataEntryHelp };

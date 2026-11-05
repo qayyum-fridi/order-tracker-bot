@@ -1,0 +1,4 @@
+{
+  "setup.status.done": "✅ Yes, setup is complete.\n🏪 Shop: {0}\n🗂️ Kind: {1}\n📦 Active products: {2}\nTo change anything, type \"setup\".",
+  "setup.status.pending": "ℹ️ Setup is not complete yet. Shop: {0}. Type \"setup\" to finish the remaining steps."
+}

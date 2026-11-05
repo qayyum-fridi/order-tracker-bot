@@ -62,7 +62,7 @@
     },
     {
       "question": "🔄 Order status ke baare mein — aap kya karna chahte hain?",
-      "pattern": "(?<![\\p{L}\\p{N}])(?:status|ship(?:ped|ping)?|delivered|complete\\w*|mukammal|اسٹیٹس|شپ\\w*|ڈیلیور(?:ڈ)?|مکمل|کمپلیٹ\\w*)(?![\\p{L}\\p{N}])",
+      "pattern": "(?<![\\p{L}\\p{N}])(?:status|ship(?:ped|ping)?|delivered|mukammal|اسٹیٹس|شپ\\w*|ڈیلیور(?:ڈ)?|مکمل)(?![\\p{L}\\p{N}])",
       "options": [ "status", "orders today" ]
     },
     {

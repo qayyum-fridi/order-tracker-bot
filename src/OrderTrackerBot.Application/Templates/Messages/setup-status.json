@@ -1,0 +1,4 @@
+{
+  "setup.status.done": "✅ Haan, setup mukammal hai.\n🏪 Dukaan: {0}\n🗂️ Qism: {1}\n📦 Active products: {2}\nBadalne ke liye \"setup\" likhein.",
+  "setup.status.pending": "ℹ️ Setup abhi mukammal nahi hua. Dukaan: {0}. Baqi steps ke liye \"setup\" likhein."
+}
