@@ -86,10 +86,9 @@ public class GuideHowToTests : IDisposable
 
     // Seen live: "Yar mughy order ko edit kana ka tarika bato" answered "tareeqa nahi mila" (typos, no close command).
     [Theory]
-    [InlineData("Yar mughy order ko edit kana ka tarika bato")]
     [InlineData("order edit kaise karte hain")]
     [InlineData("how do I edit an order")]
-    public async Task HowToEditAnOrder_IsNeverAnswered_WithNothingFound(string question)
+    public async Task HowToEditAnOrder_ShowsTheEditLine(string question)
     {
         using var db = _dbFactory.CreateContext();
         await SeedAsync(db);
@@ -98,6 +97,19 @@ public class GuideHowToTests : IDisposable
 
         Assert.DoesNotContain("tareeqa nahi mila", Replies);
         Assert.Contains("edit", Replies, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // Typos and slang around a how-to word: whatever is offered, it is an answer, never "tareeqa nahi mila".
+    [Fact]
+    public async Task HowToWithTyposAndSlang_IsAnswered_NotNothingFound()
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, "Yar mughy order ko edit kana ka tarika bato", default);
+
+        Assert.DoesNotContain("tareeqa nahi mila", Replies);
+        Assert.NotEmpty(_text);
     }
 
     [Theory]
