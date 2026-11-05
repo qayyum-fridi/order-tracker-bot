@@ -2193,7 +2193,10 @@
       "description": "Find a saved customer by name.",
       "examples": [
         "search customer Sara",
-        "Sara dhoondo"
+        "Sara dhoondo",
+        "Sara naam ka customer talash karo",
+        "mere paas Ali naam ka customer hai ya nahi",
+        "علی نام کا کسٹمر تلاش کرو"
       ],
       "slots": {
         "name": {
@@ -2205,7 +2208,12 @@
         "customer",
         "search",
         "dhoondo",
-        "find"
+        "dhundo",
+        "talash",
+        "khoj",
+        "find",
+        "تلاش",
+        "ڈھونڈو"
       ]
     },
     {

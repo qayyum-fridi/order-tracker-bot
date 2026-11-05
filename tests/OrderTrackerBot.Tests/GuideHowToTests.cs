@@ -138,6 +138,27 @@ public class GuideHowToTests : IDisposable
         Assert.Contains("staff add", Replies);
     }
 
+    // Seen live: "Ali koi customers ha mera pass تلاش karo" went to loyalty ("feature not available").
+    [Fact]
+    public async Task CustomerSearchWords_AreCatalogKeywords_AndTheRoutedSearchRuns()
+    {
+        var search = IntentCatalog.Find("customer.search")!;
+        Assert.Contains("talash", search.Keywords!);
+        Assert.Contains("تلاش", search.Keywords!);
+
+        using var db = _dbFactory.CreateContext();
+        var seller = await SeedAsync(db);
+        db.Customers.Add(new Customer { SellerId = seller.Id, Name = "Ali Khan", Phone = "03001234567" });
+        await db.SaveChangesAsync();
+        _ai.Setup(a => a.RouteIntentAsync("Ali koi customers ha mera pass تلاش karo", It.IsAny<IReadOnlyList<IntentDefinition>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IntentRoute("customer.search", new Dictionary<string, string> { ["name"] = "Ali" }, 0.95));
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, "Ali koi customers ha mera pass تلاش karo", default);
+
+        Assert.Contains("Ali Khan", Replies);
+        Assert.DoesNotContain("available nahi", Replies);
+    }
+
     // Seen live: "Customers support ka document do" showed the customer list ("customers" alone claimed it).
     [Fact]
     public async Task CustomersSupport_IsSupport_NotTheCustomerList()
