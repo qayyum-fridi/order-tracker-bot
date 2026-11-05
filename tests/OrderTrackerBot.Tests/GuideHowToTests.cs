@@ -84,6 +84,22 @@ public class GuideHowToTests : IDisposable
         _ai.Verify(a => a.RouteIntentAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<IntentDefinition>>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    // Seen live: "Yar mughy order ko edit kana ka tarika bato" answered "tareeqa nahi mila".
+    [Theory]
+    [InlineData("Yar mughy order ko edit kana ka tarika bato")]
+    [InlineData("order edit kaise karte hain")]
+    [InlineData("how do I edit an order")]
+    public async Task HowToEditAnOrder_ShowsTheEditLine_AndOpensNothing(string question)
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, question, default);
+
+        Assert.Contains("edit order", Replies);
+        Assert.DoesNotContain("tareeqa nahi mila", Replies);
+    }
+
     // Seen live: "Customers support ka document do" showed the customer list ("customers" alone claimed it).
     [Fact]
     public async Task CustomersSupport_IsSupport_NotTheCustomerList()
