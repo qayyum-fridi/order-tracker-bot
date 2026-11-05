@@ -19,7 +19,57 @@ public class IntentCatalogTests
         ["email"] = "sara@mail.com", ["message"] = "naya stock aaya", ["courier"] = "TCS", ["id"] = "12", ["text"] = "Lahore Branch",
         ["paper"] = "80mm", ["label_size"] = "a6", ["industry"] = "kiryana", ["days"] = "30", ["old_price"] = "500", ["new_price"] = "550",
         ["percent"] = "10", ["period"] = "last week", ["place"] = "Model Town", ["entity"] = "customers",
+        ["menu_name"] = "orders", ["role"] = "driver", ["tax_id"] = "1234567-8", ["tiers"] = "1kg=320, 10kg=300", ["topic"] = "order save nahi ho raha",
     };
+
+    // Kinds that are deliberately not catalog entries. Everything else a seller can type has one, so a new CommandKind fails
+    // EveryCommandKind_HasAnIntent_OrIsListedAsExcluded until it gets an entry (or a reason is written here).
+    private static readonly HashSet<string> NotInCatalog = new()
+    {
+        "Start", "Greeting",                           // the first message of a chat, handled by onboarding
+        "GuideLater", "StatusPicker", "PhotoKind", "PaymentMethodPrompt", // answers to a question the bot just asked (taps)
+        "DetailedForm", "FuzzyStatusUpdate",           // built by the parser from a longer sentence, not a typed line
+        "AddProductsBulk", "ImportCatalogSheet",       // the whole message is the data (a pasted list, a file link)
+        "ImportTemplate",                              // import is off in the MVP cut (IsOutOfMvp)
+        "CreateLoyalty",                               // loyalty is off in the MVP cut; loyalty.create explains it
+        "ResolveSupportQuery", "ReplySupportQuery", "ForwardedQuery", "LeadAction", // buyer-query / Instagram lead flows, off in the MVP cut
+        "Notice",                                      // a template answer the parser picks for phrases it must not act on
+    };
+
+    [Fact]
+    public void EveryCommandKind_HasAnIntent_OrIsListedAsExcluded()
+    {
+        var covered = IntentCatalog.All.Select(i => i.Kind).ToHashSet();
+        var missing = Enum.GetNames<CommandKind>().Where(k => !covered.Contains(k) && !NotInCatalog.Contains(k)).ToList();
+        Assert.Empty(missing);
+        Assert.Empty(NotInCatalog.Where(k => covered.Contains(k))); // an excluded kind that got an entry should leave the list
+    }
+
+    [Fact]
+    public void EveryExample_OfEveryNewEntry_HasRomanUrduEnglishAndUrduScript()
+    {
+        var ids = new[] { "staff.add", "staff.list", "staff.remove", "guide.howto", "support.contact" };
+        foreach (var id in ids)
+        {
+            var examples = IntentCatalog.Find(id)!.Examples;
+            Assert.Contains(examples, e => e.Any(c => c is >= '؀' and <= 'ۿ')); // Urdu script
+            Assert.Contains(examples, e => e.Any(char.IsLetter) && e.All(c => c < '؀')); // Latin letters (Roman Urdu or English)
+        }
+    }
+
+    [Fact]
+    public void Closest_NamesTheStaffEntry_ForAHowToAddQuestion_InAllThreeScripts()
+    {
+        Assert.Equal("staff.add", IntentCatalog.Closest("how do we add a staff member")[0].Intent.Id);
+        Assert.Equal("staff.add", IntentCatalog.Closest("mulazim kaise add karun")[0].Intent.Id);
+        Assert.Equal("staff.add", IntentCatalog.Closest("ملازم کیسے شامل کروں")[0].Intent.Id);
+    }
+
+    [Fact]
+    public void SampleCommand_ShowsAWorkedExample_ForStaffAdd()
+    {
+        Assert.Equal("staff add Ali 03001234567 driver", IntentCatalog.SampleCommand(IntentCatalog.Find("staff.add")!));
+    }
 
     public static IEnumerable<object[]> Intents() => IntentCatalog.All.Select(i => new object[] { i.Id });
 

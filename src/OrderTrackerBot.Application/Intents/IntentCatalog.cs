@@ -18,10 +18,14 @@ public sealed record IntentDefinition(
     IReadOnlyList<string> Examples,
     IReadOnlyList<IntentSlot> Slots,
     string Template,
-    IReadOnlyList<string>? Keywords = null);
+    IReadOnlyList<string>? Keywords = null,
+    bool RunOnHowTo = false);
 
-/// <summary>A value the command needs. <see cref="IsNumber"/> slots are checked as plain numbers before they go into the command.</summary>
-public sealed record IntentSlot(string Name, bool Required, bool IsNumber);
+/// <summary>
+/// A value the command needs. <see cref="IsNumber"/> slots are checked as plain numbers before they go into the command.
+/// <see cref="Sample"/> is a realistic value used only to show a worked example in a how-to answer; it is never run.
+/// </summary>
+public sealed record IntentSlot(string Name, bool Required, bool IsNumber, string? Sample = null);
 
 /// <summary>What the router returned: the intent id, the slot values as the seller said them, and how sure it is (0 to 1).</summary>
 public sealed record IntentRoute(string Intent, IReadOnlyDictionary<string, string> Slots, double Confidence);
@@ -36,12 +40,48 @@ public static class IntentCatalog
     private static readonly Regex Placeholder = new(@"\{(\w+)\}", RegexOptions.Compiled);
     private static readonly Regex Number = new(@"^\d+(\.\d+)?$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
+    /// <summary>The entry whose keywords mark a question as a "how do I ...?"; the engine answers such a question with the line to type, never by running it.</summary>
+    public const string HowToId = "guide.howto";
+
     public static IReadOnlyList<IntentDefinition> All { get; } = Load();
 
     public static IntentDefinition? Find(string id) => All.FirstOrDefault(i => string.Equals(i.Id, id, StringComparison.Ordinal));
 
     /// <summary>The command as the seller would type it, with each value shown as [slot name]: the how-to for a missing or risky one.</summary>
     public static string Example(IntentDefinition intent) => Placeholder.Replace(intent.Template, m => $"[{m.Groups[1].Value}]");
+
+    /// <summary>
+    /// A worked example of the typed command (every slot that has a sample is filled), or null when a required slot has none.
+    /// Shown next to <see cref="Example"/> in a how-to answer; never run.
+    /// </summary>
+    public static string? SampleCommand(IntentDefinition intent)
+    {
+        var samples = intent.Slots.Where(s => s.Sample is not null).ToDictionary(s => s.Name, s => s.Sample!, StringComparer.Ordinal);
+        return Build(intent, samples).Command;
+    }
+
+    /// <summary>
+    /// The intents a how-to question is closest to, best first: each word the message shares with an intent's examples, keywords, description and
+    /// name counts for more the fewer intents use it ("staff" says more than "add"). Plain word overlap over catalog data, no model call.
+    /// </summary>
+    public static IReadOnlyList<(IntentDefinition Intent, double Score)> Closest(string message, int take = 3)
+    {
+        var words = IntentKeywords.Tokens(message);
+        // The how-to words themselves ("kaise", "how", "tarika") say nothing about which command is meant.
+        if (Find(HowToId) is { } howTo) words.ExceptWith(IntentKeywords.Tokens(string.Join(' ', howTo.Keywords ?? Array.Empty<string>())));
+        if (words.Count == 0) return Array.Empty<(IntentDefinition, double)>();
+
+        var candidates = All.Where(i => i.Id != HowToId).Select(i => (Intent: i, Words: IntentWords(i))).ToList();
+        var weight = words.ToDictionary(w => w, w => 1.0 / Math.Max(1, candidates.Count(c => c.Words.Contains(w))));
+        return candidates
+            .Select(c => (c.Intent, Score: words.Where(c.Words.Contains).Sum(w => weight[w])))
+            .Where(c => c.Score > 0)
+            .OrderByDescending(c => c.Score)
+            .Take(take).ToList();
+    }
+
+    private static HashSet<string> IntentWords(IntentDefinition intent) =>
+        IntentKeywords.Tokens(string.Join(' ', intent.Examples.Concat(intent.Keywords ?? Array.Empty<string>()).Append(intent.Description).Append(intent.Entity).Append(intent.Action)));
 
     /// <summary>Fills the template from the slot values. Values that are blank, multi-line, too long or not a number (for number slots) count as missing.</summary>
     public static BuiltIntent Build(IntentDefinition intent, IReadOnlyDictionary<string, string> slots)
@@ -81,7 +121,8 @@ public static class IntentCatalog
             var slots = item.GetProperty("slots").EnumerateObject().Select(p => new IntentSlot(
                 p.Name,
                 p.Value.TryGetProperty("required", out var required) && required.GetBoolean(),
-                p.Value.TryGetProperty("type", out var type) && type.GetString() == "number")).ToList();
+                p.Value.TryGetProperty("type", out var type) && type.GetString() == "number",
+                p.Value.TryGetProperty("sample", out var sample) ? sample.GetString() : null)).ToList();
             var intent = new IntentDefinition(
                 item.GetProperty("id").GetString()!,
                 item.GetProperty("entity").GetString()!,
@@ -91,7 +132,8 @@ public static class IntentCatalog
                 item.GetProperty("examples").EnumerateArray().Select(e => e.GetString()!).ToList(),
                 slots,
                 item.GetProperty("template").GetString()!,
-                item.TryGetProperty("keywords", out var keywords) ? keywords.EnumerateArray().Select(k => k.GetString()!.ToLowerInvariant()).ToList() : null);
+                item.TryGetProperty("keywords", out var keywords) ? keywords.EnumerateArray().Select(k => k.GetString()!.ToLowerInvariant()).ToList() : null,
+                item.TryGetProperty("runOnHowTo", out var runOnHowTo) && runOnHowTo.GetBoolean());
             Validate(intent);
             intents.Add(intent);
         }

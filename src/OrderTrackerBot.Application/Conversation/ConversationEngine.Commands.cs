@@ -642,6 +642,9 @@ public partial class ConversationEngine
             case CommandKind.Feedback:
                 await HandleFeedbackAsync(seller, cmd, ct);
                 return;
+            case CommandKind.SupportContact:
+                await HandleSupportContactAsync(seller, ctx, cmd, ct);
+                return;
             case CommandKind.Broadcast:
                 await HandleBroadcastRequestAsync(seller, session, ctx, cmd, ct);
                 return;

@@ -201,7 +201,7 @@ public partial class ConversationEngine
             // The routed command passes the same amount guard as a rewrite: a figure the seller never said must not be run (the model fills slots).
             decision = routed.Command is not null
                 ? DecideRewrite(text, new[] { routed.Command }, null)
-                : TurnDecision.Clarify(MessageTemplates.Get("intent.howto", routed.Help!));
+                : TurnDecision.Clarify(RoutedReply(routed));
         }
         VoiceStats.Record("decision_" + decision.Kind.ToString().ToLowerInvariant());
         if (decision.Kind != DecisionKind.Execute) LogNotUnderstood("voice-" + decision.Kind.ToString().ToLowerInvariant(), seller.Session!.State, text);
@@ -633,7 +633,7 @@ public partial class ConversationEngine
             if (kind == "command" && await RouteIntentAsync(transcript, ct, seller) is { } routed)
                 return routed.Command is not null
                     ? DecideRewrite(transcript, new[] { routed.Command }, null)
-                    : TurnDecision.Clarify(MessageTemplates.Get("intent.howto", routed.Help!));
+                    : TurnDecision.Clarify(RoutedReply(routed));
         }
         // A short note from an idle seller goes next to the same router the typed text uses, with the words as they were said. The rewrite can change
         // the words ("kitne customers" became "kis tarah ka customer"), so it runs only when nothing routes. The amount guard checks the spoken words.
@@ -642,7 +642,7 @@ public partial class ConversationEngine
             && await RouteIntentAsync(transcript, ct, seller) is { } spoken)
             return spoken.Command is not null
                 ? DecideRewrite(transcript, new[] { spoken.Command }, null)
-                : TurnDecision.Clarify(MessageTemplates.Get("intent.howto", spoken.Help!));
+                : TurnDecision.Clarify(RoutedReply(spoken));
         var ctx = SessionContextData.FromJson(seller.Session!.ContextJson);
         var (catalog, recent, knownCustomers, lastMessages, exchanges, _) = prefetch ?? await LoadVoiceContextAsync(seller, null, ct);
 

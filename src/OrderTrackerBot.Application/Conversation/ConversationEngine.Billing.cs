@@ -123,7 +123,8 @@ public partial class ConversationEngine
             return true;
         }
 
-        if (!HasAccess(seller, now))
+        // A seller whose trial ended can still ask for a person (often exactly to ask about the plans).
+        if (!HasAccess(seller, now) && CommandParser.TryParse(trimmed)?.Kind != CommandKind.SupportContact)
         {
             var what = seller.SubscriptionActiveUntil is null ? "free trial" : "subscription";
             await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,

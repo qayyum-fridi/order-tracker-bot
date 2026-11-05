@@ -80,6 +80,9 @@ public sealed class ProductSuggestion
 /// <summary>Everything an in-flight multi-turn flow needs, serialized to ConversationSession.ContextJson.</summary>
 public sealed class SessionContextData
 {
+    /// <summary>When the seller last asked to reach support (UTC); a repeat inside a few hours is told the first request is already with the team, and the founder is not alerted again.</summary>
+    public DateTime? SupportRequestedAt { get; set; }
+
     public OrderForCustomerData? OrderForCustomer { get; set; }
     /// <summary>The did-you-mean buttons last sent for the product question (<c>ProductChoice</c>); a tap on one is read as "2 &lt;label&gt;".</summary>
     public List<ProductSuggestion>? ProductSuggestions { get; set; }

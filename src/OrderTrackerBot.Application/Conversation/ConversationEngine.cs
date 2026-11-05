@@ -61,8 +61,9 @@ public partial class ConversationEngine
         IIssueReporter? issues = null, IAudioTranscriber? transcriber = null, IImportFileReader? importReader = null,
         INewSellerNotifier? newSellers = null, MediaRateLimiter? mediaLimiter = null, TimeProvider? clock = null,
         IMerchantEmailSender? emailSender = null, Microsoft.Extensions.Logging.ILogger<ConversationEngine>? logger = null, BuildInfo? build = null,
-        DashboardOptions? dashboard = null)
+        DashboardOptions? dashboard = null, SupportOptions? support = null)
     {
+        _support = support ?? new SupportOptions();
         _build = build ?? new BuildInfo();
         _dashboard = dashboard ?? new DashboardOptions();
         _logger = logger;
@@ -183,6 +184,8 @@ public partial class ConversationEngine
         var message = TextHygiene.StripInvisible(rawMessage ?? string.Empty).Replace("\\n", "\n").Trim();
         if (message.Length == 0) return;
 
+        // Read before this message is logged: the gap since the seller's previous message decides the welcome-back below.
+        var previousInboundAt = await LastInboundAtAsync(fromPhoneNumber, ct);
         _db.MessageLogs.Add(new MessageLog { Phone = fromPhoneNumber, Direction = "inbound", RawText = message });
         var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
         if (seller.Status != SellerStatus.Active)
@@ -192,6 +195,7 @@ public partial class ConversationEngine
                 : MessageTemplates.Get("engine.005"), ct);
             return;
         }
+        await SendWelcomeBackIfDueAsync(seller, previousInboundAt, ct);
         await SendPendingNoticesAsync(seller, ct);
         // Every text counts against the seller's hourly text cap and USD budget, before any AI call can be made for it.
         if (!TryTakeUsage(seller, fromPhoneNumber, MediaKind.Text, out var textDecision, out var textWait))
@@ -658,6 +662,7 @@ public partial class ConversationEngine
 
     private readonly BuildInfo _build;
     private readonly DashboardOptions _dashboard;
+    private readonly SupportOptions _support;
 
     private Task ReplyAsync(Seller seller, string text, CancellationToken ct) =>
         _sender.SendTextMessageAsync(seller.WhatsAppPhoneNumber, text, ct);

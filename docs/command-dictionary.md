@@ -210,6 +210,9 @@ Every phrase below is pinned in `StrategicInsightParserTests` (Urdu script and R
 | Sign in to the client dashboard (a code comes here) | `login` (`dashboard login`) |
 | End every dashboard session (if a login was not you) | `dashboard logout` (`logout all`, `sign out`) |
 | Tell us something | `feedback: [message]` |
+| Talk to a person (recorded, the team is alerted; contact details come from the `Support` config) | `contact support` · `support` · `contact support [what it is about]` |
+| Staff | `staff add Ali 03001234567 driver` · `staff list` · `staff remove Ali` |
+| Ask "how do I ...?" in your own words, typed or by voice (staff, expense, order...) | any question with kaise / how do I / کیسے — answered with the line to type and an example, never run |
 | Wipe everything | `reset account` (asks to confirm) |
 
 ## Not commands (handled inside a question)

@@ -51,6 +51,7 @@ public enum CommandKind
     TrendingProducts,
     SlowMovers,
     Feedback,
+    SupportContact,
     CustomerFeedbackList,
     ResetAccount,
     Broadcast,
@@ -1380,7 +1381,9 @@ public static class CommandParser
     private static readonly Regex CatalogSheetLink = new(@"https://docs\.google\.com/spreadsheets/d/[A-Za-z0-9_-]+[^\s]*", Opts);
 
     // Screens 5d-5..5d-10: Instagram comment leads and buyer support queries.
-    private static readonly Regex SupportQueries = new(@"^(?:support\s+quer(?:y|ies)|customer\s+quer(?:y|ies)|open\s+quer(?:y|ies)|queries)$", Opts);
+    // The seller asks to reach the people behind the bot. "contact support [what it is about]" is the typed form the intent catalog builds.
+    private static readonly Regex ContactSupportCmd = new(@"^(?:contact\s+support(?:\s*[:\-]?\s+(?<topic>.+))?|support|helpline|رابطہ\s+سپورٹ)$", Opts | RegexOptions.Singleline);
+    private static readonly Regex SupportQueries =new(@"^(?:support\s+quer(?:y|ies)|customer\s+quer(?:y|ies)|open\s+quer(?:y|ies)|queries)$", Opts);
     private static readonly Regex ResolveSupportQuery = new(@"^mark\s+(?:query\s+)?(\d+)\s+(?:as\s+)?(?:resolved|solved|done)$", Opts);
     private static readonly Regex ReplySupportQuery = new(@"^reply\s+(\d+)(?:\s*:\s*(.+))?$", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Singleline);
     private static readonly Regex ConnectInstagram = new(@"^(?:connect|link)\s+(?:instagram|insta|ig)$|^(?:instagram|insta|ig)\s+(?:connect|link)$", Opts);
@@ -1832,6 +1835,8 @@ public static class CommandParser
         if (UpdateBusinessInfo.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.UpdateBusinessInfo };
         if (Subscribe.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Subscribe };
         if (SupportQueries.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.SupportQueries };
+        if (ContactSupportCmd.Match(message) is { Success: true } contactSupport)
+            return new ParsedCommand { Kind = CommandKind.SupportContact, Text = contactSupport.Groups["topic"].Success ? contactSupport.Groups["topic"].Value.Trim() : null };
         if ((m = ResolveSupportQuery.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.ResolveSupportQuery, Number = int.Parse(m.Groups[1].Value) };
         if ((m = ReplySupportQuery.Match(message)).Success)

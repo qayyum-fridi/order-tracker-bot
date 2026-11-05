@@ -21,25 +21,42 @@ public partial class ConversationEngine
     private (string Command, string IntentId, double Confidence)? _turnGuess;
 
     /// <summary>What the router decided for one message: a typed command to run, or the line the seller should type (<c>Help</c>).</summary>
-    private sealed record RoutedIntent(string? Command, string? Help);
+    /// <summary><see cref="Reply"/> is a finished seller message (a how-to answer); otherwise <see cref="Help"/> is the line to type, shown with <c>intent.howto</c>.</summary>
+    private sealed record RoutedIntent(string? Command, string? Help, string? Reply = null);
+
+    /// <summary>The message the seller gets for a routed intent that runs no command.</summary>
+    private static string RoutedReply(RoutedIntent routed) => routed.Reply ?? MessageTemplates.Get("intent.howto", routed.Help!);
+
+    /// <summary>A how-to word has to be this well matched (see <see cref="IntentCatalog.Closest"/>) before the closest command is named.</summary>
+    private const double MinHowToScore = 0.5;
 
     private async Task<RoutedIntent?> RouteIntentAsync(string message, CancellationToken ct, Seller? seller = null)
     {
-        // A message that only one intent's catalog keywords claim, and that needs no slot, runs without a model call.
-        if (DirectKeywordRoute(message) is { } direct) return direct;
-        // Words this seller taught (a tap or a confirmed guess) route their own next message, without waiting for other sellers.
-        if (seller is not null && await SellerTaughtRouteAsync(seller, message, ct) is { } taught) return taught;
-        // Words that three or more sellers agreed on route the same way (only when they all point to one intent).
-        if (LearnedKeywordLog.HintsFor(IntentKeywords.Tokens(message)).Distinct(StringComparer.Ordinal).ToList() is { Count: 1 } shared
-            && TaughtIntentRoute(shared[0]) is { } shareRoute) return shareRoute;
+        // "How do I ...?" is answered with the line to type, never run: a question must not change data. The how-to words are the keywords of the catalog's guide.howto entry.
+        var isHowTo = IsHowToQuestion(message);
+        if (isHowTo)
+        {
+            if (HowToRoute(message) is { } howTo) return howTo;
+        }
+        else
+        {
+            // A message that only one intent's catalog keywords claim, and that needs no slot, runs without a model call.
+            if (DirectKeywordRoute(message) is { } direct) return direct;
+            // Words this seller taught (a tap or a confirmed guess) route their own next message, without waiting for other sellers.
+            if (seller is not null && await SellerTaughtRouteAsync(seller, message, ct) is { } taught) return taught;
+            // Words that three or more sellers agreed on route the same way (only when they all point to one intent).
+            if (LearnedKeywordLog.HintsFor(IntentKeywords.Tokens(message)).Distinct(StringComparer.Ordinal).ToList() is { Count: 1 } shared
+                && TaughtIntentRoute(shared[0]) is { } shareRoute) return shareRoute;
+        }
 
         // With the flag on and a seller known, the router also gets the seller's context (what kind of shop, its products, what the bot was doing, the last messages).
         var route = seller is not null && _features.RouterContext
             ? await _ai.RouteIntentWithContextAsync(message, IntentCatalog.All, await BuildRouteContextAsync(seller, message, ct), ct)
             : await _ai.RouteIntentAsync(message, IntentCatalog.All, ct);
         // A guess the router is not sure of (between the two bars) is offered to the seller as a Yes / No tap instead of run.
-        if (route is not null && route.Confidence >= MinGuessConfidence && route.Confidence < MinRouteConfidence
-            && IntentCatalog.Find(route.Intent) is { } guessed && IntentCatalog.Build(guessed, new Dictionary<string, string>()).Command is { } guessCommand)
+        if (!isHowTo && route is not null && route.Confidence >= MinGuessConfidence && route.Confidence < MinRouteConfidence
+            && IntentCatalog.Find(route.Intent) is { } guessed && guessed.Id != IntentCatalog.HowToId
+            && IntentCatalog.Build(guessed, new Dictionary<string, string>()).Command is { } guessCommand)
             _turnGuess = (guessCommand, guessed.Id, route.Confidence);
         // Every router answer is kept (intent, confidence, what the bot did with it) so the two bars can be tuned from real use.
         if (route is not null)
@@ -49,9 +66,16 @@ public partial class ConversationEngine
                 Confidence = route.Confidence,
                 Outcome = route.Confidence >= MinRouteConfidence ? "run" : route.Confidence >= MinGuessConfidence ? "guess" : "ignored",
             });
-        if (route is null || route.Confidence < MinRouteConfidence || IntentCatalog.Find(route.Intent) is not { } intent) return null;
+        // A how-to question is never left with "not understood": the closest command was tried above, so say where to look.
+        if (route is null || route.Confidence < MinRouteConfidence || IntentCatalog.Find(route.Intent) is not { } intent)
+            return isHowTo ? new RoutedIntent(null, null, MessageTemplates.Get("guide.howto.none")) : null;
+        // The model placed the question on the catalog's own how-to entry: name the closest command, or say where to look.
+        if (intent.Id == IntentCatalog.HowToId)
+            return HowToRoute(message) ?? new RoutedIntent(null, null, MessageTemplates.Get("guide.howto.none"));
 
         var built = IntentCatalog.Build(intent, route.Slots);
+        // A question is answered with the line to type, not by doing it (except an entry that is only help or contact, which is what was asked for).
+        if (isHowTo && !intent.RunOnHowTo) return new RoutedIntent(null, null, HowToReply(new[] { intent }));
         // A missing detail, or a command that would change money or delete data, is never run from a guess: the seller gets the exact line to type.
         if (built.Command is null) return new RoutedIntent(null, IntentCatalog.Example(intent));
 
@@ -84,26 +108,57 @@ public partial class ConversationEngine
     /// </summary>
     private RoutedIntent? TaughtIntentRoute(string intentId)
     {
-        if (IntentCatalog.Find(intentId) is not { } intent || intent.Slots.Any(s => s.Required)) return null;
+        if (IntentCatalog.Find(intentId) is not { } intent || intent.Id == IntentCatalog.HowToId || RunnableRoute(intent) is not { } route) return null;
 
-        var built = IntentCatalog.Build(intent, new Dictionary<string, string>());
-        if (built.Command is null || CommandParser.TryParse(built.Command) is not { } parsed || parsed.Kind.ToString() != intent.Kind) return null;
         _turnRouteIntent = intent.Id;
-        if (ActionRisk.RiskyCommands.Contains(parsed.Kind)) return new RoutedIntent(null, built.Command);
-        return new RoutedIntent(built.Command, null);
+        return route;
     }
 
     /// <summary>The route for a message that exactly one intent's catalog keywords claim, when that intent needs no slot; otherwise null (the AI decides).</summary>
     private RoutedIntent? DirectKeywordRoute(string message)
     {
         var hits = IntentKeywords.Match(message, IntentCatalog.All);
-        if (hits.Count != 1 || IntentCatalog.Find(hits[0]) is not { } intent || intent.Slots.Any(s => s.Required)) return null;
+        return hits.Count == 1 && IntentCatalog.Find(hits[0]) is { } intent && intent.Id != IntentCatalog.HowToId ? RunnableRoute(intent) : null;
+    }
 
+    /// <summary>The route for an intent that needs no slot: its command when it parses to the entry's kind (the line to type when risky); otherwise null.</summary>
+    private static RoutedIntent? RunnableRoute(IntentDefinition intent)
+    {
+        if (intent.Slots.Any(s => s.Required)) return null;
         var built = IntentCatalog.Build(intent, new Dictionary<string, string>());
         if (built.Command is null || CommandParser.TryParse(built.Command) is not { } parsed || parsed.Kind.ToString() != intent.Kind) return null;
         if (ActionRisk.RiskyCommands.Contains(parsed.Kind)) return new RoutedIntent(null, built.Command);
         return new RoutedIntent(built.Command, null);
     }
+
+    /// <summary>True when the message carries one of the how-to words (the keywords of the guide.howto entry): "kaise", "how do I", "طریقہ"...</summary>
+    private static bool IsHowToQuestion(string message) =>
+        IntentCatalog.Find(IntentCatalog.HowToId) is { } howTo && IntentKeywords.Match(message, new[] { howTo }).Count > 0;
+
+    /// <summary>
+    /// The answer to a how-to question: the closest command (a second one when it is nearly as close) with the line to type and a worked example.
+    /// A help or contact entry is run instead, since that is what the seller asked for. Null when nothing in the catalog is close enough.
+    /// </summary>
+    private RoutedIntent? HowToRoute(string message)
+    {
+        var closest = IntentCatalog.Closest(message);
+        if (closest.Count == 0 || closest[0].Score < MinHowToScore) return null;
+
+        var best = closest[0];
+        if (best.Intent.RunOnHowTo && RunnableRoute(best.Intent) is { } run) return run;
+        var shown = closest.Where(c => c.Score >= MinHowToScore && c.Score >= best.Score * 0.7 && !c.Intent.RunOnHowTo).Take(2).Select(c => c.Intent).ToList();
+        _logger?.LogInformation("How-to question placed on {Intent}", best.Intent.Id);
+        return new RoutedIntent(null, null, HowToReply(shown));
+    }
+
+    /// <summary>The how-to message for one or two intents: the line to type, with a worked example when the entry has sample values.</summary>
+    private static string HowToReply(IReadOnlyList<IntentDefinition> intents) =>
+        MessageTemplates.Get("guide.howto.line", string.Join("\n\n", intents.Select(i =>
+        {
+            var line = IntentCatalog.Example(i);
+            var sample = IntentCatalog.SampleCommand(i);
+            return sample is null || sample == line ? line : MessageTemplates.Get("guide.howto.example", line, sample);
+        })));
 
     /// <summary>
     /// Learns the words of a routed message for the intent the router chose. The seller's own product and customer names are left out,
@@ -177,7 +232,7 @@ public partial class ConversationEngine
         if (routed.Command is not null && CommandParser.TryParse(routed.Command) is { } command)
             await ExecuteCommandAsync(seller, session, ctx, command, ct);
         else
-            await ReplyAsync(seller, MessageTemplates.Get("intent.howto", routed.Help!), ct);
+            await ReplyAsync(seller, RoutedReply(routed), ct);
         return true;
     }
 }

@@ -3577,6 +3577,484 @@
       ],
       "slots": {},
       "template": "pichle saal ramazan mein roz ki sale"
+    },
+    {
+      "id": "staff.add",
+      "entity": "staff",
+      "action": "add",
+      "kind": "StaffAdd",
+      "description": "Save a new staff member (helper, driver, tailor, shop boy) with an optional phone number and job. Also how to add staff or an employee.",
+      "examples": [
+        "naya staff member add karna hai",
+        "mulazim kaise add karun",
+        "staff add karna hai Ali ko",
+        "how do I add a staff member",
+        "add a new employee",
+        "I want to add my driver to staff",
+        "نیا اسٹاف ممبر شامل کرنا ہے",
+        "ملازم کیسے شامل کروں",
+        "اسٹاف میں علی کو شامل کرو"
+      ],
+      "slots": {
+        "name": {
+          "required": true,
+          "sample": "Ali"
+        },
+        "phone": {
+          "sample": "03001234567"
+        },
+        "role": {
+          "sample": "driver"
+        }
+      },
+      "template": "staff add {name} {phone} {role}",
+      "keywords": [
+        "add staff",
+        "staff add",
+        "new staff",
+        "naya staff",
+        "mulazim add",
+        "add employee",
+        "اسٹاف شامل"
+      ]
+    },
+    {
+      "id": "staff.list",
+      "entity": "staff",
+      "action": "list",
+      "kind": "StaffList",
+      "description": "Show the saved staff members.",
+      "examples": [
+        "mera staff dikhao",
+        "staff list",
+        "mere mulazim kaun kaun hain",
+        "show my staff",
+        "who works for me",
+        "اسٹاف کی فہرست دکھاؤ",
+        "میرے ملازم کون ہیں"
+      ],
+      "slots": {},
+      "template": "staff list",
+      "keywords": [
+        "staff list",
+        "show staff",
+        "my staff",
+        "staff dikhao",
+        "mere mulazim",
+        "اسٹاف فہرست"
+      ]
+    },
+    {
+      "id": "staff.remove",
+      "entity": "staff",
+      "action": "remove",
+      "kind": "StaffRemove",
+      "description": "Remove a staff member from the staff list (their old wages stay).",
+      "examples": [
+        "Ali ko staff se hata do",
+        "staff remove Ali",
+        "remove a staff member",
+        "mulazim hatana hai",
+        "علی کو اسٹاف سے ہٹاؤ",
+        "ملازم کیسے ہٹاؤں"
+      ],
+      "slots": {
+        "name": {
+          "required": true,
+          "sample": "Ali"
+        }
+      },
+      "template": "staff remove {name}",
+      "keywords": [
+        "remove staff",
+        "staff remove",
+        "staff hatao",
+        "mulazim hatao",
+        "اسٹاف ہٹاؤ"
+      ]
+    },
+    {
+      "id": "tax.show",
+      "entity": "tax",
+      "action": "show",
+      "kind": "TaxSettings",
+      "description": "Show the tax settings: NTN, STRN and the sales tax rate printed on receipts.",
+      "examples": [
+        "meri tax settings dikhao",
+        "tax",
+        "my ntn kya hai",
+        "show tax settings",
+        "ٹیکس کی سیٹنگ دکھاؤ"
+      ],
+      "slots": {},
+      "template": "tax",
+      "keywords": [
+        "tax settings",
+        "my tax",
+        "tax dikhao",
+        "ٹیکس سیٹنگ"
+      ]
+    },
+    {
+      "id": "tax.rate",
+      "entity": "tax",
+      "action": "rate",
+      "kind": "TaxSettings",
+      "description": "Set the sales tax rate (percent) printed on receipts, or switch it off.",
+      "examples": [
+        "sales tax 17 percent rakho",
+        "gst 17",
+        "set sales tax to 17",
+        "how do I set sales tax",
+        "سیلز ٹیکس 17 رکھو",
+        "سیلز ٹیکس کیسے لگاؤں"
+      ],
+      "slots": {
+        "percent": {
+          "required": true,
+          "type": "number",
+          "sample": "17"
+        }
+      },
+      "template": "sales tax {percent}",
+      "keywords": [
+        "sales tax",
+        "gst rate",
+        "tax rate",
+        "سیلز ٹیکس"
+      ]
+    },
+    {
+      "id": "tax.ntn",
+      "entity": "tax",
+      "action": "ntn",
+      "kind": "TaxSettings",
+      "description": "Save the shop's NTN (national tax number) so it prints on receipts.",
+      "examples": [
+        "mera ntn 1234567-8 hai",
+        "ntn save karo",
+        "save my NTN",
+        "how do I add my ntn",
+        "میرا این ٹی این محفوظ کرو"
+      ],
+      "slots": {
+        "tax_id": {
+          "required": true,
+          "sample": "1234567-8"
+        }
+      },
+      "template": "ntn {tax_id}",
+      "keywords": [
+        "save ntn",
+        "add ntn",
+        "ntn number"
+      ]
+    },
+    {
+      "id": "tax.strn",
+      "entity": "tax",
+      "action": "strn",
+      "kind": "TaxSettings",
+      "description": "Save the shop's STRN (sales tax registration number) so it prints on receipts.",
+      "examples": [
+        "mera strn 1234567890123 hai",
+        "strn save karo",
+        "save my STRN",
+        "how do I add my strn"
+      ],
+      "slots": {
+        "tax_id": {
+          "required": true,
+          "sample": "1234567890123"
+        }
+      },
+      "template": "strn {tax_id}",
+      "keywords": [
+        "save strn",
+        "add strn",
+        "strn number"
+      ]
+    },
+    {
+      "id": "order.tax_withheld",
+      "entity": "order",
+      "action": "tax_withheld",
+      "kind": "OrderTaxWithheld",
+      "description": "Write down the tax a buyer withheld from an order's payment (so the balance is right).",
+      "examples": [
+        "order 12 par 500 tax kata hai",
+        "order 12 tax withheld 500",
+        "buyer ne tax kaat liya",
+        "how do I record withholding tax",
+        "آرڈر 12 پر 500 ٹیکس کٹا"
+      ],
+      "slots": {
+        "order": {
+          "required": true,
+          "type": "number",
+          "sample": "12"
+        },
+        "amount": {
+          "required": true,
+          "type": "number",
+          "sample": "500"
+        }
+      },
+      "template": "order {order} tax withheld {amount}",
+      "keywords": [
+        "tax withheld",
+        "withholding tax",
+        "tax kata",
+        "ٹیکس کٹا"
+      ]
+    },
+    {
+      "id": "limits.show",
+      "entity": "limits",
+      "action": "show",
+      "kind": "Limits",
+      "description": "Show the limits of the plan: how many messages, voice notes and pictures are allowed per hour.",
+      "examples": [
+        "meri limits kya hain",
+        "limits",
+        "kitni limit hai",
+        "what are my limits",
+        "میری حد کیا ہے"
+      ],
+      "slots": {},
+      "template": "limits",
+      "keywords": [
+        "my limits",
+        "plan limits",
+        "meri limits",
+        "حدود"
+      ]
+    },
+    {
+      "id": "daily.jobs",
+      "entity": "daily",
+      "action": "jobs",
+      "kind": "DailyJobs",
+      "description": "The list of daily jobs a shop does with the bot, with the line to type for each.",
+      "examples": [
+        "rozana ka kaam kya hai",
+        "daily jobs",
+        "roz kya kya karna hai",
+        "what do I do every day",
+        "روزانہ کا کام کیا ہے"
+      ],
+      "slots": {},
+      "template": "rozana kaam",
+      "keywords": [
+        "daily jobs",
+        "daily work",
+        "rozana kaam",
+        "roz ka kaam",
+        "روزانہ کام"
+      ]
+    },
+    {
+      "id": "setup.business",
+      "entity": "setup",
+      "action": "business",
+      "kind": "BusinessSetup",
+      "description": "Business setup: the shop name, city and kind of shop, and what to enter first.",
+      "examples": [
+        "business setup karna hai",
+        "setup",
+        "dukan ka setup kaise karun",
+        "how do I set up my shop",
+        "دکان کا سیٹ اپ کیسے کروں"
+      ],
+      "slots": {},
+      "template": "setup",
+      "keywords": [
+        "business setup",
+        "shop setup",
+        "dukan setup",
+        "سیٹ اپ"
+      ]
+    },
+    {
+      "id": "order.new_help",
+      "entity": "order",
+      "action": "new_help",
+      "kind": "NewOrderHelp",
+      "description": "How to write a new order: the options for adding one (type it, paste the buyer's message, send a screenshot or a voice note).",
+      "examples": [
+        "naya order kaise likhun",
+        "new order",
+        "order kaise banaun",
+        "how do I add an order",
+        "how do I create a new order",
+        "نیا آرڈر کیسے بناؤں",
+        "آرڈر کیسے لکھوں"
+      ],
+      "slots": {},
+      "template": "new order",
+      "keywords": [
+        "new order",
+        "naya order",
+        "order kaise",
+        "add order",
+        "نیا آرڈر"
+      ]
+    },
+    {
+      "id": "photo.import",
+      "entity": "photo",
+      "action": "import",
+      "kind": "PhotoImport",
+      "description": "How to add products or orders from a picture (a handwritten list, a price list or a chat screenshot).",
+      "examples": [
+        "photo se products kaise add karun",
+        "photo import",
+        "tasveer se maal add karna hai",
+        "add products from a picture",
+        "تصویر سے پروڈکٹ کیسے شامل کروں"
+      ],
+      "slots": {},
+      "template": "photo import",
+      "keywords": [
+        "photo import",
+        "picture import",
+        "tasveer import",
+        "تصویر امپورٹ"
+      ]
+    },
+    {
+      "id": "menu.category",
+      "entity": "menu",
+      "action": "category",
+      "kind": "MenuCategory",
+      "description": "Open one part of the menu: orders, reports, catalog, payments, discounts, customers, settings or shop.",
+      "examples": [
+        "orders ka menu dikhao",
+        "reports wala menu",
+        "show the catalog menu",
+        "settings menu kholo",
+        "رپورٹس کا مینو دکھاؤ"
+      ],
+      "slots": {
+        "menu_name": {
+          "required": true,
+          "sample": "orders"
+        }
+      },
+      "template": "menu {menu_name}",
+      "keywords": [
+        "orders menu",
+        "reports menu",
+        "catalog menu",
+        "settings menu",
+        "shop menu"
+      ]
+    },
+    {
+      "id": "price.tiers",
+      "entity": "price",
+      "action": "tiers",
+      "kind": "PriceTiers",
+      "description": "Set bulk or wholesale prices for one product (a price per quantity step).",
+      "examples": [
+        "Kaju ka wholesale rate lagana hai",
+        "bulk price kaise set karun",
+        "set wholesale prices for a product",
+        "price tiers lagao",
+        "تھوک کی قیمت کیسے لگاؤں"
+      ],
+      "slots": {
+        "product": {
+          "required": true,
+          "sample": "Kaju"
+        },
+        "tiers": {
+          "required": true,
+          "sample": "1kg=320, 10kg=300, 25kg=280"
+        }
+      },
+      "template": "{product} - price tiers: {tiers}",
+      "keywords": [
+        "price tiers",
+        "wholesale price",
+        "bulk price",
+        "thok rate",
+        "تھوک قیمت"
+      ]
+    },
+    {
+      "id": "guide.howto",
+      "entity": "guide",
+      "action": "howto",
+      "kind": "Guide",
+      "description": "The seller asks HOW to do something ('kaise', 'how do I', 'tarika', 'کیسے') and no other entry fits. The bot never runs it: it shows the closest command with the line to type and an example.",
+      "examples": [
+        "yeh kaam kaise hota hai",
+        "how do I do this",
+        "iska tarika kya hai",
+        "how can I use this bot",
+        "یہ کام کیسے ہوتا ہے",
+        "اس کا طریقہ بتاؤ"
+      ],
+      "slots": {},
+      "template": "guide",
+      "keywords": [
+        "kaise",
+        "kese",
+        "kaisay",
+        "kis tarah",
+        "tarika",
+        "tariqa",
+        "how to",
+        "how do",
+        "how can",
+        "how should",
+        "how does",
+        "how we",
+        "how i",
+        "کیسے",
+        "طریقہ",
+        "کس طرح"
+      ]
+    },
+    {
+      "id": "support.contact",
+      "entity": "support",
+      "action": "contact",
+      "kind": "SupportContact",
+      "description": "The seller wants to reach support, a person, the founder or the team behind the bot (a problem, a complaint, a question the bot cannot answer). The request is recorded and the seller is told what happens next.",
+      "examples": [
+        "mujhe support se baat karni hai",
+        "kisi insaan se baat karao",
+        "founder se rabta karna hai",
+        "how do I contact support",
+        "I want to talk to a human",
+        "I need help from your team",
+        "can someone call me",
+        "سپورٹ سے بات کرنی ہے",
+        "مجھے کسی انسان سے بات کرنی ہے",
+        "سپورٹ سے رابطہ کیسے کروں"
+      ],
+      "slots": {
+        "topic": {}
+      },
+      "template": "contact support {topic}",
+      "keywords": [
+        "contact support",
+        "customer support",
+        "support team",
+        "human support",
+        "talk to human",
+        "speak to human",
+        "talk to someone",
+        "helpline",
+        "founder",
+        "insaan se baat",
+        "sapport",
+        "سپورٹ",
+        "انسان سے بات"
+      ],
+      "runOnHowTo": true
     }
   ]
 }
