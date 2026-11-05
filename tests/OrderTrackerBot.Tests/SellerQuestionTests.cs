@@ -59,6 +59,27 @@ public class SellerQuestionTests : IDisposable
         Assert.Equal(0, await db.SupportQueries.CountAsync());
     }
 
+    [Theory]
+    [InlineData("3")]                    // the item's number
+    [InlineData("Customer ki detail")]   // the exact label
+    public async Task AnswerToThePictureTypeList_LabelsThePicture_NotAnOrderLookup(string answer)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        _media.Setup(m => m.DownloadAsync("pic-type", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[3000], "image/jpeg"));
+        _ai.Setup(a => a.AnalyzeImageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "unclear" });
+        _ai.Setup(a => a.ReadPictureAsync("customer", It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiPictureReading { Name = "Sara", Phone = "03001234567" });
+        await engine.HandleImageMessageAsync(Phone, "pic-type", null);
+        _sent.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, answer, default);
+
+        _ai.Verify(a => a.ReadPictureAsync("customer", It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()), Times.Once);
+        Assert.DoesNotContain(_sent, m => m.Contains("Order #3 nahi mila"));
+    }
+
     [Fact]
     public async Task ShortSpokenCount_IsRoutedAsSaid_NotThroughTheWrongRewrite()
     {

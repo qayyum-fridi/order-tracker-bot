@@ -1225,6 +1225,11 @@ public partial class ConversationEngine
             return;
         }
 
+        // A caption the word list does not know ("Customers", "yeh customer list hai") is read by meaning, like any choice.
+        if (!string.IsNullOrWhiteSpace(caption) && !PictureLabels.TryParseCaption(caption, out _, out _)
+            && await ResolveChoiceAsync(seller, ctx, caption, PictureTypeChoices, allowNumber: false, ct) is { } captionKind)
+            caption = captionKind;
+
         // A caption naming the type (expense, wages, customer, other) says what the picture is: read it for that type only. "order" continues below.
         if (PictureLabels.TryParseCaption(caption, out var pictureKind, out var pictureNote) && pictureKind != PictureLabels.Order)
         {

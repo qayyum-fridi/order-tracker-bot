@@ -317,15 +317,19 @@ public partial class ConversationEngine
         }
 
         // A picture sent without a type word leaves the bot idle or asking "what is this?" (the clarification state): a type word right after it labels the picture.
-        if (ctx.PendingPictureMediaIds is { Count: > 0 } && session.State is ConversationState.Idle or ConversationState.AwaitingClarificationChoice
-            && PictureLabels.TryParseReply(message, out _))
+        // The reply is read the same way as any choice list: a typed type word, then its number, an exact label, or the AI by meaning.
+        string? pictureKind = null;
+        if (ctx.PendingPictureMediaIds is { Count: > 0 } && session.State is ConversationState.Idle or ConversationState.AwaitingClarificationChoice)
+            pictureKind = PictureLabels.TryParseReply(message, out var typedKind) ? typedKind
+                : await ResolveChoiceAsync(seller, ctx, message, PictureTypeChoices, allowNumber: true, ct);
+        if (pictureKind is not null)
         {
             if (session.State == ConversationState.AwaitingClarificationChoice)
             {
                 ctx.ClarificationOptions = null;
                 SetState(session, ConversationState.Idle);
             }
-            if (await TryHandlePictureLabelAsync(seller, session, ctx, message, ct))
+            if (await TryHandlePictureLabelAsync(seller, session, ctx, pictureKind, ct))
             {
                 await PersistAsync(session, ctx, ct);
                 return;
