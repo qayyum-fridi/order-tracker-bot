@@ -58,6 +58,8 @@ internal static class InsightParser
     private static readonly Regex Udhaar = W(@"udhaar|udhar|baqaya|baqiya|bakaya|baaqi|balance|outstanding|dues|ادھار|بقایا|باقی");
     private static readonly Regex LastTime = W(@"pichli\s+baar|pichhli\s+baar|pichle\s+baar|last\s+time|aakhri\s+baar|akhri\s+baar|last\s+order|پچھلی\s+بار|آخری\s+بار");
     private static readonly Regex BuyVerb = W(@"kharid\w*|khareed\w*|bought|buy|purchased|liya|li\s+thi|order\s+kiya|لیا|خرید\w*");
+    private static readonly Regex PastOrderAsk = W(@"order\s+ki\s+thi|orders?\s+kiye\s+thay|kitn\w*\s+(?:quantity|qty|pieces?|piece|units?|items?)|kya\s+order\s+(?:kiya|tha|kiya\s+tha)|kya\s+kharida\s+tha|kya\s+liya\s+tha|آرڈر\s+کیا\s+تھا|کتنی\s+(?:مقدار|تعداد)");
+    private static readonly Regex Pending = W(@"pending|unpaid|baqi|baqaya|balance|udhaar|ادھار|بقایا|باقی");
     private static readonly Regex OrdersWord = W(@"orders?|آرڈرز?|آرڈر");
 
     private static readonly Regex CodWord = W(@"cod|cash\s+on\s+delivery|کیش\s+آن\s+ڈلیوری|کیش");
@@ -172,6 +174,8 @@ internal static class InsightParser
         if (Regex.IsMatch(text, @"(?<![\p{L}\p{N}])(?:kisne|kis\s+ne|who|کس\s+نے)(?![\p{L}\p{N}])", Opts) && BigWord.IsMatch(text) && BuyWord.IsMatch(text)) return Topic("topcustomers");
         if (Udhaar.IsMatch(text) && (How.IsMatch(text) || Which.IsMatch(text) || Customer.IsMatch(text) || Regex.IsMatch(text, @"\b(?:hai|rehta|rehti|raha|list|sab|all|kis\s+kis|kis\s+ka)\b|رہتا|ہے|فہرست", Opts)) && !OrdersWord.IsMatch(text)) return Topic("balance");
         if (LastTime.IsMatch(text) && (BuyVerb.IsMatch(text) || OrdersWord.IsMatch(text))) return Topic("lastbought");
+        // "Ali na kitni quantity order ki thi": a past-tense question about what a customer ordered, with no "last time" word.
+        if (PastOrderAsk.IsMatch(text) && OrdersWord.IsMatch(text) && !Pending.IsMatch(text)) return Topic("lastbought");
 
         // --- payments, returns, delivery
         if (PayMethodPhrase.IsMatch(text) || (CodWord.IsMatch(text) && OtherPay.IsMatch(text)) || (OtherPay.IsMatch(text) && OrdersWord.IsMatch(text) && How.IsMatch(text)) || (CodWord.IsMatch(text) && MostWord.IsMatch(text) && (OrdersWord.IsMatch(text) || Customer.IsMatch(text) || Which.IsMatch(text))))
