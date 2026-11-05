@@ -40,6 +40,9 @@ public interface IAppDbContext
     DbSet<UnplacedUtterance> UnplacedUtterances { get; }
     DbSet<StrategyStat> StrategyStats { get; }
     DbSet<UnknownNumberWord> UnknownNumberWords { get; }
+    DbSet<LearnedKeyword> LearnedKeywords { get; }
+    DbSet<KeywordRule> KeywordRules { get; }
+    DbSet<MessageTemplateRow> MessageTemplateRows { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

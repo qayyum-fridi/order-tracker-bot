@@ -40,6 +40,7 @@ public partial class ConversationEngine
         var order = await _db.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == ctx.CancelOrderId && o.SellerId == seller.Id, ct);
         ctx.CancelOrderId = null;
         if (order is null) return;
+        RememberOrder(ctx, order.Id);
         var stockBefore = StockFootprint(order);
 
         _db.ActionLogs.Add(new ActionLog

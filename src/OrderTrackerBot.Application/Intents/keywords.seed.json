@@ -1,0 +1,9 @@
+{
+  "stopWords": [
+    "the", "and", "for", "is", "are", "was", "to", "of", "a", "an", "it", "its", "this", "that", "my", "me", "please", "plz", "show",
+    "ka", "ki", "ke", "ko", "se", "mein", "hai", "hain", "ho", "kar", "karo", "karna", "do", "dein", "dena", "mujhe", "mera", "meri", "mere",
+    "aur", "kya", "kitna", "kitni", "kitne", "bhi", "nahi", "haan", "ji", "bhai", "sir", "wala", "wali", "wale", "yeh", "yah", "woh", "wo",
+    "ye", "us", "uska", "uski", "uske", "wahi", "naya", "naye", "nai", "abhi", "aaj", "kal",
+    "وہ", "یہ", "کا", "کی", "کے", "کو", "میں", "ہے", "ہیں", "اور", "کیا"
+  ]
+}

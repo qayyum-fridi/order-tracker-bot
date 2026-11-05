@@ -11,7 +11,11 @@ public partial class ConversationEngine
     /// <summary>Words that point back to the last customer ("wahi", "uska"). Only these are resolved, never a name.</summary>
     private static readonly HashSet<string> BackReferenceWords = new(StringComparer.OrdinalIgnoreCase)
     {
-        "wahi", "wohi", "wo", "woh", "us", "uska", "uski", "uske", "iska", "iski", "yehi", "yahi", "ye", "yeh"
+        "wahi", "wohi", "wo", "woh", "us", "uska", "uski", "uske", "iska", "iski", "yehi", "yahi", "ye", "yeh",
+        // English
+        "that", "this", "same", "it", "its",
+        // Urdu script (the speech model writes these too)
+        "وہی", "وہ", "اس", "اُس", "اسی", "اُسی", "یہی", "یہ"
     };
 
     /// <summary>The customer id a back-reference points to, when it was set within the window; otherwise null.</summary>
@@ -23,7 +27,7 @@ public partial class ConversationEngine
 
     // "wahi order", "uska order", "wahi order dikhao": the order the seller saved or opened last, for ten minutes. Anything else is left alone.
     private static readonly System.Text.RegularExpressions.Regex BackReferenceOrder = new(
-        @"^(?<w>\p{L}+)\s+orders?(?:\s+(?:dikhao|dikha\s+do|batao|kholo))?\s*[?؟]?$",
+        @"^(?<w>\p{L}+)\s+(?:orders?|آرڈر|آڈر)(?:\s+(?:dikhao|dikha\s+do|dikhaiye|batao|kholo|show|details?|دکھاؤ|دکھائیں|بتاؤ|بتائیں|کھولو))?\s*[?؟]?$",
         System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
     private void RememberOrder(SessionContextData ctx, int orderId)

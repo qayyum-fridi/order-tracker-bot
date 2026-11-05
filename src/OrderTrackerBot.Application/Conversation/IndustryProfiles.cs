@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -49,26 +48,27 @@ public sealed record IndustryProfile(
 }
 
 /// <summary>
-/// The kinds of shop. The wording of each one is its own template file, <c>Templates/Industries/&lt;key&gt;.json</c>, embedded in this assembly:
-/// change an example or a tip there, or add a new kind of shop by adding a file (no C# change). <c>order</c> sets the order of the tap list
-/// and of matching; <c>general.json</c> is the fallback for an unknown or empty business type and is not in <see cref="All"/>.
-/// The file name must equal its <c>key</c>. A broken file fails the tests (and the first use) with the file name in the message.
+/// The kinds of shop. The wording of each one is a JSON text in the message-template store (the <c>industry</c> rows of
+/// <c>MessageTemplateRows</c>): seeded once from <c>Templates/Industries/&lt;key&gt;.json</c>, embedded in this assembly, and changed at runtime
+/// from the database (see <c>TemplateStore</c>). <c>order</c> sets the order of the tap list and of matching; <c>general</c> is the fallback
+/// for an unknown or empty business type and is not in <see cref="All"/>. The key must equal the file name. A row that does not parse is
+/// never used; the shipped text stays.
 /// </summary>
 public static class IndustryProfiles
 {
     private const string ResourcePrefix = "Templates.Industries.";
     private const string JsonExtension = ".json";
     private const string GeneralKey = "general";
+    private static readonly JsonSerializerOptions Options = new() { PropertyNameCaseInsensitive = true };
 
-    private static readonly IReadOnlyList<(int Order, IndustryProfile Profile)> Loaded = LoadTemplates();
+    private static readonly IReadOnlyDictionary<string, string> EmbeddedJson = LoadEmbeddedJson();
+    private static volatile State _state = FromJson(EmbeddedJson);
 
-    public static readonly IndustryProfile General = Loaded.Single(x => x.Profile.Key == GeneralKey).Profile;
+    private sealed record State(IndustryProfile General, IReadOnlyList<IndustryProfile> All);
 
-    public static readonly IReadOnlyList<IndustryProfile> All = Loaded
-        .Where(x => x.Profile.Key != GeneralKey)
-        .OrderBy(x => x.Order)
-        .Select(x => x.Profile)
-        .ToList();
+    public static IndustryProfile General => _state.General;
+
+    public static IReadOnlyList<IndustryProfile> All => _state.All;
 
     public static IndustryProfile ByKey(string? key) => All.FirstOrDefault(p => string.Equals(p.Key, key, StringComparison.OrdinalIgnoreCase)) ?? General;
 
@@ -79,34 +79,66 @@ public static class IndustryProfiles
         return All.FirstOrDefault(p => p.Matches(businessType)) ?? General;
     }
 
-    private static IReadOnlyList<(int Order, IndustryProfile Profile)> LoadTemplates()
-    {
-        var assembly = typeof(IndustryProfiles).Assembly;
-        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-        var resources = assembly.GetManifestResourceNames()
-            .Where(n => n.StartsWith(ResourcePrefix, StringComparison.Ordinal) && n.EndsWith(JsonExtension, StringComparison.Ordinal))
-            .OrderBy(n => n, StringComparer.Ordinal);
+    /// <summary>The shipped kinds of shop, as JSON text by key (the seed and the fallback for the database rows).</summary>
+    internal static IReadOnlyDictionary<string, string> EmbeddedTemplateJson => EmbeddedJson;
 
-        var loaded = new List<(int Order, IndustryProfile Profile)>();
-        foreach (var resource in resources)
+    /// <summary>Swaps the kinds of shop in use, from JSON text by key. Only called with texts that parsed (TemplateStore checks each one).</summary>
+    internal static void Replace(IReadOnlyDictionary<string, string> json) => _state = FromJson(json);
+
+    /// <summary>True when <paramref name="json"/> is a kind-of-shop template named <paramref name="key"/>; the parsed template otherwise null.</summary>
+    internal static bool TryParseTemplate(string key, string json, out IndustryTemplate template)
+    {
+        template = null!;
+        try
         {
-            var fileKey = resource.Substring(ResourcePrefix.Length, resource.Length - ResourcePrefix.Length - JsonExtension.Length);
-            using var stream = assembly.GetManifestResourceStream(resource)
-                ?? throw new InvalidOperationException($"Industry template {resource} is missing from the build.");
-            var t = JsonSerializer.Deserialize<IndustryTemplate>(stream, options)
-                ?? throw new InvalidOperationException($"Industry template {resource} is empty.");
-            if (!string.Equals(t.Key, fileKey, StringComparison.Ordinal))
-                throw new InvalidOperationException($"Industry template {resource}: key \"{t.Key}\" must equal the file name.");
-            if (loaded.Any(x => string.Equals(x.Profile.Key, t.Key, StringComparison.OrdinalIgnoreCase)))
-                throw new InvalidOperationException($"Industry template key \"{t.Key}\" is used by more than one file.");
-            if (string.IsNullOrWhiteSpace(t.MenuTip))
-                throw new InvalidOperationException($"Industry template {resource} has no menuTip.");
-            loaded.Add((t.Order, new IndustryProfile(t.Key, t.Title, t.Aliases, t.ProductLines, t.OrderExample, t.Tips, t.DataFocus, t.MenuTip, t.Units ?? Array.Empty<string>())));
+            var parsed = JsonSerializer.Deserialize<IndustryTemplate>(json, Options);
+            if (parsed is null || !string.Equals(parsed.Key, key, StringComparison.Ordinal) || string.IsNullOrWhiteSpace(parsed.MenuTip)) return false;
+            template = parsed;
+            return true;
         }
-        return loaded;
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
-    /// <summary>The shape of one <c>Templates/Industries/*.json</c> file.</summary>
+    private static State FromJson(IReadOnlyDictionary<string, string> json)
+    {
+        var loaded = new List<(int Order, IndustryProfile Profile)>();
+        foreach (var (key, text) in json.OrderBy(p => p.Key, StringComparer.Ordinal))
+        {
+            if (!TryParseTemplate(key, text, out var t))
+                throw new InvalidOperationException($"Industry template \"{key}\" is not valid (the key must equal its name and menuTip is required).");
+            if (loaded.Any(x => string.Equals(x.Profile.Key, t.Key, StringComparison.OrdinalIgnoreCase)))
+                throw new InvalidOperationException($"Industry template key \"{t.Key}\" is used by more than one template.");
+            loaded.Add((t.Order, new IndustryProfile(t.Key, t.Title, t.Aliases, t.ProductLines, t.OrderExample, t.Tips, t.DataFocus, t.MenuTip, t.Units ?? Array.Empty<string>())));
+        }
+        var general = loaded.SingleOrDefault(x => x.Profile.Key == GeneralKey).Profile
+            ?? throw new InvalidOperationException("No general industry template (key \"general\").");
+        var all = loaded.Where(x => x.Profile.Key != GeneralKey).OrderBy(x => x.Order).Select(x => x.Profile).ToList();
+        return new State(general, all);
+    }
+
+    private static IReadOnlyDictionary<string, string> LoadEmbeddedJson()
+    {
+        var assembly = typeof(IndustryProfiles).Assembly;
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var resource in assembly.GetManifestResourceNames()
+                     .Where(n => n.StartsWith(ResourcePrefix, StringComparison.Ordinal) && n.EndsWith(JsonExtension, StringComparison.Ordinal))
+                     .OrderBy(n => n, StringComparer.Ordinal))
+        {
+            var fileKey = resource.Substring(ResourcePrefix.Length, resource.Length - ResourcePrefix.Length - JsonExtension.Length);
+            using var reader = new StreamReader(assembly.GetManifestResourceStream(resource)
+                ?? throw new InvalidOperationException($"Industry template {resource} is missing from the build."));
+            var text = reader.ReadToEnd();
+            if (!TryParseTemplate(fileKey, text, out _))
+                throw new InvalidOperationException($"Industry template {resource}: the key must equal the file name and menuTip is required.");
+            result.Add(fileKey, text);
+        }
+        return result;
+    }
+
+    /// <summary>The shape of one kind-of-shop template.</summary>
     internal sealed record IndustryTemplate(
         string Key,
         int Order,

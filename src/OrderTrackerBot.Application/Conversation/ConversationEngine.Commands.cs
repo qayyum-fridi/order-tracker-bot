@@ -1444,6 +1444,8 @@ public partial class ConversationEngine
     private async Task ApplyStatusChangeAsync(Seller seller, ConversationSession session, SessionContextData ctx, Order order, string statusKeyword, CancellationToken ct)
     {
         var previousStatus = order.Status;
+        // "wahi order" after a status change points to this order (the seller just talked about it).
+        RememberOrder(ctx, order.Id);
         var newStatus = statusKeyword switch
         {
             "shipped" => OrderStatus.Shipped,

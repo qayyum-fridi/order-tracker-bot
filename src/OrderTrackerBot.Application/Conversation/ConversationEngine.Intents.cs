@@ -19,6 +19,9 @@ public partial class ConversationEngine
 
     private async Task<RoutedIntent?> RouteIntentAsync(string message, CancellationToken ct, Seller? seller = null)
     {
+        // A message that only one intent's catalog keywords claim, and that needs no slot, runs without a model call.
+        if (DirectKeywordRoute(message) is { } direct) return direct;
+
         // With the flag on and a seller known, the router also gets the seller's context (what kind of shop, its products, what the bot was doing, the last messages).
         var route = seller is not null && _features.RouterContext
             ? await _ai.RouteIntentWithContextAsync(message, IntentCatalog.All, await BuildRouteContextAsync(seller, message, ct), ct)
@@ -32,8 +35,38 @@ public partial class ConversationEngine
         // The built command must parse to the kind this entry declares, or it is not the action the seller was offered.
         if (CommandParser.TryParse(built.Command) is not { } parsed || parsed.Kind.ToString() != intent.Kind) return null;
         _logger?.LogInformation("Intent {Intent} routed to {Kind}", intent.Id, parsed.Kind);
+        await LearnRoutedWordsAsync(seller, message, intent.Id, ct);
         if (ActionRisk.RiskyCommands.Contains(parsed.Kind)) return new RoutedIntent(null, built.Command);
         return new RoutedIntent(built.Command, null);
+    }
+
+    /// <summary>The route for a message that exactly one intent's catalog keywords claim, when that intent needs no slot; otherwise null (the AI decides).</summary>
+    private RoutedIntent? DirectKeywordRoute(string message)
+    {
+        var hits = IntentKeywords.Match(message, IntentCatalog.All);
+        if (hits.Count != 1 || IntentCatalog.Find(hits[0]) is not { } intent || intent.Slots.Any(s => s.Required)) return null;
+
+        var built = IntentCatalog.Build(intent, new Dictionary<string, string>());
+        if (built.Command is null || CommandParser.TryParse(built.Command) is not { } parsed || parsed.Kind.ToString() != intent.Kind) return null;
+        if (ActionRisk.RiskyCommands.Contains(parsed.Kind)) return new RoutedIntent(null, built.Command);
+        return new RoutedIntent(built.Command, null);
+    }
+
+    /// <summary>
+    /// Learns the words of a routed message for the intent the router chose. The seller's own product and customer names are left out,
+    /// so no name reaches the list shared by all sellers.
+    /// </summary>
+    private async Task LearnRoutedWordsAsync(Seller? seller, string message, string intentId, CancellationToken ct)
+    {
+        var words = IntentKeywords.Tokens(message);
+        if (words.Count == 0) return;
+        if (seller is not null)
+        {
+            var products = await _db.Products.Where(p => p.SellerId == seller.Id).Select(p => p.Name).Take(500).ToListAsync(ct);
+            var customers = await _db.Customers.Where(c => c.SellerId == seller.Id).Select(c => c.Name).Take(500).ToListAsync(ct);
+            words.ExceptWith(products.Concat(customers).SelectMany(IntentKeywords.Tokens));
+        }
+        if (words.Count > 0) LearnedKeywordLog.Record(words, intentId);
     }
 
     /// <summary>
@@ -50,11 +83,15 @@ public partial class ConversationEngine
         var recent = (await _db.MessageLogs.Where(m => m.Phone == seller.WhatsAppPhoneNumber && m.Direction == "inbound").OrderByDescending(m => m.Id).Take(6).Select(m => m.RawText).ToListAsync(ct))
             .Where(t => !string.IsNullOrWhiteSpace(t) && !t.StartsWith('[') && !string.Equals(t.Trim(), message.Trim(), StringComparison.OrdinalIgnoreCase))
             .Take(3).Reverse().Select(t => t.Length > 160 ? t[..160] : t).ToList();
+        var situation = seller.Session is null ? null : DescribeVoiceSituation(seller, SessionContextData.FromJson(seller.Session.ContextJson));
+        // Words this message shares with the shared list tell the router what they usually mean (only words with enough votes).
+        var learned = LearnedKeywordLog.HintsFor(IntentKeywords.Tokens(message));
+        if (learned.Count > 0) situation = $"{situation} The words in this message usually mean: {string.Join(", ", learned)}.".Trim();
         return new AiRouteContext
         {
             ShopType = seller.BusinessType,
             ProductNames = names,
-            Situation = seller.Session is null ? null : DescribeVoiceSituation(seller, SessionContextData.FromJson(seller.Session.ContextJson)),
+            Situation = situation,
             RecentMessages = recent,
         };
     }

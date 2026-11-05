@@ -1,5 +1,7 @@
 using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Conversation;
+using OrderTrackerBot.Application.Intents;
+using OrderTrackerBot.Application.Templates;
 using OrderTrackerBot.Infrastructure.Instagram;
 using OrderTrackerBot.Api.Admin;
 
@@ -30,6 +32,9 @@ public sealed class ScheduledMessagesService : BackgroundService
                 await scope.ServiceProvider.GetRequiredService<ConversationEngine>().RunScheduledJobsAsync(DateTime.UtcNow, stoppingToken);
                 await UnplacedReport.PurgeOlderThanAsync(scope.ServiceProvider.GetRequiredService<IAppDbContext>(), DateTime.UtcNow, stoppingToken);
                 await UnknownNumberWordLog.FlushAsync(scope.ServiceProvider.GetRequiredService<IAppDbContext>(), DateTime.UtcNow, stoppingToken);
+                await KeywordStore.SyncAsync(scope.ServiceProvider.GetRequiredService<IAppDbContext>(), stoppingToken);
+                await TemplateStore.SyncAsync(scope.ServiceProvider.GetRequiredService<IAppDbContext>(), stoppingToken);
+                await LearnedKeywordLog.FlushAsync(scope.ServiceProvider.GetRequiredService<IAppDbContext>(), DateTime.UtcNow, stoppingToken);
                 await scope.ServiceProvider.GetRequiredService<InstagramClient>().RefreshExpiringTokensAsync(
                     scope.ServiceProvider.GetRequiredService<IAppDbContext>(), DateTime.UtcNow, stoppingToken);
             }

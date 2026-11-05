@@ -569,6 +569,73 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     b.ToTable("IssueRecords");
                 });
 
+            modelBuilder.Entity("OrderTrackerBot.Domain.Entities.KeywordRule", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("IntentId")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("Word")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Word", "IntentId")
+                        .IsUnique()
+                        .HasFilter("[IntentId] IS NOT NULL");
+
+                    b.ToTable("KeywordRules");
+                });
+
+            modelBuilder.Entity("OrderTrackerBot.Domain.Entities.LearnedKeyword", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("FirstSeenAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("IntentId")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateTime>("LastSeenAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Votes")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Word")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Word", "IntentId")
+                        .IsUnique();
+
+                    b.ToTable("LearnedKeywords");
+                });
+
             modelBuilder.Entity("OrderTrackerBot.Domain.Entities.Loss", b =>
                 {
                     b.Property<int>("Id")
@@ -686,6 +753,42 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     b.HasIndex("Phone", "CreatedAt");
 
                     b.ToTable("MessageLogs");
+                });
+
+            modelBuilder.Entity("OrderTrackerBot.Domain.Entities.MessageTemplateRow", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Language", "Key")
+                        .IsUnique();
+
+                    b.ToTable("MessageTemplateRows");
                 });
 
             modelBuilder.Entity("OrderTrackerBot.Domain.Entities.Order", b =>

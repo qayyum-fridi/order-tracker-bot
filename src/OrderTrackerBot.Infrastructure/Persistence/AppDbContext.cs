@@ -44,6 +44,9 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<Payout> Payouts => Set<Payout>();
     public DbSet<UnplacedUtterance> UnplacedUtterances => Set<UnplacedUtterance>();
     public DbSet<UnknownNumberWord> UnknownNumberWords => Set<UnknownNumberWord>();
+    public DbSet<LearnedKeyword> LearnedKeywords => Set<LearnedKeyword>();
+    public DbSet<KeywordRule> KeywordRules => Set<KeywordRule>();
+    public DbSet<MessageTemplateRow> MessageTemplateRows => Set<MessageTemplateRow>();
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -58,6 +61,24 @@ public class AppDbContext : DbContext, IAppDbContext
     {
         modelBuilder.Entity<UnplacedUtterance>(e => e.HasIndex(u => u.CreatedAt));
         modelBuilder.Entity<UnknownNumberWord>(e => { e.HasIndex(w => w.Word).IsUnique(); e.Property(w => w.Word).HasMaxLength(40); });
+        modelBuilder.Entity<MessageTemplateRow>(e =>
+        {
+            e.HasIndex(t => new { t.Language, t.Key }).IsUnique();
+            e.Property(t => t.Language).HasMaxLength(20);
+            e.Property(t => t.Key).HasMaxLength(120);
+        });
+        modelBuilder.Entity<KeywordRule>(e =>
+        {
+            e.HasIndex(k => new { k.Word, k.IntentId }).IsUnique();
+            e.Property(k => k.Word).HasMaxLength(40);
+            e.Property(k => k.IntentId).HasMaxLength(80);
+        });
+        modelBuilder.Entity<LearnedKeyword>(e =>
+        {
+            e.HasIndex(k => new { k.Word, k.IntentId }).IsUnique();
+            e.Property(k => k.Word).HasMaxLength(40);
+            e.Property(k => k.IntentId).HasMaxLength(80);
+        });
         modelBuilder.Entity<Seller>(e =>
         {
             e.HasIndex(s => s.WhatsAppPhoneNumber).IsUnique();

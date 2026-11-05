@@ -16,12 +16,21 @@ public static class MessageTemplates
     private const string ResourcePrefix = "Templates.Messages.";
     private const string JsonExtension = ".json";
     private static readonly Regex PlaceholderPattern = new(@"\{(\d+)\}", RegexOptions.Compiled);
-    private static readonly IReadOnlyDictionary<string, string> Entries = Load();
+    private static readonly IReadOnlyDictionary<string, string> Embedded = Load();
+    // The wording in use: the shipped text, replaced at runtime by the rows of the MessageTemplateRows table (see TemplateStore).
+    private static volatile IReadOnlyDictionary<string, string> Entries = Embedded;
+
+    /// <summary>The Roman Urdu texts shipped in the build (the seed and the fallback for the database rows).</summary>
+    internal static IReadOnlyDictionary<string, string> EmbeddedEntries => Embedded;
+
+    /// <summary>Swaps the wording in use (TemplateStore).</summary>
+    internal static void Replace(IReadOnlyDictionary<string, string> entries) => Entries = entries;
 
     /// <summary>The text for <paramref name="key"/> with its placeholders filled from <paramref name="args"/>.</summary>
     public static string Get(string key, params object?[] args)
     {
-        if (!Entries.TryGetValue(key, out var template))
+        var entries = Entries;
+        if (!entries.TryGetValue(key, out var template))
             throw new KeyNotFoundException($"Message template \"{key}\" is not in any Templates/Messages file.");
         if (args.Length == 0) return template;
         return PlaceholderPattern.Replace(template, m =>
