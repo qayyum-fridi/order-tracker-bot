@@ -2644,6 +2644,29 @@
       "template": "change language"
     },
     {
+      "id": "account.language_set",
+      "entity": "account",
+      "action": "language_set",
+      "kind": "ChangeLanguage",
+      "description": "Switch the bot to a named language now (Urdu, English or Roman Urdu), without the language picker.",
+      "examples": [
+        "urdu mein karo",
+        "english mein kar do",
+        "bot ko urdu mein tabdeel karo",
+        "change language to english",
+        "roman urdu mein karo",
+        "اردو میں تبدیل کردو",
+        "انگریزی میں کر دیں"
+      ],
+      "slots": {
+        "language": {
+          "required": true,
+          "sample": "urdu"
+        }
+      },
+      "template": "language {language}"
+    },
+    {
       "id": "account.business_info",
       "entity": "account",
       "action": "business_info",
