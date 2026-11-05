@@ -1340,7 +1340,7 @@ public static class CommandParser
     private static readonly Regex NewOrderNoun = new(@"(?<!\p{L})orders?(?!\p{L})|آرڈر|اڈر", Opts);
     private static readonly Regex NewOrderVerb = new(@"(?<!\p{L})(?:bana\p{L}*|bnao|bna\p{L}*|create|make|add|naya|nayi|nya|new|likh\p{L}*|darj\p{L}*|daal\p{L}*|dal\s*(?:do|dein|den|o|ein)|kar\s*(?:do|dein|den|o|ein)|karein|start|shuru\p{L}*)(?!\p{L})|بنا\p{L}*|بنائ\p{L}*|بناو\p{L}*|لکھ\p{L}*|درج|ڈال\p{L}*|کر\s*دیں|کریں|کر\s*دو|شروع", Opts);
     // Words that make a create-sentence into another command (a question, a lookup, an edit, a status change, a number).
-    private const string NotActionWords = @"\p{Nd}|[?؟]|(?<!\p{L})(?:edit|cancel|mark|status|delete|undo|receipt|label|summary|list|kitn\p{L}*|kya|kab|kaun\p{L}*|show|dikhao|dekh\p{L}*|search|find|remove|hata\p{L}*|track\p{L}*|return\p{L}*|wapas|shipped|delivered|paid|advance|bhej\p{L}*|forward|export|total|courier|payout)(?!\p{L})|(?<!\p{L})(?:chahte|chahti|chahta|chahiye|hain|kehna|kehte)(?!\p{L})|ترمیم|منسوخ|حذف|دکھ|کیا|کتن|کب|کون|رسید|لیبل|خلاصہ|فہرست|ختم";
+    private const string NotActionWords = @"\p{Nd}|[?؟]|(?<!\p{L})(?:edit|cancel|mark|status|delete|undo|receipt|label|summary|list|kitn\p{L}*|kya|kab|kaun\p{L}*|show|dikhao|dekh\p{L}*|search|find|talash|khoj|dhoond\p{L}*|dhund\p{L}*|remove|hata\p{L}*|track\p{L}*|return\p{L}*|wapas|shipped|delivered|paid|advance|bhej\p{L}*|forward|export|total|courier|payout)(?!\p{L})|(?<!\p{L})(?:chahte|chahti|chahta|chahiye|hain|kehna|kehte)(?!\p{L})|ترمیم|منسوخ|حذف|دکھ|کیا|کتن|کب|کون|رسید|لیبل|خلاصہ|فہرست|ختم|تلاش|ڈھونڈ|کھوج";
     // A short request to start something ("naya expense bana do", "expense add karna hai"), not a statement about it ("ek naya product hai").
     private static readonly Regex NotCreateHelpRequest = new(NotActionWords + @"|(?<!\p{L})(?:ye|yeh|jo|ke|ki|ek)(?!\p{L})|(?<!(?:karna|karni|karne|likhna|likhni|likhein|likho) )(?<!\p{L})hai(?!\p{L})", Opts);
     // Nouns that belong to another command when they are the subject of an order sentence.
@@ -1517,6 +1517,8 @@ public static class CommandParser
         (new Regex(@"^order\s+\d+\s+undo$", CasualOpts), "notice.undo.001"),
         (new Regex(@"^(?:last|pichla|aakhri)\s+(?:expense|kharcha)\s+(?:wapas|undo)(?:\s+karo|\s+kar\s*do)?$", CasualOpts), "notice.undo.001"),
         (new Regex(@"^[^\d,:]{2,40}?\s+(?:ka|ki)\s+(?:phone|number|mobile)\s+[^\s\d]+$", CasualOpts), "notice.phone.001"),
+        // Changing a saved order's date: an order word, a date word and a change word in any order ("order ki date kaise badlein", "change order date").
+        (new Regex(@"^(?=.*\b(?:order|orders|آرڈر)\b)(?=.*\b(?:date|tareekh|tarikh|تاریخ)\b)(?=.*\b(?:change|bad(?:a)?l\w*|tabdeel\w*|edit|update|بدل\w*|تبدیل\w*)\b).{8,}$", CasualOpts), "notice.orderdate.001"),
     };
 
     private static ParsedCommand? ParseNotice(string text)

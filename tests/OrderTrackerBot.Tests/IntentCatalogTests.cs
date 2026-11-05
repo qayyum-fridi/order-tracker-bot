@@ -19,7 +19,7 @@ public class IntentCatalogTests
         ["email"] = "sara@mail.com", ["message"] = "naya stock aaya", ["courier"] = "TCS", ["id"] = "12", ["text"] = "Lahore Branch",
         ["paper"] = "80mm", ["label_size"] = "a6", ["industry"] = "kiryana", ["days"] = "30", ["old_price"] = "500", ["new_price"] = "550",
         ["percent"] = "10", ["period"] = "last week", ["place"] = "Model Town", ["entity"] = "customers",
-        ["menu_name"] = "orders", ["role"] = "driver", ["tax_id"] = "1234567-8", ["tiers"] = "1kg=320, 10kg=300", ["topic"] = "order save nahi ho raha",
+        ["attribute"] = "fabric", ["attribute_value"] = "cotton", ["menu_name"] = "orders", ["role"] = "driver", ["tax_id"] = "1234567-8", ["tiers"] = "1kg=320, 10kg=300", ["topic"] = "order save nahi ho raha",
     };
 
     // Kinds that are deliberately not catalog entries. Everything else a seller can type has one, so a new CommandKind fails

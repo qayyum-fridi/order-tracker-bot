@@ -40,6 +40,39 @@ public static class IntentKeywords
             .ToList();
     }
 
+    /// <summary>
+    /// <see cref="Match"/>, plus intents with a single-word keyword the message spells nearly: same first two letters, one edit or the same consonants, four letters or
+    /// more ("kasa" for "kaise"). Used for how-to words, where a typo should not hide the question; a wrong catch only costs a how-to answer.
+    /// </summary>
+    public static IReadOnlyList<string> MatchTolerant(string? text, IEnumerable<IntentDefinition> intents)
+    {
+        var tokens = Tokens(text);
+        var exact = Match(text, intents);
+        return intents
+            .Where(intent => exact.Contains(intent.Id) || KeywordsOf(intent).Any(k => !k.Contains(' ') && tokens.Any(t => IsNear(t, k))))
+            .Select(intent => intent.Id)
+            .ToList();
+    }
+
+    /// <summary>True when <paramref name="token"/> is a near spelling of <paramref name="keyword"/> (not the same word).</summary>
+    public static bool IsNear(string token, string keyword) =>
+        token.Length >= 4 && keyword.Length >= 4 && !string.Equals(token, keyword, StringComparison.OrdinalIgnoreCase)
+        && string.Compare(token, 0, keyword, 0, 2, StringComparison.OrdinalIgnoreCase) == 0
+        && (Conversation.TextDistance.Levenshtein(token, keyword) <= 1 || Skeleton(token) == Skeleton(keyword));
+
+    // Roman Urdu vowels move around ("kasa" / "kaise" / "kese"): the same consonants in the same order is the same word.
+    private static string Skeleton(string word) => new(word.ToLowerInvariant().Where(c => "aeiouy".IndexOf(c) < 0).ToArray());
+
+    /// <summary>The intents (among those given) that the message matches through a multi-word keyword, which is more specific than a single word.</summary>
+    public static IReadOnlyList<string> MatchPhrase(string? text, IEnumerable<IntentDefinition> intents)
+    {
+        var spaced = " " + string.Join(" ", Split.Split((text ?? "").ToLowerInvariant()).Where(p => p.Length > 0)) + " ";
+        return intents
+            .Where(intent => KeywordsOf(intent).Any(k => k.Contains(' ') && spaced.Contains(" " + k.Trim() + " ", StringComparison.OrdinalIgnoreCase)))
+            .Select(intent => intent.Id)
+            .ToList();
+    }
+
     /// <summary>The runtime keywords of an intent (database), or the catalog keywords when the database has none for it.</summary>
     private static IEnumerable<string> KeywordsOf(IntentDefinition intent) =>
         KeywordStore.IntentWords(intent.Id) ?? (IEnumerable<string>?)intent.Keywords ?? Array.Empty<string>();

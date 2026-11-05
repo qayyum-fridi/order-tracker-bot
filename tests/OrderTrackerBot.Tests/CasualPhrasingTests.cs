@@ -91,6 +91,10 @@ public class CasualPhrasingTests
     [InlineData("order 2 undo", "notice.undo.001")]
     [InlineData("last expense wapas karo", "notice.undo.001")]
     [InlineData("Sara ka phone abc", "notice.phone.001")]
+    [InlineData("Customers ka order ki date kasa change karni hoti ha", "notice.orderdate.001")]
+    [InlineData("order ki date kaise badlein", "notice.orderdate.001")]
+    [InlineData("change order date", "notice.orderdate.001")]
+    [InlineData("آرڈر کی تاریخ کیسے بدلیں", "notice.orderdate.001")]
     public void NoticePhrases_AnswerWithTheirTemplate(string message, string templateKey)
     {
         var parsed = CommandParser.TryParse(message);

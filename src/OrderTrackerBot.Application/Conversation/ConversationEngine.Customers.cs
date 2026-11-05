@@ -45,7 +45,7 @@ public partial class ConversationEngine
             .ToListAsync(ct);
         ctx.CustomerListPage = page;
         ctx.LastListCustomerIds = shown.Select(c => c.Id).ToList();
-        var lines = shown.Select((c, i) => $"{i + 1} {c.Name} - {c.Phone ?? "—"} - {c.Active} orders");
+        var lines = shown.Select((c, i) => TextHygiene.PinLine($"{i + 1} ", c.Name, $" - {c.Phone ?? "—"} - {c.Active} orders"));
         var hasMore = total > (page + 1) * CustomerPageSize;
         await ReplyAsync(seller,
             MessageTemplates.Get("customers.002", total, (page > 0 ? $" — page {page + 1}" : ""), string.Join("\n", lines), (hasMore ? $" \"more\" agle {CustomerPageSize} ke liye." : "")), ct);
