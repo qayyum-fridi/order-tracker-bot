@@ -79,7 +79,9 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "(the seller relays how a buyer felt about their order, e.g. \"ayesha bahut khush thi order se\" — fill feedback), off_topic (small talk " +
             "or chatter unrelated to the business, e.g. \"bohat thak gayi hoon aaj\"), support_query (the seller forwards a question a buyer " +
             "asked them, e.g. \"mera order kab tak aayega? — Bilal ne poocha\" or \"Ayesha pooch rahi hai Karachi bhejte hain?\" — fill support_query " +
-            "with the buyer's name if given and the question itself), add_products (the seller is telling you which products THEY sell or stock — " +
+            "with the buyer's name and the question itself; use support_query ONLY when a buyer is named as the one asking. A question the seller " +
+            "asks about their own records (\"mere paas orders kitne hain\", \"kitne customers hain\", \"stock kaisa hai\") is NOT support_query: " +
+            "use the intent that answers it or unclear), add_products (the seller is telling you which products THEY sell or stock — " +
             "\"mere paas 3 khaddar chadar aur 2 wool dupatte hain\", \"yeh naye products hain\" — with no customer buying anything: this is NOT an order; " +
             "set is_order_attempt=false and list each product in new_products with its price in rupees when the seller said one, else null; the name " +
             "is the product only, without a unit or quantity word such as thaan/gaz/kg. Also fill cost_price (what it cost the seller to buy, \"kharid/cost\"), " +
