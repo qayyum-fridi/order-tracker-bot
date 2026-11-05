@@ -18,7 +18,7 @@ public partial class ConversationEngine
     private const double MinGuessConfidence = 0.4;
 
     /// <summary>The command the router guessed (no slots to fill) and its intent, for this turn only.</summary>
-    private (string Command, string IntentId)? _turnGuess;
+    private (string Command, string IntentId, double Confidence)? _turnGuess;
 
     /// <summary>What the router decided for one message: a typed command to run, or the line the seller should type (<c>Help</c>).</summary>
     private sealed record RoutedIntent(string? Command, string? Help);
@@ -40,7 +40,15 @@ public partial class ConversationEngine
         // A guess the router is not sure of (between the two bars) is offered to the seller as a Yes / No tap instead of run.
         if (route is not null && route.Confidence >= MinGuessConfidence && route.Confidence < MinRouteConfidence
             && IntentCatalog.Find(route.Intent) is { } guessed && IntentCatalog.Build(guessed, new Dictionary<string, string>()).Command is { } guessCommand)
-            _turnGuess = (guessCommand, guessed.Id);
+            _turnGuess = (guessCommand, guessed.Id, route.Confidence);
+        // Every router answer is kept (intent, confidence, what the bot did with it) so the two bars can be tuned from real use.
+        if (route is not null)
+            _db.RouterDecisions.Add(new RouterDecision
+            {
+                IntentId = route.Intent.Length > 80 ? route.Intent[..80] : route.Intent,
+                Confidence = route.Confidence,
+                Outcome = route.Confidence >= MinRouteConfidence ? "run" : route.Confidence >= MinGuessConfidence ? "guess" : "ignored",
+            });
         if (route is null || route.Confidence < MinRouteConfidence || IntentCatalog.Find(route.Intent) is not { } intent) return null;
 
         var built = IntentCatalog.Build(intent, route.Slots);

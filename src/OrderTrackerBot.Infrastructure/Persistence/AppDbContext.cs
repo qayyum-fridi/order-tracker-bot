@@ -49,6 +49,7 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<MessageTemplateRow> MessageTemplateRows => Set<MessageTemplateRow>();
     public DbSet<FeatureAreaRow> FeatureAreas => Set<FeatureAreaRow>();
     public DbSet<LearnedKeywordVote> LearnedKeywordVotes => Set<LearnedKeywordVote>();
+    public DbSet<RouterDecision> RouterDecisions => Set<RouterDecision>();
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -63,6 +64,12 @@ public class AppDbContext : DbContext, IAppDbContext
     {
         modelBuilder.Entity<UnplacedUtterance>(e => e.HasIndex(u => u.CreatedAt));
         modelBuilder.Entity<UnknownNumberWord>(e => { e.HasIndex(w => w.Word).IsUnique(); e.Property(w => w.Word).HasMaxLength(40); });
+        modelBuilder.Entity<RouterDecision>(e =>
+        {
+            e.HasIndex(d => d.CreatedAt);
+            e.Property(d => d.IntentId).HasMaxLength(80);
+            e.Property(d => d.Outcome).HasMaxLength(20);
+        });
         modelBuilder.Entity<LearnedKeywordVote>(e =>
         {
             e.HasIndex(v => new { v.Word, v.IntentId, v.SellerId }).IsUnique();

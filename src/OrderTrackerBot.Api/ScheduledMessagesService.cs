@@ -30,6 +30,12 @@ public sealed class ScheduledMessagesService : BackgroundService
         db.MessageLogs.Where(m => m.CreatedAt < nowUtc.AddDays(-HotMessageDays) && m.RawText != ArchivedText)
             .ExecuteUpdateAsync(s => s.SetProperty(m => m.RawText, ArchivedText), ct);
 
+    /// <summary>Router results (intent, confidence, outcome) are kept this long for tuning the confidence bars, then deleted.</summary>
+    private const int RouterDecisionDays = 90;
+
+    private static Task<int> PurgeRouterDecisionsAsync(IAppDbContext db, DateTime nowUtc, CancellationToken ct) =>
+        db.RouterDecisions.Where(d => d.CreatedAt < nowUtc.AddDays(-RouterDecisionDays)).ExecuteDeleteAsync(ct);
+
     private async Task RunStepAsync(string name, Func<Task> step, CancellationToken stoppingToken)
     {
         try
@@ -58,6 +64,7 @@ public sealed class ScheduledMessagesService : BackgroundService
                 await RunStepAsync("message templates", () => TemplateStore.SyncAsync(scope.ServiceProvider.GetRequiredService<IAppDbContext>(), stoppingToken), stoppingToken);
                 await RunStepAsync("learned keywords", () => LearnedKeywordLog.FlushAsync(scope.ServiceProvider.GetRequiredService<IAppDbContext>(), DateTime.UtcNow, stoppingToken), stoppingToken);
                 await RunStepAsync("message retention", () => ArchiveOldMessagesAsync(scope.ServiceProvider.GetRequiredService<IAppDbContext>(), DateTime.UtcNow, stoppingToken), stoppingToken);
+                await RunStepAsync("router decisions purge", () => PurgeRouterDecisionsAsync(scope.ServiceProvider.GetRequiredService<IAppDbContext>(), DateTime.UtcNow, stoppingToken), stoppingToken);
                 await RunStepAsync("instagram tokens", () => scope.ServiceProvider.GetRequiredService<InstagramClient>().RefreshExpiringTokensAsync(
                     scope.ServiceProvider.GetRequiredService<IAppDbContext>(), DateTime.UtcNow, stoppingToken), stoppingToken);
             }

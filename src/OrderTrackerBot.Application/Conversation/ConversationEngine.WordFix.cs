@@ -83,7 +83,7 @@ public partial class ConversationEngine
         ctx.PendingWordFix = new PendingWordFixData
         {
             Original = message, From = "", To = guess.Command, Corrected = guess.Command,
-            Intent = guess.IntentId, At = _clock.GetUtcNow().UtcDateTime,
+            Intent = guess.IntentId, At = _clock.GetUtcNow().UtcDateTime, Confidence = guess.Confidence,
         };
         await PersistAsync(session, ctx, ct);
         await SendChoicesAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("ai-guess.001", guess.Command),
@@ -106,6 +106,14 @@ public partial class ConversationEngine
 
         var text = rawMessage.Trim();
         if (_clock.GetUtcNow().UtcDateTime - fix.At > WordFixWindow) return (false, null);
+        var accepted = text == WordFixYes || CommandParser.IsAffirmative(text);
+        var declined = !accepted && (text == WordFixNo || CommandParser.IsNegative(text));
+        // The seller's answer to an AI guess says whether the guess at this confidence was right (a one-word "did you mean" has no router confidence).
+        if (fix.From.Length == 0 && fix.Intent is not null && (accepted || declined))
+        {
+            _db.RouterDecisions.Add(new RouterDecision { IntentId = fix.Intent, Confidence = fix.Confidence, Outcome = accepted ? "guess_yes" : "guess_no" });
+            await _db.SaveChangesAsync(ct);
+        }
         if (text == WordFixYes || CommandParser.IsAffirmative(text))
         {
             if (fix.Intent is not null)
@@ -133,4 +141,6 @@ public sealed class PendingWordFixData
     public string Corrected { get; set; } = "";
     public string? Intent { get; set; }
     public DateTime At { get; set; }
+    /// <summary>The router's confidence when this was an AI guess (0 for a one-word "did you mean").</summary>
+    public double Confidence { get; set; }
 }

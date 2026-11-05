@@ -45,6 +45,7 @@ public interface IAppDbContext
     DbSet<MessageTemplateRow> MessageTemplateRows { get; }
     DbSet<FeatureAreaRow> FeatureAreas { get; }
     DbSet<LearnedKeywordVote> LearnedKeywordVotes { get; }
+    DbSet<RouterDecision> RouterDecisions { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

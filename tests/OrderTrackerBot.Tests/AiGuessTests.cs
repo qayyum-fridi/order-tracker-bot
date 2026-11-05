@@ -73,6 +73,11 @@ public class AiGuessTests : IDisposable
         _sent.Clear();
         await engine.HandleIncomingMessageAsync(Phone, "✅ Haan, sahi hai", default);
         Assert.Contains(_sent, m => m.Contains("setup mukammal"));
+
+        // The router's confidence and the seller's answer are kept, so the 0.4 / 0.7 bars can be tuned.
+        var decisions = await db.RouterDecisions.AsNoTracking().ToListAsync();
+        Assert.Contains(decisions, d => d.Outcome == "guess" && d.IntentId == "setup.status" && d.Confidence == 0.5);
+        Assert.Contains(decisions, d => d.Outcome == "guess_yes" && d.IntentId == "setup.status" && d.Confidence == 0.5);
     }
 
     [Fact]
