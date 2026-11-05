@@ -139,6 +139,10 @@ public class InsightParserTests
     [InlineData("سارا نے پچھلی بار مجھ سے کب اور کیا خریدا تھا؟")]
     [InlineData("Sara ne pichli baar kab aur kya kharida tha")]
     [InlineData("what did Sara buy last time")]
+    [InlineData("Ali na kitni quantity order ki thi")]
+    [InlineData("Ali ne kya order kiya tha")]
+    [InlineData("Ali ka order ki thi kitni quantity")]
+    [InlineData("علی نے کتنی تعداد میں آرڈر کیا تھا")]
     public void LastPurchase(string text) => Topic(text, "lastbought");
 
     [Theory]
