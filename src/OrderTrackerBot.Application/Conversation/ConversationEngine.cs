@@ -109,6 +109,9 @@ public partial class ConversationEngine
         _stockWarnings.Clear();
         _turnMissed = false;
         _turnTracked = false;
+        _turnVotes = new List<LearnedKeywordVote>();
+        _turnRouteIntent = null;
+        await LearnFromMissTapAsync(fromPhoneNumber, rawMessage, ct);
         if (await TryHandleVoiceConfirmationAsync(fromPhoneNumber, rawMessage, ct)) return;
         var answeredDraft = IsOrderDraftState((await LoadOrCreateSellerAsync(fromPhoneNumber, ct)).Session!.State);
         _draftPutOnHold = false;

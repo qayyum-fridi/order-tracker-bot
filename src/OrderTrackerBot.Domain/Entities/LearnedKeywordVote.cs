@@ -11,4 +11,8 @@ public class LearnedKeywordVote
     public required string IntentId { get; set; }
     public int SellerId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    /// <summary>The order this vote produced (set when that order is saved in the same turn); a correction within an hour removes the vote.</summary>
+    public int? OrderId { get; set; }
+    /// <summary>True once the vote has been added to <see cref="LearnedKeyword.Votes"/> (the scheduler counts it).</summary>
+    public bool Counted { get; set; }
 }

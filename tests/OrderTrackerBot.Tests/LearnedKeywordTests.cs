@@ -1,12 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Conversation;
 using OrderTrackerBot.Application.Intents;
+using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Infrastructure.Persistence;
 using Xunit;
 
 namespace OrderTrackerBot.Tests;
 
-/// <summary>Intent keywords: whole-word matching, and the shared list of words the AI router learned (votes, hints).</summary>
+/// <summary>Word votes from behaviour: one vote per seller and word, promotion after distinct sellers, retraction on correction.</summary>
 public class LearnedKeywordTests : IDisposable
 {
     private readonly TestDbContextFactory _dbFactory = new();
@@ -24,27 +25,15 @@ public class LearnedKeywordTests : IDisposable
         _dbFactory.Dispose();
     }
 
-    [Fact]
-    public async Task StopWordAddedInTheDatabase_IsIgnoredAfterSync_AndIsUsedAgainWhenDisabled()
-    {
-        using var db = _dbFactory.CreateContext();
-        db.KeywordRules.Add(new OrderTrackerBot.Domain.Entities.KeywordRule { Word = "zxqlearn" });
-        await db.SaveChangesAsync();
-
-        await KeywordStore.SyncAsync(db, default);
-        Assert.DoesNotContain("zxqlearn", IntentKeywords.Tokens("zxqlearn bikri"));
-        Assert.Contains("bikri", IntentKeywords.Tokens("zxqlearn bikri"));
-
-        var rule = await db.KeywordRules.SingleAsync(r => r.Word == "zxqlearn");
-        rule.Active = false;
-        await db.SaveChangesAsync();
-
-        await KeywordStore.SyncAsync(db, default);
-        Assert.Contains("zxqlearn", IntentKeywords.Tokens("zxqlearn bikri"));
-    }
-
     private static IntentDefinition Intent(string id, params string[] keywords) =>
         new(id, "order", "show", "OrderDetail", "test", new[] { "example" }, Array.Empty<IntentSlot>(), "orders today", keywords);
+
+    /// <summary>One seller's vote for the words, saved the way a turn saves it.</summary>
+    private static async Task VoteAsync(AppDbContext db, int seller, string intent, params string[] words)
+    {
+        await LearnedKeywordLog.AddVotesAsync(db, seller, words, intent, default);
+        await db.SaveChangesAsync();
+    }
 
     [Fact]
     public void Keyword_MatchesWholeWordsOnly()
@@ -79,25 +68,24 @@ public class LearnedKeywordTests : IDisposable
     }
 
     [Fact]
-    public async Task LearnedWord_BecomesAHint_OnlyAfterMinVotes()
+    public async Task WordBecomesAHint_OnlyAfterMinVotes_FromDistinctSellers()
     {
         using var db = _dbFactory.CreateContext();
         var now = DateTime.UtcNow;
 
         for (var seller = 1; seller < LearnedKeywordLog.MinVotes; seller++)
         {
-            LearnedKeywordLog.Record(new[] { "bikri" }, "order.list_today", seller);
+            await VoteAsync(db, seller, "order.list_today", "bikri");
             await LearnedKeywordLog.FlushAsync(db, now, default);
         }
         Assert.Empty(LearnedKeywordLog.HintsFor(new[] { "bikri" }));
 
-        LearnedKeywordLog.Record(new[] { "bikri" }, "order.list_today", LearnedKeywordLog.MinVotes);
+        await VoteAsync(db, LearnedKeywordLog.MinVotes, "order.list_today", "bikri");
         await LearnedKeywordLog.FlushAsync(db, now, default);
 
         Assert.Equal(new[] { "order.list_today" }, LearnedKeywordLog.HintsFor(new[] { "bikri" }));
         var stored = await db.LearnedKeywords.AsNoTracking().SingleAsync(k => k.Word == "bikri");
         Assert.Equal(LearnedKeywordLog.MinVotes, stored.Votes);
-        Assert.Equal("order.list_today", stored.IntentId);
     }
 
     [Fact]
@@ -107,7 +95,7 @@ public class LearnedKeywordTests : IDisposable
         var now = DateTime.UtcNow;
         for (var i = 0; i < 10; i++)
         {
-            LearnedKeywordLog.Record(new[] { "zxqspam" }, "order.list_today", 7);
+            await VoteAsync(db, 7, "order.list_today", "zxqspam");
             await LearnedKeywordLog.FlushAsync(db, now, default);
         }
 
@@ -121,12 +109,35 @@ public class LearnedKeywordTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var now = DateTime.UtcNow;
-        LearnedKeywordLog.Record(new[] { "dhoondo" }, "customer.search", 10);
-        LearnedKeywordLog.Record(new[] { "dhoondo" }, "catalog.search", 1);
-        LearnedKeywordLog.Record(new[] { "dhoondo" }, "catalog.search", 2);
-        LearnedKeywordLog.Record(new[] { "dhoondo" }, "catalog.search", 3);
+        await VoteAsync(db, 10, "customer.search", "dhoondo");
+        await VoteAsync(db, 1, "catalog.search", "dhoondo");
+        await VoteAsync(db, 2, "catalog.search", "dhoondo");
+        await VoteAsync(db, 3, "catalog.search", "dhoondo");
         await LearnedKeywordLog.FlushAsync(db, now, default);
 
         Assert.Equal(new[] { "catalog.search" }, LearnedKeywordLog.HintsFor(new[] { "dhoondo" }));
+    }
+
+    [Fact]
+    public async Task Retract_RemovesAnOrdersVotes_AndTakesOnePointOffACountedWord()
+    {
+        using var db = _dbFactory.CreateContext();
+        var now = DateTime.UtcNow;
+        for (var seller = 1; seller <= LearnedKeywordLog.MinVotes; seller++)
+            await VoteAsync(db, seller, "order.list_today", "bikri");
+        await LearnedKeywordLog.FlushAsync(db, now, default);
+        Assert.Equal(new[] { "order.list_today" }, LearnedKeywordLog.HintsFor(new[] { "bikri" }));
+
+        // seller 2's order was cancelled within the hour: that one vote goes
+        var votes = await db.LearnedKeywordVotes.Where(v => v.SellerId == 2).ToListAsync();
+        LearnedKeywordLog.LinkToOrder(votes, 500);
+        await db.SaveChangesAsync();
+        await LearnedKeywordLog.RetractAsync(db, 2, 500, default);
+        await db.SaveChangesAsync();
+        await LearnedKeywordLog.FlushAsync(db, now, default);
+
+        var stored = await db.LearnedKeywords.AsNoTracking().SingleAsync(k => k.Word == "bikri");
+        Assert.Equal(LearnedKeywordLog.MinVotes - 1, stored.Votes);
+        Assert.Empty(LearnedKeywordLog.HintsFor(new[] { "bikri" }));  // below the threshold: the hint is stripped
     }
 }

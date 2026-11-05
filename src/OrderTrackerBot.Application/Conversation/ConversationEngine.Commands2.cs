@@ -52,6 +52,7 @@ public partial class ConversationEngine
         });
         order.Status = OrderStatus.Cancelled;
         order.CancelledAt = DateTime.UtcNow;
+        await RecordCorrectionAsync(seller, order, ct);
         await ApplyStockChangeAsync(seller, stockBefore, StockFootprint(order), ct);
         await ReplyAsync(seller, MessageTemplates.Get("commands2.003", order.Id), ct);
     }

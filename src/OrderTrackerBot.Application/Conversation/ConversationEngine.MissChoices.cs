@@ -61,7 +61,55 @@ public partial class ConversationEngine
     {
         var options = MissChoiceOptions(message);
         if (options.Count == 0) return false;
+        await RememberMissChoicesAsync(seller, message, options, ct);
         await SendChoicesAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("miss-choices.001"), options, ct);
         return true;
+    }
+
+    /// <summary>How long a tap on the offered options still counts as an answer to the unplaced message.</summary>
+    private static readonly TimeSpan MissChoiceWindow = TimeSpan.FromMinutes(10);
+
+    /// <summary>Keeps the words of the unplaced message and the intent of each option, so a tap can vote them for that intent.</summary>
+    private async Task RememberMissChoicesAsync(Seller seller, string message, IReadOnlyList<ChoiceOption> options, CancellationToken ct)
+    {
+        if (seller.Session is not { } session) return;
+        var words = await OwnFilteredWordsAsync(seller, IntentKeywords.Tokens(message), ct);
+        words.RemoveWhere(KeywordStore.IsGenericMissWord);
+        var ctx = SessionContextData.FromJson(session.ContextJson);
+        ctx.MissChoiceWords = words.ToList();
+        ctx.MissChoiceIntents = options
+            .Where(o => IntentFor(o.Value) is not null)
+            .ToDictionary(o => o.Value, o => IntentFor(o.Value)!, StringComparer.OrdinalIgnoreCase);
+        ctx.MissChoiceAt = _clock.GetUtcNow().UtcDateTime;
+        await PersistAsync(session, ctx, ct);
+    }
+
+    /// <summary>The intent whose catalog examples include this option text (the first in catalog order).</summary>
+    private static string? IntentFor(string example) =>
+        IntentCatalog.All.FirstOrDefault(i => i.Examples.Contains(example, StringComparer.OrdinalIgnoreCase))?.Id;
+
+    /// <summary>
+    /// A tap on one of the options offered for an unplaced message is an explicit choice: the words of that message vote for the tapped intent
+    /// (within ten minutes). Any other message clears the offer.
+    /// </summary>
+    private async Task LearnFromMissTapAsync(string fromPhoneNumber, string rawMessage, CancellationToken ct)
+    {
+        var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
+        if (seller.Session is not { } session) return;
+        var ctx = SessionContextData.FromJson(session.ContextJson);
+        if (ctx.MissChoiceIntents is not { Count: > 0 } offered) return;
+
+        var words = ctx.MissChoiceWords ?? new List<string>();
+        var fresh = ctx.MissChoiceAt is { } at && _clock.GetUtcNow().UtcDateTime - at <= MissChoiceWindow;
+        var tapped = offered.TryGetValue(rawMessage.Trim(), out var intentId) ? intentId : null;
+        ctx.MissChoiceIntents = null;
+        ctx.MissChoiceWords = null;
+        ctx.MissChoiceAt = null;
+        if (tapped is not null && fresh)
+        {
+            _turnRouteIntent = tapped;
+            _turnVotes.AddRange(await LearnedKeywordLog.AddVotesAsync(_db, seller.Id, words, tapped, ct));
+        }
+        await PersistAsync(session, ctx, ct);
     }
 }

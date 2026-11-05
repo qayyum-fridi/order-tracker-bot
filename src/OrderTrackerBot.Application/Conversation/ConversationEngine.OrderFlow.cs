@@ -1321,8 +1321,15 @@ public partial class ConversationEngine
             });
         }
 
+        order.RoutedIntent = _turnRouteIntent;
         _db.Orders.Add(order);
         await _db.SaveChangesAsync(ct);
+        // The votes this turn added belong to this order: a correction within the hour removes them.
+        if (_turnVotes.Count > 0)
+        {
+            LearnedKeywordLog.LinkToOrder(_turnVotes, order.Id);
+            await _db.SaveChangesAsync(ct);
+        }
         if (_turnCtx is { } turnCtx) RememberOrder(turnCtx, order.Id);
         await ApplyStockChangeAsync(seller, new Dictionary<int, int>(), StockFootprint(order), ct);
 

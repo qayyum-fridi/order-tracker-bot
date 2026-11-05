@@ -48,6 +48,10 @@ public class Order
     public DateTime? ShippedAt { get; set; }
     public DateTime? DeliveredAt { get; set; }
     public DateTime? CancelledAt { get; set; }
+    /// <summary>The intent the AI router picked for the message that created this order (null when typed or from a screenshot).</summary>
+    public string? RoutedIntent { get; set; }
+    /// <summary>Cancelled or edited within an hour of being saved: the routing it came from is a proxy-precision miss.</summary>
+    public bool CorrectedWithinHour { get; set; }
     public DateTime? ReturnedAt { get; set; }
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

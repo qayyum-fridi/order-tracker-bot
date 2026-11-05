@@ -58,14 +58,37 @@ public partial class ConversationEngine
     /// </summary>
     private async Task LearnRoutedWordsAsync(Seller? seller, string message, string intentId, CancellationToken ct)
     {
-        var words = IntentKeywords.Tokens(message);
+        _turnRouteIntent = intentId;
         // A vote needs a seller: each seller counts once per word, so an unknown sender cannot vote.
-        if (seller is null || words.Count == 0) return;
+        if (seller is null) return;
+        var words = await OwnFilteredWordsAsync(seller, IntentKeywords.Tokens(message), ct);
+        _turnVotes.AddRange(await LearnedKeywordLog.AddVotesAsync(_db, seller.Id, words, intentId, ct));
+    }
+
+    /// <summary>
+    /// An order cancelled or edited within an hour of being saved was routed wrongly (a proxy): the order is marked, and the votes it produced
+    /// are removed (see <see cref="LearnedKeywordLog.RetractAsync"/>).
+    /// </summary>
+    private async Task RecordCorrectionAsync(Seller seller, Order order, CancellationToken ct)
+    {
+        if (DateTime.UtcNow - order.CreatedAt > TimeSpan.FromHours(1)) return;
+        order.CorrectedWithinHour = true;
+        await LearnedKeywordLog.RetractAsync(_db, seller.Id, order.Id, ct);
+    }
+
+    /// <summary>The words without the seller's own product and customer names, so no name reaches the shared votes.</summary>
+    private async Task<HashSet<string>> OwnFilteredWordsAsync(Seller seller, HashSet<string> words, CancellationToken ct)
+    {
+        if (words.Count == 0) return words;
         var products = await _db.Products.Where(p => p.SellerId == seller.Id).Select(p => p.Name).Take(500).ToListAsync(ct);
         var customers = await _db.Customers.Where(c => c.SellerId == seller.Id).Select(c => c.Name).Take(500).ToListAsync(ct);
         words.ExceptWith(products.Concat(customers).SelectMany(IntentKeywords.Tokens));
-        if (words.Count > 0) LearnedKeywordLog.Record(words, intentId, seller.Id);
+        return words;
     }
+
+    /// <summary>The votes this turn added (linked to the order the turn saves) and the intent the router or a tap chose.</summary>
+    private List<LearnedKeywordVote> _turnVotes = new();
+    private string? _turnRouteIntent;
 
     /// <summary>
     /// What the router is told about this seller: the kind of shop, up to 15 of the products (the ones sharing a word with the message first, then the newest), what the bot was

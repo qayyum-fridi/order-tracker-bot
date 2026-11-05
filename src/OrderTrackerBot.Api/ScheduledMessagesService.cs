@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Conversation;
 using OrderTrackerBot.Application.Intents;
@@ -20,6 +21,14 @@ public sealed class ScheduledMessagesService : BackgroundService
         _scopes = scopes;
         _logger = logger;
     }
+
+    /// <summary>Raw message bodies older than the hot window are replaced by a marker. The metadata (time, phone, direction) stays for volume reports.</summary>
+    private const int HotMessageDays = 90;
+    private const string ArchivedText = "[archived]";
+
+    private static Task<int> ArchiveOldMessagesAsync(IAppDbContext db, DateTime nowUtc, CancellationToken ct) =>
+        db.MessageLogs.Where(m => m.CreatedAt < nowUtc.AddDays(-HotMessageDays) && m.RawText != ArchivedText)
+            .ExecuteUpdateAsync(s => s.SetProperty(m => m.RawText, ArchivedText), ct);
 
     private async Task RunStepAsync(string name, Func<Task> step, CancellationToken stoppingToken)
     {
@@ -48,6 +57,7 @@ public sealed class ScheduledMessagesService : BackgroundService
                 await RunStepAsync("keywords", () => KeywordStore.SyncAsync(scope.ServiceProvider.GetRequiredService<IAppDbContext>(), stoppingToken), stoppingToken);
                 await RunStepAsync("message templates", () => TemplateStore.SyncAsync(scope.ServiceProvider.GetRequiredService<IAppDbContext>(), stoppingToken), stoppingToken);
                 await RunStepAsync("learned keywords", () => LearnedKeywordLog.FlushAsync(scope.ServiceProvider.GetRequiredService<IAppDbContext>(), DateTime.UtcNow, stoppingToken), stoppingToken);
+                await RunStepAsync("message retention", () => ArchiveOldMessagesAsync(scope.ServiceProvider.GetRequiredService<IAppDbContext>(), DateTime.UtcNow, stoppingToken), stoppingToken);
                 await RunStepAsync("instagram tokens", () => scope.ServiceProvider.GetRequiredService<InstagramClient>().RefreshExpiringTokensAsync(
                     scope.ServiceProvider.GetRequiredService<IAppDbContext>(), DateTime.UtcNow, stoppingToken), stoppingToken);
             }

@@ -681,6 +681,9 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<bool>("Counted")
+                        .HasColumnType("bit");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -688,6 +691,9 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(80)
                         .HasColumnType("nvarchar(80)");
+
+                    b.Property<int?>("OrderId")
+                        .HasColumnType("int");
 
                     b.Property<int>("SellerId")
                         .HasColumnType("int");
@@ -874,6 +880,9 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("CancelledAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<bool>("CorrectedWithinHour")
+                        .HasColumnType("bit");
+
                     b.Property<decimal?>("CourierFee")
                         .HasColumnType("decimal(18,2)");
 
@@ -924,6 +933,9 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime?>("ReturnedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("RoutedIntent")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("SalesTaxRate")
                         .HasColumnType("decimal(5,2)");

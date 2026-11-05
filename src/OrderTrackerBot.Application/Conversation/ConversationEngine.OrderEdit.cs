@@ -161,6 +161,7 @@ public partial class ConversationEngine
                 PayloadJson = JsonSerializer.Serialize(before)
             });
             ctx.EditSnapshotLogged = true;
+            await RecordCorrectionAsync(seller, order, ct);
         }
 
         var wasPaid = order.PaymentStatus == PaymentStatus.Paid;
