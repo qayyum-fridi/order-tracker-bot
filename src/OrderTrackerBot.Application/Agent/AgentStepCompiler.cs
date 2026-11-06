@@ -79,12 +79,16 @@ public sealed class AgentStepCompiler
         var items = verified.Items ?? Array.Empty<ResolvedItem>();
         if (items.Count == 0) return null;
         var itemsText = string.Join(", ", items.Select(i => $"{i.Name} {i.Quantity}"));
+        // Delivery and advance are written into the order sentence: the order reader reads "..., delivery 200" and "..., advance 500" (see HandleFreeformMessageAsync).
+        var money = (verified.Step.Args.TryGetValue("delivery", out var d) ? $", delivery {Num(d)}" : "")
+                  + (verified.Step.Args.TryGetValue("advance", out var a) ? $", advance {Num(a)}" : "");
 
         if (verified.CustomerId is { } customerId)
         {
             var name = await _db.Customers.AsNoTracking().Where(c => c.Id == customerId && c.SellerId == seller.Id && c.DeletedAt == null)
                 .Select(c => c.Name).FirstOrDefaultAsync(ct);
             if (name is null) return null;
+            if (money.Length > 0) return new List<string> { $"{name} ko {string.Join(", ", items.Select(i => $"{i.Quantity} {i.Name}"))}{money}" };
             // The saved customer's phone and address are filled in by "order for"; the next message is read as her items (plain code, no AI).
             return new List<string> { $"order for {name}", itemsText };
         }
@@ -92,6 +96,6 @@ public sealed class AgentStepCompiler
         // A new customer: the ordinary order sentence, read by the normal order reader, which asks for the phone.
         var customerName = verified.Step.Args.GetValueOrDefault("customer_name")?.Trim();
         if (string.IsNullOrEmpty(customerName)) return null;
-        return new List<string> { $"{customerName} ko {string.Join(", ", items.Select(i => $"{i.Quantity} {i.Name}"))}" };
+        return new List<string> { $"{customerName} ko {string.Join(", ", items.Select(i => $"{i.Quantity} {i.Name}"))}{money}" };
     }
 }

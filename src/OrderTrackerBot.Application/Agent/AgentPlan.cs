@@ -36,7 +36,8 @@ public static class AgentTools
             new[] { new AgentToolArg("product_id", "product_id", true), new AgentToolArg("price", "number", false), new AgentToolArg("cost", "number", false), new AgentToolArg("stock", "number", false) },
             Risky: true),
         new("draft_order", "Start an order for a customer. It is only a draft: the seller still taps Save, Edit or Cancel.",
-            new[] { new AgentToolArg("customer_id", "customer_id", false), new AgentToolArg("customer_name", "text", false), new AgentToolArg("phone", "text", false) },
+            new[] { new AgentToolArg("customer_id", "customer_id", false), new AgentToolArg("customer_name", "text", false), new AgentToolArg("phone", "text", false),
+                    new AgentToolArg("delivery", "number", false), new AgentToolArg("advance", "number", false) },
             TakesItems: true),
     };
 

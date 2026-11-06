@@ -174,6 +174,8 @@ public sealed class PlanVerifier
 
         // What is ordered?
         if (step.Items.Count == 0) return new VerifiedStep(step, StepVerdict.Reject, "no_items");
+        // Delivery and advance are money: only amounts the owner said (zero or any other number that was not said is refused).
+        if (AmountProblem(step, new[] { "delivery", "advance" }, message, said) is { } moneyProblem) return new VerifiedStep(step, StepVerdict.Reject, moneyProblem);
         var items = new List<ResolvedItem>();
         foreach (var item in step.Items)
         {

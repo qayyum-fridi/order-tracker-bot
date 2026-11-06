@@ -211,6 +211,18 @@ public sealed class PlanVerifierTests : IDisposable
     }
 
     [Fact]
+    public async Task DraftOrder_DeliveryAndAdvanceAreMoneyTheOwnerSaid_OrRejected()
+    {
+        AddCustomer("Bilal");
+        AddProduct("Kurti");
+        var said = await VerifyAsync("Bilal ko 2 Kurti, delivery 200, advance 500", Step("draft_order", new() { ["customer_name"] = "Bilal", ["delivery"] = "200", ["advance"] = "500" }, new PlanItem(null, "Kurti", 2)));
+        Assert.Equal(StepVerdict.Run, said.Steps[0].Verdict);
+
+        var invented = await VerifyAsync("Bilal ko 2 Kurti", Step("draft_order", new() { ["customer_name"] = "Bilal", ["delivery"] = "200" }, new PlanItem(null, "Kurti", 2)));
+        Assert.Equal("delivery_not_said", invented.Steps[0].Reason);
+    }
+
+    [Fact]
     public async Task DraftOrder_EkDozenIsTwelve_WithoutTheDigitBeingWritten()
     {
         AddCustomer("Bilal");
