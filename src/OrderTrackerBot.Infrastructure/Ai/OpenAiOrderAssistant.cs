@@ -389,13 +389,22 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         }
     }
 
+    /// <summary>Most tokens a plan may use (8 steps with items is well under this).</summary>
+    private const int PlannerMaxTokens = 600;
+
+    private static bool IsValidJson(string text)
+    {
+        try { using var _ = JsonDocument.Parse(text); return true; }
+        catch (JsonException) { return false; }
+    }
+
     public async Task<OrderTrackerBot.Application.Agent.AgentPlan?> PlanAsync(string message, string sellerContext,
         IReadOnlyList<OrderTrackerBot.Application.Agent.AgentTool> tools, CancellationToken cancellationToken = default)
     {
         var menu = string.Join("\n", tools.Select(t =>
             $"- {t.Name}: {t.Description} Args: {string.Join(", ", t.Args.Select(a => $"{a.Name} ({a.Kind}{(a.Required ? ", required" : "")})"))}" +
             (t.TakesItems ? ". Also items: [{\"product_id\": <id or omit>, \"name\": \"<as said>\", \"qty\": <n>}]" : "")));
-        var json = await CompleteTextAsync(
+        var system =
             "You plan the work for a small shop owner (Pakistan; Roman Urdu, Urdu script or English; spelling and word order vary) who talks to a WhatsApp order-tracking bot. " +
             "Decide what the bot should do for the message, using ONLY these tools:\n" + menu + "\n\n" +
             "The lines before \"Message\" are facts from the owner's own database. They are for understanding who or what is meant; they are NOT a to-do list: a product or customer being listed is never a reason to plan something for it.\n" +
@@ -421,8 +430,16 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "\"Belt add karo\" (no price said) -> {\"steps\":[],\"question\":\"Belt ka price kya hai?\",\"awaiting\":null,\"confidence\":0.9}\n" +
             "\"Lamp ka price 90 kar do\" with no Lamp in the facts -> {\"steps\":[],\"question\":\"Lamp catalog mein nahi hai. Pehle add karein: Lamp - 90\",\"awaiting\":null,\"confidence\":0.9}\n" +
             "\"Lamp 90 add karo, uska phone 03001234567\" -> {\"steps\":[{\"tool\":\"add_product\",\"args\":{\"name\":\"Lamp\",\"price\":90}}],\"question\":null,\"awaiting\":null,\"confidence\":0.9}\n" +
-            "\"aaj ka mausam\" -> {\"steps\":[],\"question\":null,\"awaiting\":null,\"confidence\":0}",
-            $"{sellerContext}\nMessage: {message}", 0, "agent plan", cancellationToken, jsonMode: true);
+            "\"aaj ka mausam\" -> {\"steps\":[],\"question\":null,\"awaiting\":null,\"confidence\":0}";
+        var user = $"{sellerContext}\nMessage: {message}";
+        // A plan is a few hundred tokens at most. The cap matters: the small model sometimes derails in JSON mode (a stray quote, then "}  }  }" for ever) and
+        // an uncapped runaway took ~30 s and surfaced as a proxy 502. An answer that is not valid JSON is asked once more of the stronger model.
+        var json = await CompleteTextAsync(system, user, 0, "agent plan", cancellationToken, jsonMode: true, maxTokens: PlannerMaxTokens);
+        if (json is not null && !IsValidJson(json))
+        {
+            _logger.LogDebug("Planner answer is not valid JSON, asking {Model}: {Json}", _options.VoiceModel, json.Length > 300 ? json[..300] : json);
+            json = await CompleteTextAsync(system, user, 0, "agent plan (retry)", cancellationToken, jsonMode: true, model: _options.VoiceModel, maxTokens: PlannerMaxTokens);
+        }
         var plan = OrderTrackerBot.Application.Agent.AgentPlanParser.Parse(json);
         // An answer the parser refused is kept at Debug level only (it holds the owner's words), so a bad prompt can be diagnosed from the log.
         if (plan is null && json is not null) _logger.LogDebug("Planner answer not used: {Json}", json);
@@ -770,7 +787,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
     }
 
     private async Task<string?> CompleteTextAsync(string systemPrompt, string userText, double temperature, string purpose,
-        CancellationToken cancellationToken, bool jsonMode = false, string? model = null, JsonNode? userContent = null)
+        CancellationToken cancellationToken, bool jsonMode = false, string? model = null, JsonNode? userContent = null, int? maxTokens = null)
     {
         if (string.IsNullOrWhiteSpace(_options.ApiKey)) return null;
 
@@ -787,6 +804,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
                 }
             };
             if (jsonMode) requestBody["response_format"] = new JsonObject { ["type"] = "json_object" };
+            if (maxTokens is { } cap) requestBody["max_completion_tokens"] = cap;   // a runaway answer ends here instead of after ~30 s (and a proxy timeout)
 
             var clock = System.Diagnostics.Stopwatch.StartNew();
             using var response = await SendWithRetryAsync("chat/completions", requestBody, cancellationToken);

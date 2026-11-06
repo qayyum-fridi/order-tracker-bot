@@ -130,6 +130,44 @@ public class AgentPlannerTests
         Assert.Contains("never invent an id", handler.RequestBody);
     }
 
+    private sealed class SequenceOpenAi(params string[] contents) : HttpMessageHandler
+    {
+        public readonly List<string> Requests = new();
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Requests.Add(await request.Content!.ReadAsStringAsync(cancellationToken));
+            var content = contents[Math.Min(Requests.Count, contents.Length) - 1];
+            var body = JsonSerializer.Serialize(new { choices = new[] { new { message = new { content } } } });
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
+        }
+    }
+
+    [Fact]
+    public async Task PlanAsync_CapsTheAnswer_AndAsksTheStrongerModelOnceWhenTheFirstAnswerIsNotValidJson()
+    {
+        // Seen live with the small model: a stray quote, then "}  }  }" until the token limit. The order sentence got a 502 from the proxy every time.
+        const string derailed = "{\"steps\":[{\"tool\":\"draft_order\",\"args\":{\"customer_name\":\"Bilal\"}},\"question”:null,\"   , \"confidence”:0.95}  }  }  }";
+        var handler = new SequenceOpenAi(derailed, ThreeTaskPlan);
+
+        var plan = await Assistant(handler).PlanAsync("Bilal ko 2 Kurti bhej do", "Customers: #3 Bilal", AgentTools.All);
+
+        Assert.Equal(3, plan!.Steps.Count);
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Contains("\"max_completion_tokens\":600", handler.Requests[0]);
+        Assert.Contains("\"model\":\"gpt-4o-mini\"", handler.Requests[0]);
+        Assert.Contains("\"model\":\"gpt-4o\"", handler.Requests[1]);
+    }
+
+    [Fact]
+    public async Task PlanAsync_DoesNotRetry_WhenTheAnswerIsValidJson_EvenIfThereIsNothingToDo()
+    {
+        var handler = new SequenceOpenAi("""{"steps":[],"question":null,"awaiting":null,"confidence":0}""");
+
+        Assert.Null(await Assistant(handler).PlanAsync("aaj kitna bika", "", AgentTools.All));
+        Assert.Single(handler.Requests);
+    }
+
     [Fact]
     public async Task PlanAsync_IsNull_WithoutAnApiKey_OrWhenTheAnswerIsUnusable()
     {
