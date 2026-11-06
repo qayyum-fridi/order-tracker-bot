@@ -170,10 +170,17 @@ public class AgentPlanEval
     /// <summary>Writes the assistant's log lines (including the raw answer of an unusable plan) into the test output.</summary>
     private sealed class OutputLogger<T>(ITestOutputHelper output) : Microsoft.Extensions.Logging.ILogger<T>
     {
+        /// <summary>How many calls went to the stronger model because the first answer was not valid JSON.</summary>
+        public int Retries;
+
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
         public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => logLevel >= Microsoft.Extensions.Logging.LogLevel.Debug;
-        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
-            output.WriteLine("          LOG " + formatter(state, exception));
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            var line = formatter(state, exception);
+            if (line.Contains("agent plan (retry)", StringComparison.Ordinal)) Retries++;
+            output.WriteLine("          LOG " + line);
+        }
     }
 
     /// <summary>Writes the request and the answer of every call OpenAI refuses (status 400 and up) into the test output, so an API error can be reproduced.</summary>
@@ -198,8 +205,9 @@ public class AgentPlanEval
         var key = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
         if (Environment.GetEnvironmentVariable("OTB_AGENT_EVAL") != "1" || string.IsNullOrWhiteSpace(key)) return;
 
+        var logger = new OutputLogger<OpenAiOrderAssistant>(_output);
         var assistant = new OpenAiOrderAssistant(new HttpClient(new DumpFailures(_output, new HttpClientHandler())) { Timeout = TimeSpan.FromSeconds(60) },
-            Options.Create(new OpenAiOptions { ApiKey = key }), new OutputLogger<OpenAiOrderAssistant>(_output), Mock.Of<IIssueReporter>());
+            Options.Create(new OpenAiOptions { ApiKey = key }), logger, Mock.Of<IIssueReporter>());
         using var factory = new TestDbContextFactory();
         using var db = factory.CreateContext();
         var (seller, productIds) = await SeedAsync(db);
@@ -209,11 +217,16 @@ public class AgentPlanEval
         var plans = new Dictionary<string, (int Right, int Total)>();
         var verdicts = new Dictionary<string, (int Right, int Total)>();
         int invented = 0, unsaid = 0;
+        var timings = new List<(string Kind, string Message, long Ms, bool Retried, bool HadPlan)>();
         var only = Environment.GetEnvironmentVariable("OTB_AGENT_EVAL_ONLY");   // run just the sentences containing this text
         foreach (var c in Cases.Where(c => string.IsNullOrEmpty(only) || c.Message.Contains(only, StringComparison.OrdinalIgnoreCase)))
         {
             var context = await builder.BuildAsync(seller, c.Message, default);
+            var retriesBefore = logger.Retries;
+            var clock = System.Diagnostics.Stopwatch.StartNew();
             var plan = await assistant.PlanAsync(c.Message, context.Render(), AgentTools.All);
+            clock.Stop();
+            timings.Add((c.Kind, c.Message, clock.ElapsedMilliseconds, logger.Retries > retriesBefore, plan is not null));
             // A null plan for a sentence that should have one may be an OpenAI error (a 502), not a miss: ask again, up to twice.
             for (var retry = 0; plan is null && !c.NoPlan && !c.NoSteps && retry < 2; retry++)
                 plan = await assistant.PlanAsync(c.Message, context.Render(), AgentTools.All);
@@ -232,7 +245,31 @@ public class AgentPlanEval
         foreach (var kind in plans.Keys)
             _output.WriteLine($"{kind,-16}  {Pct(plans[kind]),-10}  {(verdicts.TryGetValue(kind, out var v) ? Pct(v) : "-")}");
         _output.WriteLine($"PLAN ACCURACY {Pct(Sum(plans))}   VERDICT ACCURACY {Pct(Sum(verdicts))}");
+        WriteLatency(timings);
         _output.WriteLine($"SAFETY invented ids: {invented}   unsaid numbers: {unsaid}   (the verifier rejected them; both should be 0 before the flag goes on)");
+    }
+
+    /// <summary>
+    /// Wall-clock time of the planner call as the engine would wait for it (the OpenAI round trip, plus the second call to the stronger model when the first answer was not valid JSON).
+    /// A sentence that needs no plan answers fastest; each row prints its time, the summary splits them by whether the model was asked twice.
+    /// </summary>
+    private void WriteLatency(List<(string Kind, string Message, long Ms, bool Retried, bool HadPlan)> timings)
+    {
+        if (timings.Count == 0) return;
+        static long Pct(IEnumerable<long> ms, double p) { var a = ms.OrderBy(x => x).ToArray(); return a.Length == 0 ? 0 : a[Math.Min(a.Length - 1, (int)Math.Ceiling(p * a.Length) - 1)]; }
+        _output.WriteLine("LATENCY per sentence (ms)");
+        foreach (var t in timings) _output.WriteLine($"  {t.Ms,6} ms{(t.Retried ? "  +retry" : "         ")}  [{t.Kind}] {t.Message}");
+        void Line(string label, IEnumerable<long> ms)
+        {
+            var list = ms.ToList();
+            if (list.Count > 0) _output.WriteLine($"  {label,-22} n={list.Count,2}  p50 {Pct(list, 0.5),6} ms  p95 {Pct(list, 0.95),6} ms  max {list.Max(),6} ms  mean {list.Average():0} ms");
+        }
+        _output.WriteLine("LATENCY summary");
+        Line("all", timings.Select(t => t.Ms));
+        Line("one call (no retry)", timings.Where(t => !t.Retried).Select(t => t.Ms));
+        Line("with the retry", timings.Where(t => t.Retried).Select(t => t.Ms));
+        Line("a plan was returned", timings.Where(t => t.HadPlan).Select(t => t.Ms));
+        Line("nothing to plan", timings.Where(t => !t.HadPlan).Select(t => t.Ms));
     }
 
     // ---- the scoring itself is checked offline, so the eval cannot rot between runs ----

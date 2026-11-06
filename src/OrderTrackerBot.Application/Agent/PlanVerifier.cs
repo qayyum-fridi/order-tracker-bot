@@ -84,6 +84,17 @@ public sealed class PlanVerifier
         if (ctx.Products.All(p => p.Id != productId)) return new VerifiedStep(step, StepVerdict.Reject, "id_not_in_context");
         if (!await _db.Products.AnyAsync(p => p.Id == productId && p.SellerId == seller.Id && p.IsActive, ct))
             return new VerifiedStep(step, StepVerdict.Reject, "unknown_product");
+        if (Rivals(ctx.Products.Select(p => (p.Id, p.Score, p.Name, p.Name)), productId) is { } rivalProducts)
+            return new VerifiedStep(step, StepVerdict.Ask, "ambiguous_product", Choices: rivalProducts);
+        // The model sometimes copies a value the product already has into an edit ("cost 900" arrives with price=1800, the catalog price). Setting a value to what it
+        // is changes nothing, so an unsaid value equal to the stored one is dropped; any other unsaid number is still rejected below.
+        var current = await _db.Products.AsNoTracking().Where(p => p.Id == productId).Select(p => new { p.Price, p.CostPrice, p.StockQty }).FirstAsync(ct);
+        var args = new Dictionary<string, string>(step.Args);
+        foreach (var (name, stored) in new[] { ("price", (decimal?)current.Price), ("cost", current.CostPrice), ("stock", current.StockQty) })
+            if (args.TryGetValue(name, out var raw) && decimal.TryParse(raw, NumberStyles.Number, CultureInfo.InvariantCulture, out var value)
+                && stored == value && !(value == decimal.Truncate(value) && said.Contains((long)value)))
+                args.Remove(name);
+        step = step with { Args = args };
         if (!new[] { "price", "cost", "stock" }.Any(step.Args.ContainsKey)) return new VerifiedStep(step, StepVerdict.Reject, "nothing_to_change");
         if (AmountProblem(step, new[] { "price", "cost", "stock" }, message, said) is { } problem) return new VerifiedStep(step, StepVerdict.Reject, problem);
         return new VerifiedStep(step, StepVerdict.Confirm, "edits_existing_product", ProductId: productId);
@@ -101,6 +112,9 @@ public sealed class PlanVerifier
             if (ctx.Customers.All(c => c.Id != id)) return new VerifiedStep(step, StepVerdict.Reject, "id_not_in_context");
             if (!await _db.Customers.AnyAsync(c => c.Id == id && c.SellerId == seller.Id && c.DeletedAt == null, ct))
                 return new VerifiedStep(step, StepVerdict.Reject, "unknown_customer");
+            // The id is real, but the message may name several customers equally well ("Sara" with two Saras): the model must not pick one for the seller.
+            if (Rivals(ctx.Customers.Select(c => (c.Id, c.Score, c.Name, c.City is { Length: > 0 } ? $"{c.Name} ({c.City})" : c.Name)), id) is { } rivalCustomers)
+                return new VerifiedStep(step, StepVerdict.Ask, "ambiguous_customer", Choices: rivalCustomers);
             customerId = id;
         }
         else if (step.Args.GetValueOrDefault("customer_name")?.Trim() is { Length: > 0 } customerName)
@@ -123,6 +137,8 @@ public sealed class PlanVerifier
                 if (ctx.Products.All(p => p.Id != pid)) return new VerifiedStep(step, StepVerdict.Reject, "id_not_in_context");
                 var product = await _db.Products.AsNoTracking().Where(p => p.Id == pid && p.SellerId == seller.Id && p.IsActive).Select(p => p.Name).FirstOrDefaultAsync(ct);
                 if (product is null) return new VerifiedStep(step, StepVerdict.Reject, "unknown_product");
+                if (Rivals(ctx.Products.Select(p => (p.Id, p.Score, p.Name, p.Name)), pid) is { } rivalItems)
+                    return new VerifiedStep(step, StepVerdict.Ask, "ambiguous_product", Choices: rivalItems);
                 items.Add(new ResolvedItem(pid, product, item.Quantity, false));
                 continue;
             }
@@ -159,6 +175,21 @@ public sealed class PlanVerifier
         var exact = all.Where(p => string.Equals(p.Name.Trim(), name.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
         var chosen = exact.Count > 0 ? exact : all.Where(p => { var pw = SellerContextBuilder.Words(p.Name); return words.All(w => pw.Contains(w)); }).ToList();
         return chosen.Take(5).Select(p => (p.Id, p.Name)).ToList();
+    }
+
+    /// <summary>
+    /// The labels of the chosen entity and every other one that competes with it for the same words of the message (their names share a word and the other matches at
+    /// least as well), or null when the chosen one stands alone. The planner picks an id; this stops it choosing between equals ("Sara" with Sara Khan and Sara Ali)
+    /// on the seller's behalf. Entities that merely appear in the same message ("Kurti" and "Dupatta") do not compete.
+    /// </summary>
+    private static List<string>? Rivals(IEnumerable<(int Id, double Score, string Name, string Label)> hits, int chosen)
+    {
+        var scored = hits.Where(h => h.Score > 0).ToList();
+        var me = scored.FirstOrDefault(h => h.Id == chosen);
+        if (me.Label is null) return null;   // not named by the message at all: the other checks decide
+        var myWords = SellerContextBuilder.Words(me.Name);
+        var rivals = scored.Where(h => h.Id != chosen && h.Score >= me.Score && SellerContextBuilder.Words(h.Name).Any(myWords.Contains)).ToList();
+        return rivals.Count == 0 ? null : new[] { me }.Concat(rivals).Select(h => h.Label).ToList();
     }
 
     private static bool TryId(PlanStep step, string arg, out int id)
