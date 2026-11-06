@@ -51,6 +51,8 @@ public static class AgentPlanSchema
             ["question"] = Nullable("string"),
             ["awaiting"] = new JsonObject { ["anyOf"] = new JsonArray(new JsonObject { ["type"] = "null" }, awaiting) },
             ["confidence"] = new JsonObject { ["type"] = "number" },
+            // Which task a question is for. "none" = nothing the tools can do needs an answer (an owner's own question, an expense, a report, small talk): then no question is asked.
+            ["missing_for"] = new JsonObject { ["type"] = "string", ["enum"] = new JsonArray(tools.Select(t => (JsonNode?)JsonValue.Create(t.Name)).Append(JsonValue.Create("none")).ToArray()) },
         });
     }
 

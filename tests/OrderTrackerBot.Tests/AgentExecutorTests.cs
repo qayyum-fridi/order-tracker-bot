@@ -302,6 +302,21 @@ public class AgentExecutorTests : IDisposable
     }
 
     [Fact]
+    public async Task AQuestionForNothingTheToolsCanDo_IsNotAskedAndNothingRuns()
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+        const string msg = "Ali ne paisay bhej diye";
+        Plans(msg, new AgentPlan(Array.Empty<PlanStep>(), "Ali ka phone number kya hai?", null, 0.9, "none"));
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, msg, default);
+
+        Assert.DoesNotContain("phone number kya hai", Said);
+        Assert.Null(SessionContextData.FromJson((await db.Sellers.Include(s => s.Session).AsNoTracking().FirstAsync()).Session!.ContextJson).AgentPending);
+        Assert.Equal(0, await db.Products.CountAsync());
+    }
+
+    [Fact]
     public async Task APlanBelowTheConfidenceBar_IsIgnored()
     {
         using var db = _dbFactory.CreateContext();

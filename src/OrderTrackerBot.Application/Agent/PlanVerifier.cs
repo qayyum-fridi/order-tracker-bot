@@ -62,6 +62,11 @@ public sealed class PlanVerifier
         "بھائی", "باجی", "آپ", "میڈم", "صاحب", "بی بی",
     };
 
+    // "kurti khatam ho gayi" = stock 0: zero is never a number the owner says, so it is accepted only with a sold-out word.
+    private static readonly System.Text.RegularExpressions.Regex SoldOutWords = new(
+        @"khatam|khatam\s+ho|out\s+of\s+stock|stock\s+khatam|nahi\s+hai|ختم|ہو\s+گی|ہو\s+گیا",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.Compiled);
+
     // "ek dozen" is 12 without the digit being written.
     private static readonly System.Text.RegularExpressions.Regex DozenWords = new(
         @"(?<![\p{L}\p{N}])(?:dozen|darjan)(?![\p{L}\p{N}])|درجن",
@@ -131,7 +136,8 @@ public sealed class PlanVerifier
                 args.Remove(name);
         step = step with { Args = args };
         if (!new[] { "price", "cost", "stock" }.Any(step.Args.ContainsKey)) return new VerifiedStep(step, StepVerdict.Reject, "nothing_to_change");
-        if (AmountProblem(step, new[] { "price", "cost", "stock" }, message, said) is { } problem) return new VerifiedStep(step, StepVerdict.Reject, problem);
+        var soldOut = SoldOutWords.IsMatch(message) && step.Args.TryGetValue("stock", out var zero) && zero == "0";
+        if (AmountProblem(step, soldOut ? new[] { "price", "cost" } : new[] { "price", "cost", "stock" }, message, said) is { } problem) return new VerifiedStep(step, StepVerdict.Reject, problem);
         return new VerifiedStep(step, StepVerdict.Confirm, "edits_existing_product", ProductId: productId);
     }
 

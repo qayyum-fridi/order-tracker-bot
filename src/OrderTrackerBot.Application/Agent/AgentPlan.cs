@@ -20,7 +20,8 @@ public sealed record PlanAwaiting(string Tool, int Count);
 /// The planner's answer for one message: ordered steps to run, or a question to ask first, or a promise of more input. Nothing here has run yet;
 /// the verifier checks every step against the database before the engine executes it.
 /// </summary>
-public sealed record AgentPlan(IReadOnlyList<PlanStep> Steps, string? Question, PlanAwaiting? Awaiting, double Confidence);
+/// <param name="MissingFor">The tool the question is for ("add_product", "edit_product", "draft_order"), or "none" when no tool needs anything from the owner.</param>
+public sealed record AgentPlan(IReadOnlyList<PlanStep> Steps, string? Question, PlanAwaiting? Awaiting, double Confidence, string? MissingFor = null);
 
 /// <summary>The tools the planner may use. Adding a capability to the planner = adding an entry here and a handler that runs it.</summary>
 public static class AgentTools
@@ -80,7 +81,8 @@ public static class AgentPlanParser
 
             var confidence = root.TryGetProperty("confidence", out var conf) && conf.ValueKind == JsonValueKind.Number ? Math.Clamp(conf.GetDouble(), 0, 1) : 0;
             if (steps.Count == 0 && question is null && awaiting is null) return null;
-            return new AgentPlan(steps, question, awaiting, confidence);
+            var missingFor = Text(root, "missing_for") is { } mf && (AgentTools.Find(mf) is not null || mf == "none") ? mf : null;
+            return new AgentPlan(steps, question, awaiting, confidence, missingFor);
         }
         catch (JsonException)
         {

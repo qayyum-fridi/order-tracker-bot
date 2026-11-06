@@ -45,6 +45,8 @@ public partial class ConversationEngine
         var context = await new SellerContextBuilder(_db).BuildAsync(seller, message, ct);
         var plan = await _ai.PlanAsync(message, context.Render(), AgentTools.All, ct);
         if (plan is null || plan.Confidence < MinPlanConfidence) return false;
+        // No tool needs anything from the owner: a question here would be the planner answering or asking about something it cannot do (seen live: "Ali ne paisay bhej diye" -> "Ali ka phone number?").
+        if (plan.Steps.Count == 0 && plan.Awaiting is null && plan.MissingFor == "none") return false;
 
         // "3 products add karne hain, ek ek karke bhejta hun": remember it, and ask for the first one. Only when nothing else is planned: a model that
         // plans a step AND an "awaiting" is repeating a missing-detail question (seen live), and would ask for a price the seller already gave.

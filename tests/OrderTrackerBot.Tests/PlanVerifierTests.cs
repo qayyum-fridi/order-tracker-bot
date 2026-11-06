@@ -124,6 +124,26 @@ public sealed class PlanVerifierTests : IDisposable
     }
 
     [Fact]
+    public async Task EditProduct_SoldOut_IsStockZeroWhenTheOwnerSaysSo()
+    {
+        var kurti = AddProduct("Kurti", 1800);
+        var soldOut = await VerifyAsync("kurti khatam ho gayi hai", Step("edit_product", new() { ["product_id"] = kurti.Id.ToString(), ["stock"] = "0" }));
+        Assert.Equal(StepVerdict.Confirm, soldOut.Steps[0].Verdict);
+
+        var unsaid = await VerifyAsync("kurti ka rate badal do", Step("edit_product", new() { ["product_id"] = kurti.Id.ToString(), ["stock"] = "0" }));
+        Assert.Equal("stock_not_said", unsaid.Steps[0].Reason);   // zero without a sold-out word is still not said
+    }
+
+    [Fact]
+    public async Task EditProduct_SoldOut_WithTheStoredPriceAlsoCopied_IsStillSoldOut()
+    {
+        // Seen live: "kurti khatam ho gayi hai" came back as price=1800 (the stored price) + stock=0 and was rejected.
+        var kurti = AddProduct("Kurti", 1800);
+        var plan = await VerifyAsync("kurti khatam ho gayi hai", Step("edit_product", new() { ["product_id"] = kurti.Id.ToString(), ["price"] = "1800", ["stock"] = "0" }));
+        Assert.Equal((StepVerdict.Confirm, "edits_existing_product"), (plan.Steps[0].Verdict, plan.Steps[0].Reason));
+    }
+
+    [Fact]
     public async Task EditProduct_AnUnsaidValueEqualToTheStoredOne_IsDroppedNotRejected()
     {
         // Seen live: "Kurti ki cost 900 hai" came back as price=1800 (the catalog price) + cost=900.

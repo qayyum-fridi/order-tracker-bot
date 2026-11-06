@@ -82,6 +82,14 @@ public class AgentPlannerTests
     }
 
     [Fact]
+    public void Parse_ReadsWhichTaskAQuestionIsFor()
+    {
+        Assert.Equal("add_product", AgentPlanParser.Parse("""{"steps":[],"question":"Belt ka price?","awaiting":null,"confidence":0.9,"missing_for":"add_product"}""")!.MissingFor);
+        Assert.Equal("none", AgentPlanParser.Parse("""{"steps":[],"question":"Kaun si Ali?","awaiting":null,"confidence":0.9,"missing_for":"none"}""")!.MissingFor);
+        Assert.Null(AgentPlanParser.Parse("""{"steps":[],"question":"q","awaiting":null,"confidence":0.9,"missing_for":"delete_everything"}""")!.MissingFor);
+    }
+
+    [Fact]
     public void Parse_ClampsConfidence_AndAwaitingCount()
     {
         var plan = AgentPlanParser.Parse("""{"steps":[],"question":"q","awaiting":{"tool":"add_product","count":9999},"confidence":7}""")!;
