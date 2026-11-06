@@ -389,6 +389,27 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         }
     }
 
+    public async Task<OrderTrackerBot.Application.Agent.AgentPlan?> PlanAsync(string message, string sellerContext,
+        IReadOnlyList<OrderTrackerBot.Application.Agent.AgentTool> tools, CancellationToken cancellationToken = default)
+    {
+        var menu = string.Join("\n", tools.Select(t =>
+            $"- {t.Name}: {t.Description} Args: {string.Join(", ", t.Args.Select(a => $"{a.Name} ({a.Kind}{(a.Required ? ", required" : "")})"))}" +
+            (t.TakesItems ? ". Also items: [{\"product_id\": <id or omit>, \"name\": \"<as said>\", \"qty\": <n>}]" : "")));
+        var json = await CompleteTextAsync(
+            "You plan the work for a small shop owner (Pakistan; Roman Urdu, Urdu script or English; spelling and word order vary) who talks to a WhatsApp order-tracking bot. " +
+            "Decide what the bot should do for the message, using ONLY these tools:\n" + menu + "\n" +
+            "The lines before \"Message\" are facts from the owner's own database. Use them to resolve who or what is meant: put a product_id or customer_id in an argument ONLY when that exact id is listed there; " +
+            "when the person or product is not listed, give the name as said (customer_name / items.name) and never invent an id. " +
+            "Return ONLY JSON {\"steps\": [{\"tool\": \"<tool>\", \"args\": {...}, \"items\": [...]}], \"question\": <string or null>, \"awaiting\": <null or {\"tool\": \"<tool>\", \"count\": <n, 0 = until the owner says done>}>, \"confidence\": <0 to 1>}. " +
+            "Steps run in order; a later step may rely on an earlier one (add a product, then order it). At most " + OrderTrackerBot.Application.Agent.AgentTools.MaxSteps + " steps. " +
+            "Numbers (prices, quantities, stock, cost) are only the ones the owner said, as digits; never calculate or guess one, and leave an argument out when it was not said. " +
+            "If something needed is missing or two listed matches are equally likely, return no steps for it and ask ONE short question in the owner's language. " +
+            "If the owner says they will give details one by one (\"3 products add karne hain\", \"ek ek karke bhejta hun\"), return no steps, set awaiting to the tool and the count, and put a short \"send the first one\" line in question. " +
+            "If the message needs none of the tools (a report, small talk, anything else), return {\"steps\": [], \"question\": null, \"awaiting\": null, \"confidence\": 0}.",
+            $"{sellerContext}\nMessage: {message}", 0, "agent plan", cancellationToken, jsonMode: true);
+        return OrderTrackerBot.Application.Agent.AgentPlanParser.Parse(json);
+    }
+
     public async Task<string?> ClassifyYesNoAsync(string question, string answer, CancellationToken cancellationToken = default)
     {
         var input = new JsonObject { ["bot_question"] = question.Length > 600 ? question[..600] : question, ["owner_answer"] = answer };
