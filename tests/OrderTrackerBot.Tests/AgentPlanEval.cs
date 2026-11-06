@@ -151,7 +151,7 @@ public class AgentPlanEval
 
     // ---- the fixed shop the cases are judged against ----
 
-    private static async Task<(Seller Seller, Dictionary<string, int> ProductIds)> SeedAsync(AppDbContext db)
+    internal static async Task<(Seller Seller, Dictionary<string, int> ProductIds)> SeedAsync(AppDbContext db)
     {
         var seller = new Seller { WhatsAppPhoneNumber = "923001234567", BusinessName = "Ayesha Collections", BusinessType = "Clothing", OnboardingComplete = true, Session = new ConversationSession { State = ConversationState.Idle } };
         db.Sellers.Add(seller);
