@@ -64,6 +64,24 @@ public class AgentPlannerTests
     }
 
     [Fact]
+    public void Parse_AcceptsTheShapeTheRealModelReturns_EmptyItemsAndEmptyStrings_AndDropsARepeatedStep()
+    {
+        // Seen live: every step carries "items": [], unsaid arguments are "" or null, and a step is sometimes repeated.
+        var plan = AgentPlanParser.Parse("""
+        {"steps":[
+          {"tool":"add_product","args":{"name":"Hat","price":100,"cost":null,"phone":""},"items":[]},
+          {"tool":"add_product","args":{"name":"Hat","price":100},"items":[]},
+          {"tool":"draft_order","args":{"customer_name":"Bilal","phone":""},"items":[{"name":"Hat","qty":2}]},
+          {"tool":"draft_order","args":{"customer_name":"Bilal","phone":""},"items":[{"name":"Hat","qty":2}]}
+        ],"question":null,"awaiting":null,"confidence":0.9}
+        """)!;
+
+        Assert.Equal(new[] { "add_product", "draft_order", "draft_order" }, plan.Steps.Select(s => s.Tool));   // two identical orders are never merged
+        Assert.Equal(new[] { "name", "price" }, plan.Steps[0].Args.Keys.OrderBy(k => k));
+        Assert.False(plan.Steps[1].Args.ContainsKey("phone"));
+    }
+
+    [Fact]
     public void Parse_ClampsConfidence_AndAwaitingCount()
     {
         var plan = AgentPlanParser.Parse("""{"steps":[],"question":"q","awaiting":{"tool":"add_product","count":9999},"confidence":7}""")!;
