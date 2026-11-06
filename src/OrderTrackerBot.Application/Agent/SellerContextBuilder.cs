@@ -138,7 +138,7 @@ public sealed class SellerContextBuilder
         return top.Count() * 2 > list.Count ? top.Key : null;
     }
 
-    private static List<string> Words(string message) =>
+    internal static List<string> Words(string message) =>
         message.ToLowerInvariant()
             .Split(new[] { ' ', ',', '.', ';', ':', '-', '(', ')', '\n', '\t', '?', '!', '/' }, StringSplitOptions.RemoveEmptyEntries)
             .Where(w => w.Length >= 2).Distinct().ToList();
