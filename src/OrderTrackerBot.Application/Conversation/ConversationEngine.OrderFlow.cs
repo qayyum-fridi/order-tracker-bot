@@ -75,6 +75,10 @@ public partial class ConversationEngine
             await ReplyAsync(seller, MessageTemplates.Get("sale-record.001"), ct);
             return;
         }
+        // "Hat 100 ka add karo, Polo ka price 600, phir Bilal ko 2 Hat": the order reader sees new products and would save them without the other tasks (seen live).
+        // With the planner on, a message it reads as new products goes to the planner first; when the planner has nothing for it, the old path runs as before.
+        if (_features.Agent && analysis.Intent == "add_products" && session.State == ConversationState.Idle && seller.OnboardingComplete
+            && await TryPlanAgentAsync(seller, session, ctx, message, ct)) return;
         // The order reader found no order: the intent catalog may place it ("aaj kitna bika", "naya client hai"). Idle only: mid-flow replies belong to their step.
         if ((analysis.AiUnavailable || analysis.Intent is "unclear" or "off_topic") && analysis.Order is null && session.State == ConversationState.Idle)
         {

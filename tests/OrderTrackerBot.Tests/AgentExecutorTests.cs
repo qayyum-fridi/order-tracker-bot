@@ -265,6 +265,43 @@ public class AgentExecutorTests : IDisposable
     }
 
     [Fact]
+    public async Task AQuestion_KeepsTheRequest_AndTheAnswerCompletesIt()
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+        // "Shawl add karo" has no price: the planner asks, and the request is kept
+        Plans("Shawl add karo", Steps(new PlanStep("add_product", new Dictionary<string, string> { ["name"] = "Shawl" }, Array.Empty<PlanItem>())));
+        // the seller answers with the price alone; it is read together with the request
+        Plans("Shawl add karo. 3000", Steps(Add("Shawl", "3000")));
+        var engine = Engine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Shawl add karo", default);
+        var waiting = SessionContextData.FromJson((await db.Sellers.Include(s => s.Session).AsNoTracking().FirstAsync()).Session!.ContextJson);
+        Assert.Equal("Shawl add karo", waiting.AgentPending!.Message);
+        Assert.Equal(0, await db.Products.CountAsync(p => p.Name == "Shawl"));
+
+        await engine.HandleIncomingMessageAsync(Phone, "3000", default);
+
+        Assert.Equal(3000m, (await db.Products.AsNoTracking().FirstAsync(p => p.Name == "Shawl")).Price);
+        Assert.Null(SessionContextData.FromJson((await db.Sellers.Include(s => s.Session).AsNoTracking().FirstAsync()).Session!.ContextJson).AgentPending);
+    }
+
+    [Fact]
+    public async Task AQuestion_IsDroppedAfterTheWindow_AndARealCommandLeavesIt()
+    {
+        using var db = _dbFactory.CreateContext();
+        var seller = await SeedAsync(db);
+        var session = seller.Session!;
+        session.ContextJson = new SessionContextData { AgentPending = new AgentPendingData { Message = "Shawl add karo", Question = "q", At = DateTime.UtcNow.AddMinutes(-30) } }.ToJson();
+        await db.SaveChangesAsync();
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, "3000", default);
+
+        Assert.Equal(0, await db.Products.CountAsync(p => p.Name == "Shawl"));   // too old: "3000" is not read as the price of an old request
+        Assert.Null(SessionContextData.FromJson((await db.Sellers.Include(s => s.Session).AsNoTracking().FirstAsync()).Session!.ContextJson).AgentPending);
+    }
+
+    [Fact]
     public async Task APlanBelowTheConfidenceBar_IsIgnored()
     {
         using var db = _dbFactory.CreateContext();
