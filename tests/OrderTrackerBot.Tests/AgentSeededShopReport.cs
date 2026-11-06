@@ -65,17 +65,79 @@ public class AgentSeededShopReport(ITestOutputHelper output)
         "Bilal ko 2 Kurti bhej do 5 baje tak",
     };
 
+    /// <summary>
+    /// A beginner's day, as a non-technical seller writes it: vague, chatty, half a sentence, "that one from yesterday", relative price changes, money talk, the rider,
+    /// shorthand, and plain confusion. Most of it is NOT for the planner (it has only add / edit / order tools): the question for each is whether it does something
+    /// WRONG, not whether it does something. Made up, judged by hand.
+    /// </summary>
+    internal static readonly string[] BeginnerDay =
+    {
+        // taking orders the way people talk
+        "Ali ne 2 suit mangwaye hain lahore bhejna hai",
+        "wo Sara wali jo kal aayi thi usko 3 dupatte bhej do",
+        "wohi pehle wala order dobara bhej do",
+        "ek aur suit bhi daal do us order mein",
+        "madam ne kaha 2 kurti aur chahiye",
+        "bilal ko wohi dena jo pichli dafa liya tha",
+        "3 kurti 1 dupatta Hira ke liye",
+        "Hina bibi ka order likh lo 2 lawn suit 6400 total",
+        "Bilal 3 kurti",
+        "ek dozen kurti Bilal ko bhej do",
+        "Hamza ko 12 kurti chahiye aaj hi",
+        // looking after the catalog
+        "naya maal aaya hai chappal 800 wali",
+        "kurti khatam ho gayi hai",
+        "kurti ka maal aur mangwana hai",
+        "dupatta sasta kar do thora",
+        "lawn suit pe 200 kam kar do",
+        "kurti ka rate 100 barha do",
+        "polo shirt ab 700 ki hai",
+        "Kurti band kar do ab nahi bechni",
+        "sab products ka price 10% barha do",
+        "Kurti 1800 Dupatta 600 Lawn Suit 3200",
+        "naya product Chappal",
+        // money, rider, status: nothing for the planner to do
+        "Ali ne paisay bhej diye",
+        "Sara ka order bhej diya aaj TCS se",
+        "Bilal ka order wapas aa gaya",
+        "kal ka hisaab batao",
+        "kitne order pending hain",
+        "Hina ne 2000 advance diya hai",
+        "mujhe udhar likhna hai Ali ka 1500",
+        "rider 300 le gaya delivery ka",
+        "pichle hafte kya bika sab se zyada",
+        // chat, confusion, a customer's question reaching the seller's number
+        "assalam o alaikum bhai ek kaam tha",
+        "help karo mujhe samajh nahi aa raha kya karun",
+        "yeh kaise chalta hai",
+        "ok theek hai",
+        "mera order kahan hai",
+        "aap kon ho",
+        "Ayesha ko bol do ke order kal milega",
+        // women sellers, several things, half-said
+        "3 jhumke add karne hain ek ek karke bhejti hun",
+        "Cap 250 add karo aur wo Sara ko bhi bhej dena 2",
+        "kuch bhi add karna ho to kaise karun",
+        "Sara Khan ko Kurti",
+        "kurti ki cost 900 hai",
+        "kurti ka price 900 kar do",
+    };
+
     [Fact]
-    public async Task Report_OnTheSeededShop_WithAStressSetOfMadeUpSentences()
+    public async Task Report_OnTheSeededShop_WithABeginnersDay()
     {
         var key = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
-        if (Environment.GetEnvironmentVariable("OTB_AGENT_SEEDED") != "1" || string.IsNullOrWhiteSpace(key)) return;
+        if (Environment.GetEnvironmentVariable("OTB_AGENT_BEGINNER") != "1" || string.IsNullOrWhiteSpace(key)) return;
+        await RunAsync(key!, BeginnerDay);
+    }
 
+    private async Task RunAsync(string key, string[] sentences)
+    {
         using var factory = new TestDbContextFactory();
         using var db = factory.CreateContext();
         var (seller, _) = await AgentPlanEval.SeedAsync(db);
         // oldest first, so the report's "newest first" pick returns them in the order written here
-        foreach (var s in Sentences.Reverse()) db.MessageLogs.Add(new MessageLog { Phone = seller.WhatsAppPhoneNumber, Direction = "inbound", RawText = s });
+        foreach (var s in sentences.Reverse()) db.MessageLogs.Add(new MessageLog { Phone = seller.WhatsAppPhoneNumber, Direction = "inbound", RawText = s });
         await db.SaveChangesAsync();
 
         var assistant = new OpenAiOrderAssistant(new HttpClient { Timeout = TimeSpan.FromSeconds(60) }, Options.Create(new OpenAiOptions { ApiKey = key }),
@@ -84,8 +146,17 @@ public class AgentSeededShopReport(ITestOutputHelper output)
         foreach (var r in rows)
             output.WriteLine($"{r.Sentence}\n          {r.Plan}  {r.Verdicts}{(r.Question is null ? "" : "  ASKS: " + r.Question)}  ({r.Ms} ms)");
         output.WriteLine(AgentRealReport.Summary(rows));
-        output.WriteLine($"(sentences the parser claims are not sent to the planner: {Sentences.Length - rows.Count} of {Sentences.Length})");
+        output.WriteLine($"(sentences the parser claims are not sent to the planner: {sentences.Length - rows.Count} of {sentences.Length})");
         if (Environment.GetEnvironmentVariable("OTB_AGENT_REAL_REPORT") is { Length: > 0 } outFile)
-            File.WriteAllText(outFile, "﻿" + AgentRealReport.ToCsv(rows), new UTF8Encoding(false));
+            File.WriteAllText(outFile, "\uFEFF" + AgentRealReport.ToCsv(rows), new UTF8Encoding(false));
+    }
+
+    [Fact]
+    public async Task Report_OnTheSeededShop_WithAStressSetOfMadeUpSentences()
+    {
+        var key = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+        if (Environment.GetEnvironmentVariable("OTB_AGENT_SEEDED") != "1" || string.IsNullOrWhiteSpace(key)) return;
+
+        await RunAsync(key!, Sentences);
     }
 }

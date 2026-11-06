@@ -93,6 +93,8 @@ public partial class ConversationEngine
         "ambiguous_customer" or "ambiguous_product" => MessageTemplates.Get("agent.001", string.Join(", ", stop.Choices ?? Array.Empty<string>())),
         "price_missing" => MessageTemplates.Get("agent.003"),
         "customer_missing" => MessageTemplates.Get("agent.004"),
+        "field_unclear" => MessageTemplates.Get("agent.009"),
+        "relative_change" => MessageTemplates.Get("agent.010"),
         _ => MessageTemplates.Get("agent.002"),
     };
 

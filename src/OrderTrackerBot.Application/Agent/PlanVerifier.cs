@@ -43,6 +43,34 @@ public sealed class PlanVerifier
 {
     public const decimal MaxAmount = 10_000_000m;
 
+    // Words that say WHICH field of a product the owner means. The model sometimes puts a cost into price ("Kurti ki cost 900 hai" -> price=900); the number was said,
+    // so the amount check passes and a YES would change the selling price. When the message names one field and the plan edits the other, the owner is asked.
+    private static readonly System.Text.RegularExpressions.Regex CostWords = new(
+        @"(?<![\p{L}\p{N}])(?:cost|costing|lagat|kharid|kharidi|kharida|purchase|buying|خرید|خریداری|لاگت|کوسٹ)(?![\p{L}\p{N}])",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    // "barha do" / "kam kar do" / "sasta" say HOW MUCH to change, not the new value: a number next to them is not a price (seen live: "rate 100 barha do" became price 100).
+    private static readonly System.Text.RegularExpressions.Regex RelativeWords = new(
+        @"(?<![\p{L}\p{N}])(?:barha|barhao|barhado|barhaido|badha|badhao|badhado|zyada|ziada|mehnga|mehenga|increase|kam|ghata|ghatao|ghatado|kum|sasta|sasti|decrease|reduce|bhaw\s+kam)(?![\p{L}\p{N}])|بڑھا|بڑھاؤ|کم\s+کر|سستا|سستی|مہنگا|گھٹا|گھٹاؤ",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    // Titles that name a person, not a customer: "madam ne kaha 2 kurti" must not create a customer called "madam".
+    private static readonly HashSet<string> GenericNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "madam", "madame", "mam", "maam", "ma'am", "sir", "bhai", "bhaiya", "ji", "aap", "apka", "apki", "bibi", "baji", "didi", "aunty", "uncle",
+        "customer", "client", "sister", "brother", "bhabhi", "miss", "bhai jaan", "baji ji",
+        "بھائی", "باجی", "آپ", "میڈم", "صاحب", "بی بی",
+    };
+
+    // "ek dozen" is 12 without the digit being written.
+    private static readonly System.Text.RegularExpressions.Regex DozenWords = new(
+        @"(?<![\p{L}\p{N}])(?:dozen|darjan)(?![\p{L}\p{N}])|درجن",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static readonly System.Text.RegularExpressions.Regex PriceWords = new(
+        @"(?<![\p{L}\p{N}])(?:price|pirce|prise|rate|qeemat|qimat|kimat|keemat|bhav|bhaw|selling|sale\s+price|قیمت|ریٹ|بھاؤ|پرائس)(?![\p{L}\p{N}])",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.Compiled);
+
     private readonly IAppDbContext _db;
 
     public PlanVerifier(IAppDbContext db) => _db = db;
@@ -86,6 +114,13 @@ public sealed class PlanVerifier
             return new VerifiedStep(step, StepVerdict.Reject, "unknown_product");
         if (Rivals(ctx.Products.Select(p => (p.Id, p.Score, p.Name, p.Name)), productId) is { } rivalProducts)
             return new VerifiedStep(step, StepVerdict.Ask, "ambiguous_product", Choices: rivalProducts);
+        if (RelativeWords.IsMatch(message) && new[] { "price", "cost", "stock" }.Any(step.Args.ContainsKey))
+            return new VerifiedStep(step, StepVerdict.Ask, "relative_change", ProductId: productId);
+        var mentionsCost = CostWords.IsMatch(message);
+        var mentionsPrice = PriceWords.IsMatch(message);
+        if ((step.Args.ContainsKey("price") && !step.Args.ContainsKey("cost") && mentionsCost && !mentionsPrice)
+            || (step.Args.ContainsKey("cost") && !step.Args.ContainsKey("price") && mentionsPrice && !mentionsCost))
+            return new VerifiedStep(step, StepVerdict.Ask, "field_unclear", ProductId: productId);
         // The model sometimes copies a value the product already has into an edit ("cost 900" arrives with price=1800, the catalog price). Setting a value to what it
         // is changes nothing, so an unsaid value equal to the stored one is dropped; any other unsaid number is still rejected below.
         var current = await _db.Products.AsNoTracking().Where(p => p.Id == productId).Select(p => new { p.Price, p.CostPrice, p.StockQty }).FirstAsync(ct);
@@ -122,6 +157,11 @@ public sealed class PlanVerifier
             var matches = await CustomerMatchesAsync(seller.Id, customerName, ct);
             if (matches.Count > 1) return new VerifiedStep(step, StepVerdict.Ask, "ambiguous_customer", Choices: matches.Select(m => m.Label).ToList());
             if (matches.Count == 1) customerId = matches[0].Id;
+            else if (SellerContextBuilder.HasArabicScript(customerName) && ctx.Customers.Count > 0)
+                // A name in Urdu script that matched nobody is most likely a saved customer written in Roman script ("بلال" for "Bilal"): ask instead of creating a second one.
+                return new VerifiedStep(step, StepVerdict.Ask, "ambiguous_customer", Choices: ctx.Customers.Take(5).Select(c => c.City is { Length: > 0 } ? $"{c.Name} ({c.City})" : c.Name).ToList());
+            else if (GenericNames.Contains(customerName.Trim()))
+                return new VerifiedStep(step, StepVerdict.Ask, "customer_missing");   // "madam", "bhai": a title, not a name
             else customerReason = "new_customer";   // not saved yet: the order flow asks for the phone
         }
         else if (!step.Args.ContainsKey("phone")) return new VerifiedStep(step, StepVerdict.Ask, "customer_missing");
@@ -131,7 +171,7 @@ public sealed class PlanVerifier
         var items = new List<ResolvedItem>();
         foreach (var item in step.Items)
         {
-            if (item.Quantity > 1 && !said.Contains(item.Quantity)) return new VerifiedStep(step, StepVerdict.Reject, "quantity_not_said");
+            if (item.Quantity > 1 && !said.Contains(item.Quantity) && !(item.Quantity == 12 && DozenWords.IsMatch(message))) return new VerifiedStep(step, StepVerdict.Reject, "quantity_not_said");
             if (item.ProductId is { } pid)
             {
                 if (ctx.Products.All(p => p.Id != pid)) return new VerifiedStep(step, StepVerdict.Reject, "id_not_in_context");
