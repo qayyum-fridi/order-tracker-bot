@@ -175,12 +175,12 @@ public class AgentPlanEval
 
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
         public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => logLevel >= Microsoft.Extensions.Logging.LogLevel.Debug;
-        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
-            {
-                var line = formatter(state, exception);
-                if (line.Contains("agent plan (retry)", StringComparison.Ordinal)) Retries++;
-                output.WriteLine("          LOG " + line);
-            }
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            var line = formatter(state, exception);
+            if (line.Contains("agent plan (retry)", StringComparison.Ordinal)) Retries++;
+            output.WriteLine("          LOG " + line);
+        }
     }
 
     /// <summary>Writes the request and the answer of every call OpenAI refuses (status 400 and up) into the test output, so an API error can be reproduced.</summary>
