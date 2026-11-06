@@ -1,0 +1,10 @@
+{
+  "agent.001": "ℹ️ Kaun sa chahiye? {0}\nBarae meherbani poora naam likh kar dobara bhejein.",
+  "agent.002": "🙏 Maaf kijiye, ek kaam mujhe saaf samajh nahi aaya, is liye wahan ruk gaya. Barae meherbani us kaam ko alag se likh kar bhejein.",
+  "agent.003": "ℹ️ Price bhi likhein, jaise: Kurti - 500",
+  "agent.004": "ℹ️ Kis customer ka order hai? Naam likhein, jaise: Sara ko Kurti 2",
+  "agent.005": "✅ {0} products save ho gaye.",
+  "agent.006": "✅ Theek hai. {0} products save hue.",
+  "agent.007": "➡️ Samjha: {0}",
+  "agent.008": "ℹ️ Theek hai, ek ek karke bhejein: Name - price. Khatam hone par \"done\" likhein."
+}
