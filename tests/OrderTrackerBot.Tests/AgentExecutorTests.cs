@@ -250,6 +250,21 @@ public class AgentExecutorTests : IDisposable
     }
 
     [Fact]
+    public async Task AStepTogetherWithAnAwaitingPromise_IsJustTheStep()
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+        const string msg = "pehle Shawl 3000 ka add karo phir kuch aur";
+        Plans(msg, new AgentPlan(new[] { Add("Shawl", "3000") }, "Shawl ka price kya hai?", new PlanAwaiting("add_product", 1), 0.9));
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, msg, default);
+
+        Assert.Equal(1, await db.Products.CountAsync());
+        Assert.DoesNotContain("price kya hai", Said);
+        Assert.Null(SessionContextData.FromJson((await db.Sellers.Include(s => s.Session).AsNoTracking().FirstAsync()).Session!.ContextJson).AgentAwaiting);
+    }
+
+    [Fact]
     public async Task APlanBelowTheConfidenceBar_IsIgnored()
     {
         using var db = _dbFactory.CreateContext();

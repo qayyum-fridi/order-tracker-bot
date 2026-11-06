@@ -33,8 +33,9 @@ public partial class ConversationEngine
         var plan = await _ai.PlanAsync(message, context.Render(), AgentTools.All, ct);
         if (plan is null || plan.Confidence < MinPlanConfidence) return false;
 
-        // "3 products add karne hain, ek ek karke bhejta hun": remember it, and ask for the first one.
-        if (plan.Awaiting is { Tool: "add_product" } awaiting)
+        // "3 products add karne hain, ek ek karke bhejta hun": remember it, and ask for the first one. Only when nothing else is planned: a model that
+        // plans a step AND an "awaiting" is repeating a missing-detail question (seen live), and would ask for a price the seller already gave.
+        if (plan.Steps.Count == 0 && plan.Awaiting is { Tool: "add_product" } awaiting)
         {
             ctx.AgentAwaiting = new AgentAwaitingData { Tool = awaiting.Tool, Remaining = awaiting.Count };
             await PersistAsync(session, ctx, ct);
