@@ -4149,6 +4149,10 @@
         "انسان سے بات"
       ],
       "runOnHowTo": true
-    }
+    },
+    {"id": "import.template", "entity": "import", "action": "template", "kind": "ImportTemplate", "description": "Send the empty Excel file to fill in for bringing customers or the catalog from an old system.", "examples": ["customers ka import template bhejo", "catalog import file chahiye", "send me the import template for all data", "کسٹمرز کا امپورٹ ٹیمپلیٹ بھیجیں"], "slots": {"what": {}}, "template": "import template {what}"},
+    {"id": "support.resolve", "entity": "support", "action": "resolve", "kind": "ResolveSupportQuery", "description": "Mark a buyer question (by its number) as answered.", "examples": ["query 3 resolve ho gaya", "mark query 3 as solved", "سوال 3 حل ہو گیا"], "slots": {"id": {"required": true, "type": "number"}}, "template": "mark {id} resolved"},
+    {"id": "support.reply", "entity": "support", "action": "reply", "kind": "ReplySupportQuery", "description": "Write the answer to a buyer question (by its number); the bot drafts it for the seller to forward.", "examples": ["query 3 ka jawab: kal tak mil jayega", "reply to query 3: it ships tomorrow", "سوال 3 کا جواب: کل مل جائے گا"], "slots": {"id": {"required": true, "type": "number"}, "text": {"required": true}}, "template": "reply {id}: {text}"},
+    {"id": "lead.action", "entity": "lead", "action": "update", "kind": "LeadAction", "description": "Update an Instagram comment lead by its number: converted, followed up or dismissed.", "examples": ["lead 5 convert ho gayi", "lead 5 follow up kar liya", "lead 5 dismiss", "لیڈ 5 ختم کر دو"], "slots": {"id": {"required": true, "type": "number"}, "action": {"required": true}}, "template": "lead {id} {action}"}
   ]
 }
