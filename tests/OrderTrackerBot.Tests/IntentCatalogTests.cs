@@ -19,7 +19,7 @@ public class IntentCatalogTests
         ["email"] = "sara@mail.com", ["message"] = "naya stock aaya", ["courier"] = "TCS", ["id"] = "12", ["text"] = "Lahore Branch",
         ["paper"] = "80mm", ["label_size"] = "a6", ["industry"] = "kiryana", ["days"] = "30", ["old_price"] = "500", ["new_price"] = "550",
         ["percent"] = "10", ["period"] = "last week", ["place"] = "Model Town", ["entity"] = "customers",
-        ["attribute"] = "fabric", ["attribute_value"] = "cotton", ["language"] = "urdu", ["menu_name"] = "orders", ["role"] = "driver", ["tax_id"] = "1234567-8", ["tiers"] = "1kg=320, 10kg=300", ["topic"] = "order save nahi ho raha",
+        ["attribute"] = "fabric", ["attribute_value"] = "cotton", ["language"] = "urdu", ["menu_name"] = "orders", ["role"] = "driver", ["tax_id"] = "1234567-8", ["tiers"] = "1kg=320, 10kg=300", ["topic"] = "order save nahi ho raha", ["what"] = "customers", ["action"] = "converted",
     };
 
     // Kinds that are deliberately not catalog entries. Everything else a seller can type has one, so a new CommandKind fails
@@ -30,9 +30,8 @@ public class IntentCatalogTests
         "GuideLater", "StatusPicker", "PhotoKind", "PaymentMethodPrompt", // answers to a question the bot just asked (taps)
         "DetailedForm", "FuzzyStatusUpdate",           // built by the parser from a longer sentence, not a typed line
         "AddProductsBulk", "ImportCatalogSheet",       // the whole message is the data (a pasted list, a file link)
-        "ImportTemplate",                              // import is off in the MVP cut (IsOutOfMvp)
         "CreateLoyalty",                               // loyalty is off in the MVP cut; loyalty.create explains it
-        "ResolveSupportQuery", "ReplySupportQuery", "ForwardedQuery", "LeadAction", // buyer-query / Instagram lead flows, off in the MVP cut
+        "ForwardedQuery",                              // the whole message is the buyer's question and who asked it, no typed line to template
         "Notice",                                      // a template answer the parser picks for phrases it must not act on
     };
 
