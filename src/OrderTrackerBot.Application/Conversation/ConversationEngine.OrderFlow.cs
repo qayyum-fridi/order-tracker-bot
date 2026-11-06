@@ -79,6 +79,8 @@ public partial class ConversationEngine
         if ((analysis.AiUnavailable || analysis.Intent is "unclear" or "off_topic") && analysis.Order is null && session.State == ConversationState.Idle)
         {
             if (await TryRunRoutedIntentAsync(seller, session, ctx, message, ct)) return;
+            // The catalog did not place it either: the planner may (several tasks in one message, or "I will send them one by one").
+            if (await TryPlanAgentAsync(seller, session, ctx, message, ct)) return;
             // The router was not sure: ask "do you mean ...?" with the command it guessed, before any keyword question.
             if (await TrySuggestAiGuessAsync(seller, session, ctx, message, ct)) return;
             await RecordUnplacedAsync(seller, "freeform_" + (analysis.Intent == "" ? "ai_unavailable" : analysis.Intent), message, analysis.Intent, null, ct);
