@@ -61,6 +61,8 @@ public static class AgentPlanParser
                 foreach (var s in stepsEl.EnumerateArray())
                 {
                     if (ParseStep(s) is not { } step) return null;
+                    // The model sometimes repeats a step; the same product action twice in one plan is one task. (Two orders are never merged.)
+                    if (step.Tool != "draft_order" && steps.Any(x => x.Tool == step.Tool && x.Args.Count == step.Args.Count && !x.Args.Except(step.Args).Any())) continue;
                     steps.Add(step);
                 }
             }
@@ -93,16 +95,18 @@ public static class AgentPlanParser
         if (s.TryGetProperty("args", out var a) && a.ValueKind == JsonValueKind.Object)
             foreach (var p in a.EnumerateObject())
             {
-                if (!tool.Args.Any(x => x.Name == p.Name)) return null;   // an argument the tool does not have
-                if (p.Value.ValueKind == JsonValueKind.String) args[p.Name] = p.Value.GetString() ?? "";
+                var empty = p.Value.ValueKind == JsonValueKind.Null || (p.Value.ValueKind == JsonValueKind.String && string.IsNullOrWhiteSpace(p.Value.GetString()));
+                if (empty) continue;   // null / "" = not said, even for an argument this tool does not have
+                if (!tool.Args.Any(x => x.Name == p.Name)) return null;   // a value for an argument the tool does not have
+                if (p.Value.ValueKind == JsonValueKind.String) { if (!string.IsNullOrWhiteSpace(p.Value.GetString())) args[p.Name] = p.Value.GetString()!.Trim(); }   // "" = not said
                 else if (p.Value.ValueKind == JsonValueKind.Number) args[p.Name] = p.Value.GetRawText();
                 else if (p.Value.ValueKind != JsonValueKind.Null) return null;
             }
 
         var items = new List<PlanItem>();
-        if (s.TryGetProperty("items", out var its) && its.ValueKind == JsonValueKind.Array)
+        if (s.TryGetProperty("items", out var its) && its.ValueKind == JsonValueKind.Array && its.GetArrayLength() > 0)
         {
-            if (!tool.TakesItems) return null;
+            if (!tool.TakesItems) return null;   // an empty list is harmless on any tool; a filled one on a tool without items is not
             foreach (var i in its.EnumerateArray())
             {
                 if (i.ValueKind != JsonValueKind.Object) return null;

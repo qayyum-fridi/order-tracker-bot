@@ -397,17 +397,35 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             (t.TakesItems ? ". Also items: [{\"product_id\": <id or omit>, \"name\": \"<as said>\", \"qty\": <n>}]" : "")));
         var json = await CompleteTextAsync(
             "You plan the work for a small shop owner (Pakistan; Roman Urdu, Urdu script or English; spelling and word order vary) who talks to a WhatsApp order-tracking bot. " +
-            "Decide what the bot should do for the message, using ONLY these tools:\n" + menu + "\n" +
-            "The lines before \"Message\" are facts from the owner's own database. Use them to resolve who or what is meant: put a product_id or customer_id in an argument ONLY when that exact id is listed there; " +
-            "when the person or product is not listed, give the name as said (customer_name / items.name) and never invent an id. " +
-            "Return ONLY JSON {\"steps\": [{\"tool\": \"<tool>\", \"args\": {...}, \"items\": [...]}], \"question\": <string or null>, \"awaiting\": <null or {\"tool\": \"<tool>\", \"count\": <n, 0 = until the owner says done>}>, \"confidence\": <0 to 1>}. " +
-            "Steps run in order; a later step may rely on an earlier one (add a product, then order it). At most " + OrderTrackerBot.Application.Agent.AgentTools.MaxSteps + " steps. " +
-            "Numbers (prices, quantities, stock, cost) are only the ones the owner said, as digits; never calculate or guess one, and leave an argument out when it was not said. " +
-            "If something needed is missing or two listed matches are equally likely, return no steps for it and ask ONE short question in the owner's language. " +
-            "If the owner says they will give details one by one (\"3 products add karne hain\", \"ek ek karke bhejta hun\"), return no steps, set awaiting to the tool and the count, and put a short \"send the first one\" line in question. " +
-            "If the message needs none of the tools (a report, small talk, anything else), return {\"steps\": [], \"question\": null, \"awaiting\": null, \"confidence\": 0}.",
+            "Decide what the bot should do for the message, using ONLY these tools:\n" + menu + "\n\n" +
+            "The lines before \"Message\" are facts from the owner's own database. They are for understanding who or what is meant; they are NOT a to-do list: a product or customer being listed is never a reason to plan something for it.\n" +
+            "Answer with ONLY this JSON shape: {\"steps\": [<step objects only>], \"question\": <string or null>, \"awaiting\": <null or {\"tool\": \"<tool>\", \"count\": <n>}>, \"confidence\": <0 to 1>}. " +
+            "question, awaiting and confidence are top-level keys, never inside steps. A step is {\"tool\": \"<tool>\", \"args\": {...}} (plus \"items\" only for a tool that has items).\n\n" +
+            "Rules:\n" +
+            "1. Plan ONLY what the message asks, in the order it asks, each task once. Never add a step the owner did not ask for (no order after adding a product, no edits to other products). A phone number, address or other detail on its own is not an order.\n" +
+            "2. add_product: only for a NEW product, with the price the owner said. edit_product: only when the owner asks to change the price, cost or stock of a LISTED product; give its product_id from the list and ONLY the argument that changes. " +
+            "If the owner corrects themselves (\"500 nahi 650\"), use the final value. draft_order: only when the owner says who gets what.\n" +
+            "3. Ids: put a product_id or customer_id ONLY when that exact number is listed in the facts, as a plain number. Otherwise leave the id out and give the name as said (customer_name, items.name); never invent an id and never put a name, text or # in an id.\n" +
+            "4. Leave out every argument the owner did not say. Never write 0, an empty string or null as a placeholder. Numbers are digits, exactly as the owner said them; never calculate or guess one.\n" +
+            "5. If something needed is missing (a price for a new product), if an edit names a product that is NOT in the facts, or if two listed people or products match equally, plan NO step for it and put ONE short question in question, in the owner's language (awaiting stays null). Never fill a missing price with 0.\n" +
+            "6. If the owner will give details one by one (\"3 products add karne hain, ek ek karke dunga\"), return no steps, set awaiting to the tool and the count the owner said (in digits; if no number was said, 0 = until the owner says done), and put a short \"send the first one\" line in question.\n" +
+            "7. confidence is how sure you are of this answer, including an answer that is only a question or an awaiting promise (0.8 or more when clear). Use 0 ONLY when none of the tools apply: then return {\"steps\": [], \"question\": null, \"awaiting\": null, \"confidence\": 0}. " +
+            "Reports, small talk, cancelling or deleting anything, and questions about the business need none of the tools.\n" +
+            "8. At most " + OrderTrackerBot.Application.Agent.AgentTools.MaxSteps + " steps.\n\n" +
+            "Examples (different shop):\n" +
+            "\"Scarf 450 add karo\" -> {\"steps\":[{\"tool\":\"add_product\",\"args\":{\"name\":\"Scarf\",\"price\":450}}],\"question\":null,\"awaiting\":null,\"confidence\":0.95}\n" +
+            "\"Mug ka stock 30 kar do\" with \"#12 Mug\" in the facts -> {\"steps\":[{\"tool\":\"edit_product\",\"args\":{\"product_id\":12,\"stock\":30}}],\"question\":null,\"awaiting\":null,\"confidence\":0.95}\n" +
+            "\"Rida ko 3 Mug bhej do\" with no Rida in the facts -> {\"steps\":[{\"tool\":\"draft_order\",\"args\":{\"customer_name\":\"Rida\"},\"items\":[{\"name\":\"Mug\",\"qty\":3}]}],\"question\":null,\"awaiting\":null,\"confidence\":0.9}\n" +
+            "\"5 products add karne hain ek ek karke\" -> {\"steps\":[],\"question\":\"Pehla product likhein: Name - price\",\"awaiting\":{\"tool\":\"add_product\",\"count\":5},\"confidence\":0.9}\n" +
+            "\"Belt add karo\" (no price said) -> {\"steps\":[],\"question\":\"Belt ka price kya hai?\",\"awaiting\":null,\"confidence\":0.9}\n" +
+            "\"Lamp ka price 90 kar do\" with no Lamp in the facts -> {\"steps\":[],\"question\":\"Lamp catalog mein nahi hai. Pehle add karein: Lamp - 90\",\"awaiting\":null,\"confidence\":0.9}\n" +
+            "\"Lamp 90 add karo, uska phone 03001234567\" -> {\"steps\":[{\"tool\":\"add_product\",\"args\":{\"name\":\"Lamp\",\"price\":90}}],\"question\":null,\"awaiting\":null,\"confidence\":0.9}\n" +
+            "\"aaj ka mausam\" -> {\"steps\":[],\"question\":null,\"awaiting\":null,\"confidence\":0}",
             $"{sellerContext}\nMessage: {message}", 0, "agent plan", cancellationToken, jsonMode: true);
-        return OrderTrackerBot.Application.Agent.AgentPlanParser.Parse(json);
+        var plan = OrderTrackerBot.Application.Agent.AgentPlanParser.Parse(json);
+        // An answer the parser refused is kept at Debug level only (it holds the owner's words), so a bad prompt can be diagnosed from the log.
+        if (plan is null && json is not null) _logger.LogDebug("Planner answer not used: {Json}", json);
+        return plan;
     }
 
     public async Task<string?> ClassifyYesNoAsync(string question, string answer, CancellationToken cancellationToken = default)
