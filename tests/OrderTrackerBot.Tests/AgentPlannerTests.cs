@@ -154,9 +154,94 @@ public class AgentPlannerTests
 
         Assert.Equal(3, plan!.Steps.Count);
         Assert.Equal(2, handler.Requests.Count);
-        Assert.Contains("\"max_completion_tokens\":600", handler.Requests[0]);
+        Assert.Contains("\"max_completion_tokens\":800", handler.Requests[0]);
+        Assert.Contains("\"type\":\"json_schema\"", handler.Requests[0]);
+        Assert.Contains("\"strict\":true", handler.Requests[0]);
+        Assert.Contains("\"type\":\"json_schema\"", handler.Requests[1]);
         Assert.Contains("\"model\":\"gpt-4o-mini\"", handler.Requests[0]);
         Assert.Contains("\"model\":\"gpt-4o\"", handler.Requests[1]);
+    }
+
+    // ---- the schema the answer must follow (structured outputs, strict) ----
+
+    /// <summary>Strict mode accepts only closed objects whose every property is required; this walks the schema and checks both.</summary>
+    private static void AssertStrict(System.Text.Json.Nodes.JsonNode? node, string path)
+    {
+        switch (node)
+        {
+            case System.Text.Json.Nodes.JsonObject obj:
+                if (obj["type"]?.ToString() == "object")
+                {
+                    Assert.False(obj["additionalProperties"]?.GetValue<bool>() ?? true, path + " must be closed");
+                    var props = obj["properties"]!.AsObject().Select(p => p.Key).OrderBy(k => k).ToArray();
+                    var required = obj["required"]!.AsArray().Select(r => r!.GetValue<string>()).OrderBy(k => k).ToArray();
+                    Assert.Equal(props, required);
+                }
+                foreach (var (key, child) in obj) AssertStrict(child, path + "/" + key);
+                break;
+            case System.Text.Json.Nodes.JsonArray arr:
+                for (var i = 0; i < arr.Count; i++) AssertStrict(arr[i], path + "[" + i + "]");
+                break;
+        }
+    }
+
+    [Fact]
+    public void Schema_IsStrictEverywhere_WithOneClosedStepPerTool()
+    {
+        var schema = AgentPlanSchema.Build(AgentTools.All);
+
+        AssertStrict(schema, "$");
+        var steps = schema["properties"]!["steps"]!["items"]!["anyOf"]!.AsArray();
+        Assert.Equal(AgentTools.All.Select(t => t.Name), steps.Select(st => st!["properties"]!["tool"]!["enum"]![0]!.GetValue<string>()));
+        foreach (var tool in AgentTools.All)
+        {
+            var step = steps.Single(st => st!["properties"]!["tool"]!["enum"]![0]!.GetValue<string>() == tool.Name)!;
+            // exactly this tool's arguments: a name cannot appear in an edit, a price cannot appear in an order
+            Assert.Equal(tool.Args.Select(a => a.Name).OrderBy(n => n), step["properties"]!["args"]!["properties"]!.AsObject().Select(p => p.Key).OrderBy(n => n));
+            Assert.Equal(tool.TakesItems, step["properties"]!.AsObject().ContainsKey("items"));
+        }
+        var edit = steps.Single(st => st!["properties"]!["tool"]!["enum"]![0]!.GetValue<string>() == "edit_product")!;
+        Assert.Equal(new[] { "integer", "null" }, edit["properties"]!["args"]!["properties"]!["product_id"]!["type"]!.AsArray().Select(n => n!.GetValue<string>()));
+        Assert.Equal(new[] { "number", "null" }, edit["properties"]!["args"]!["properties"]!["price"]!["type"]!.AsArray().Select(n => n!.GetValue<string>()));
+    }
+
+    [Fact]
+    public void Parse_DropsAStepWithNothingInIt_AndReadsPerToolArgs()
+    {
+        // Seen live under the schema: an extra step with every argument null.
+        var plan = AgentPlanParser.Parse("""
+        {"steps":[{"tool":"edit_product","args":{"product_id":3,"price":null,"cost":null,"stock":40}},
+                  {"tool":"edit_product","args":{"product_id":null,"price":null,"cost":null,"stock":null}}],
+         "question":null,"awaiting":null,"confidence":0.95}
+        """)!;
+
+        var step = Assert.Single(plan.Steps);
+        Assert.Equal(new[] { "product_id", "stock" }, step.Args.Keys.OrderBy(k => k));
+    }
+
+    [Fact]
+    public void Parse_ReadsAnAnswerInTheStrictSchemaShape_NullsAreOmittedArguments()
+    {
+        var plan = AgentPlanParser.Parse("""
+        {"steps":[{"tool":"draft_order","args":{"customer_id":3,"customer_name":"Bilal","phone":null},
+                   "items":[{"product_id":null,"name":"Kurti","qty":2}]}],
+         "question":null,"awaiting":null,"confidence":0.95}
+        """)!;
+
+        var step = Assert.Single(plan.Steps);
+        Assert.Equal(new[] { "customer_id", "customer_name" }, step.Args.Keys.OrderBy(k => k));
+        Assert.Equal(new PlanItem(null, "Kurti", 2), step.Items.Single());
+    }
+
+    [Fact]
+    public async Task PlanAsync_AsksTheStrongerModelOnce_WhenTheFirstCallGivesNoAnswerAtAll()
+    {
+        var handler = new SequenceOpenAi("", ThreeTaskPlan);   // an empty answer is what a refusal or an API error looks like to the caller
+
+        var plan = await Assistant(handler).PlanAsync("x", "", AgentTools.All);
+
+        Assert.NotNull(plan);
+        Assert.Equal(2, handler.Requests.Count);
     }
 
     [Fact]

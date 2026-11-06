@@ -124,6 +124,32 @@ public sealed class PlanVerifierTests : IDisposable
     }
 
     [Fact]
+    public async Task EditProduct_AnUnsaidValueEqualToTheStoredOne_IsDroppedNotRejected()
+    {
+        // Seen live: "Kurti ki cost 900 hai" came back as price=1800 (the catalog price) + cost=900.
+        var kurti = AddProduct("Kurti", 1800);
+        var plan = await VerifyAsync("Kurti ki cost 900 hai", Step("edit_product", new() { ["product_id"] = kurti.Id.ToString(), ["price"] = "1800", ["cost"] = "900" }));
+
+        Assert.Equal(StepVerdict.Confirm, plan.Steps[0].Verdict);
+        Assert.Equal(new[] { "cost", "product_id" }, plan.Steps[0].Step.Args.Keys.OrderBy(k => k));
+    }
+
+    [Fact]
+    public async Task EditProduct_AnUnsaidValueThatDiffersFromTheStoredOne_IsStillRejected_AndNothingLeftIsRejected()
+    {
+        var kurti = AddProduct("Kurti", 1800);
+        var invented = await VerifyAsync("Kurti ki cost 900 hai", Step("edit_product", new() { ["product_id"] = kurti.Id.ToString(), ["price"] = "2500", ["cost"] = "900" }));
+        Assert.Equal("price_not_said", invented.Steps[0].Reason);
+
+        var nothing = await VerifyAsync("Kurti", Step("edit_product", new() { ["product_id"] = kurti.Id.ToString(), ["price"] = "1800" }));
+        Assert.Equal("nothing_to_change", nothing.Steps[0].Reason);
+
+        // a value the seller did say stays even when it equals the stored one
+        var said = await VerifyAsync("Kurti ka price 1800 hi rakhna", Step("edit_product", new() { ["product_id"] = kurti.Id.ToString(), ["price"] = "1800" }));
+        Assert.Equal(StepVerdict.Confirm, said.Steps[0].Verdict);
+    }
+
+    [Fact]
     public async Task EditProduct_AnotherSellersProduct_IsRejected_EvenIfTheContextListedIt()
     {
         var foreign = AddProduct("Secret", 1, sellerId: AddOtherSeller());
@@ -171,6 +197,45 @@ public sealed class PlanVerifierTests : IDisposable
         Assert.Equal((StepVerdict.Ask, "ambiguous_customer"), (plan.Steps[0].Verdict, plan.Steps[0].Reason));
         Assert.Equal(2, plan.Steps[0].Choices!.Count);
         Assert.Contains("Sara Khan (Lahore)", plan.Steps[0].Choices!);
+    }
+
+    [Fact]
+    public async Task DraftOrder_AnIdChosenBetweenTwoEquallyNamedCustomers_BecomesAQuestion()
+    {
+        // Seen live: the model answered "Sara ko 2 Kurti" with customer_id of Sara Ali. The id is real and was shown, but the message does not pick her.
+        AddCustomer("Sara Khan", "Lahore");
+        var ali = AddCustomer("Sara Ali", "Karachi");
+        AddProduct("Kurti");
+        var plan = await VerifyAsync("Sara ko 2 Kurti bhej do", Step("draft_order", new() { ["customer_id"] = ali.Id.ToString() }, new PlanItem(null, "Kurti", 2)));
+
+        Assert.Equal((StepVerdict.Ask, "ambiguous_customer"), (plan.Steps[0].Verdict, plan.Steps[0].Reason));
+        Assert.Contains("Sara Khan (Lahore)", plan.Steps[0].Choices!);
+        Assert.Contains("Sara Ali (Karachi)", plan.Steps[0].Choices!);
+    }
+
+    [Fact]
+    public async Task DraftOrder_AnIdForTheCustomerTheMessageNamesBest_Runs()
+    {
+        AddCustomer("Sara Khan", "Lahore");
+        var ali = AddCustomer("Sara Ali", "Karachi");
+        AddProduct("Kurti");
+        var plan = await VerifyAsync("Sara Ali ko 2 Kurti bhej do", Step("draft_order", new() { ["customer_id"] = ali.Id.ToString() }, new PlanItem(null, "Kurti", 2)));
+
+        Assert.Equal(StepVerdict.Run, plan.Steps[0].Verdict);
+        Assert.Equal(ali.Id, plan.Steps[0].CustomerId);
+    }
+
+    [Fact]
+    public async Task ProductIds_ChosenBetweenVariantsTheMessageNamesEqually_BecomeAQuestion()
+    {
+        AddProduct("Kurti white");
+        var black = AddProduct("Kurti black");
+        var edit = await VerifyAsync("Kurti ka price 900 kar do", Step("edit_product", new() { ["product_id"] = black.Id.ToString(), ["price"] = "900" }));
+        Assert.Equal((StepVerdict.Ask, "ambiguous_product"), (edit.Steps[0].Verdict, edit.Steps[0].Reason));
+
+        AddCustomer("Sara");
+        var order = await VerifyAsync("Sara ko Kurti", Step("draft_order", new() { ["customer_name"] = "Sara" }, new PlanItem(black.Id, "Kurti", 1)));
+        Assert.Equal((StepVerdict.Ask, "ambiguous_product"), (order.Steps[0].Verdict, order.Steps[0].Reason));
     }
 
     [Fact]

@@ -61,6 +61,7 @@ public static class AgentPlanParser
                 foreach (var s in stepsEl.EnumerateArray())
                 {
                     if (ParseStep(s) is not { } step) return null;
+                    if (step.Args.Count == 0 && step.Items.Count == 0) continue;   // a step with nothing in it (every argument null) carries no task
                     // The model sometimes repeats a step; the same product action twice in one plan is one task. (Two orders are never merged.)
                     if (step.Tool != "draft_order" && steps.Any(x => x.Tool == step.Tool && x.Args.Count == step.Args.Count && !x.Args.Except(step.Args).Any())) continue;
                     steps.Add(step);

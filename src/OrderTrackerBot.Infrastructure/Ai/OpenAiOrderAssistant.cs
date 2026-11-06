@@ -389,8 +389,8 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         }
     }
 
-    /// <summary>Most tokens a plan may use (8 steps with items is well under this).</summary>
-    private const int PlannerMaxTokens = 600;
+    /// <summary>Most tokens a plan may use. With the schema every step also prints its null arguments (about 60 tokens), so 8 steps with items fit.</summary>
+    private const int PlannerMaxTokens = 800;
 
     private static bool IsValidJson(string text)
     {
@@ -415,7 +415,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "2. add_product: only for a NEW product, with the price the owner said; several products with their prices in one message are one add_product each. edit_product: only when the owner asks to change the price, cost or stock of a LISTED product; give its product_id from the list and ONLY the argument that changes. " +
             "If the owner corrects themselves (\"500 nahi 650\"), use the final value. draft_order: only when the owner says who gets what.\n" +
             "3. Ids: put a product_id or customer_id ONLY when that exact number is listed in the facts, as a plain number. Otherwise leave the id out and give the name as said (customer_name, items.name); never invent an id and never put a name, text or # in an id.\n" +
-            "4. Leave out every argument the owner did not say. Never write 0, an empty string or null as a placeholder. Numbers are digits, exactly as the owner said them; never calculate or guess one.\n" +
+            "4. Every args key is required by the schema: write null for each argument the owner did not say (never 0 or an empty string as a placeholder), and an empty items list for a tool without items. Numbers are digits, exactly as the owner said them; never calculate or guess one.\n" +
             "5. If something needed is missing (a price for a new product), if an edit names a product that is NOT in the facts, or if two listed people or products match equally, plan NO step for it and put ONE short question in question, in the owner's language (awaiting stays null). Never fill a missing price with 0.\n" +
             "6. If the owner will give details one by one (\"3 products add karne hain, ek ek karke dunga\"), return no steps (awaiting is ONLY for this case, never together with steps), set awaiting to the tool and the count the owner said (in digits; if no number was said, 0 = until the owner says done), and put a short \"send the first one\" line in question.\n" +
             "7. confidence is how sure you are of this answer, including an answer that is only a question or an awaiting promise (0.8 or more when clear). Use 0 ONLY when none of the tools apply: then return {\"steps\": [], \"question\": null, \"awaiting\": null, \"confidence\": 0}. " +
@@ -432,13 +432,15 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "\"Lamp 90 add karo, uska phone 03001234567\" -> {\"steps\":[{\"tool\":\"add_product\",\"args\":{\"name\":\"Lamp\",\"price\":90}}],\"question\":null,\"awaiting\":null,\"confidence\":0.9}\n" +
             "\"aaj ka mausam\" -> {\"steps\":[],\"question\":null,\"awaiting\":null,\"confidence\":0}";
         var user = $"{sellerContext}\nMessage: {message}";
-        // A plan is a few hundred tokens at most. The cap matters: the small model sometimes derails in JSON mode (a stray quote, then "}  }  }" for ever) and
-        // an uncapped runaway took ~30 s and surfaced as a proxy 502. An answer that is not valid JSON is asked once more of the stronger model.
-        var json = await CompleteTextAsync(system, user, 0, "agent plan", cancellationToken, jsonMode: true, maxTokens: PlannerMaxTokens);
-        if (json is not null && !IsValidJson(json))
+        // Structured outputs: the answer must follow the schema, so the small model cannot derail (before this it sometimes broke the JSON after the first step and looped
+        // "}  }  }" to the token limit: ~30 s, a proxy 502, or a 17-21 s retry on the stronger model). One more try on the stronger model if there is still no usable answer
+        // (a refusal, an API error, a model that does not support the schema).
+        var schema = (OrderTrackerBot.Application.Agent.AgentPlanSchema.Name, (JsonNode)OrderTrackerBot.Application.Agent.AgentPlanSchema.Build(OrderTrackerBot.Application.Agent.AgentTools.All));
+        var json = await CompleteTextAsync(system, user, 0, "agent plan", cancellationToken, jsonMode: true, maxTokens: PlannerMaxTokens, jsonSchema: schema);
+        if (json is null || !IsValidJson(json))
         {
-            _logger.LogDebug("Planner answer is not valid JSON, asking {Model}: {Json}", _options.VoiceModel, json.Length > 300 ? json[..300] : json);
-            json = await CompleteTextAsync(system, user, 0, "agent plan (retry)", cancellationToken, jsonMode: true, model: _options.VoiceModel, maxTokens: PlannerMaxTokens);
+            _logger.LogDebug("Planner gave no usable answer, asking {Model}: {Json}", _options.VoiceModel, json is null ? "(none)" : json.Length > 300 ? json[..300] : json);
+            json = await CompleteTextAsync(system, user, 0, "agent plan (retry)", cancellationToken, jsonMode: true, model: _options.VoiceModel, maxTokens: PlannerMaxTokens, jsonSchema: schema);
         }
         var plan = OrderTrackerBot.Application.Agent.AgentPlanParser.Parse(json);
         // An answer the parser refused is kept at Debug level only (it holds the owner's words), so a bad prompt can be diagnosed from the log.
@@ -787,7 +789,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
     }
 
     private async Task<string?> CompleteTextAsync(string systemPrompt, string userText, double temperature, string purpose,
-        CancellationToken cancellationToken, bool jsonMode = false, string? model = null, JsonNode? userContent = null, int? maxTokens = null)
+        CancellationToken cancellationToken, bool jsonMode = false, string? model = null, JsonNode? userContent = null, int? maxTokens = null, (string Name, JsonNode Schema)? jsonSchema = null)
     {
         if (string.IsNullOrWhiteSpace(_options.ApiKey)) return null;
 
@@ -803,7 +805,13 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
                     new JsonObject { ["role"] = "user", ["content"] = userContent ?? JsonValue.Create(userText) }
                 }
             };
-            if (jsonMode) requestBody["response_format"] = new JsonObject { ["type"] = "json_object" };
+            if (jsonSchema is { } strict)   // structured outputs: the answer must follow the schema
+                requestBody["response_format"] = new JsonObject
+                {
+                    ["type"] = "json_schema",
+                    ["json_schema"] = new JsonObject { ["name"] = strict.Name, ["strict"] = true, ["schema"] = strict.Schema.DeepClone() }
+                };
+            else if (jsonMode) requestBody["response_format"] = new JsonObject { ["type"] = "json_object" };
             if (maxTokens is { } cap) requestBody["max_completion_tokens"] = cap;   // a runaway answer ends here instead of after ~30 s (and a proxy timeout)
 
             var clock = System.Diagnostics.Stopwatch.StartNew();
