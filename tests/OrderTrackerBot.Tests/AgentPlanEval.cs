@@ -25,7 +25,7 @@ public class AgentPlanEval
 {
     /// <summary>
     /// What a good answer looks like. <c>Tools</c> = the expected tool sequence; <c>Args[i]</c> = texts that must appear in step i
-    /// (<c>name=Hat</c>, <c>price=100</c>, <c>customer_name=Bilal</c>, an order line as <c>Kurti x2</c>, <c>id:Polo Shirt</c> = that product's id as <c>product_id</c>);
+    /// (<c>name=Hat</c>, <c>price=100</c>, <c>customer_name=Bilal</c>, <c>a/b</c> = either text, an order line as <c>Kurti x2</c>, <c>id:Polo Shirt</c> = that product's id as <c>product_id</c>);
     /// <c>Not</c> = texts that must appear in no step. <c>Awaiting</c> = the tool and count of a "one by one" promise.
     /// <c>NoPlan</c> = the message is not for the planner at all. <c>NoSteps</c> = it may ask a question or return nothing, but no step may be planned
     /// (<c>OrAsk</c>: or a first step the verifier turns into a question).
@@ -54,18 +54,18 @@ public class AgentPlanEval
         new("edit", "Kurti ka price 1800 se 2100 kar do", new[] { Edit }, new[] { new[] { "id:Kurti", "price=2100" } }, Not: new[] { "price=1800" }, Verdicts: Confirm1),
         new("self-correction", "Polo Shirt 500 nahi 650 kar do", new[] { Edit }, new[] { new[] { "id:Polo Shirt", "price=650" } }, Not: new[] { "price=500" }),
         // orders
-        new("order", "Bilal ko 2 Kurti bhej do", new[] { Order }, new[] { new[] { "Bilal", "Kurti x2" } }, Verdicts: Run1),
+        new("order", "Bilal ko 2 Kurti bhej do", new[] { Order }, new[] { new[] { "Bilal/customer_id=3", "Kurti x2" } }, Verdicts: Run1),
         new("order", "Zainab ko 1 Lawn Suit aur 2 Dupatta", new[] { Order }, new[] { new[] { "Zainab", "Lawn Suit x1", "Dupatta x2" } }, Verdicts: Run1),
-        new("order", "Ayesha Raza ko 2 polo shirt bhej do", new[] { Order }, new[] { new[] { "Ayesha Raza", "x2" } }, Verdicts: Run1),
-        new("order", "Bilal ko Shawl bhej do", new[] { Order }, new[] { new[] { "Bilal", "Shawl" } }, Verdicts: Run1),
+        new("order", "Ayesha Raza ko 2 polo shirt bhej do", new[] { Order }, new[] { new[] { "Ayesha Raza/customer_id=4", "x2" } }, Verdicts: Run1),
+        new("order", "Bilal ko Shawl bhej do", new[] { Order }, new[] { new[] { "Bilal/customer_id=3", "Shawl" } }, Verdicts: Run1),
         // two customers called Sara: the plan may name her or ask, but must not pick one
         new("ambiguous", "Sara ko 2 Kurti bhej do", NoTools, NoSteps: true, OrAsk: true),
         // several tasks in one message, in order
         new("multi", "Hat 100 ka add karo, Polo Shirt ka price 600 kar do, phir Bilal ko 2 Hat bhej do", new[] { Add, Edit, Order },
-            new[] { new[] { "name=Hat", "price=100" }, new[] { "id:Polo Shirt", "price=600" }, new[] { "Bilal", "Hat x2" } },
+            new[] { new[] { "name=Hat", "price=100" }, new[] { "id:Polo Shirt", "price=600" }, new[] { "Bilal/customer_id=3", "Hat x2" } },
             Verdicts: new[] { StepVerdict.Run, StepVerdict.Confirm, StepVerdict.Run }),
         new("multi", "Cap 250 add karo aur Bilal ko 1 Cap bhej do", new[] { Add, Order },
-            new[] { new[] { "name=Cap", "price=250" }, new[] { "Bilal", "Cap x1" } }, Verdicts: new[] { StepVerdict.Run, StepVerdict.Run }),
+            new[] { new[] { "name=Cap", "price=250" }, new[] { "Bilal/customer_id=3", "Cap x1" } }, Verdicts: new[] { StepVerdict.Run, StepVerdict.Run }),
         new("multi", "Kurti ka price 2000 kar do aur Dupatta ka stock 10 kar do", new[] { Edit, Edit },
             new[] { new[] { "id:Kurti", "price=2000" }, new[] { "id:Dupatta", "stock=10" } }, Verdicts: new[] { StepVerdict.Confirm, StepVerdict.Confirm }),
         // "I will send them one by one"
@@ -121,10 +121,15 @@ public class AgentPlanEval
             var wanted = c.Args is not null && i < c.Args.Length ? c.Args[i] : Array.Empty<string>();
             foreach (var w in wanted)
             {
-                var token = w.StartsWith("id:", StringComparison.Ordinal)
-                    ? "product_id=" + (productIds.TryGetValue(w[3..], out var id) ? id.ToString() : "?")
-                    : w;
-                if (!texts[i].Contains(token, StringComparison.OrdinalIgnoreCase)) return false;
+                // "a/b" = either text (a saved customer may be named or given by id).
+                var found = w.Split('/').Any(alt =>
+                {
+                    var token = alt.StartsWith("id:", StringComparison.Ordinal)
+                        ? "product_id=" + (productIds.TryGetValue(alt[3..], out var id) ? id.ToString() : "?")
+                        : alt;
+                    return texts[i].Contains(token, StringComparison.OrdinalIgnoreCase);
+                });
+                if (!found) return false;
             }
         }
         return c.Not is null || c.Not.All(n => texts.All(t => !t.Contains(n, StringComparison.OrdinalIgnoreCase)));
@@ -171,6 +176,19 @@ public class AgentPlanEval
             output.WriteLine("          LOG " + formatter(state, exception));
     }
 
+    /// <summary>Writes the request and the answer of every call OpenAI refuses (status 400 and up) into the test output, so an API error can be reproduced.</summary>
+    private sealed class DumpFailures(ITestOutputHelper output, HttpMessageHandler inner) : DelegatingHandler(inner)
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var body = request.Content is null ? "" : await request.Content.ReadAsStringAsync(cancellationToken);
+            var response = await base.SendAsync(request, cancellationToken);
+            if ((int)response.StatusCode >= 400)
+                output.WriteLine($"          HTTP {(int)response.StatusCode}\n          REQUEST {body}\n          RESPONSE {await response.Content.ReadAsStringAsync(cancellationToken)}");
+            return response;
+        }
+    }
+
     private readonly ITestOutputHelper _output;
     public AgentPlanEval(ITestOutputHelper output) => _output = output;
 
@@ -180,7 +198,7 @@ public class AgentPlanEval
         var key = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
         if (Environment.GetEnvironmentVariable("OTB_AGENT_EVAL") != "1" || string.IsNullOrWhiteSpace(key)) return;
 
-        var assistant = new OpenAiOrderAssistant(new HttpClient { Timeout = TimeSpan.FromSeconds(60) },
+        var assistant = new OpenAiOrderAssistant(new HttpClient(new DumpFailures(_output, new HttpClientHandler())) { Timeout = TimeSpan.FromSeconds(60) },
             Options.Create(new OpenAiOptions { ApiKey = key }), new OutputLogger<OpenAiOrderAssistant>(_output), Mock.Of<IIssueReporter>());
         using var factory = new TestDbContextFactory();
         using var db = factory.CreateContext();
