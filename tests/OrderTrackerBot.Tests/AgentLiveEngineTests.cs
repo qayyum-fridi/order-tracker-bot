@@ -103,4 +103,28 @@ public class AgentLiveEngineTests(ITestOutputHelper output)
         Assert.NotNull(shawl);
         Assert.Equal(3000m, shawl!.Price);
     }
+
+    [LocalOnlyFact("OTB_AGENT_LIVE")]
+    public async Task Live_TheSentenceThePlannerWritesForAnOrderWithMoney_IsAcceptedWithoutAskingForAPhone()
+    {
+        var key = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+        Assert.False(string.IsNullOrWhiteSpace(key), "OPENAI_API_KEY is needed.");
+        using var factory = new TestDbContextFactory();
+        using var db = factory.CreateContext();
+        await SeedAsync(db);
+        var said = new List<string>();
+        var sender = new Mock<IWhatsAppSender>();
+        sender.Setup(s => s.SendTextMessageAsync(Phone, It.IsAny<string>(), It.IsAny<CancellationToken>())).Callback<string, string, CancellationToken>((_, t, _) => said.Add(t)).Returns(Task.CompletedTask);
+        sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, b, _, _) => said.Add(b)).Returns(Task.CompletedTask);
+        var ai = new OpenAiOrderAssistant(new HttpClient { Timeout = TimeSpan.FromSeconds(90) }, Options.Create(new OpenAiOptions { ApiKey = key }),
+            NullLogger<OpenAiOrderAssistant>.Instance, Mock.Of<IIssueReporter>());
+        var engine = new ConversationEngine(db, ai, sender.Object, Mock.Of<IFounderAlertNotifier>(), features: new FeatureOptions { ShortcutButtons = false, Agent = true });
+
+        var reply = await SendAsync(engine, db, sender, said, "Bilal ko 2 Kurti, phone 03005556666, delivery 200, advance 500, address Model Town");
+
+        Assert.DoesNotContain("phone number", reply);
+        Assert.Contains("200", reply);
+        Assert.Contains("500", reply);
+    }
 }

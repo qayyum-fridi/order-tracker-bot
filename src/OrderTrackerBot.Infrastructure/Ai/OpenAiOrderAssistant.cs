@@ -434,6 +434,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             "\"Lamp 90 add karo, uska phone 03001234567\" -> {\"steps\":[{\"tool\":\"add_product\",\"args\":{\"name\":\"Lamp\",\"price\":90}}],\"question\":null,\"awaiting\":null,\"confidence\":0.9}\n" +
             "\"Mug ka rate kya hai\" (a question about a price) -> {\"steps\":[],\"question\":null,\"awaiting\":null,\"confidence\":0}\n" +
             "\"kal 300 ka petrol dala\" (an expense) -> {\"steps\":[],\"question\":null,\"awaiting\":null,\"confidence\":0}\n" +
+            "\"Mug ki cost 120 hai\" with \"#12 Mug\" in the facts -> {\"steps\":[{\"tool\":\"edit_product\",\"args\":{\"product_id\":12,\"cost\":120}}],\"question\":null,\"awaiting\":null,\"confidence\":0.95,\"missing_for\":\"none\"}\n" +
             "\"Sara ka order cancel kar do\" -> {\"steps\":[],\"question\":null,\"awaiting\":null,\"confidence\":0,\"missing_for\":\"none\"}\n" +
             "\"aaj ka mausam\" -> {\"steps\":[],\"question\":null,\"awaiting\":null,\"confidence\":0}";
         var user = $"{sellerContext}\nMessage: {message}";

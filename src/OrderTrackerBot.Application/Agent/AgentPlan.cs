@@ -37,7 +37,7 @@ public static class AgentTools
             Risky: true),
         new("draft_order", "Start an order for a customer. It is only a draft: the seller still taps Save, Edit or Cancel.",
             new[] { new AgentToolArg("customer_id", "customer_id", false), new AgentToolArg("customer_name", "text", false), new AgentToolArg("phone", "text", false),
-                    new AgentToolArg("delivery", "number", false), new AgentToolArg("advance", "number", false) },
+                    new AgentToolArg("delivery", "number", false), new AgentToolArg("advance", "number", false), new AgentToolArg("address", "text", false) },
             TakesItems: true),
     };
 

@@ -124,6 +124,16 @@ public sealed class PlanVerifierTests : IDisposable
     }
 
     [Fact]
+    public async Task EditProduct_AValueFiledUnderTheWrongField_MovesToTheFieldTheOwnerNamed()
+    {
+        var kurti = AddProduct("Kurti", 1800);
+        var moved = await VerifyAsync("Kurti ki cost 900 hai", Step("edit_product", new() { ["product_id"] = kurti.Id.ToString(), ["price"] = "900" }));
+        Assert.Equal(StepVerdict.Confirm, moved.Steps[0].Verdict);
+        Assert.Equal("900", moved.Steps[0].Step.Args["cost"]);
+        Assert.False(moved.Steps[0].Step.Args.ContainsKey("price"));
+    }
+
+    [Fact]
     public async Task EditProduct_SoldOut_IsStockZeroWhenTheOwnerSaysSo()
     {
         var kurti = AddProduct("Kurti", 1800);
@@ -170,7 +180,7 @@ public sealed class PlanVerifierTests : IDisposable
     }
 
     [Theory]
-    [InlineData("Kurti ki cost 900 hai", "price", "field_unclear")]                 // said cost, plan edits price
+    [InlineData("Kurti ki cost 900 hai", "price", "field_unclear")]                 // said cost, plan edits price: moves to cost
     [InlineData("kurti ki lagat 900 hai", "price", "field_unclear")]
     [InlineData("Kurti ka price 900 kar do", "cost", "field_unclear")]               // said price, plan edits cost
     [InlineData("Kurti ka rate 900 kar do", "cost", "field_unclear")]
@@ -183,8 +193,16 @@ public sealed class PlanVerifierTests : IDisposable
         var kurti = AddProduct("Kurti", 1800);
         var plan = await VerifyAsync(message, Step("edit_product", new() { ["product_id"] = kurti.Id.ToString(), [field] = field == "price" && message.Contains("1800") ? "1800" : "900" }));
 
-        Assert.Equal(reason, plan.Steps[0].Reason == "edits_existing_product" ? null : plan.Steps[0].Reason);
-        Assert.Equal(reason is null ? StepVerdict.Confirm : StepVerdict.Ask, plan.Steps[0].Verdict);
+        if (reason is null)
+        {
+            Assert.Equal(StepVerdict.Confirm, plan.Steps[0].Verdict);
+            return;
+        }
+        // the owner named the other field: the value moves there (a Confirm), instead of a question
+        var named = field == "price" ? "cost" : "price";
+        Assert.Equal(StepVerdict.Confirm, plan.Steps[0].Verdict);
+        Assert.True(plan.Steps[0].Step.Args.ContainsKey(named));
+        Assert.False(plan.Steps[0].Step.Args.ContainsKey(field));
     }
 
     [Theory]
@@ -220,6 +238,22 @@ public sealed class PlanVerifierTests : IDisposable
 
         var invented = await VerifyAsync("Bilal ko 2 Kurti", Step("draft_order", new() { ["customer_name"] = "Bilal", ["delivery"] = "200" }, new PlanItem(null, "Kurti", 2)));
         Assert.Equal("delivery_not_said", invented.Steps[0].Reason);
+    }
+
+    [Fact]
+    public async Task DraftOrder_WithMoney_CompilesOneSentenceThatKeepsThePhoneAddressDeliveryAndAdvance()
+    {
+        // The order reader asks for a phone when the sentence has none; a saved customer's phone is written into it, so the reader does not ask (seen live).
+        var bilal = new Customer { SellerId = _seller.Id, Name = "Bilal", Phone = "03005556666" };
+        _db.Customers.Add(bilal);
+        _db.SaveChanges();
+        AddProduct("Kurti");
+        var plan = await VerifyAsync("Bilal ko 2 Kurti, delivery 200, advance 500, address Model Town", Step("draft_order",
+            new() { ["customer_id"] = bilal.Id.ToString(), ["delivery"] = "200", ["advance"] = "500", ["address"] = "Model Town" }, new PlanItem(null, "Kurti", 2)));
+        var compiled = await new AgentStepCompiler(_db).CompileAsync(_seller, plan, default);
+
+        var text = Assert.Single(compiled.Steps).Text;
+        Assert.Equal("Bilal ko 2 Kurti, phone 03005556666, delivery 200, advance 500, address Model Town", text);
     }
 
     [Fact]

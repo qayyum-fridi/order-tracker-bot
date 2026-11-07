@@ -123,6 +123,17 @@ public sealed class PlanVerifier
             return new VerifiedStep(step, StepVerdict.Ask, "relative_change", ProductId: productId);
         var mentionsCost = CostWords.IsMatch(message);
         var mentionsPrice = PriceWords.IsMatch(message);
+        // The model files a cost under price (seen live): when the owner named only one field and the plan has only the other, the value moves to the named field.
+        if ((mentionsCost && !mentionsPrice && step.Args.ContainsKey("price") && !step.Args.ContainsKey("cost"))
+            || (mentionsPrice && !mentionsCost && step.Args.ContainsKey("cost") && !step.Args.ContainsKey("price")))
+        {
+            var from = mentionsCost ? "price" : "cost";
+            var to = mentionsCost ? "cost" : "price";
+            var moved = new Dictionary<string, string>(step.Args);
+            moved[to] = moved[from];
+            moved.Remove(from);
+            step = step with { Args = moved };
+        }
         if ((step.Args.ContainsKey("price") && !step.Args.ContainsKey("cost") && mentionsCost && !mentionsPrice)
             || (step.Args.ContainsKey("cost") && !step.Args.ContainsKey("price") && mentionsPrice && !mentionsCost))
             return new VerifiedStep(step, StepVerdict.Ask, "field_unclear", ProductId: productId);

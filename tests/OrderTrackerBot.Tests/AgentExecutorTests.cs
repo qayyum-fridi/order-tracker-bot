@@ -317,6 +317,31 @@ public class AgentExecutorTests : IDisposable
     }
 
     [Fact]
+    public async Task ATwoSaras_AskWhich_AndTheAnswerCompletesTheOrder()
+    {
+        using var db = _dbFactory.CreateContext();
+        var seller = await SeedAsync(db);
+        db.Customers.Add(new Customer { SellerId = seller.Id, Name = "Sara Khan", Phone = "03001112222", City = "Lahore" });
+        var ali = new Customer { SellerId = seller.Id, Name = "Sara Ali", Phone = "03003334444", City = "Karachi" };
+        db.Customers.Add(ali);
+        db.Products.Add(new Product { SellerId = seller.Id, Name = "Kurti", Price = 1800 });
+        await db.SaveChangesAsync();
+        const string msg = "Sara ko 2 Kurti bhej do";
+        Plans(msg, Steps(new PlanStep("draft_order", new Dictionary<string, string> { ["customer_name"] = "Sara" }, new[] { new PlanItem(null, "Kurti", 2) })));
+        // the seller's answer is read with the request: the planner now sees the full name
+        Plans($"{msg}. Sara Ali", Steps(new PlanStep("draft_order", new Dictionary<string, string> { ["customer_id"] = ali.Id.ToString() }, new[] { new PlanItem(null, "Kurti", 2) })));
+        var engine = Engine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, msg, default);
+        Assert.Contains("Sara Ali (Karachi)", Said);
+        Assert.Equal(0, await db.Orders.CountAsync());
+
+        await engine.HandleIncomingMessageAsync(Phone, "Sara Ali", default);
+        Assert.Contains("Sara Ali", Said);
+        Assert.Equal(ConversationState.AwaitingOrderConfirmation, (await db.Sellers.Include(s => s.Session).AsNoTracking().FirstAsync()).Session!.State);
+    }
+
+    [Fact]
     public async Task APlanBelowTheConfidenceBar_IsIgnored()
     {
         using var db = _dbFactory.CreateContext();
