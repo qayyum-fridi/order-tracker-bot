@@ -127,4 +127,36 @@ public class AgentLiveEngineTests(ITestOutputHelper output)
         Assert.Contains("200", reply);
         Assert.Contains("500", reply);
     }
+
+    [LocalOnlyFact("OTB_AGENT_LIVE")]
+    public async Task Live_AnOrderForASavedCustomer_UsesHerPhone_WithoutAskingAgain()
+    {
+        var key = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+        Assert.False(string.IsNullOrWhiteSpace(key), "OPENAI_API_KEY is needed.");
+        using var factory = new TestDbContextFactory();
+        using var db = factory.CreateContext();
+        var seller = await SeedAsync(db);
+        db.Customers.Add(new Customer { SellerId = seller.Id, Name = "Sara Khan", Phone = "03001112222", City = "Lahore" });
+        db.Customers.Add(new Customer { SellerId = seller.Id, Name = "Sara Ali", Phone = "03003334444", City = "Karachi" });
+        db.Products.Add(new Product { SellerId = seller.Id, Name = "Kurti white", Price = 1800 });
+        db.Products.Add(new Product { SellerId = seller.Id, Name = "Kurti black", Price = 1800 });
+        await db.SaveChangesAsync();
+        var said = new List<string>();
+        var sender = new Mock<IWhatsAppSender>();
+        sender.Setup(s => s.SendTextMessageAsync(Phone, It.IsAny<string>(), It.IsAny<CancellationToken>())).Callback<string, string, CancellationToken>((_, t, _) => said.Add(t)).Returns(Task.CompletedTask);
+        sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, b, _, _) => said.Add(b)).Returns(Task.CompletedTask);
+        var ai = new OpenAiOrderAssistant(new HttpClient { Timeout = TimeSpan.FromSeconds(90) }, Options.Create(new OpenAiOptions { ApiKey = key }),
+            NullLogger<OpenAiOrderAssistant>.Instance, Mock.Of<IIssueReporter>());
+        var engine = new ConversationEngine(db, ai, sender.Object, Mock.Of<IFounderAlertNotifier>(), features: new FeatureOptions { ShortcutButtons = false, Agent = true });
+
+        await SendAsync(engine, db, sender, said, "Sara Ali ko 2 Kurti bhej do");
+        await SendAsync(engine, db, sender, said, "white wali");
+
+        // Verified: the saved customer's phone is used (no question), and the order waits for confirmation.
+        // Not verified here: the order reader picks a product for "Kurti" without asking which one when the names differ only by a word (open issue).
+        var session = (await db.Sellers.Include(s => s.Session).AsNoTracking().FirstAsync()).Session!;
+        Assert.Equal(ConversationState.AwaitingOrderConfirmation, session.State);
+        Assert.Contains("03003334444", string.Join("\n", said));
+    }
 }

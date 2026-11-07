@@ -480,6 +480,16 @@ public partial class ConversationEngine
             return;
         }
 
+        // No phone in the message, but the seller already has exactly one customer with this exact name: that customer's phone is used (seen live: "Sara Ali ko 2 Kurti"
+        // asked for her number again). Two customers with the same name are not guessed: the phone is still asked.
+        if (string.IsNullOrWhiteSpace(pending.Phone) && !pending.PaidInFull && !string.IsNullOrWhiteSpace(pending.CustomerName))
+        {
+            var savedPhones = await _db.Customers.AsNoTracking()
+                .Where(c => c.SellerId == seller.Id && c.DeletedAt == null && c.Name.ToLower() == pending.CustomerName.Trim().ToLower() && c.Phone != null)
+                .Select(c => c.Phone).Take(2).ToListAsync(ct);
+            if (savedPhones.Count == 1 && savedPhones[0] is { } savedPhone && IsPlausiblePhone(savedPhone)) pending.Phone = savedPhone;
+        }
+
         // A phone read from the message ("030011122": a digit short) is checked like one typed as an answer, instead of being saved as it is.
         string? badPhone = null;
         if (!pending.PaidInFull && !string.IsNullOrWhiteSpace(pending.Phone) && !IsPlausiblePhone(pending.Phone))

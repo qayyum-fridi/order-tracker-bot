@@ -342,6 +342,28 @@ public class AgentExecutorTests : IDisposable
     }
 
     [Fact]
+    public async Task AProductWithVariants_AsksWhich_AndTheAnswerCompletesTheOrder()
+    {
+        using var db = _dbFactory.CreateContext();
+        var seller = await SeedAsync(db);
+        db.Customers.Add(new Customer { SellerId = seller.Id, Name = "Sara", Phone = "03001112222" });
+        db.Products.Add(new Product { SellerId = seller.Id, Name = "Kurti white", Price = 1800 });
+        db.Products.Add(new Product { SellerId = seller.Id, Name = "Kurti black", Price = 1800 });
+        await db.SaveChangesAsync();
+        const string msg = "Sara ko Kurti dedo";
+        Plans(msg, Steps(new PlanStep("draft_order", new Dictionary<string, string> { ["customer_name"] = "Sara" }, new[] { new PlanItem(null, "Kurti", 1) })));
+        Plans($"{msg}. white", Steps(new PlanStep("draft_order", new Dictionary<string, string> { ["customer_name"] = "Sara" }, new[] { new PlanItem(null, "Kurti white", 1) })));
+        var engine = Engine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, msg, default);
+        Assert.Contains("Kurti white", Said);
+        Assert.Equal(0, await db.Orders.CountAsync());
+
+        await engine.HandleIncomingMessageAsync(Phone, "white", default);
+        Assert.Equal(ConversationState.AwaitingOrderConfirmation, (await db.Sellers.Include(s => s.Session).AsNoTracking().FirstAsync()).Session!.State);
+    }
+
+    [Fact]
     public async Task APlanBelowTheConfidenceBar_IsIgnored()
     {
         using var db = _dbFactory.CreateContext();
