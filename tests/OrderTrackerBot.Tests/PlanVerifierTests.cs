@@ -124,6 +124,36 @@ public sealed class PlanVerifierTests : IDisposable
     }
 
     [Fact]
+    public async Task EditProduct_AValueFiledUnderTheWrongField_MovesToTheFieldTheOwnerNamed()
+    {
+        var kurti = AddProduct("Kurti", 1800);
+        var moved = await VerifyAsync("Kurti ki cost 900 hai", Step("edit_product", new() { ["product_id"] = kurti.Id.ToString(), ["price"] = "900" }));
+        Assert.Equal(StepVerdict.Confirm, moved.Steps[0].Verdict);
+        Assert.Equal("900", moved.Steps[0].Step.Args["cost"]);
+        Assert.False(moved.Steps[0].Step.Args.ContainsKey("price"));
+    }
+
+    [Fact]
+    public async Task EditProduct_SoldOut_IsStockZeroWhenTheOwnerSaysSo()
+    {
+        var kurti = AddProduct("Kurti", 1800);
+        var soldOut = await VerifyAsync("kurti khatam ho gayi hai", Step("edit_product", new() { ["product_id"] = kurti.Id.ToString(), ["stock"] = "0" }));
+        Assert.Equal(StepVerdict.Confirm, soldOut.Steps[0].Verdict);
+
+        var unsaid = await VerifyAsync("kurti ka rate badal do", Step("edit_product", new() { ["product_id"] = kurti.Id.ToString(), ["stock"] = "0" }));
+        Assert.Equal("stock_not_said", unsaid.Steps[0].Reason);   // zero without a sold-out word is still not said
+    }
+
+    [Fact]
+    public async Task EditProduct_SoldOut_WithTheStoredPriceAlsoCopied_IsStillSoldOut()
+    {
+        // Seen live: "kurti khatam ho gayi hai" came back as price=1800 (the stored price) + stock=0 and was rejected.
+        var kurti = AddProduct("Kurti", 1800);
+        var plan = await VerifyAsync("kurti khatam ho gayi hai", Step("edit_product", new() { ["product_id"] = kurti.Id.ToString(), ["price"] = "1800", ["stock"] = "0" }));
+        Assert.Equal((StepVerdict.Confirm, "edits_existing_product"), (plan.Steps[0].Verdict, plan.Steps[0].Reason));
+    }
+
+    [Fact]
     public async Task EditProduct_AnUnsaidValueEqualToTheStoredOne_IsDroppedNotRejected()
     {
         // Seen live: "Kurti ki cost 900 hai" came back as price=1800 (the catalog price) + cost=900.
@@ -147,6 +177,94 @@ public sealed class PlanVerifierTests : IDisposable
         // a value the seller did say stays even when it equals the stored one
         var said = await VerifyAsync("Kurti ka price 1800 hi rakhna", Step("edit_product", new() { ["product_id"] = kurti.Id.ToString(), ["price"] = "1800" }));
         Assert.Equal(StepVerdict.Confirm, said.Steps[0].Verdict);
+    }
+
+    [Theory]
+    [InlineData("Kurti ki cost 900 hai", "price", "field_unclear")]                 // said cost, plan edits price: moves to cost
+    [InlineData("kurti ki lagat 900 hai", "price", "field_unclear")]
+    [InlineData("Kurti ka price 900 kar do", "cost", "field_unclear")]               // said price, plan edits cost
+    [InlineData("Kurti ka rate 900 kar do", "cost", "field_unclear")]
+    [InlineData("Kurti ki cost 900 hai", "cost", null)]                              // right field
+    [InlineData("Kurti ka price 900 kar do", "price", null)]
+    [InlineData("Kurti 900 kar do", "price", null)]                                  // names no field: nothing to contradict
+    [InlineData("Kurti ki cost 900 aur price 1800", "price", null)]                  // names both
+    public async Task EditProduct_TheFieldTheMessageNames_MustBeTheFieldThePlanEdits(string message, string field, string? reason)
+    {
+        var kurti = AddProduct("Kurti", 1800);
+        var plan = await VerifyAsync(message, Step("edit_product", new() { ["product_id"] = kurti.Id.ToString(), [field] = field == "price" && message.Contains("1800") ? "1800" : "900" }));
+
+        if (reason is null)
+        {
+            Assert.Equal(StepVerdict.Confirm, plan.Steps[0].Verdict);
+            return;
+        }
+        // the owner named the other field: the value moves there (a Confirm), instead of a question
+        var named = field == "price" ? "cost" : "price";
+        Assert.Equal(StepVerdict.Confirm, plan.Steps[0].Verdict);
+        Assert.True(plan.Steps[0].Step.Args.ContainsKey(named));
+        Assert.False(plan.Steps[0].Step.Args.ContainsKey(field));
+    }
+
+    [Theory]
+    [InlineData("Kurti ka rate 100 barha do")]          // "increase by 100": 100 is the change, not the price
+    [InlineData("kurti ka price 300 kam kar do")]
+    [InlineData("Kurti sasta kar do")]
+    [InlineData("kurti ki cost 100 zyada")]
+    public async Task EditProduct_AChangeWordedAsAnAmountOff_AsksForTheExactValue(string message)
+    {
+        // Seen live: "Kurti ka rate 100 barha do" was planned as price=100 and would have been a Confirm.
+        var kurti = AddProduct("Kurti", 1800);
+        var plan = await VerifyAsync(message, Step("edit_product", new() { ["product_id"] = kurti.Id.ToString(), ["price"] = "100" }));
+
+        Assert.Equal((StepVerdict.Ask, "relative_change"), (plan.Steps[0].Verdict, plan.Steps[0].Reason));
+    }
+
+    [Fact]
+    public async Task DraftOrder_ATitleLikeMadam_AsksForTheCustomerInsteadOfCreatingOne()
+    {
+        // Seen live: "madam ne kaha 2 kurti aur chahiye" created a new customer called "madam".
+        AddProduct("Kurti");
+        var plan = await VerifyAsync("madam ne kaha 2 kurti aur chahiye", Step("draft_order", new() { ["customer_name"] = "madam" }, new PlanItem(null, "Kurti", 2)));
+        Assert.Equal((StepVerdict.Ask, "customer_missing"), (plan.Steps[0].Verdict, plan.Steps[0].Reason));
+    }
+
+    [Fact]
+    public async Task DraftOrder_DeliveryAndAdvanceAreMoneyTheOwnerSaid_OrRejected()
+    {
+        AddCustomer("Bilal");
+        AddProduct("Kurti");
+        var said = await VerifyAsync("Bilal ko 2 Kurti, delivery 200, advance 500", Step("draft_order", new() { ["customer_name"] = "Bilal", ["delivery"] = "200", ["advance"] = "500" }, new PlanItem(null, "Kurti", 2)));
+        Assert.Equal(StepVerdict.Run, said.Steps[0].Verdict);
+
+        var invented = await VerifyAsync("Bilal ko 2 Kurti", Step("draft_order", new() { ["customer_name"] = "Bilal", ["delivery"] = "200" }, new PlanItem(null, "Kurti", 2)));
+        Assert.Equal("delivery_not_said", invented.Steps[0].Reason);
+    }
+
+    [Fact]
+    public async Task DraftOrder_WithMoney_CompilesOneSentenceThatKeepsThePhoneAddressDeliveryAndAdvance()
+    {
+        // The order reader asks for a phone when the sentence has none; a saved customer's phone is written into it, so the reader does not ask (seen live).
+        var bilal = new Customer { SellerId = _seller.Id, Name = "Bilal", Phone = "03005556666" };
+        _db.Customers.Add(bilal);
+        _db.SaveChanges();
+        AddProduct("Kurti");
+        var plan = await VerifyAsync("Bilal ko 2 Kurti, delivery 200, advance 500, address Model Town", Step("draft_order",
+            new() { ["customer_id"] = bilal.Id.ToString(), ["delivery"] = "200", ["advance"] = "500", ["address"] = "Model Town" }, new PlanItem(null, "Kurti", 2)));
+        var compiled = await new AgentStepCompiler(_db).CompileAsync(_seller, plan, default);
+
+        var text = Assert.Single(compiled.Steps).Text;
+        Assert.Equal("Bilal ko 2 Kurti, phone 03005556666, delivery 200, advance 500, address Model Town", text);
+    }
+
+    [Fact]
+    public async Task DraftOrder_EkDozenIsTwelve_WithoutTheDigitBeingWritten()
+    {
+        AddCustomer("Bilal");
+        AddProduct("Kurti");
+        var plan = await VerifyAsync("ek dozen kurti Bilal ko bhej do", Step("draft_order", new() { ["customer_name"] = "Bilal" }, new PlanItem(null, "Kurti", 12)));
+        Assert.Equal(StepVerdict.Run, plan.Steps[0].Verdict);
+        var noWord = await VerifyAsync("12 kurti Bilal ko", Step("draft_order", new() { ["customer_name"] = "Bilal" }, new PlanItem(null, "Kurti", 12)));
+        Assert.Equal(StepVerdict.Run, noWord.Steps[0].Verdict);
     }
 
     [Fact]
@@ -258,6 +376,26 @@ public sealed class PlanVerifierTests : IDisposable
 
         var nobody = await VerifyAsync("2 Kurti ka order", Step("draft_order", null, new PlanItem(null, "Kurti", 2)));
         Assert.Equal("customer_missing", nobody.Steps[0].Reason);
+    }
+
+    [Fact]
+    public async Task DraftOrder_ANameInUrduScriptThatMatchedNobody_AsksInsteadOfCreatingACustomer()
+    {
+        // Seen in a stress run: "بلال کو دو کرتی بھیج دیں" planned a NEW customer "بلال" although Bilal is saved in Roman script.
+        var bilal = AddCustomer("Bilal", "Multan");
+        AddProduct("Kurti");
+        var ask = await VerifyAsync("بلال کو دو کرتی بھیج دیں", Step("draft_order", new() { ["customer_name"] = "بلال" }, new PlanItem(null, "Kurti", 2)));
+        Assert.Equal((StepVerdict.Ask, "ambiguous_customer"), (ask.Steps[0].Verdict, ask.Steps[0].Reason));
+        Assert.Contains("Bilal (Multan)", ask.Steps[0].Choices!);
+
+        // the model that matched him by sound and used his id just runs
+        var byId = await VerifyAsync("بلال کو دو کرتی بھیج دیں", Step("draft_order", new() { ["customer_id"] = bilal.Id.ToString() }, new PlanItem(null, "Kurti", 2)));
+        Assert.Equal(StepVerdict.Run, byId.Steps[0].Verdict);
+        Assert.Equal(bilal.Id, byId.Steps[0].CustomerId);
+
+        // a Roman-script name nobody has is still a new customer
+        var fresh = await VerifyAsync("Zainab ko 2 Kurti", Step("draft_order", new() { ["customer_name"] = "Zainab" }, new PlanItem(null, "Kurti", 2)));
+        Assert.Equal("new_customer", fresh.Steps[0].Reason);
     }
 
     [Fact]

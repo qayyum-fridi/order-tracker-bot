@@ -79,19 +79,32 @@ public sealed class AgentStepCompiler
         var items = verified.Items ?? Array.Empty<ResolvedItem>();
         if (items.Count == 0) return null;
         var itemsText = string.Join(", ", items.Select(i => $"{i.Name} {i.Quantity}"));
+        var args = verified.Step.Args;
+
+        // Delivery, advance and address are written into the order sentence, which the order reader reads ("..., delivery 200", "..., advance 500").
+        // A saved customer's phone is written too: without it the reader asks for the phone (seen live).
+        var money = (args.TryGetValue("delivery", out var d) ? $", delivery {Num(d)}" : "")
+                  + (args.TryGetValue("advance", out var a) ? $", advance {Num(a)}" : "")
+                  + (args.TryGetValue("address", out var addr) && addr.Length > 0 ? $", address {addr}" : "");
 
         if (verified.CustomerId is { } customerId)
         {
-            var name = await _db.Customers.AsNoTracking().Where(c => c.Id == customerId && c.SellerId == seller.Id && c.DeletedAt == null)
-                .Select(c => c.Name).FirstOrDefaultAsync(ct);
-            if (name is null) return null;
+            var customer = await _db.Customers.AsNoTracking().Where(c => c.Id == customerId && c.SellerId == seller.Id && c.DeletedAt == null)
+                .Select(c => new { c.Name, c.Phone }).FirstOrDefaultAsync(ct);
+            if (customer is null) return null;
+            if (money.Length > 0)
+            {
+                var phone = string.IsNullOrWhiteSpace(customer.Phone) ? "" : $", phone {customer.Phone}";
+                return new List<string> { $"{customer.Name} ko {string.Join(", ", items.Select(i => $"{i.Quantity} {i.Name}"))}{phone}{money}" };
+            }
             // The saved customer's phone and address are filled in by "order for"; the next message is read as her items (plain code, no AI).
-            return new List<string> { $"order for {name}", itemsText };
+            return new List<string> { $"order for {customer.Name}", itemsText };
         }
 
         // A new customer: the ordinary order sentence, read by the normal order reader, which asks for the phone.
-        var customerName = verified.Step.Args.GetValueOrDefault("customer_name")?.Trim();
+        var customerName = args.GetValueOrDefault("customer_name")?.Trim();
         if (string.IsNullOrEmpty(customerName)) return null;
-        return new List<string> { $"{customerName} ko {string.Join(", ", items.Select(i => $"{i.Quantity} {i.Name}"))}" };
+        var newPhone = args.TryGetValue("phone", out var typedPhone) && typedPhone.Length > 0 ? $", phone {typedPhone}" : "";
+        return new List<string> { $"{customerName} ko {string.Join(", ", items.Select(i => $"{i.Quantity} {i.Name}"))}{newPhone}{money}" };
     }
 }

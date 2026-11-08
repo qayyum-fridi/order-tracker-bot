@@ -6,5 +6,7 @@
   "agent.005": "✅ {0} products save ho gaye.",
   "agent.006": "✅ Theek hai. {0} products save hue.",
   "agent.007": "➡️ Samjha: {0}",
-  "agent.008": "ℹ️ Theek hai, ek ek karke bhejein: Name - price. Khatam hone par \"done\" likhein."
+  "agent.008": "ℹ️ Theek hai, ek ek karke bhejein: Name - price. Khatam hone par \"done\" likhein.",
+  "agent.009": "ℹ️ Barae meherbani batayein: price badalni hai ya cost? Jaise: Kurti - 1800 (price) ya Kurti - 1800, cost 900 (cost).",
+  "agent.010": "ℹ️ Naya price ya cost pura likhein, jaise: Kurti - 1900. \"Barha do\" ya \"kam kar do\" se sahi rakam pata nahi chalti."
 }

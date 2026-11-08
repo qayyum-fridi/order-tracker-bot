@@ -17,8 +17,21 @@ public partial class ConversationEngine
     /// <summary>How long "I will send them one by one" stays open without another matching message.</summary>
     private static readonly TimeSpan AgentAwaitingWindow = TimeSpan.FromMinutes(10);
 
+    /// <summary>
+    /// The seller answers the planner's question ("3000" after "Shawl add karo"): the answer is read together with the request it completes. Only inside the
+    /// same 10-minute window; a real command in the answer drops the request and runs as usual.
+    /// </summary>
+    private async Task<bool> TryResumeAgentPendingAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
+    {
+        if (ctx.AgentPending is not { } pending) return false;
+        ctx.AgentPending = null;
+        await PersistAsync(session, ctx, ct);
+        if (!_features.Agent || DateTime.UtcNow - pending.At > AgentAwaitingWindow || CommandParser.TryParse(message) is not null) return false;
+        return await TryPlanAgentAsync(seller, session, ctx, $"{pending.Message}. {message}", ct);
+    }
+
     /// <summary>A plan ready to run after the current turn: steps to run now, steps that wait for YES, and the step that could not be decided.</summary>
-    private sealed record AgentRun(IReadOnlyList<string> Now, IReadOnlyList<string> Later, VerifiedStep? Stop, string Heard);
+    private sealed record AgentRun(IReadOnlyList<string> Now, IReadOnlyList<string> Later, VerifiedStep? Stop, string Heard, string Message);
 
     private AgentRun? _agentRun;
 
@@ -32,6 +45,8 @@ public partial class ConversationEngine
         var context = await new SellerContextBuilder(_db).BuildAsync(seller, message, ct);
         var plan = await _ai.PlanAsync(message, context.Render(), AgentTools.All, ct);
         if (plan is null || plan.Confidence < MinPlanConfidence) return false;
+        // No tool needs anything from the owner: a question here would be the planner answering or asking about something it cannot do (seen live: "Ali ne paisay bhej diye" -> "Ali ka phone number?").
+        if (plan.Steps.Count == 0 && plan.Awaiting is null && plan.MissingFor == "none") return false;
 
         // "3 products add karne hain, ek ek karke bhejta hun": remember it, and ask for the first one. Only when nothing else is planned: a model that
         // plans a step AND an "awaiting" is repeating a missing-detail question (seen live), and would ask for a price the seller already gave.
@@ -44,6 +59,12 @@ public partial class ConversationEngine
         if (plan.Steps.Count == 0)
         {
             if (plan.Question is null && ctx.AgentAwaiting is null) return false;
+            // A question about a missing detail keeps the request, so the seller's answer completes it (see TryResumeAgentPendingAsync).
+            if (plan.Question is not null && plan.Awaiting is null)
+            {
+                ctx.AgentPending = new AgentPendingData { Message = message, Question = plan.Question, At = DateTime.UtcNow };
+                await PersistAsync(session, ctx, ct);
+            }
             await ReplyAsync(seller, plan.Question ?? MessageTemplates.Get("agent.008"), ct);
             return true;
         }
@@ -56,7 +77,7 @@ public partial class ConversationEngine
         if (now.Count == 0 && later.Count == 0 && compiled.Stop is null) return false;
 
         var heard = MessageTemplates.Get("agent.007", string.Join("  →  ", now.Concat(later).Select(s => $"\"{s}\"")));
-        _agentRun = new AgentRun(now, later, compiled.Stop, heard);
+        _agentRun = new AgentRun(now, later, compiled.Stop, heard, message);
         return true;
     }
 
@@ -85,7 +106,18 @@ public partial class ConversationEngine
             else await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("voice-confirm.005"), ct);
             return;
         }
-        if (run.Stop is { } stop) await ReplyAsync(seller, AgentStopText(stop), ct);
+        if (run.Stop is { } stop)
+        {
+            await ReplyAsync(seller, AgentStopText(stop), ct);
+            // A question (not a refusal): keep the request, so the seller's answer completes it instead of starting over.
+            if (stop.Verdict == StepVerdict.Ask)
+            {
+                var session = seller.Session!;
+                var ctx = SessionContextData.FromJson(session.ContextJson);
+                ctx.AgentPending = new AgentPendingData { Message = run.Message, Question = AgentStopText(stop), At = DateTime.UtcNow };
+                await PersistAsync(session, ctx, ct);
+            }
+        }
     }
 
     private static string AgentStopText(VerifiedStep stop) => stop.Reason switch
@@ -93,6 +125,8 @@ public partial class ConversationEngine
         "ambiguous_customer" or "ambiguous_product" => MessageTemplates.Get("agent.001", string.Join(", ", stop.Choices ?? Array.Empty<string>())),
         "price_missing" => MessageTemplates.Get("agent.003"),
         "customer_missing" => MessageTemplates.Get("agent.004"),
+        "field_unclear" => MessageTemplates.Get("agent.009"),
+        "relative_change" => MessageTemplates.Get("agent.010"),
         _ => MessageTemplates.Get("agent.002"),
     };
 

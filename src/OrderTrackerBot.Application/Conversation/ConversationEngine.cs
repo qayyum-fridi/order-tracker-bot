@@ -539,6 +539,7 @@ public partial class ConversationEngine
 
         if (await TryHandlePictureLabelAsync(seller, session, ctx, message, ct)) return;
         if (await TryHandleAgentAwaitingAsync(seller, session, ctx, message, ct)) return;
+        if (await TryResumeAgentPendingAsync(seller, session, ctx, message, ct)) return;
         if (await TryHandleOrderForCustomerItemsAsync(seller, session, ctx, message, ct)) return;
         if (await TryHandleItemsOnlyAsync(seller, session, ctx, message, ct)) return;
         if (await TryHandleBackReferenceOrderAsync(seller, ctx, message, ct)) return;

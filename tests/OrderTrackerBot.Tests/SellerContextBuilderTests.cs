@@ -102,6 +102,20 @@ public sealed class SellerContextBuilderTests : IDisposable
     }
 
     [Fact]
+    public async Task AMessageInUrduScript_ListsTheRecentCustomers_BecauseNamesCannotBeRankedAcrossScripts()
+    {
+        var bilal = AddCustomer("Bilal", "Multan");
+        AddCustomer("Sara Khan", "Lahore");
+
+        var urdu = await _builder.BuildAsync(_seller, "بلال کو دو کرتی بھیج دیں", default);
+        Assert.Contains(urdu.Customers, c => c.Id == bilal.Id);
+        Assert.All(urdu.Customers, c => Assert.Equal(0, c.Score));            // listed for the model to match by sound, not because the words matched
+
+        var roman = await _builder.BuildAsync(_seller, "aaj ka hisaab", default);
+        Assert.Empty(roman.Customers);                                         // a Roman-script message still lists only who it names
+    }
+
+    [Fact]
     public async Task Habits_NeedAClearMajority_AndAtLeastThreeOrders()
     {
         var c = AddCustomer("Sara");

@@ -6,5 +6,7 @@
   "agent.005": "✅ {0} products saved.",
   "agent.006": "✅ Okay. {0} products saved.",
   "agent.007": "➡️ Understood: {0}",
-  "agent.008": "ℹ️ Okay, send them one by one: Name - price. Write \"done\" when you have finished."
+  "agent.008": "ℹ️ Okay, send them one by one: Name - price. Write \"done\" when you have finished.",
+  "agent.009": "ℹ️ Please tell me: do you want to change the price or the cost? For example: Kurti - 1800 (price) or Kurti - 1800, cost 900 (cost).",
+  "agent.010": "ℹ️ Please write the exact new price, for example: Kurti - 1900. I cannot tell the exact amount from \"increase\" or \"reduce\"."
 }

@@ -82,6 +82,10 @@ public sealed class SellerContextBuilder
             .Select(c => (c.Id, c.Name, c.City, Score: MatchScore(words, c.Name)))
             .Where(c => c.Score > 0)                                         // a customer is only listed when the message names them
             .OrderByDescending(c => c.Score).Take(MaxCustomers).ToList();
+        // A message in Urdu script cannot be ranked against names saved in Roman script ("بلال" and "Bilal" share no letter), so nothing would be listed and the model would
+        // plan a NEW customer. List the most recent customers instead (score 0) and let the model match them by sound; the verifier still checks the id it picks.
+        if (ranked.Count == 0 && HasArabicScript(message))
+            ranked = customers.Take(MaxCustomers * 3).Select(c => (c.Id, c.Name, c.City, Score: 0.0)).ToList();
         var customerHits = new List<CustomerHit>();
         foreach (var c in ranked)
             customerHits.Add(await CustomerHitAsync(seller.Id, c.Id, c.Name, c.City, c.Score, ct));
@@ -137,6 +141,9 @@ public sealed class SellerContextBuilder
         var top = list.GroupBy(v => v).OrderByDescending(g => g.Count()).First();
         return top.Count() * 2 > list.Count ? top.Key : null;
     }
+
+    /// <summary>True when the text has Urdu / Arabic-script letters (U+0600-U+06FF).</summary>
+    internal static bool HasArabicScript(string text) => text.Any(ch => ch is >= '\u0600' and <= '\u06FF');
 
     internal static List<string> Words(string message) =>
         message.ToLowerInvariant()
