@@ -93,6 +93,8 @@ public sealed class PlanVerifier
                 "add_product" => VerifyAddProduct(step, message, said),
                 "edit_product" => await VerifyEditProductAsync(seller, step, context, message, said, ct),
                 "draft_order" => await VerifyDraftOrderAsync(seller, step, context, message, said, addedNames, ct),
+                "add_expense" => VerifyAddExpense(step, message, said),
+                "add_customer" => await VerifyAddCustomerAsync(seller, step, message, ct),
                 _ => new VerifiedStep(step, StepVerdict.Reject, "unknown_tool"),
             };
             if (verified.Verdict != StepVerdict.Reject && step.Tool == "add_product" && step.Args.TryGetValue("name", out var added))
@@ -249,6 +251,30 @@ public sealed class PlanVerifier
         var myWords = SellerContextBuilder.Words(me.Name);
         var rivals = scored.Where(h => h.Id != chosen && h.Score >= me.Score && SellerContextBuilder.Words(h.Name).Any(myWords.Contains)).ToList();
         return rivals.Count == 0 ? null : new[] { me }.Concat(rivals).Select(h => h.Label).ToList();
+    }
+
+    private static VerifiedStep VerifyAddExpense(PlanStep step, string message, IReadOnlySet<long> said)
+    {
+        var note = step.Args.GetValueOrDefault("note")?.Trim() ?? "";
+        if (note.Length is 0 or > 80 || !note.Any(char.IsLetter)) return new VerifiedStep(step, StepVerdict.Reject, "bad_note");
+        if (!step.Args.ContainsKey("amount")) return new VerifiedStep(step, StepVerdict.Ask, "amount_missing");
+        if (AmountProblem(step, new[] { "amount" }, message, said) is { } problem) return new VerifiedStep(step, StepVerdict.Reject, problem);
+        return new VerifiedStep(step, StepVerdict.Run);
+    }
+
+    private async Task<VerifiedStep> VerifyAddCustomerAsync(Seller seller, PlanStep step, string message, CancellationToken ct)
+    {
+        var name = step.Args.GetValueOrDefault("name")?.Trim() ?? "";
+        if (name.Length is 0 or > 60 || !name.Any(char.IsLetter) || name.Any(char.IsDigit)) return new VerifiedStep(step, StepVerdict.Reject, "bad_name");
+        if (step.Args.TryGetValue("phone", out var phone))
+        {
+            if (!ConversationEngine.IsPlausiblePhone(phone)) return new VerifiedStep(step, StepVerdict.Reject, "phone_invalid");
+            var digits = new string(phone.Where(char.IsDigit).ToArray());
+            if (!new string(message.Where(char.IsDigit).ToArray()).Contains(digits, StringComparison.Ordinal)) return new VerifiedStep(step, StepVerdict.Reject, "phone_not_said");
+        }
+        if (await _db.Customers.AnyAsync(c => c.SellerId == seller.Id && c.DeletedAt == null && c.Name.ToLower() == name.ToLower(), ct))
+            return new VerifiedStep(step, StepVerdict.Reject, "customer_exists");
+        return new VerifiedStep(step, StepVerdict.Run);
     }
 
     private static bool TryId(PlanStep step, string arg, out int id)

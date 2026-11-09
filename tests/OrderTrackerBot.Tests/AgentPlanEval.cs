@@ -61,8 +61,11 @@ public class AgentPlanEval
         // found by the stress set: a name in another script, a question the planner must not answer, an expense it has no tool for, a self-correction in an add
         new("script", "بلال کو دو کرتی بھیج دیں", new[] { Order }, new[] { new[] { "Bilal/customer_id=3", "Kurti x2" } }, Not: new[] { "customer_name=بلال" }, Verdicts: Run1),
         new("not-a-plan", "Kurti ka price kya hai", NoTools, NoPlan: true),
-        new("not-a-plan", "kal Sara ne 500 ka kharcha kiya packaging pe", NoTools, NoPlan: true),
+        new("not-a-plan", "Ali ne paisay bhej diye", NoTools, NoPlan: true),
         new("self-correction", "Hat 100 nahi 120 ka add karo", new[] { Add }, new[] { new[] { "name=Hat", "price=120" } }, Not: new[] { "price=100" }),
+        // the three tools added after the first eval
+        new("expense", "petrol 500 ka kharcha hua", new[] { "add_expense" }, new[] { new[] { "amount=500", "note=petrol" } }, Verdicts: Run1),
+        new("customer", "Zainab ko save karo, Model Town, 03001234567", new[] { "add_customer" }, new[] { new[] { "name=Zainab", "phone=03001234567" } }, Verdicts: Run1),
         // two customers called Sara: the plan may name her or ask, but must not pick one
         new("ambiguous", "Sara ko 2 Kurti bhej do", NoTools, NoSteps: true, OrAsk: true),
         // several tasks in one message, in order

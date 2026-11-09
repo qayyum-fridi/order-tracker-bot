@@ -364,6 +364,37 @@ public class AgentExecutorTests : IDisposable
     }
 
     [Fact]
+    public async Task ANewExpense_IsSavedAtOnce_AndTheAmountMustBeSaid()
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+        const string msg = "petrol 500 ka kharcha hua";
+        Plans(msg, Steps(new PlanStep("add_expense", new Dictionary<string, string> { ["amount"] = "500", ["note"] = "petrol" }, Array.Empty<PlanItem>())));
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, msg, default);
+
+        Assert.Equal(1, await db.Expenses.CountAsync());
+        Assert.Equal(500m, (await db.Expenses.AsNoTracking().FirstAsync()).Amount);
+    }
+
+    [Fact]
+    public async Task ANewCustomer_IsSaved_AndAnExistingNameIsNotSavedTwice()
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+        const string msg = "Zainab ko save karo, Model Town mein rehti hai, 03001234567";
+        Plans(msg, Steps(new PlanStep("add_customer", new Dictionary<string, string> { ["name"] = "Zainab", ["address"] = "Model Town", ["phone"] = "03001234567" }, Array.Empty<PlanItem>())));
+        var engine = Engine(db);
+
+        await engine.HandleIncomingMessageAsync(Phone, msg, default);
+        Assert.Equal(1, await db.Customers.CountAsync(c => c.Name == "Zainab"));
+
+        Plans("Zainab ko dobara save karo", Steps(new PlanStep("add_customer", new Dictionary<string, string> { ["name"] = "Zainab" }, Array.Empty<PlanItem>())));
+        await engine.HandleIncomingMessageAsync(Phone, "Zainab ko dobara save karo", default);
+        Assert.Equal(1, await db.Customers.CountAsync(c => c.Name == "Zainab"));
+    }
+
+    [Fact]
     public async Task APlanBelowTheConfidenceBar_IsIgnored()
     {
         using var db = _dbFactory.CreateContext();

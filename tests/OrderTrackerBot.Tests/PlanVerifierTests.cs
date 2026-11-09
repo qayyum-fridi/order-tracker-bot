@@ -133,6 +133,35 @@ public sealed class PlanVerifierTests : IDisposable
         Assert.False(moved.Steps[0].Step.Args.ContainsKey("price"));
     }
 
+    [Theory]
+    [InlineData("expense 500 petrol")]
+    [InlineData("customer add Zainab, Model Town, 03001234567")]
+    [InlineData("customer add Zainab, 03001234567")]
+    [InlineData("customer add Zainab")]
+    public void EveryLineTheNewToolsWrite_ParsesAsItsCommand(string line) =>
+        Assert.NotNull(OrderTrackerBot.Application.Conversation.CommandParser.TryParse(line));
+
+    [Fact]
+    public async Task NewTools_CompileToTheCommandsTheParserReads()
+    {
+        var kurti = AddProduct("Kurti");
+        var expense = (await VerifyAsync("petrol 500", Step("add_expense", new() { ["amount"] = "500", ["note"] = "petrol" }))).Steps[0];
+        var customer = (await VerifyAsync("Zainab, Model Town, 03001234567", Step("add_customer", new() { ["name"] = "Zainab", ["address"] = "Model Town", ["phone"] = "03001234567" }))).Steps[0];
+
+        var compiled = await new AgentStepCompiler(_db).CompileAsync(_seller, new VerifiedPlan(new List<VerifiedStep> { expense, customer }), default);
+
+        Assert.Equal(new[] { "expense 500 petrol", "customer add Zainab, Model Town, 03001234567" }, compiled.Steps.Select(c => c.Text));
+        Assert.Equal(OrderTrackerBot.Application.Conversation.CommandKind.Expense, OrderTrackerBot.Application.Conversation.CommandParser.TryParse("expense 500 petrol")!.Kind);
+        Assert.Equal(OrderTrackerBot.Application.Conversation.CommandKind.CustomerAdd, OrderTrackerBot.Application.Conversation.CommandParser.TryParse("customer add Zainab, Model Town, 03001234567")!.Kind);
+    }
+
+    [Fact]
+    public async Task AddCustomer_PhoneTheMessageDoesNotContain_IsRejected()
+    {
+        var plan = await VerifyAsync("Zainab ko save karo", Step("add_customer", new() { ["name"] = "Zainab", ["phone"] = "03001234567" }));
+        Assert.Equal("phone_not_said", plan.Steps[0].Reason);
+    }
+
     [Fact]
     public async Task EditProduct_SoldOut_IsStockZeroWhenTheOwnerSaysSo()
     {
