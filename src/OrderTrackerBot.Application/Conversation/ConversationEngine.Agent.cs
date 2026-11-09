@@ -1,4 +1,6 @@
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
+using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Agent;
 using OrderTrackerBot.Application.Templates;
 using OrderTrackerBot.Domain.Entities;
@@ -38,7 +40,30 @@ public partial class ConversationEngine
     private static readonly Regex AgentDoneWords = new(@"^\s*(?:done|bas|bas\s+ho\s+gaya|khatam|ho\s+gaya|finish(?:ed)?|that'?s\s+all|بس|ختم|ہو\s+گیا)\s*[.!]*\s*$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
+    /// <summary>
+    /// The planner is an extra path: if anything in it fails (a bad answer, a database error, a bug), the message goes the usual way and the failure is reported.
+    /// A seller's message is never lost to the planner. Cancellation is not swallowed.
+    /// </summary>
     private async Task<bool> TryPlanAgentAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
+    {
+        try
+        {
+            return await TryPlanAgentCoreAsync(seller, session, ctx, message, ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _agentRun = null;
+            _logger?.LogWarning(ex, "Planner failed; the message goes the usual way.");
+            if (_issues is not null) await _issues.ReportAsync(IssueCodes.AgentPlanFailed, seller.WhatsAppPhoneNumber, ex.GetType().Name, ex, ct);
+            return false;
+        }
+    }
+
+    private async Task<bool> TryPlanAgentCoreAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         if (!_features.Agent || !seller.OnboardingComplete || session.State != ConversationState.Idle) return false;
 

@@ -395,6 +395,24 @@ public class AgentExecutorTests : IDisposable
     }
 
     [Fact]
+    public async Task APlannerThatThrows_DoesNotLoseTheSellersMessage_AndIsReported()
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+        const string msg = "pehle Hat 100 ka add karo phir Cap 200 ka";
+        _ai.Setup(a => a.PlanAsync(msg, It.IsAny<string>(), It.IsAny<IReadOnlyList<AgentTool>>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("planner bug"));
+        var issues = new Mock<IIssueReporter>();
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, Mock.Of<IFounderAlertNotifier>(), issues: issues.Object,
+            features: new FeatureOptions { ShortcutButtons = false, Agent = true });
+
+        await engine.HandleIncomingMessageAsync(Phone, msg, default);
+
+        issues.Verify(i => i.ReportAsync(OrderTrackerBot.Application.Abstractions.IssueCodes.AgentPlanFailed, Phone, It.IsAny<string?>(), It.IsAny<Exception?>(), It.IsAny<CancellationToken>()), Times.Once);
+        Assert.DoesNotContain("planner bug", Said);   // the seller never sees the bug
+    }
+
+    [Fact]
     public async Task APlanBelowTheConfidenceBar_IsIgnored()
     {
         using var db = _dbFactory.CreateContext();
