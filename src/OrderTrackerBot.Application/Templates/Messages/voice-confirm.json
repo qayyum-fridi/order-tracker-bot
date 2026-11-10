@@ -5,6 +5,7 @@
   "voice-confirm.004": "⚠️ Order ka draft abhi khula hai, is liye yeh baqi steps abhi nahi chale: {0}. Draft Save ya Cancel karein to yeh chalenge.",
   "voice-confirm.005": "⚠️ Paise ya order badalne wale baqi steps abhi nahi chalaye, kyunki order ka draft khula hai. Unhe YES ke saath dobara bhejein.",
   "model-status.001": "❓ Order #{0} ka status {1} karein? Haan ke liye YES likhein, nahi ke liye NO.",
+  "model-amount.001": "❓ Maaf kijiye, rakam {0} mujhe saaf sunai/likhi nahi di. Barae meherbani dobara likhein ya bolein.",
   "voice-confirm.006": "⚠️ Yeh baat samajh nahi aayi, is liye nahi chalaayi gayi: \"{0}\"",
   "voice-confirm.007": "⚠️ Rakam awaaz mein saaf nahi suni gayi, is liye yeh baat nahi chalaayi gayi: \"{0}\". Rakam ke saath likh kar bhejein.",
   "voice-confirm.008": "⚠️ Maaf kijiye, main yeh baat theek se samajh nahi paya, is liye kuch nahi chalaya: \"{0}\". Barae meherbani dobara bolein, ya chhota sa jumla likh kar bhejein.",

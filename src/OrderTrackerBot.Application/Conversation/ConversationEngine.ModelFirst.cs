@@ -48,6 +48,14 @@ public partial class ConversationEngine
     private async Task<bool> RunTurnActionAsync(Seller seller, ConversationSession session, SessionContextData ctx, TurnAction action,
         List<CatalogEntry> catalog, string message, CancellationToken ct, bool fromScreenshot)
     {
+        // A price, cost or delivery charge the model returned must be a figure the seller actually said. Otherwise nothing runs; the seller is asked.
+        var unquoted = UnquotedAmounts(action, message);
+        if (unquoted.Count > 0)
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("model-amount.001", string.Join(", ", unquoted)), ct);
+            return true;
+        }
+
         switch (action.Action)
         {
             case TurnAction.CreateOrder when action.Orders.Count > 0:
@@ -96,6 +104,33 @@ public partial class ConversationEngine
             default:
                 return false;
         }
+    }
+
+    /// <summary>
+    /// The money figures the model returned (unit prices, delivery charges, product prices and costs) that the message does not contain, in digits or in words.
+    /// Quantities are not checked: a small count is often not written as an amount. Zero (free delivery) is not an amount to check.
+    /// </summary>
+    internal static IReadOnlyList<long> UnquotedAmounts(TurnAction action, string message)
+    {
+        var said = SpokenNumbers.Amounts(message);
+        var figures = new List<decimal>();
+        foreach (var order in action.Orders)
+        {
+            if (order.DeliveryCharge is { } delivery) figures.Add(delivery);
+            foreach (var item in order.Items)
+                if (item.StatedUnitPrice is { } unitPrice) figures.Add(unitPrice);
+        }
+        foreach (var product in action.Products)
+        {
+            if (product.Price is { } price) figures.Add(price);
+            if (product.Cost is { } cost) figures.Add(cost);
+        }
+        return figures
+            .Where(f => f > 0)
+            .Select(f => (long)Math.Round(f, MidpointRounding.AwayFromZero))
+            .Where(v => !said.Contains(v))
+            .Distinct()
+            .ToList();
     }
 
     /// <summary>The seller's answer to a status change the model picked: only YES runs it; anything else leaves the order as it was.</summary>

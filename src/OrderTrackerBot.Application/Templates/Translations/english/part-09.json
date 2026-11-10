@@ -134,6 +134,7 @@
   "voice-confirm.004": "⚠️ An order draft is open right now, so these remaining steps did not run: {0}. They will run once the draft is saved or cancelled.",
   "voice-confirm.005": "⚠️ The remaining steps that change money or an order were not run, because an order draft is open. Send them again with YES.",
   "model-status.001": "❓ Change order #{0} to {1}? Reply YES to confirm or NO to cancel.",
+  "model-amount.001": "❓ Sorry, I did not catch the amount {0} clearly. Please type or say it again.",
   "voice-confirm.006": "⚠️ This statement was not understood, so it was not run: \"{0}\"",
   "voice-confirm.007": "⚠️ The amount was not heard clearly in the voice note, so this statement was not run: \"{0}\". Send it in writing with the amount.",
   "voice-confirm.008": "⚠️ Sorry, I could not understand this properly, so nothing was run: \"{0}\". Please say it again, or send a short sentence in writing.",
