@@ -85,7 +85,8 @@ public class UnderstandingEval
             var action = AiAction(analysis);
             var ok = ActionOk(c.Action, action) && FieldsOk(c, action, analysis);
             if (ok) { aiRight++; finalRight++; }
-            _output.WriteLine($"{(ok ? "OK  " : "MISS")} {c.Id} [{c.Job}] expected {c.Action}, got {action ?? "none"} | {c.Text}");
+            var note = analysis.AiUnavailable ? " [AI fallback: call failed or unusable]" : "";
+            _output.WriteLine($"{(ok ? "OK  " : "MISS")} {c.Id} [{c.Job}] expected {c.Action}, got {action ?? "none"}{note} | {c.Text}");
         }
         _output.WriteLine($"AI on unplaced rows: right {aiRight}/{unresolved.Count}");
         _output.WriteLine($"PIPELINE (rules then AI) right {finalRight}/{cases.Count} ({Pct(finalRight, cases.Count)})");
