@@ -142,7 +142,7 @@ public partial class ConversationEngine
     internal static IReadOnlyList<string> UnquotedDetails(TurnAction action, string message)
     {
         var missing = new List<string>();
-        var messageDigits = new string(message.Where(char.IsDigit).ToArray());
+        var messageDigits = SpokenNumbers.SpokenDigits(message);
         var messageSounds = SoundMatch.Keys(message).ToHashSet(StringComparer.Ordinal);
 
         foreach (var order in action.Orders)
