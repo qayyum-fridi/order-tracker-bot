@@ -12,11 +12,15 @@ public partial class ConversationEngine
 {
     private const int ModelFirstCatalogShortlist = 60;
 
-    private async Task<bool> TryModelFirstAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
+    /// <param name="fromVoice">The text is a voice transcript.</param>
+    /// <param name="image">A screenshot sent with the text (its caption); the picture is read too.</param>
+    /// <param name="beforeRun">Runs once the action is known and is going to run (e.g. the voice echo), so it is only sent when the new path answers.</param>
+    private async Task<bool> TryModelFirstAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct,
+        bool fromVoice = false, AiImageInput? image = null, bool fromScreenshot = false, Func<Task>? beforeRun = null)
     {
         if (_turnInterpreter is null || _features.ModelFirst is not ("shadow" or "on")) return false;
-        // Exact typed commands ("orders today", "mark 3 shipped") keep their fast path; loose keyword rules are asked about.
-        if (CommandParser.TryParse(message) is { } exact && !LooseRuleKinds.Contains(exact.Kind)) return false;
+        // Exact typed commands ("orders today", "mark 3 shipped") keep their fast path; loose keyword rules are asked about. A picture is never an exact command.
+        if (image is null && CommandParser.TryParse(message) is { } exact && !LooseRuleKinds.Contains(exact.Kind)) return false;
 
         var catalog = await LoadCatalogAsync(seller, ct);
         var shortlist = SoundMatch.Shortlist(message, catalog, c => c.Label, ModelFirstCatalogShortlist);
@@ -28,25 +32,27 @@ public partial class ConversationEngine
             Catalog = shortlist.Select(c => new AiCatalogItem { Name = c.Label, Price = c.Product.Price }).ToList(),
             CatalogSize = catalog.Count,
             RecentOrders = recent.Select(o => $"#{o.Id} {o.Customer?.Name} {o.Status}").ToList(),
+            FromVoice = fromVoice,
         };
 
-        var action = await _turnInterpreter.UnderstandAsync(context, message, ct);
+        var action = await _turnInterpreter.UnderstandAsync(context, message, image, ct);
         // Metadata only: the message holds customer names and phone numbers, so its text is never logged.
         _logger?.LogInformation("ModelFirst {Mode}: action={Action} length={Length}", _features.ModelFirst, action?.Action ?? "none", message.Length);
         if (_features.ModelFirst != "on" || action is null) return false;
-        return await RunTurnActionAsync(seller, session, ctx, action, catalog, message, ct);
+        if (beforeRun is not null) await beforeRun();
+        return await RunTurnActionAsync(seller, session, ctx, action, catalog, message, ct, fromScreenshot);
     }
 
     /// <summary>Runs the four core actions with the handlers the typed commands already use. False = not one of them (or not enough detail): the older pipeline answers.</summary>
     private async Task<bool> RunTurnActionAsync(Seller seller, ConversationSession session, SessionContextData ctx, TurnAction action,
-        List<CatalogEntry> catalog, string message, CancellationToken ct)
+        List<CatalogEntry> catalog, string message, CancellationToken ct, bool fromScreenshot)
     {
         switch (action.Action)
         {
             case TurnAction.CreateOrder when action.Orders.Count > 0:
                 await HandleAnalysisAsync(seller, session, ctx,
                     new AiMessageAnalysis { Intent = "new_order", IsOrderAttempt = true, Order = action.Orders[0], AdditionalOrders = action.Orders.Skip(1).ToList() },
-                    catalog, fromScreenshot: false, ct, message);
+                    catalog, fromScreenshot, ct, message);
                 return true;
 
             case TurnAction.AddProduct when action.Products.Count > 0:

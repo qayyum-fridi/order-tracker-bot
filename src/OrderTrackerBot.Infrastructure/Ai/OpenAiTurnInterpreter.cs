@@ -40,9 +40,9 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         "The shop's products listed below are the likely ones; match item names to them by sound when the owner misspells or misspeaks them, " +
         "and copy the owner's own item name in product_name. Periods: today, yesterday, this_week, last_week, this_month, last_month, last_7_days, last_30_days.";
 
-    public async Task<TurnAction?> UnderstandAsync(TurnContext context, string text, CancellationToken cancellationToken = default)
+    public async Task<TurnAction?> UnderstandAsync(TurnContext context, string text, AiImageInput? image = null, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(_options.ApiKey) || string.IsNullOrWhiteSpace(text)) return null;
+        if (string.IsNullOrWhiteSpace(_options.ApiKey) || (string.IsNullOrWhiteSpace(text) && image is null)) return null;
 
         var catalog = context.Catalog.Count == 0 ? "(no products yet)"
             : string.Join("\n", context.Catalog.Select(c => $"- {c.Name}: Rs.{c.Price}"));
@@ -63,7 +63,7 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
                 ["messages"] = new JsonArray
                 {
                     new JsonObject { ["role"] = "system", ["content"] = system },
-                    new JsonObject { ["role"] = "user", ["content"] = text }
+                    new JsonObject { ["role"] = "user", ["content"] = UserContent(text, image) }
                 },
                 ["response_format"] = Schema()
             };
@@ -84,6 +84,18 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
             _logger.LogWarning(ex, "Turn interpreter failed; the older pipeline answers.");
             return null;
         }
+    }
+
+    /// <summary>Plain text, or text plus the picture when there is one (a screenshot of an order or a payment receipt).</summary>
+    private static JsonNode UserContent(string text, AiImageInput? image)
+    {
+        if (image is null) return JsonValue.Create(text)!;
+        var dataUrl = $"data:{image.MimeType};base64,{Convert.ToBase64String(image.Bytes)}";
+        return new JsonArray
+        {
+            new JsonObject { ["type"] = "text", ["text"] = string.IsNullOrWhiteSpace(text) ? "The owner sent this picture." : text },
+            new JsonObject { ["type"] = "image_url", ["image_url"] = new JsonObject { ["url"] = dataUrl } }
+        };
     }
 
     /// <summary>Parses the model's JSON. Returns null when the action is not in the closed list.</summary>

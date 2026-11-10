@@ -186,6 +186,18 @@ public partial class ConversationEngine
             return;
         }
 
+        // Features:ModelFirst: the transcript is read by the one understanding call. The echo is sent only when that call's action is going to run.
+        if (_features.ModelFirst is "shadow" or "on")
+        {
+            var modelCtx = SessionContextData.FromJson(seller.Session!.ContextJson);
+            if (await TryModelFirstAsync(seller, seller.Session!, modelCtx, text, ct, fromVoice: true,
+                    beforeRun: () => _sender.SendTextMessageAsync(fromPhoneNumber, heard, ct)))
+            {
+                await PersistAsync(seller.Session!, modelCtx, ct);
+                return;
+            }
+        }
+
         // A transcript that is only a phone number needs no rewrite (a second, slow model call): it is the answer as typed.
         var joined = JoinSpacedPhones(text.Trim().Trim('.', '!', '?', '،', '۔', ' '));
         _droppedVoiceSteps.Clear();
@@ -1252,6 +1264,15 @@ public partial class ConversationEngine
         // Without a type word the picture is read as an order or a payment receipt as before, and remembered for a few minutes:
         // a following "expense" / "wages" / "customer" message (typed or spoken) then labels it.
         RememberPicture(ctx, mediaId);
+
+        // Features:ModelFirst: the picture is read by the one understanding call first. When its action is not one of the core jobs, the picture reader below answers.
+        if (_features.ModelFirst is "shadow" or "on"
+            && await TryModelFirstAsync(seller, session, ctx, caption ?? "", ct,
+                image: new AiImageInput(media.Value.Bytes, media.Value.MimeType, caption), fromScreenshot: true))
+        {
+            await PersistAsync(session, ctx, ct);
+            return;
+        }
 
         var catalog = await LoadCatalogAsync(seller, ct);
         var analysis = await _ai.AnalyzeImageAsync(AiContext(seller, catalog), new AiImageInput(media.Value.Bytes, media.Value.MimeType, caption), ct);

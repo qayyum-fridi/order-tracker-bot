@@ -75,5 +75,6 @@ public sealed class TurnContext
 /// <summary>The single understanding step. Null = the model is unavailable or its answer was unusable: the caller falls back to the older pipeline.</summary>
 public interface ITurnInterpreter
 {
-    Task<TurnAction?> UnderstandAsync(TurnContext context, string text, CancellationToken cancellationToken = default);
+    /// <summary>Reads the text (typed, or a voice transcript) and, for a screenshot, the picture too. <paramref name="image"/> null = text only.</summary>
+    Task<TurnAction?> UnderstandAsync(TurnContext context, string text, AiImageInput? image = null, CancellationToken cancellationToken = default);
 }
