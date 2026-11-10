@@ -1,0 +1,23 @@
+{
+  "model-first.clarify": "❓ {0}",
+  "model-first.help": "🙂 Jee, main aap ki dukaan ka hisaab rakhta hoon. Bas bol dein ya likh dein, jaise:\n\n🛒 Order: {1}\n📦 Naya product: {0}\n👤 Naya customer: naam, phone aur pata bata dein\n📋 \"aaj ke order dikhao\" ya \"aaj ka hisaab\"",
+  "model-first.scope": "🙏 Maaf kijiye, yeh kaam abhi main nahi karta. Abhi main yeh kar sakta hoon:\n\n🛒 Order likhna: {1}\n📦 Product rakhna: {0}\n👤 Customer rakhna aur dikhana\n📋 Order aur aaj ka hisaab dikhana",
+  "model-first.unclear": "🙏 Maaf kijiye, poori baat samajh nahi aayi. Barae meherbani thoda khol kar dobara bol dein ya likh dein, jaise:\n\n🛒 Order: {1}\n📦 Naya product: {0}",
+  "model-first.howto.addproduct": "📦 Naya product rakhne ke liye uska naam aur qeemat bol dein ya likh dein, jaise:\n\n{0}\n\nYa: \"{1} naya product hai, qeemat itni hai\".",
+  "model-first.howto.editproduct": "✏️ Qeemat badalne ke liye product ka naam aur nayi qeemat bol dein, jaise:\n\n\"{0} ka rate ab 2000 hai\"\n\nMain pehle aap se poochhunga, phir badlunga.",
+  "model-first.howto.showcatalog": "📦 Apne products dekhne ke liye bol dein ya likh dein:\n\n\"mere products dikhao\" ya \"catalog\"",
+  "model-first.howto.addcustomer": "👤 Naya customer rakhne ke liye uska naam, phone aur pata bol dein ya likh dein, jaise:\n\n\"Naya customer Bilal Ahmed, 03001234567, Gulberg Lahore\"",
+  "model-first.howto.editcustomer": "✏️ Customer ka phone ya pata badalne ke liye bol dein, jaise:\n\n\"Sara ka phone 03001234567 hai\" ya \"Sara ka pata ab Model Town hai\"",
+  "model-first.howto.showcustomer": "👤 Customer ki maloomat ke liye uska naam le kar poochh lein, jaise:\n\n\"Sara ka number kya hai\" ya \"mere customers dikhao\"",
+  "model-first.howto.createorder": "🛒 Order likhne ke liye customer ka naam aur cheezein bol dein ya likh dein, jaise:\n\n{0}\n\nMain order dikha kar aap se tasdeeq loonga, phir save karunga.",
+  "model-first.howto.updatestatus": "🚚 Order ki halat badalne ke liye bol dein, jaise:\n\n\"order 2 bhej diya\" ya \"Sara ka order pohnch gaya\" ya \"order 3 wapas aa gaya\"",
+  "model-first.howto.cancelorder": "❌ Order cancel karne ke liye bol dein ya likh dein:\n\n\"order 2 cancel kar do\"\n\nMain pehle aap se poochhunga.",
+  "model-first.howto.showorders": "📋 Order dekhne ke liye bol dein ya likh dein:\n\n\"aaj ke order dikhao\", \"pending order\" ya \"order 2 dikhao\"",
+  "model-first.howto.showsummary": "📊 Hisaab dekhne ke liye bol dein ya likh dein:\n\n\"aaj ka hisaab\" ya \"is hafte kitni sale hui\"",
+  "model-first.howto.undo": "↩️ Mera aakhri kaam wapas karne ke liye likhein:\n\nundo",
+  "model-first.howto.other": "ℹ️ Main yeh kaam karta hoon. Bas bol dein ya likh dein:\n\n🛒 Order: {1}\n📦 Naya product: {0}\n👤 Naya customer: naam, phone aur pata\n📋 \"aaj ke order dikhao\" ya \"aaj ka hisaab\"\n\nPoori list ke liye \"menu\" likhein.",
+  "model-status.002": "❓ Order #{0} ({1}) ka status {2} karein? Haan ke liye YES likhein, nahi ke liye NO.",
+  "model-edit.001": "❓ {0} ki qeemat {1} kar dein? Haan ke liye YES likhein, nahi ke liye NO.",
+  "model-edit.002": "❓ {0} ka {1} \"{2}\" kar dein? Haan ke liye YES likhein, nahi ke liye NO.",
+  "model-edit.003": "⚠️ Phone number \"{0}\" poora nahi laga. Barae meherbani poora number (11 hindse) dobara bol dein ya likh dein."
+}

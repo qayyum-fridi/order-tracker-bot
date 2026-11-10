@@ -164,6 +164,8 @@ public sealed class SessionContextData
     /// <summary>A status change Features:ModelFirst picked, waiting for YES/NO (AwaitingModelStatusConfirmation).</summary>
     public int? ModelStatusOrderId { get; set; }
     public string? ModelStatusValue { get; set; }
+    /// <summary>A product price or customer detail change Features:ModelFirst picked, waiting for YES/NO in the same state.</summary>
+    public ModelEditData? ModelEdit { get; set; }
     public int? CodCollectedOrderId { get; set; }
     public string? RuntimeFilterCommand { get; set; }
     public int? TrackingPromptOrderId { get; set; }
@@ -305,3 +307,13 @@ public sealed record AutoPriceUse(int OrderId, string Arm);
 
 /// <summary>An order saved with the delivery charge the seller wrote in the message (<see cref="PendingOrderData.TextDeliveryCharge"/>).</summary>
 public sealed record TextDeliveryUse(int OrderId, decimal Charge);
+
+/// <summary>An edit the model understood and the seller has not confirmed yet: a product's new price, or one field of a customer.</summary>
+public sealed class ModelEditData
+{
+    public string Kind { get; set; } = "";
+    public string Name { get; set; } = "";
+    public decimal? Amount { get; set; }
+    public string? Field { get; set; }
+    public string? Value { get; set; }
+}

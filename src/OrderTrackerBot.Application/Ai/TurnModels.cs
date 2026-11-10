@@ -13,7 +13,14 @@ public sealed class TurnAction
     public const string ShowOrder = "show_order";
     public const string ShowSummary = "show_summary";
     public const string AddProduct = "add_product";
+    public const string EditProduct = "edit_product";
     public const string ShowCatalog = "show_catalog";
+    public const string AddCustomer = "add_customer";
+    public const string EditCustomer = "edit_customer";
+    public const string ShowCustomer = "show_customer";
+    public const string HowTo = "how_to";
+    public const string ContactSupport = "contact_support";
+    public const string Clarify = "clarify";
     public const string Undo = "undo";
     public const string HelpOrChat = "help_or_chat";
     public const string OutOfScope = "out_of_scope";
@@ -21,7 +28,17 @@ public sealed class TurnAction
     /// <summary>Every action the model may pick. Anything else in a reply is discarded.</summary>
     public static readonly IReadOnlyList<string> All = new[]
     {
-        CreateOrder, UpdateStatus, CancelOrder, ShowOrders, ShowOrder, ShowSummary, AddProduct, ShowCatalog, Undo, HelpOrChat, OutOfScope
+        CreateOrder, UpdateStatus, CancelOrder, ShowOrders, ShowOrder, ShowSummary, AddProduct, EditProduct, ShowCatalog,
+        AddCustomer, EditCustomer, ShowCustomer, HowTo, ContactSupport, Clarify, Undo, HelpOrChat, OutOfScope
+    };
+
+    /// <summary>edit_customer: the one detail of a saved customer that changes.</summary>
+    public static readonly IReadOnlyList<string> CustomerFields = new[] { "phone", "address", "city", "name" };
+
+    /// <summary>how_to: what the seller asks how to do. "other" = something else.</summary>
+    public static readonly IReadOnlyList<string> HowToTopics = new[]
+    {
+        AddProduct, EditProduct, ShowCatalog, AddCustomer, EditCustomer, ShowCustomer, CreateOrder, UpdateStatus, CancelOrder, ShowOrders, ShowSummary, Undo, "other"
     };
 
     public static readonly IReadOnlyList<string> Statuses = new[] { "shipped", "delivered", "returned", "pending" };
@@ -54,6 +71,19 @@ public sealed class TurnAction
 
     /// <summary>show_orders: true when the seller asked for orders still waiting to be sent.</summary>
     public bool PendingOnly { get; init; }
+
+    /// <summary>add_customer: the buyer to save.</summary>
+    public AiNewCustomer? Customer { get; init; }
+
+    /// <summary>edit_customer: one of <see cref="CustomerFields"/>, with <see cref="Value"/> as its new value and <see cref="CustomerName"/> as the customer.</summary>
+    public string? Field { get; init; }
+    public string? Value { get; init; }
+
+    /// <summary>how_to: one of <see cref="HowToTopics"/>.</summary>
+    public string? Topic { get; init; }
+
+    /// <summary>clarify: the one short question to ask the seller, in simple Roman Urdu.</summary>
+    public string? Question { get; init; }
 }
 
 /// <summary>What the model is shown besides the message, so its answer is about THIS seller's shop.</summary>
