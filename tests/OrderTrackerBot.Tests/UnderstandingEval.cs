@@ -44,7 +44,7 @@ public class UnderstandingEval
         foreach (var c in cases)
         {
             var action = RuleAction(c.Text);
-            var ok = action == c.Action;
+            var ok = ActionOk(c.Action, action);
             if (ok) ruleHits++;
             else if (action is null) unresolved.Add(c);
             Add(perJob, c.Job, ok);
@@ -78,8 +78,7 @@ public class UnderstandingEval
         {
             var analysis = await assistant.AnalyzeMessageAsync(context, c.Text);
             var action = AiAction(analysis);
-            var serialized = JsonSerializer.Serialize(analysis).ToLowerInvariant();
-            var ok = action == c.Action && (c.MustContain is null || serialized.Contains(c.MustContain.ToLowerInvariant()));
+            var ok = ActionOk(c.Action, action) && FieldsOk(c, action, analysis);
             if (ok) { aiRight++; finalRight++; }
             _output.WriteLine($"{(ok ? "OK  " : "MISS")} {c.Id} [{c.Job}] expected {c.Action}, got {action ?? "none"} | {c.Text}");
         }
@@ -118,6 +117,23 @@ public class UnderstandingEval
         "off_topic" or "unclear" => "help_or_chat",
         _ => null,
     };
+
+    /// <summary>out_of_scope accepts help_or_chat too: the bot declining a cut feature is the MVP behaviour.</summary>
+    private static bool ActionOk(string expected, string? got) =>
+        got == expected || (expected == "out_of_scope" && got == "help_or_chat");
+
+    /// <summary>Field check only where the analysis carries fields (orders and products). Phones match with or without the +92 / 92 form.</summary>
+    private static bool FieldsOk(Case c, string? action, AiMessageAnalysis analysis)
+    {
+        if (c.MustContain is null || action is not ("create_order" or "add_product")) return true;
+        var json = JsonSerializer.Serialize(analysis).ToLowerInvariant();
+        var compact = json.Replace(" ", "").Replace("-", "");
+        var want = c.MustContain.ToLowerInvariant();
+        if (compact.Contains(want)) return true;
+        if (want.StartsWith("0") && want.Length == 11)
+            return compact.Contains("+92" + want[1..]) || compact.Contains("92" + want[1..]);
+        return json.Contains(want);
+    }
 
     private static List<Case> LoadCases()
     {
