@@ -823,6 +823,9 @@ public sealed class FeatureOptions
     /// <summary>The one-call turn interpreter (ITurnInterpreter) is consulted for core messages: off = today's pipeline only; shadow = logged beside it; on = it decides. Off in code and appsettings until measured.</summary>
     public string ModelFirst { get; set; } = "off";
 
+    /// <summary>Short replies (see the spoken-reply list) are also sent as a voice note; the typed text is always sent too. Off until the voice-note send path exists.</summary>
+    public bool SpokenReplies { get; set; }
+
     /// <summary>Menu: discount rows (menu discounts, discount list, add discount, discount performance). Off = hidden from the menu; the typed commands still work.</summary>
     public bool Discounts { get; set; } = false;
 
