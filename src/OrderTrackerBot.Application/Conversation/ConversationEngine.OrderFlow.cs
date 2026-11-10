@@ -50,10 +50,11 @@ public partial class ConversationEngine
             tiers.Where(t => t.ProductId == p.Id).OrderBy(t => t.MinQty).ToList())).ToList();
     }
 
-    private static AiAnalysisContext AiContext(Seller seller, List<CatalogEntry> catalog, SessionContextData? ctx = null) => new()
+    private static AiAnalysisContext AiContext(Seller seller, List<CatalogEntry> catalog, SessionContextData? ctx = null, bool cancelUndo = false) => new()
     {
         BusinessName = seller.BusinessName ?? "",
         PreferredLanguage = seller.PreferredLanguage,
+        CancelUndoIntents = cancelUndo,
         // Names the seller has since priced (typed "Name - price") are no longer waiting.
         PendingPriceProducts = ctx?.PendingPriceProducts?
             .Where(n => !catalog.Any(c => string.Equals(c.Product.Name, n, StringComparison.OrdinalIgnoreCase))).ToList()
@@ -68,7 +69,14 @@ public partial class ConversationEngine
     private async Task HandleFreeformMessageAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         var catalog = await LoadCatalogAsync(seller, ct);
-        var analysis = await _ai.AnalyzeMessageAsync(AiContext(seller, catalog, ctx), message, ct);
+        var analysis = await _ai.AnalyzeMessageAsync(AiContext(seller, catalog, ctx, _features.AiCancelUndo), message, ct);
+        // Features:AiCancelUndo: "cancel" / "undo" the reader picked are run through the intent router (its cancel asks YES, undo is the usual undo);
+        // when the router does not place it, the message is treated as unclear, as before.
+        if (_features.AiCancelUndo && analysis.Intent is "cancel_order" or "undo")
+        {
+            if (session.State == ConversationState.Idle && await TryRunRoutedIntentAsync(seller, session, ctx, message, ct)) return;
+            analysis = new AiMessageAnalysis { Intent = "unclear", IsOrderAttempt = false, ClarificationQuestion = analysis.ClarificationQuestion };
+        }
         // "Lawn Suit bech diya Sara ko" is a sale already made, not a new order: say how to record it, instead of a guess.
         if (analysis.Intent == "unclear" && SaleVerbWords.IsMatch(message) && !SaleQuestionWords.IsMatch(message))
         {

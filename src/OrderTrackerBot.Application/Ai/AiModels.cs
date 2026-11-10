@@ -16,6 +16,8 @@ public sealed class AiAnalysisContext
     public string PreferredLanguage { get; init; } = "roman-urdu";
     /// <summary>Products the bot just asked the seller to price; a price in the next message is for these, not a new product.</summary>
     public IReadOnlyList<string> PendingPriceProducts { get; init; } = Array.Empty<string>();
+    /// <summary>Features:AiCancelUndo. When true the reader may answer cancel_order / undo, and reads number words as digits. False = the original prompt and schema.</summary>
+    public bool CancelUndoIntents { get; init; }
 }
 
 public sealed class AiOrderItemDraft
@@ -55,7 +57,7 @@ public sealed class AiOrderDraft
 /// </summary>
 public sealed class AiMessageAnalysis
 {
-    /// <summary>new_order | status_update | customer_feedback | support_query | add_products | add_customer | create_discount | off_topic | unclear.</summary>
+    /// <summary>new_order | status_update | customer_feedback | support_query | add_products | add_customer | create_discount | off_topic | unclear, plus cancel_order | undo when <see cref="AiAnalysisContext.CancelUndoIntents"/> is on.</summary>
     public string Intent { get; init; } = "";
     public bool IsOrderAttempt { get; init; }
     /// <summary>True when the AI could not be reached (no API key, or the call failed) — distinct from "reached it, not an order".</summary>

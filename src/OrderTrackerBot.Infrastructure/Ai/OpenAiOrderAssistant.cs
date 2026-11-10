@@ -122,6 +122,17 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
                 "that price on every pending product; separate prices (\"chadar 800, dupatte 1200\") = each price on its own product; a product with no price said stays price null. " +
                 "Only treat the message as something else if it clearly is (an order, a command, a different product).";
 
+        if (context.CancelUndoIntents)
+            systemPrompt +=
+                "\n\nCANCEL AND UNDO (Features:AiCancelUndo): intent cancel_order = the seller asks to cancel an existing order (\"order teen cancel kar do\", " +
+                "\"Sara ka order cancel kar do\", \"order 1 cancel\"); intent undo = the seller asks to reverse the bot's LAST ACTION in this chat, with nothing else named " +
+                "(\"undo\", \"wapas karo\", \"ulta kar do jo abhi kiya\"). Use undo ONLY for that. NOT undo: wapas or cancel about a stock number, a phone, an address, " +
+                "a customer, an expense, a discount, an account or a reset (\"stock undo\", \"Sara ka phone wapas karo\", \"reset account ko cancel karo\", \"stock Kurti 0\"): " +
+                "those are unclear or off_topic. Neither cancel_order nor undo is an order: set is_order_attempt=false and leave order null. " +
+                "NUMBER WORDS: when the seller says an amount in words (Roman Urdu, Urdu script or English), write it as digits in the price, cost_price, " +
+                "delivery_charge, advance and stock fields: \"do sau\" = 200, \"teen hazar do sau\" = 3200, \"ek hazar paanch sau\" = 1500, \"aath sau\" = 800, \"paanch hazar\" = 5000. " +
+                "Only convert a number the seller clearly said; never guess one.";
+
         // The per-seller part goes last so OpenAI's prompt cache can reuse the long identical prefix across sellers and messages.
         systemPrompt += $"\n\nSeller business name: '{context.BusinessName}'.\nSeller catalog:\n" + catalogText;
 
@@ -134,7 +145,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
                 new JsonObject { ["role"] = "system", ["content"] = systemPrompt },
                 new JsonObject { ["role"] = "user", ["content"] = userContent }
             },
-            ["response_format"] = BuildResponseFormat()
+            ["response_format"] = BuildResponseFormat(context.CancelUndoIntents)
         };
 
         try
@@ -921,7 +932,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         ["additionalProperties"] = false
     };
 
-    private static JsonObject BuildResponseFormat()
+    private static JsonObject BuildResponseFormat(bool cancelUndo)
     {
         var itemSchema = StrictObject(new JsonObject
         {
@@ -949,7 +960,9 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
             ["intent"] = new JsonObject
             {
                 ["type"] = "string",
-                ["enum"] = new JsonArray { "new_order", "status_update", "customer_feedback", "support_query", "add_products", "add_customer", "create_discount", "off_topic", "unclear" }
+                ["enum"] = cancelUndo
+                    ? new JsonArray { "new_order", "status_update", "customer_feedback", "support_query", "add_products", "add_customer", "create_discount", "off_topic", "unclear", "cancel_order", "undo" }
+                    : new JsonArray { "new_order", "status_update", "customer_feedback", "support_query", "add_products", "add_customer", "create_discount", "off_topic", "unclear" }
             },
             ["new_products"] = new JsonObject
             {

@@ -124,6 +124,6 @@ Today a hard message can cost up to four model calls (rule check, order reader, 
 
 ## 8. Decisions needed from you
 
-1. ~~Agree the five jobs and that nothing else is worked on until the pilot.~~ **Agreed (2026-11-10).** Scope is the five jobs (order, status, payment, day summary, catalog) plus the supporting actions they need (`answer`, `undo`, `help_or_chat`). Nothing else is worked on until the pilot (Phase 4) holds.
+1. ~~Agree the five jobs and that nothing else is worked on until the pilot.~~ **Agreed (2026-11-10).** Scope change (2026-11-10, your decision): **payment is dropped** from the MVP jobs; its eval rows are excluded from scoring. Scope is now four jobs (order, status, day summary, catalog) plus the supporting actions they need (`answer`, `undo`, `help_or_chat`). Nothing else is worked on until the pilot (Phase 4) holds.
 2. ~~Provide real messages for Phase 0~~ Decided: test docs only (see Phase 0 limit).
 3. Budget ceiling per seller per month for the model, so the model choice has a limit.

@@ -33,7 +33,10 @@ public class UnderstandingEval
     [Fact]
     public async Task MeasureTodaysPipelineOnLabelledMessages()
     {
-        var cases = LoadCases();
+        // Payment is dropped from the MVP jobs (user decision, 2026-11-10): its rows stay in the fixture but are not scored.
+        var all = LoadCases();
+        var cases = all.Where(c => c.Job != "payment").ToList();
+        _output.WriteLine($"Scored {cases.Count} rows; excluded {all.Count - cases.Count} payment rows (out of MVP scope).");
         Assert.NotEmpty(cases);
         Assert.All(cases, c => Assert.Contains(c.Action, MvpActions));
 
@@ -65,6 +68,8 @@ public class UnderstandingEval
         var context = new AiAnalysisContext
         {
             BusinessName = "Ayesha Collections",
+            // OTB_AI_CANCEL_UNDO=1 measures the reader with Features:AiCancelUndo on (cancel/undo intents and number words).
+            CancelUndoIntents = Environment.GetEnvironmentVariable("OTB_AI_CANCEL_UNDO") == "1",
             Catalog = new List<AiCatalogItem>
             {
                 new() { Name = "Kurti", Price = 1800 }, new() { Name = "Dupatta", Price = 600 }, new() { Name = "Lawn Suit", Price = 3500 },
@@ -114,6 +119,8 @@ public class UnderstandingEval
         "new_order" => "create_order",
         "add_products" => "add_product",
         "status_update" => "update_status",
+        "cancel_order" => "cancel_order",
+        "undo" => "undo",
         "off_topic" or "unclear" => "help_or_chat",
         _ => null,
     };
