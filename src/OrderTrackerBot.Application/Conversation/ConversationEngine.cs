@@ -813,6 +813,9 @@ public sealed class FeatureOptions
     /// <summary>The AI order reader may answer cancel_order / undo (run through the intent router), and is told to read number words as digits. Off in code and in appsettings until measured.</summary>
     public bool AiCancelUndo { get; set; }
 
+    /// <summary>The one-call turn interpreter (ITurnInterpreter) is consulted for core messages: off = today's pipeline only; shadow = logged beside it; on = it decides. Off in code and appsettings until measured.</summary>
+    public string ModelFirst { get; set; } = "off";
+
     /// <summary>Menu: discount rows (menu discounts, discount list, add discount, discount performance). Off = hidden from the menu; the typed commands still work.</summary>
     public bool Discounts { get; set; } = false;
 
