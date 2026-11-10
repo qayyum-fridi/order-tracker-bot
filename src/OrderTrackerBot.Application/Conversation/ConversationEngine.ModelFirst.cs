@@ -51,7 +51,7 @@ public partial class ConversationEngine
         List<CatalogEntry> catalog, string message, CancellationToken ct, bool fromScreenshot)
     {
         // A price, cost or delivery charge the model returned must be a figure the seller actually said. Otherwise nothing runs; the seller is asked.
-        var unquoted = UnquotedAmounts(action, message);
+        var unquoted = UnquotedAmounts(action, message).Select(a => a.ToString()).Concat(UnquotedDetails(action, message)).ToList();
         if (unquoted.Count > 0)
         {
             await ReplyAsync(seller, MessageTemplates.Get("model-amount.001", string.Join(", ", unquoted)), ct);
@@ -133,6 +133,29 @@ public partial class ConversationEngine
             .Where(v => !said.Contains(v))
             .Distinct()
             .ToList();
+    }
+
+    /// <summary>
+    /// The phone numbers and customer names the model returned that the message does not contain. A phone is matched on its last 10 digits;
+    /// a name is matched by sound (so an Urdu-script transcript still matches a Roman name). Empty when none are missing.
+    /// </summary>
+    internal static IReadOnlyList<string> UnquotedDetails(TurnAction action, string message)
+    {
+        var missing = new List<string>();
+        var messageDigits = new string(message.Where(char.IsDigit).ToArray());
+        var messageSounds = SoundMatch.Keys(message).ToHashSet(StringComparer.Ordinal);
+
+        foreach (var order in action.Orders)
+        {
+            if (order.Phone is { } phone && new string(phone.Where(char.IsDigit).ToArray()) is { Length: >= 7 } digits)
+            {
+                var last10 = digits.Length > 10 ? digits[^10..] : digits;
+                if (!messageDigits.Contains(last10, StringComparison.Ordinal)) missing.Add(phone);
+            }
+            if (order.CustomerName is { } name && SoundMatch.Keys(name) is { Count: > 0 } keys && keys.Any(k => !messageSounds.Contains(k)))
+                missing.Add(name);
+        }
+        return missing.Distinct().ToList();
     }
 
     /// <summary>The seller's answer to a status change the model picked: only YES runs it; anything else leaves the order as it was.</summary>
