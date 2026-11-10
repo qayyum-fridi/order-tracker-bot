@@ -879,6 +879,9 @@ public partial class ConversationEngine
     /// </summary>
     public static IReadOnlyList<string> CorrectMarginQuestion(string transcript, IReadOnlyList<string> steps)
     {
+        // "contact number bata sakte hain?" is a question about a record, not a request for a person: "contact support" is only for a seller who asks for support.
+        if (steps.Any(st => st.TrimStart().StartsWith("contact support", StringComparison.OrdinalIgnoreCase)) && !SupportWords.IsMatch(transcript))
+            steps = steps.Select(st => st.TrimStart().StartsWith("contact support", StringComparison.OrdinalIgnoreCase) ? "guide" : st).Distinct().ToList();
         // "category wise list of products" is not a sales question: the rewrite must not turn it into a sales report.
         if (steps.Any(st => st.TrimStart().StartsWith("sales by category", StringComparison.OrdinalIgnoreCase)) && !SalesWords.IsMatch(transcript))
             steps = steps.Select(st => st.TrimStart().StartsWith("sales by category", StringComparison.OrdinalIgnoreCase) ? "category products" : st).Distinct().ToList();
@@ -899,6 +902,10 @@ public partial class ConversationEngine
 
     private static bool IsBareCreateDiscount(string step) =>
         System.Text.RegularExpressions.Regex.IsMatch(step.Trim(), @"^(?:create|add|new|naya)\s+discount\.?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    private static readonly System.Text.RegularExpressions.Regex SupportWords = new(
+        @"support|sapport|team|insaan|insan|founder|human|baat karn|baat karao|سپورٹ|ٹیم|انسان|بات کر",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.Compiled);
 
     private static readonly System.Text.RegularExpressions.Regex MarginWords = new(
         @"margin|marjin|profit|munafa|nafa|مارجن|مارگن|پرافٹ|پروفٹ|پروفیٹ|منافع|نفع",
