@@ -27,18 +27,35 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
     private const string Prompt =
         "You are the understanding step of a WhatsApp shop bot. The user is a small shop owner in Pakistan. Many owners cannot read or " +
         "write well, speak Urdu with a Punjabi accent, and never type English commands. Their text or voice may be misheard, unpunctuated, " +
-        "phonetically spelled, or mixed with English words. Understand the MEANING, not exact words. Pick exactly one action: " +
-        "create_order (they are recording a customer's purchase: customer name, items with quantities, phone, address, delivery charge), " +
-        "update_status (an order was shipped, delivered, returned or put back to pending; give order_id or customer_name and status), " +
-        "cancel_order (cancel an order; give order_id or customer_name), show_orders (list orders for a period, or pending ones), " +
-        "show_order (details of one order; give order_id), show_summary (sales/money summary for a period), add_product (they are saying " +
-        "what they sell, with prices and optional cost and stock), show_catalog (show their products), undo (reverse the bot's last action), " +
-        "help_or_chat (greeting, small talk, a question about how to use the bot, or anything not about the shop), " +
-        "out_of_scope (a shop task this bot does not do yet, like expenses, discounts, stock counts, receipts, reports on profit). " +
+        "phonetically spelled, in any word order, or mixed with English words. Understand the MEANING, not exact words. Pick exactly one action:\n" +
+        "- create_order: they are recording a customer's purchase (customer name, items with quantities, phone, address, delivery charge). " +
+        "A customer name with a product and a quantity is an order even with no verb ('kurti 2 Sara').\n" +
+        "- update_status: an order was shipped, delivered, returned or put back to pending; give order_id or customer_name and status.\n" +
+        "- cancel_order: cancel an order; give order_id or customer_name.\n" +
+        "- show_orders: list orders for a period, or pending ones. show_order: details of one order; give order_id.\n" +
+        "- show_summary: sales / money summary (hisaab, kitni sale hui) for a period.\n" +
+        "- add_product: they are saying what they sell (name, price, optional cost and stock). Put each product in products.\n" +
+        "- edit_product: an existing product's price changes; put its name and the NEW price in products.\n" +
+        "- show_catalog: show their products.\n" +
+        "- add_customer: save a new buyer WITHOUT an order (customer.name, and phone / address / city when said).\n" +
+        "- edit_customer: one detail of a saved customer changes; customer_name, field (phone, address, city or name) and value (the new value).\n" +
+        "- show_customer: they want a saved customer's details (phone number, address, their orders); customer_name, or null when no name was said (then all customers are listed).\n" +
+        "- how_to: they ask HOW to do something ('kaise', 'tarika', 'how do I'). Set topic to the action they ask about. NEVER perform the action itself.\n" +
+        "- contact_support: ONLY when they ask to TALK to a person, the support team or the makers of this bot ('kisi insaan se baat karni hai', 'support se baat karao'). " +
+        "Asking for a 'contact number', 'phone number' or 'number' is about a CUSTOMER's number, never this: use show_customer when a customer is named, " +
+        "otherwise clarify and ask which customer's number they want.\n" +
+        "- undo: reverse the bot's last action.\n" +
+        "- clarify: the message is about customers, orders or products but a needed detail is missing or it could mean two things. Put ONE short question in " +
+        "question, in simple Roman Urdu (e.g. 'Kis customer ka number chahiye?').\n" +
+        "- help_or_chat: a greeting, small talk, or anything not about the shop.\n" +
+        "- out_of_scope: a shop task this bot does not do yet (expenses, discounts, stock counts, receipts, profit reports, payments).\n" +
         "Never invent a number, name or phone that is not in the text. Use null for anything not said. " +
+        "order_id is ONLY the order number the owner said ('order 3', 'teen number wala', 'تین نمبر آرڈر' = 3); when they named a customer and no number, " +
+        "leave order_id null and give customer_name. Never pick an order_id from the list of latest orders yourself. " +
         "Amounts spoken in words (Urdu, Roman Urdu or English) become digits. " +
         "The shop's products listed below are the likely ones; match item names to them by sound when the owner misspells or misspeaks them, " +
-        "and copy the owner's own item name in product_name. Periods: today, yesterday, this_week, last_week, this_month, last_month, last_7_days, last_30_days.";
+        "and copy the owner's own item name in product_name. Use a saved customer's name as it is listed when the owner clearly means that customer. " +
+        "Periods: today, yesterday, this_week, last_week, this_month, last_month, last_7_days, last_30_days.";
 
     public async Task<TurnAction?> UnderstandAsync(TurnContext context, string text, AiImageInput? image = null, CancellationToken cancellationToken = default)
     {
@@ -148,6 +165,17 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         int? orderId = root.TryGetProperty("order_id", out var oid) && oid.ValueKind == JsonValueKind.Number && oid.TryGetInt32(out var idv) && idv > 0 ? idv : null;
         var status = Str(root, "status");
         var period = Str(root, "period");
+        var field = Str(root, "field");
+        var topic = Str(root, "topic");
+        AiNewCustomer? customer = null;
+        if (root.TryGetProperty("customer", out var cust) && cust.ValueKind == JsonValueKind.Object && Str(cust, "name") is { } customerName)
+            customer = new AiNewCustomer { Name = customerName, Phone = Str(cust, "phone"), Address = Str(cust, "address"), City = Str(cust, "city") };
+
+        // The model fills fields that do not belong to its action (a customer block on a "show" action, an order on a status change).
+        // Only the fields of the chosen action are kept, so nothing is run or checked from a stray one.
+        if (action != TurnAction.CreateOrder) orders.Clear();
+        if (action is not (TurnAction.AddProduct or TurnAction.EditProduct)) products.Clear();
+        if (action != TurnAction.AddCustomer) customer = null;
 
         return new TurnAction
         {
@@ -159,6 +187,11 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
             Status = status is not null && TurnAction.Statuses.Contains(status) ? status : null,
             Period = period is not null && TurnAction.Periods.Contains(period) ? period : null,
             PendingOnly = root.TryGetProperty("pending_only", out var po) && po.ValueKind == JsonValueKind.True,
+            Customer = customer,
+            Field = field is not null && TurnAction.CustomerFields.Contains(field) ? field : null,
+            Value = Str(root, "value"),
+            Topic = topic is not null && TurnAction.HowToTopics.Contains(topic) ? topic : null,
+            Question = Str(root, "question"),
         };
     }
 
@@ -170,6 +203,12 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
 
     private static JsonObject NullableString() => new() { ["type"] = new JsonArray { "string", "null" } };
     private static JsonObject NullableNumber() => new() { ["type"] = new JsonArray { "number", "null" } };
+
+    private static JsonObject NullableEnum(IReadOnlyList<string> values) => new()
+    {
+        ["type"] = new JsonArray { "string", "null" },
+        ["enum"] = new JsonArray(values.Select(v => (JsonNode?)JsonValue.Create(v)).Append(null).ToArray()),
+    };
 
     private static JsonObject Schema()
     {
@@ -202,9 +241,20 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
             ["products"] = new JsonObject { ["type"] = "array", ["items"] = product },
             ["order_id"] = NullableNumber(),
             ["customer_name"] = NullableString(),
-            ["status"] = new JsonObject { ["type"] = new JsonArray { "string", "null" }, ["enum"] = new JsonArray(TurnAction.Statuses.Select(s => (JsonNode?)JsonValue.Create(s)).Append(null).ToArray()) },
-            ["period"] = new JsonObject { ["type"] = new JsonArray { "string", "null" }, ["enum"] = new JsonArray(TurnAction.Periods.Select(s => (JsonNode?)JsonValue.Create(s)).Append(null).ToArray()) },
+            ["status"] = NullableEnum(TurnAction.Statuses),
+            ["period"] = NullableEnum(TurnAction.Periods),
             ["pending_only"] = new JsonObject { ["type"] = "boolean" },
+            ["customer"] = Obj(new JsonObject
+            {
+                ["name"] = NullableString(),
+                ["phone"] = NullableString(),
+                ["address"] = NullableString(),
+                ["city"] = NullableString(),
+            }),
+            ["field"] = NullableEnum(TurnAction.CustomerFields),
+            ["value"] = NullableString(),
+            ["topic"] = NullableEnum(TurnAction.HowToTopics),
+            ["question"] = NullableString(),
         });
         return new JsonObject
         {

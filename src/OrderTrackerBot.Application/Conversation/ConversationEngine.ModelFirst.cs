@@ -1,14 +1,16 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using OrderTrackerBot.Application.Ai;
+using OrderTrackerBot.Application.Formatting;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
 using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
-// Features:ModelFirst. One understanding call for a typed message, with the four core jobs (order, status, day summary, catalog) run from its
-// fields. "shadow" only logs the decision; "on" runs it. Anything else, or an unusable answer, returns false and the older pipeline answers.
+// Features:ModelFirst. One understanding call for a message (typed, spoken or a screenshot), with the core jobs (orders, customers, catalog, day summary)
+// run from its fields. "shadow" only logs the decision; "on" runs it. For an idle seller whose words are no typed command this call is the whole answer;
+// in any other state an action it cannot run returns false and the older pipeline answers.
 public partial class ConversationEngine
 {
     private const int ModelFirstCatalogShortlist = 60;
@@ -42,8 +44,66 @@ public partial class ConversationEngine
         // Metadata only: the message holds customer names and phone numbers, so its text is never logged.
         _logger?.LogInformation("ModelFirst {Mode}: action={Action} length={Length}", _features.ModelFirst, action?.Action ?? "none", message.Length);
         if (_features.ModelFirst != "on" || action is null) return false;
+
+        // An idle, set-up seller whose words are no typed command gets the whole answer from this one call: a question, a how-to or "not yet",
+        // never the older keyword router or voice rewrite (they guessed a command from loose words, e.g. "contact number" became a support request).
+        var final = image is null && seller.OnboardingComplete && session.State == ConversationState.Idle && CommandParser.TryParse(message) is null;
+        var runnable = await CanRunAsync(seller, action, message, ct);
+        if (!runnable && !final) return false;
         if (beforeRun is not null) await beforeRun();
-        return await RunTurnActionAsync(seller, session, ctx, action, catalog, message, ct, fromScreenshot);
+        if (runnable && await RunTurnActionAsync(seller, session, ctx, action, catalog, message, ct, fromScreenshot)) return true;
+        if (!final) return false;
+        await ReplyNotRunAsync(seller, action, ct);
+        return true;
+    }
+
+    /// <summary>True when the action has the details its handler needs, so the echo ("Maine suna") is sent only when this path answers.</summary>
+    private async Task<bool> CanRunAsync(Seller seller, TurnAction action, string message, CancellationToken ct) => action.Action switch
+    {
+        TurnAction.CreateOrder => action.Orders.Count > 0,
+        TurnAction.AddProduct => action.Products.Count > 0,
+        TurnAction.EditProduct => action.Products.Count > 0 && action.Products[0].Price is > 0,
+        TurnAction.ShowCatalog or TurnAction.ShowSummary or TurnAction.ShowOrders or TurnAction.ShowCustomer or TurnAction.HowTo or TurnAction.ContactSupport => true,
+        TurnAction.ShowOrder => SaidOrderId(action, message) is not null || await ModelCustomerAsync(seller, action.CustomerName, ct) is not null,
+        TurnAction.UpdateStatus => action.Status is not null && (SaidOrderId(action, message) is not null || await ModelCustomerAsync(seller, action.CustomerName, ct) is not null),
+        TurnAction.CancelOrder => SaidOrderId(action, message) is not null,
+        TurnAction.AddCustomer => action.Customer is not null,
+        TurnAction.EditCustomer => action.CustomerName is not null && action.Field is not null && !string.IsNullOrWhiteSpace(action.Value),
+        _ => false,
+    };
+
+    /// <summary>
+    /// The order number the model returned, only when the seller said that number (digits or words: "order 3", "teen number", "تین نمبر").
+    /// A number the seller never said is not used ("تین نمبر آرڈر پہنچ گیا" once came back as order 1): the customer's latest order, or a question, answers instead.
+    /// </summary>
+    internal static int? SaidOrderId(TurnAction action, string message)
+    {
+        if (action.OrderId is not { } id) return null;
+        return SpokenNumbers.DigitAmounts(message).Contains(id) || SpokenNumbers.Amounts(message).Contains(id) || SpokenNumbers.SmallCounts(message).Contains(id) ? id : null;
+    }
+
+    /// <summary>The reply when nothing ran: the model's own question, or what the bot can do, so the seller is never left with a guess.</summary>
+    private async Task ReplyNotRunAsync(Seller seller, TurnAction action, CancellationToken ct)
+    {
+        var profile = Industry(seller);
+        var reply = action.Action switch
+        {
+            TurnAction.Clarify when !string.IsNullOrWhiteSpace(action.Question) => MessageTemplates.Get("model-first.clarify", action.Question!.Trim()),
+            TurnAction.HelpOrChat => MessageTemplates.Get("model-first.help", profile.MainLine, profile.OrderExample),
+            TurnAction.OutOfScope => MessageTemplates.Get("model-first.scope", profile.MainLine, profile.OrderExample),
+            TurnAction.Undo => MessageTemplates.Get("model-first.howto.undo"),
+            _ => MessageTemplates.Get("model-first.unclear", profile.MainLine, profile.OrderExample),
+        };
+        await ReplyAsync(seller, reply, ct);
+    }
+
+    /// <summary>The saved customer the model's name points at: an exact name, or the only customer whose name contains it. Null when none or several match.</summary>
+    private async Task<Customer?> ModelCustomerAsync(Seller seller, string? name, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return null;
+        var wanted = name.Trim().ToLower();
+        var matches = await _db.Customers.Where(c => c.SellerId == seller.Id && c.DeletedAt == null && c.Name.ToLower().Contains(wanted)).Take(5).ToListAsync(ct);
+        return matches.FirstOrDefault(c => c.Name.ToLower() == wanted) ?? (matches.Count == 1 ? matches[0] : null);
     }
 
     /// <summary>Runs the four core actions with the handlers the typed commands already use. False = not one of them (or not enough detail): the older pipeline answers.</summary>
@@ -51,13 +111,23 @@ public partial class ConversationEngine
         List<CatalogEntry> catalog, string message, CancellationToken ct, bool fromScreenshot)
     {
         // A price, cost or delivery charge the model returned must be a figure the seller actually said. Otherwise nothing runs; the seller is asked.
-        var unquoted = UnquotedAmounts(action, message).Select(a => a.ToString()).Concat(UnquotedDetails(action, message)).ToList();
+        // Figures and details taken from the shop's own records are not "unsaid": the catalog price of an item, the usual delivery charge,
+        // and a saved customer's name and phone ("Bilal ko do kurti" comes back as Bilal Ahmed, his number and Rs.1800 each).
+        var savedCustomers = await _db.Customers.Where(c => c.SellerId == seller.Id && c.DeletedAt == null).Select(c => new { c.Name, c.Phone }).ToListAsync(ct);
+        var recordAmounts = catalog.Select(c => (long)Math.Round(c.Product.Price, MidpointRounding.AwayFromZero))
+            .Append((long)Math.Round(seller.DefaultDeliveryCharge, MidpointRounding.AwayFromZero)).ToHashSet();
+        var recordPhones = savedCustomers.Select(c => new string((c.Phone ?? "").Where(char.IsDigit).ToArray())).Where(d => d.Length >= 7)
+            .Select(d => d.Length > 10 ? d[^10..] : d).ToHashSet(StringComparer.Ordinal);
+        var recordNames = savedCustomers.Select(c => c.Name.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var unquoted = UnquotedAmounts(action, message, recordAmounts).Select(a => a.ToString())
+            .Concat(UnquotedDetails(action, message, recordPhones, recordNames)).ToList();
         if (unquoted.Count > 0)
         {
             await ReplyAsync(seller, MessageTemplates.Get("model-amount.001", string.Join(", ", unquoted)), ct);
             return true;
         }
 
+        var orderId = SaidOrderId(action, message);
         switch (action.Action)
         {
             case TurnAction.CreateOrder when action.Orders.Count > 0:
@@ -78,6 +148,10 @@ public partial class ConversationEngine
                 await HandleTodaysSummaryAsync(seller, ModelFirstPeriod(action.Period), ct);
                 return true;
 
+            case TurnAction.ShowOrders when !action.PendingOnly && action.Period is null && await ModelCustomerAsync(seller, action.CustomerName, ct) is { } orderCustomer:
+                await HandleCustomerOrderLookupAsync(seller, new ParsedCommand { Kind = CommandKind.CustomerOrderLookup, Text = orderCustomer.Name }, ct);
+                return true;
+
             case TurnAction.ShowOrders when action.PendingOnly:
                 await HandlePendingOrdersAsync(seller, ctx, ct);
                 return true;
@@ -86,11 +160,15 @@ public partial class ConversationEngine
                 await HandleOrdersTodayAsync(seller, ctx, ModelFirstPeriod(action.Period), ct);
                 return true;
 
-            case TurnAction.ShowOrder when action.OrderId is { } showId:
+            case TurnAction.ShowOrder when orderId is { } showId:
                 await HandleOrderDetailAsync(seller, ctx, showId, ct);
                 return true;
 
-            case TurnAction.UpdateStatus when action.OrderId is { } statusId && action.Status is not null:
+            case TurnAction.ShowOrder when await ModelCustomerAsync(seller, action.CustomerName, ct) is { } detailCustomer:
+                await HandleCustomerOrderLookupAsync(seller, new ParsedCommand { Kind = CommandKind.CustomerOrderLookup, Text = detailCustomer.Name }, ct);
+                return true;
+
+            case TurnAction.UpdateStatus when orderId is { } statusId && action.Status is not null:
                 // A status the model picked (maybe from a misheard voice note) waits for YES/NO before the order changes.
                 ctx.ModelStatusOrderId = statusId;
                 ctx.ModelStatusValue = action.Status;
@@ -98,9 +176,71 @@ public partial class ConversationEngine
                 await AskYesNoAsync(seller, MessageTemplates.Get("model-status.001", statusId, action.Status), ct);
                 return true;
 
-            case TurnAction.CancelOrder when action.OrderId is { } cancelId:
+            case TurnAction.CancelOrder when orderId is { } cancelId:
                 await HandleCancelOrderRequestAsync(seller, session, ctx,
                     new ParsedCommand { Kind = CommandKind.CancelOrder, Number = cancelId }, ct);
+                return true;
+
+            case TurnAction.UpdateStatus when action.Status is not null && await ModelCustomerAsync(seller, action.CustomerName, ct) is { } statusCustomer
+                                              && await FindLatestOrderByCustomerNameAsync(seller, statusCustomer.Name, ct) is { } latest:
+                ctx.ModelStatusOrderId = latest.Id;
+                ctx.ModelStatusValue = action.Status;
+                SetState(session, ConversationState.AwaitingModelStatusConfirmation);
+                await AskYesNoAsync(seller, MessageTemplates.Get("model-status.002", latest.Id, statusCustomer.Name, action.Status), ct);
+                return true;
+
+            case TurnAction.EditProduct when action.Products.Count > 0 && action.Products[0].Price is > 0:
+                ctx.ModelEdit = new ModelEditData { Kind = TurnAction.EditProduct, Name = action.Products[0].Name, Amount = action.Products[0].Price };
+                SetState(session, ConversationState.AwaitingModelStatusConfirmation);
+                await AskYesNoAsync(seller, MessageTemplates.Get("model-edit.001", action.Products[0].Name, Formatters.Money(action.Products[0].Price!.Value)), ct);
+                return true;
+
+            case TurnAction.AddCustomer when action.Customer is { } buyer:
+                await HandleCustomerAddAsync(seller,
+                    new ParsedCommand { Kind = CommandKind.CustomerAdd, Text = buyer.Name, Text2 = buyer.Phone, Text3 = buyer.Address, Text4 = buyer.City }, ct);
+                return true;
+
+            case TurnAction.EditCustomer when action.CustomerName is { } editName && action.Field is { } field && !string.IsNullOrWhiteSpace(action.Value):
+                var newValue = action.Value!.Trim();
+                if (field == "phone" && !IsPlausiblePhone(newValue))
+                {
+                    await ReplyAsync(seller, MessageTemplates.Get("model-edit.003", newValue), ct);
+                    return true;
+                }
+                ctx.ModelEdit = new ModelEditData { Kind = TurnAction.EditCustomer, Name = (await ModelCustomerAsync(seller, editName, ct))?.Name ?? editName, Field = field, Value = newValue };
+                SetState(session, ConversationState.AwaitingModelStatusConfirmation);
+                await AskYesNoAsync(seller, MessageTemplates.Get("model-edit.002", ctx.ModelEdit.Name, ModelFieldLabel(field), newValue), ct);
+                return true;
+
+            case TurnAction.ShowCustomer when await ModelCustomerAsync(seller, action.CustomerName, ct) is { } shown:
+                await HandleCustomerDetailAsync(seller, ctx, new ParsedCommand { Kind = CommandKind.CustomerDetail, Text = shown.Name }, ct);
+                return true;
+
+            case TurnAction.ShowCustomer when !string.IsNullOrWhiteSpace(action.CustomerName):
+                await HandleCustomerSearchAsync(seller, action.CustomerName!.Trim(), ct);
+                return true;
+
+            case TurnAction.ShowCustomer:
+                await HandleCustomerListAsync(seller, ctx, ct);
+                return true;
+
+            case TurnAction.HowTo:
+                var profile = Industry(seller);
+                var topic = action.Topic is not null && action.Topic != "other" ? action.Topic : "other";
+                // Each topic's text takes only the examples it shows, from this seller's kind of shop.
+                var examples = topic switch
+                {
+                    TurnAction.AddProduct => new object[] { profile.MainLine, profile.MainName },
+                    TurnAction.EditProduct => new object[] { profile.MainName },
+                    TurnAction.CreateOrder => new object[] { profile.OrderExample },
+                    "other" => new object[] { profile.MainLine, profile.OrderExample },
+                    _ => Array.Empty<object>(),
+                };
+                await ReplyAsync(seller, MessageTemplates.Get("model-first.howto." + topic.Replace("_", ""), examples), ct);
+                return true;
+
+            case TurnAction.ContactSupport:
+                await HandleSupportContactAsync(seller, ctx, new ParsedCommand { Kind = CommandKind.SupportContact }, ct);
                 return true;
 
             default:
@@ -108,19 +248,22 @@ public partial class ConversationEngine
         }
     }
 
+    private static string ModelFieldLabel(string field) => field switch { "phone" => "phone", "address" => "address", "city" => "shehar", _ => "naam" };
+
     /// <summary>
     /// The money figures the model returned (unit prices, delivery charges, product prices and costs) that the message does not contain, in digits or in words.
     /// Quantities are not checked: a small count is often not written as an amount. Zero (free delivery) is not an amount to check.
     /// </summary>
-    internal static IReadOnlyList<long> UnquotedAmounts(TurnAction action, string message)
+    /// <param name="recordAmounts">Order figures the shop's records already hold (catalog prices, the usual delivery charge): never "unsaid" in an order.</param>
+    internal static IReadOnlyList<long> UnquotedAmounts(TurnAction action, string message, IReadOnlySet<long>? recordAmounts = null)
     {
         var said = SpokenNumbers.Amounts(message);
         var figures = new List<decimal>();
         foreach (var order in action.Orders)
         {
-            if (order.DeliveryCharge is { } delivery) figures.Add(delivery);
+            if (order.DeliveryCharge is { } delivery && recordAmounts?.Contains((long)Math.Round(delivery, MidpointRounding.AwayFromZero)) != true) figures.Add(delivery);
             foreach (var item in order.Items)
-                if (item.StatedUnitPrice is { } unitPrice) figures.Add(unitPrice);
+                if (item.StatedUnitPrice is { } unitPrice && recordAmounts?.Contains((long)Math.Round(unitPrice, MidpointRounding.AwayFromZero)) != true) figures.Add(unitPrice);
         }
         foreach (var product in action.Products)
         {
@@ -139,7 +282,9 @@ public partial class ConversationEngine
     /// The phone numbers and customer names the model returned that the message does not contain. A phone is matched on its last 10 digits;
     /// a name is matched by sound (so an Urdu-script transcript still matches a Roman name). Empty when none are missing.
     /// </summary>
-    internal static IReadOnlyList<string> UnquotedDetails(TurnAction action, string message)
+    /// <param name="recordPhones">Last 10 digits of saved customers' phones.</param>
+    /// <param name="recordNames">Saved customers' names: the model returns the saved name for a customer the seller named in short.</param>
+    internal static IReadOnlyList<string> UnquotedDetails(TurnAction action, string message, IReadOnlySet<string>? recordPhones = null, IReadOnlySet<string>? recordNames = null)
     {
         var missing = new List<string>();
         var messageDigits = SpokenNumbers.SpokenDigits(message);
@@ -150,11 +295,21 @@ public partial class ConversationEngine
             if (order.Phone is { } phone && new string(phone.Where(char.IsDigit).ToArray()) is { Length: >= 7 } digits)
             {
                 var last10 = digits.Length > 10 ? digits[^10..] : digits;
-                if (!messageDigits.Contains(last10, StringComparison.Ordinal)) missing.Add(phone);
+                if (!messageDigits.Contains(last10, StringComparison.Ordinal) && recordPhones?.Contains(last10) != true) missing.Add(phone);
             }
-            if (order.CustomerName is { } name && SoundMatch.Keys(name) is { Count: > 0 } keys && keys.Any(k => !messageSounds.Contains(k)))
+            if (order.CustomerName is { } name && recordNames?.Contains(name.Trim()) != true
+                && SoundMatch.Keys(name) is { Count: > 0 } keys && keys.Any(k => !messageSounds.Contains(k)))
                 missing.Add(name);
         }
+        var phones = new List<string?> { action.Customer?.Phone, action.Field == "phone" ? action.Value : null };
+        foreach (var phone in phones)
+            if (phone is not null && new string(phone.Where(char.IsDigit).ToArray()) is { Length: >= 7 } digits)
+            {
+                var last10 = digits.Length > 10 ? digits[^10..] : digits;
+                if (!messageDigits.Contains(last10, StringComparison.Ordinal)) missing.Add(phone);
+            }
+        if (action.Customer?.Name is { } newName && SoundMatch.Keys(newName) is { Count: > 0 } newKeys && newKeys.Any(k => !messageSounds.Contains(k)))
+            missing.Add(newName);
         return missing.Distinct().ToList();
     }
 
@@ -166,7 +321,17 @@ public partial class ConversationEngine
         var status = ctx.ModelStatusValue;
         ctx.ModelStatusOrderId = null;
         ctx.ModelStatusValue = null;
-        if (orderId is null || status is null || !CommandParser.IsAffirmative(message))
+        var edit = ctx.ModelEdit;
+        ctx.ModelEdit = null;
+        if (edit is not null && CommandParser.IsAffirmative(message))
+        {
+            if (edit.Kind == TurnAction.EditProduct)
+                await HandleEditProductAsync(seller, new ParsedCommand { Kind = CommandKind.EditProduct, Text = edit.Name, Amount = edit.Amount }, ct);
+            else
+                await HandleCustomerUpdateAsync(seller, ctx, new ParsedCommand { Kind = CommandKind.CustomerUpdate, Text = edit.Name, Text2 = edit.Field, Text3 = edit.Value }, ct);
+            return;
+        }
+        if (edit is not null || orderId is null || status is null || !CommandParser.IsAffirmative(message))
         {
             await ReplyAsync(seller, MessageTemplates.Get("commands2.005"), ct);
             return;
