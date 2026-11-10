@@ -262,7 +262,8 @@ public partial class ConversationEngine
                 await _db.SaveChangesAsync(ct);
                 return;
             }
-            var understood = $"\n➡️ Samjha: {string.Join("  →  ", decision.Steps.Select(s => $"\"{s}\""))}";
+            var understoodSteps = string.Join("  →  ", decision.Steps.Select(s => $"\"{s}\""));
+            var understood = "\n" + MessageTemplates.Get("voice-heard.002", understoodSteps);
             await ParkVoiceStepsAsync(fromPhoneNumber, seller, decision.Steps, $"{heard}{understood}\n\n{decision.Message}", ct);
             return;
         }
@@ -289,7 +290,7 @@ public partial class ConversationEngine
         }
 
         if (steps.Count != 1 || !string.Equals(steps[0], text, StringComparison.OrdinalIgnoreCase))
-            heard += $"\n➡️ Samjha: {string.Join("  →  ", steps.Select(s => $"\"{s}\""))}";
+            heard += "\n" + MessageTemplates.Get("voice-heard.002", string.Join("  →  ", steps.Select(s => $"\"{s}\"")));
         if (prefetch is not null)
             foreach (var (nameHeard, nameMatched) in NameMatches(text, steps, prefetch.CustomerNames.Concat(prefetch.Catalog.Select(c => c.Label))).Take(3))
                 heard += $"\n{MessageTemplates.Get("voice-confirm.020", nameHeard, nameMatched)}";
@@ -963,13 +964,11 @@ public partial class ConversationEngine
 
     private static bool StepsAreRisky(IEnumerable<string> steps) => steps.Any(ActionRisk.IsRiskyStep);
 
-    private const string RejectedUnfaithful =
-        "Maaf kijiye, aapki baat poori tarah samajh nahi aayi, is liye koi tabdeeli nahi ki gayi. Barae meherbani apni baat saaf alfaz mein likh kar bhej dein.";
+    private static readonly string RejectedUnfaithful = MessageTemplates.Get("voice-heard.003");
 
     // Three different outcomes, three different replies: a rewrite that changed the meaning, a transcript nothing could read, and (above) a rewrite
     // that was used. None of them runs a step.
-    private const string UnfaithfulQuestion =
-        "Maaf kijiye, yeh poori tarah samajh nahi aaya. Barae meherbani rakam, quantity ya \"nahi\" wali baat alag alag likh kar dobara bhej dein.";
+    private static readonly string UnfaithfulQuestion = MessageTemplates.Get("voice-heard.004");
 
     /// <summary>Ids, totals and prices the model was shown for this voice note: a rewrite may legitimately use them ("pichla order" -> "edit order 105").</summary>
     private static IReadOnlySet<long> KnownVoiceNumbers(IEnumerable<Order> recent, IEnumerable<CatalogEntry> catalog, IEnumerable<string>? recentChatTexts = null)

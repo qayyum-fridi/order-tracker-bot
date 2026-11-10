@@ -432,7 +432,7 @@ public partial class ConversationEngine
                 return;
             }
             var guess = nearest.Count > 0 ? nearest[0] : null;
-            await ReplyAsync(seller, intro + (guess is null ? "" : $"\n\n💡 Kya aap \"{guess}\" keh rahe hain? Haan to likhein: 2 {guess}"), ct);
+            await ReplyAsync(seller, intro + (guess is null ? "" : MessageTemplates.Get("order-flow.guess.001", guess)), ct);
             return;
         }
 
@@ -837,7 +837,7 @@ public partial class ConversationEngine
             await SendDraftConfirmationAsync(seller, MessageTemplates.Get("order-flow.056") + "\n\n" + BuildConfirmationText(seller.PreferredLanguage, waiting), ct);
             return;
         }
-        await SendDraftConfirmationAsync(seller, "Maaf kijiye, yeh samajh nahi aaya.\n" + ConfirmTypedHint, ct);
+        await SendDraftConfirmationAsync(seller, MessageTemplates.Get("order-flow.notunderstood.001") + "\n" + ConfirmTypedHint, ct);
     }
 
     /// <summary>
