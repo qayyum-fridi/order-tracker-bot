@@ -25,14 +25,16 @@ public partial class ConversationEngine
 
         var catalog = await LoadCatalogAsync(seller, ct);
         var shortlist = SoundMatch.Shortlist(message, catalog, c => c.Label, ModelFirstCatalogShortlist);
-        var recent = await _db.Orders.Include(o => o.Customer)
-            .Where(o => o.SellerId == seller.Id).OrderByDescending(o => o.Id).Take(5).ToListAsync(ct);
+        // The same context the voice rewrite already reads: latest orders, saved customers with their history, and the last chat lines.
+        var voice = await LoadVoiceContextAsync(seller, catalog, ct);
         var context = new TurnContext
         {
             BusinessName = seller.BusinessName ?? "",
             Catalog = shortlist.Select(c => new AiCatalogItem { Name = c.Label, Price = c.Product.Price }).ToList(),
             CatalogSize = catalog.Count,
-            RecentOrders = recent.Select(o => $"#{o.Id} {o.Customer?.Name} {o.Status}").ToList(),
+            RecentOrders = voice.Recent.Select(o => $"#{o.Id} {o.Customer?.Name} {o.Status}").ToList(),
+            KnownCustomers = voice.KnownCustomers,
+            RecentExchanges = voice.Exchanges,
             FromVoice = fromVoice,
         };
 
