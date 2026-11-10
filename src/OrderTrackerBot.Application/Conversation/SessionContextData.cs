@@ -161,6 +161,9 @@ public sealed class SessionContextData
     public string? PendingProductJson { get; set; }
     public List<int>? BulkStatusOrderIds { get; set; }
     public int? CancelOrderId { get; set; }
+    /// <summary>A status change Features:ModelFirst picked, waiting for YES/NO (AwaitingModelStatusConfirmation).</summary>
+    public int? ModelStatusOrderId { get; set; }
+    public string? ModelStatusValue { get; set; }
     public int? CodCollectedOrderId { get; set; }
     public string? RuntimeFilterCommand { get; set; }
     public int? TrackingPromptOrderId { get; set; }

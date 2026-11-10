@@ -434,6 +434,9 @@ public partial class ConversationEngine
             case ConversationState.AwaitingOrderEdit:
                 await HandleOrderEditAsync(seller, session, ctx, message, ct);
                 break;
+            case ConversationState.AwaitingModelStatusConfirmation:
+                await HandleModelStatusConfirmationAsync(seller, session, ctx, message, ct);
+                break;
             case ConversationState.AwaitingReceiptDesign:
                 await HandleReceiptDesignAsync(seller, session, ctx, message, ct);
                 break;

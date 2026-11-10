@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using OrderTrackerBot.Application.Ai;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
+using OrderTrackerBot.Application.Templates;
 
 namespace OrderTrackerBot.Application.Conversation;
 
@@ -80,8 +81,11 @@ public partial class ConversationEngine
                 return true;
 
             case TurnAction.UpdateStatus when action.OrderId is { } statusId && action.Status is not null:
-                await HandleMarkStatusAsync(seller, session, ctx,
-                    new ParsedCommand { Kind = CommandKind.MarkStatus, Number = statusId, Text = action.Status }, ct);
+                // A status the model picked (maybe from a misheard voice note) waits for YES/NO before the order changes.
+                ctx.ModelStatusOrderId = statusId;
+                ctx.ModelStatusValue = action.Status;
+                SetState(session, ConversationState.AwaitingModelStatusConfirmation);
+                await AskYesNoAsync(seller, MessageTemplates.Get("model-status.001", statusId, action.Status), ct);
                 return true;
 
             case TurnAction.CancelOrder when action.OrderId is { } cancelId:
@@ -92,6 +96,23 @@ public partial class ConversationEngine
             default:
                 return false;
         }
+    }
+
+    /// <summary>The seller's answer to a status change the model picked: only YES runs it; anything else leaves the order as it was.</summary>
+    private async Task HandleModelStatusConfirmationAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
+    {
+        SetState(session, ConversationState.Idle);
+        var orderId = ctx.ModelStatusOrderId;
+        var status = ctx.ModelStatusValue;
+        ctx.ModelStatusOrderId = null;
+        ctx.ModelStatusValue = null;
+        if (orderId is null || status is null || !CommandParser.IsAffirmative(message))
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("commands2.005"), ct);
+            return;
+        }
+        await HandleMarkStatusAsync(seller, session, ctx,
+            new ParsedCommand { Kind = CommandKind.MarkStatus, Number = orderId, Text = status }, ct);
     }
 
     /// <summary>The model's period name mapped to the phrase the report code reads; null = today.</summary>
