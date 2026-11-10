@@ -802,6 +802,9 @@ public sealed class FeatureOptions
     /// <summary>MVP cut: the features that are off for now (discounts, loyalty, payments, payouts, drawer, labels, Instagram, import, walk-in, forms, scan) answer one "not available yet" reply when typed, not only hidden from menus. Off in code so existing tests keep their behaviour; on in appsettings.</summary>
     public bool MvpOnly { get; set; }
 
+    /// <summary>The AI order reader may answer cancel_order / undo (run through the intent router), and is told to read number words as digits. Off in code and in appsettings until measured.</summary>
+    public bool AiCancelUndo { get; set; }
+
     /// <summary>Menu: discount rows (menu discounts, discount list, add discount, discount performance). Off = hidden from the menu; the typed commands still work.</summary>
     public bool Discounts { get; set; } = false;
 
