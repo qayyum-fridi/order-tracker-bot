@@ -11,6 +11,7 @@
   "intent.howto": "✏️ Ye kaam is tarah likhein:\n\n{0}\n\nMenu ke liye: menu",
   "guide.howto.line": "✏️ Ye kaam is tarah karein:\n\n{0}\n\nAur madad ke liye \"guide\" ya \"menu\" likhein. Kisi insaan se baat karni ho to \"support\" likhein.",
   "guide.howto.example": "{0}\nMisaal: {1}",
+  "guide.howto.guess": "🙏 Pakka nahi keh sakta, shayad aap yeh poochh rahe hain:\n\n{0}\n\nAur madad ke liye \"guide\" ya \"menu\" likhein. Kisi insaan se baat karni ho to \"support\" likhein.",
   "guide.howto.none": "🙏 Maaf kijiye, mujhe is kaam ka tareeqa nahi mila. Poori rehnumai ke liye \"guide\" likhein, saari options ke liye \"menu\" likhein, ya hamari team se baat karne ke liye \"support\" likhein.",
   "miss-choices.001": "Maaf kijiye, yeh poori tarah samajh nahi aaya. Kya aap yeh kehna chahte hain? Neeche se chunein 👇"
 }

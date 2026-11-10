@@ -265,12 +265,16 @@
       "description": "Open one saved order for changes.",
       "examples": [
         "order 12 mein tabdeeli karni hai",
-        "order 12 edit karna hai"
+        "order 12 edit karna hai",
+        "order edit kaise karte hain",
+        "how do I edit an order",
+        "آرڈر ایڈٹ کرنے کا طریقہ"
       ],
       "slots": {
         "order": {
           "required": true,
-          "type": "number"
+          "type": "number",
+          "sample": "12"
         }
       },
       "template": "edit order {order}"
@@ -283,7 +287,8 @@
       "description": "Open the latest order for changes.",
       "examples": [
         "aakhri order edit karo",
-        "latest order mein change"
+        "latest order mein change",
+        "how do I edit an order"
       ],
       "slots": {},
       "template": "edit order"
@@ -1023,6 +1028,39 @@
         }
       },
       "template": "{name} - {price}, cost {cost}, stock {stock}, category: {category}"
+    },
+    {
+      "id": "product.create_attribute",
+      "entity": "product",
+      "action": "create_attribute",
+      "kind": "AddProduct",
+      "description": "Save a custom attribute (extra detail such as fabric, brand, warranty, material) with a product: write 'attribute: value' after the price.",
+      "examples": [
+        "custom attribute product mein kaise save karun",
+        "product ke saath extra detail kaise likhun",
+        "how can I save a custom attribute with a product",
+        "پروڈکٹ کے ساتھ کسٹم اٹریبیوٹ کیسے محفوظ کروں"
+      ],
+      "slots": {
+        "name": {
+          "required": true,
+          "sample": "Polo Shirt"
+        },
+        "price": {
+          "required": true,
+          "type": "number",
+          "sample": "500"
+        },
+        "attribute": {
+          "required": true,
+          "sample": "fabric"
+        },
+        "attribute_value": {
+          "required": true,
+          "sample": "cotton"
+        }
+      },
+      "template": "{name} - {price}, {attribute}: {attribute_value}"
     },
     {
       "id": "product.show",
@@ -2155,7 +2193,10 @@
       "description": "Find a saved customer by name.",
       "examples": [
         "search customer Sara",
-        "Sara dhoondo"
+        "Sara dhoondo",
+        "Sara naam ka customer talash karo",
+        "mere paas Ali naam ka customer hai ya nahi",
+        "علی نام کا کسٹمر تلاش کرو"
       ],
       "slots": {
         "name": {
@@ -2167,7 +2208,12 @@
         "customer",
         "search",
         "dhoondo",
-        "find"
+        "dhundo",
+        "talash",
+        "khoj",
+        "find",
+        "تلاش",
+        "ڈھونڈو"
       ]
     },
     {
@@ -2570,9 +2616,16 @@
       "entity": "account",
       "action": "guide",
       "kind": "Guide",
-      "description": "Step-by-step guide.",
+      "description": "Step-by-step guide, and what this bot or application is for and what it can do.",
       "examples": [
-        "guide"
+        "guide",
+        "yeh application kis kaam ki hai",
+        "yeh bot kya karta hai",
+        "is app se kya kya ho sakta hai",
+        "what is this app for",
+        "what can this bot do",
+        "یہ ایپ کس کام کی ہے",
+        "یہ بوٹ کیا کرتا ہے"
       ],
       "slots": {},
       "template": "guide"
@@ -2589,6 +2642,44 @@
       ],
       "slots": {},
       "template": "change language"
+    },
+    {
+      "id": "account.reports",
+      "entity": "account",
+      "action": "reports",
+      "kind": "ReportMenu",
+      "description": "Show the list of reports as taps (orders today, unpaid, customers, expenses, stock, today's account).",
+      "examples": [
+        "reports dikhao",
+        "report list",
+        "reports",
+        "کون سی رپورٹ دیکھوں"
+      ],
+      "slots": {},
+      "template": "reports"
+    },
+    {
+      "id": "account.language_set",
+      "entity": "account",
+      "action": "language_set",
+      "kind": "ChangeLanguage",
+      "description": "Switch the bot to a named language now (Urdu, English or Roman Urdu), without the language picker.",
+      "examples": [
+        "urdu mein karo",
+        "english mein kar do",
+        "bot ko urdu mein tabdeel karo",
+        "change language to english",
+        "roman urdu mein karo",
+        "اردو میں تبدیل کردو",
+        "انگریزی میں کر دیں"
+      ],
+      "slots": {
+        "language": {
+          "required": true,
+          "sample": "urdu"
+        }
+      },
+      "template": "language {language}"
     },
     {
       "id": "account.business_info",
@@ -4042,6 +4133,9 @@
       "keywords": [
         "contact support",
         "customer support",
+        "customers support",
+        "support document",
+        "support doc",
         "support team",
         "human support",
         "talk to human",
@@ -4055,6 +4149,10 @@
         "انسان سے بات"
       ],
       "runOnHowTo": true
-    }
+    },
+    {"id": "import.template", "entity": "import", "action": "template", "kind": "ImportTemplate", "description": "Send the empty Excel file to fill in for bringing customers or the catalog from an old system.", "examples": ["customers ka import template bhejo", "catalog import file chahiye", "send me the import template for all data", "کسٹمرز کا امپورٹ ٹیمپلیٹ بھیجیں"], "slots": {"what": {}}, "template": "import template {what}"},
+    {"id": "support.resolve", "entity": "support", "action": "resolve", "kind": "ResolveSupportQuery", "description": "Mark a buyer question (by its number) as answered.", "examples": ["query 3 resolve ho gaya", "mark query 3 as solved", "سوال 3 حل ہو گیا"], "slots": {"id": {"required": true, "type": "number"}}, "template": "mark {id} resolved"},
+    {"id": "support.reply", "entity": "support", "action": "reply", "kind": "ReplySupportQuery", "description": "Write the answer to a buyer question (by its number); the bot drafts it for the seller to forward.", "examples": ["query 3 ka jawab: kal tak mil jayega", "reply to query 3: it ships tomorrow", "سوال 3 کا جواب: کل مل جائے گا"], "slots": {"id": {"required": true, "type": "number"}, "text": {"required": true}}, "template": "reply {id}: {text}"},
+    {"id": "lead.action", "entity": "lead", "action": "update", "kind": "LeadAction", "description": "Update an Instagram comment lead by its number: converted, followed up or dismissed.", "examples": ["lead 5 convert ho gayi", "lead 5 follow up kar liya", "lead 5 dismiss", "لیڈ 5 ختم کر دو"], "slots": {"id": {"required": true, "type": "number"}, "action": {"required": true}}, "template": "lead {id} {action}"}
   ]
 }

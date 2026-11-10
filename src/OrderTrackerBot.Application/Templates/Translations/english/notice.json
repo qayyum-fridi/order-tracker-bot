@@ -2,5 +2,6 @@
   "notice.buyer.001": "ℹ️ The bot does not message buyers. To send a buyer a receipt, type \"receipt 12\" and forward the PDF to them.",
   "notice.undo.001": "ℹ️ Only the last action can be undone right now. Type \"undo\". Undo for a single order is not available yet.",
   "notice.phone.001": "⚠️ That phone number is not valid. Type 11 digits, for example: \"Sara ka phone 03001234567\".",
-  "notice.draft.001": "ℹ️ An order is half-entered, so several orders cannot be cancelled in one message. To drop the half-entered order, type \"cancel\" on its own. To cancel an order, send one number per message, like \"cancel 1\"."
+  "notice.draft.001": "ℹ️ An order is half-entered, so several orders cannot be cancelled in one message. To drop the half-entered order, type \"cancel\" on its own. To cancel an order, send one number per message, like \"cancel 1\".",
+  "notice.orderdate.001": "ℹ️ An order's date cannot be changed after it is saved. To record a counter sale on an earlier date, type: \"walkin Kurti 2 kal\" (kal = yesterday, parso = the day before)."
 }

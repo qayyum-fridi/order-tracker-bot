@@ -68,7 +68,12 @@ public static class IntentCatalog
     {
         var words = IntentKeywords.Tokens(message);
         // The how-to words themselves ("kaise", "how", "tarika") say nothing about which command is meant.
-        if (Find(HowToId) is { } howTo) words.ExceptWith(IntentKeywords.Tokens(string.Join(' ', howTo.Keywords ?? Array.Empty<string>())));
+        if (Find(HowToId) is { } howTo)
+        {
+            var howWords = IntentKeywords.Tokens(string.Join(' ', howTo.Keywords ?? Array.Empty<string>()));
+            words.ExceptWith(howWords);
+            words.RemoveWhere(w => howWords.Any(k => IntentKeywords.IsNear(w, k)));
+        }
         if (words.Count == 0) return Array.Empty<(IntentDefinition, double)>();
 
         var candidates = All.Where(i => i.Id != HowToId).Select(i => (Intent: i, Words: IntentWords(i))).ToList();

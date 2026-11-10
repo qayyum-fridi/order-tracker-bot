@@ -252,6 +252,13 @@ public interface IAiOrderAssistant
         Task.FromResult<IntentRoute?>(null);
 
     /// <summary>
+    /// Plans what to do for a message the catalog could not place: ordered tool steps, a question, or a promise of more input. <paramref name="sellerContext"/>
+    /// is <c>SellerContext.Render()</c>. Nothing runs here; the engine verifies every step first. Null when AI is unavailable or the answer is unusable.
+    /// </summary>
+    Task<OrderTrackerBot.Application.Agent.AgentPlan?> PlanAsync(string message, string sellerContext, IReadOnlyList<OrderTrackerBot.Application.Agent.AgentTool> tools, CancellationToken cancellationToken = default) =>
+        Task.FromResult<OrderTrackerBot.Application.Agent.AgentPlan?>(null);
+
+    /// <summary>
     /// What a spoken or typed answer MEANS for a yes / no question the bot just asked: "yes", "no" or "other" (a different request, unclear, or both).
     /// Meaning, not words, so any dialect or filler works. The model can answer only these three; it cannot make up a step. Null when AI is unavailable.
     /// </summary>

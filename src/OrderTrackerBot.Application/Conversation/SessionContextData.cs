@@ -70,6 +70,24 @@ public sealed class OrderForCustomerData
     public DateTime At { get; set; } = DateTime.UtcNow;
 }
 
+/// <summary>The seller said they will send several of something one by one ("3 products add karne hain"): each matching line is counted until the count is reached or they say done.</summary>
+/// <summary>A planned request the planner stopped on because it needed one answer from the seller ("Shawl add karo" with no price): the next message is read together with it.</summary>
+public sealed class AgentPendingData
+{
+    public string Message { get; set; } = "";
+    public string Question { get; set; } = "";
+    public DateTime At { get; set; } = DateTime.UtcNow;
+}
+
+public sealed class AgentAwaitingData
+{
+    public string Tool { get; set; } = "";
+    /// <summary>How many were promised (0 = until the seller says done).</summary>
+    public int Remaining { get; set; }
+    public int Done { get; set; }
+    public DateTime At { get; set; } = DateTime.UtcNow;
+}
+
 /// <summary>A "did you mean ...?" tap offered for an unknown product name: the button title as sent, and the catalog label it stands for.</summary>
 public sealed class ProductSuggestion
 {
@@ -84,6 +102,8 @@ public sealed class SessionContextData
     public DateTime? SupportRequestedAt { get; set; }
 
     public OrderForCustomerData? OrderForCustomer { get; set; }
+    public AgentAwaitingData? AgentAwaiting { get; set; }
+    public AgentPendingData? AgentPending { get; set; }
     /// <summary>The did-you-mean buttons last sent for the product question (<c>ProductChoice</c>); a tap on one is read as "2 &lt;label&gt;".</summary>
     public List<ProductSuggestion>? ProductSuggestions { get; set; }
 

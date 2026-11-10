@@ -65,6 +65,179 @@ public class GuideHowToTests : IDisposable
         _ai.Verify(a => a.RouteIntentAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<IntentDefinition>>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    // Seen live: "Custom attribute product ma kasa sath save kar saktha han" got the generic Products taps.
+    [Theory]
+    [InlineData("Custom attribute product ma kasa sath save kar saktha han")]
+    [InlineData("custom attribute product mein kaise save karun")]
+    [InlineData("how can I save a custom attribute with a product")]
+    public async Task HowToSaveACustomAttribute_ShowsTheProductLineWithAnAttribute_AndSavesNothing(string question)
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, question, default);
+
+        Assert.Contains("[name] - [price], [attribute]: [attribute_value]", Replies);
+        Assert.Contains("Polo Shirt - 500, fabric: cotton", Replies);
+        Assert.DoesNotContain("samajh nahi", Replies);
+        Assert.Equal(0, await db.Products.CountAsync());
+        _ai.Verify(a => a.RouteIntentAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<IntentDefinition>>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    // Seen live: "Yar mughy order ko edit kana ka tarika bato" answered "tareeqa nahi mila" (typos, no close command).
+    [Theory]
+    [InlineData("order edit kaise karte hain")]
+    [InlineData("how do I edit an order")]
+    public async Task HowToEditAnOrder_ShowsTheEditLine(string question)
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, question, default);
+
+        Assert.DoesNotContain("tareeqa nahi mila", Replies);
+        Assert.Contains("edit", Replies, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // Typos and slang around a how-to word: whatever is offered, it is an answer, never "tareeqa nahi mila".
+    [Fact]
+    public async Task HowToWithTyposAndSlang_IsAnswered_NotNothingFound()
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, "Yar mughy order ko edit kana ka tarika bato", default);
+
+        Assert.DoesNotContain("tareeqa nahi mila", Replies);
+        Assert.NotEmpty(_text);
+    }
+
+    [Theory]
+    [InlineData("kasa", "kaise")]
+    [InlineData("kesa", "kese")]
+    [InlineData("kaisey", "kaisay")]
+    [InlineData("kesay", "kese")]
+    public void NearSpellings_AreTheSameHowToWord(string typed, string keyword) => Assert.True(IntentKeywords.IsNear(typed, keyword));
+
+    [Theory]
+    [InlineData("karne", "kaise")]   // different consonants
+    [InlineData("kisi", "kaise")]
+    [InlineData("kaise", "kaise")]   // exact, not a typo
+    [InlineData("kar", "kaise")]     // too short
+    public void OtherWords_AreNotNearSpellings(string typed, string keyword) => Assert.False(IntentKeywords.IsNear(typed, keyword));
+
+    [Fact]
+    public async Task HowToQuestion_WithAnUnreadableWord_GuessesTheClosestCommand_InsteadOfNothingFound()
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, "staff mmber kaise add krte hain", default);
+
+        Assert.DoesNotContain("tareeqa nahi mila", Replies);
+        Assert.Contains("staff add", Replies);
+    }
+
+    // The real cause of that live reply: a customer word plus a bare "karo" was read as "create a customer" (a form that is off), not as a search.
+    [Theory]
+    [InlineData("Ali koi customers ha mera pass تلاش karo")]
+    [InlineData("customer Ali talash karo")]
+    [InlineData("Ali naam ka customer dhoondo")]
+    public void SearchSentences_WithACustomerWord_AreNotCreateCustomerHelp(string message) =>
+        Assert.NotEqual(CommandKind.DetailedForm, CommandParser.TryParse(message)?.Kind);
+
+    // Seen live: "Ali koi customers ha mera pass تلاش karo" went to loyalty ("feature not available").
+    [Fact]
+    public async Task CustomerSearchWords_AreCatalogKeywords_AndTheRoutedSearchRuns()
+    {
+        var search = IntentCatalog.Find("customer.search")!;
+        Assert.Contains("talash", search.Keywords!);
+        Assert.Contains("تلاش", search.Keywords!);
+
+        using var db = _dbFactory.CreateContext();
+        var seller = await SeedAsync(db);
+        db.Customers.Add(new Customer { SellerId = seller.Id, Name = "Ali Khan", Phone = "03001234567" });
+        await db.SaveChangesAsync();
+        _ai.Setup(a => a.RouteIntentAsync("Ali koi customers ha mera pass تلاش karo", It.IsAny<IReadOnlyList<IntentDefinition>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IntentRoute("customer.search", new Dictionary<string, string> { ["name"] = "Ali" }, 0.95));
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, "Ali koi customers ha mera pass تلاش karo", default);
+
+        Assert.Contains("Ali Khan", Replies);
+        Assert.DoesNotContain("available nahi", Replies);
+    }
+
+    // Seen live: "Mera kis kam ki yah application ha" offered "low stock".
+    [Fact]
+    public async Task WhatIsThisAppFor_RoutedToTheGuide_IsAnswered_NotAskedAgain()
+    {
+        using var db = _dbFactory.CreateContext();
+        await SeedAsync(db);
+        _ai.Setup(a => a.RouteIntentAsync("Mera kis kam ki yah application ha", It.IsAny<IReadOnlyList<IntentDefinition>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IntentRoute("account.guide", new Dictionary<string, string>(), 0.95));
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, "Mera kis kam ki yah application ha", default);
+
+        // The guide may go out as text, buttons or a list: look at everything the sender was given.
+        var sent = string.Join("\n", _sender.Invocations.SelectMany(i => i.Arguments).OfType<string>());
+        Assert.NotEmpty(sent);
+        Assert.DoesNotContain("samajh nahi", sent);
+        Assert.Contains("what is this app for", IntentCatalog.Find("account.guide")!.Examples);
+    }
+
+    // Seen live: "Customers support ka document do" showed the customer list ("customers" alone claimed it).
+    [Fact]
+    public async Task CustomersSupport_IsSupport_NotTheCustomerList()
+    {
+        using var db = _dbFactory.CreateContext();
+        var seller = await SeedAsync(db);
+        db.Customers.Add(new Customer { SellerId = seller.Id, Name = "Sara", Phone = "03001234567" });
+        await db.SaveChangesAsync();
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, "Customers support ka document do", default);
+
+        Assert.DoesNotContain("Aapke Customers", Replies);
+        Assert.NotEmpty(_text);
+    }
+
+    [Fact]
+    public async Task PlainCustomers_StillShowsTheCustomerList()
+    {
+        using var db = _dbFactory.CreateContext();
+        var seller = await SeedAsync(db);
+        db.Customers.Add(new Customer { SellerId = seller.Id, Name = "Sara", Phone = "03001234567" });
+        await db.SaveChangesAsync();
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, "customers", default);
+
+        Assert.Contains("Aapke Customers", Replies);
+    }
+
+    [Fact]
+    public async Task CustomerList_UrduName_IsIsolated_AndTheLineStaysLeftToRight()
+    {
+        using var db = _dbFactory.CreateContext();
+        var seller = await SeedAsync(db);
+        db.Customers.Add(new Customer { SellerId = seller.Id, Name = "محمد سجاد", Phone = "03001234567" });
+        db.Customers.Add(new Customer { SellerId = seller.Id, Name = "Sara", Phone = "03007654321" });
+        await db.SaveChangesAsync();
+
+        await Engine(db).HandleIncomingMessageAsync(Phone, "customers", default);
+
+        Assert.Matches("‎\\d ⁨محمد سجاد⁩ - 03001234567 - 0 orders", Replies);
+        Assert.Matches(@"\d Sara - 03007654321 - 0 orders", Replies); // Latin names are left untouched
+    }
+
+    [Theory]
+    [InlineData("kasa")]
+    [InlineData("kaisey")]
+    [InlineData("kesay")]
+    public void HowToSpellings_AreHowToQuestions(string word)
+    {
+        var howTo = IntentCatalog.Find(IntentCatalog.HowToId)!;
+        Assert.NotEmpty(IntentKeywords.MatchTolerant($"staff member {word} add karte hain", new[] { howTo }));
+    }
+
     [Fact]
     public async Task HowToQuestion_IsNeverRun_EvenWhenTheMessageNamesTheValues()
     {

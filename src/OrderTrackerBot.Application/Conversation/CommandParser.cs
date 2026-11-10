@@ -110,6 +110,7 @@ public enum CommandKind
     DiscountPerformance,
     NewOrderHelp,
     Guide,
+    ReportMenu,
     Version,
     /// <summary>"setup status" / "is setup complete": whether the seller's setup is finished, and the shop it was set for.</summary>
     SetupStatus,
@@ -219,6 +220,32 @@ public static class CommandParser
 
     private static readonly Regex MarginCmd = new(@"^(?:margins?|margin\s+(?:list|report)|profit\s+margins?|discount\s+(?:room|limit)|munafa\s+per\s+product)$", Opts);
     private static readonly Regex CategorySalesCmd = new(@"^(?:category[\s-]*wise\s+(?:sales?|report)|sales?\s+by\s+category|category\s+(?:sales?|report)|category\s+ki\s+sale|categories\s+sales?)(?:\s+(?<p>.+))?$", Opts);
+    // "language urdu", "change language to english", "urdu mein karo", "اردو ma tabdeel karo": the seller names the language, so the bot switches without the picker.
+    private const string LanguageWord = @"urdu|اردو|english|انگریزی|roman\s*urdu|roman";
+    private static readonly Regex LanguageSetCommand = new(@"^(?:language|change\s+language|zabaan|zaban|زبان)\s+(?:to\s+|ko\s+)?(?<lang>" + LanguageWord + @")$", Opts);
+    private static readonly Regex LanguageNamed = new(@"(?<lang>" + LanguageWord + @")", Opts);
+    private static readonly Regex LanguageChangeWord = new(@"tabdeel|tabdil|badal|badlo|badlein|change|switch|karo|kar\s*do|kar\s*dein|kardo|kardiya|kar\s*diya|تبدیل|بدل|کردیا|کردو|کریں", Opts);
+
+    private static ParsedCommand? TryParseLanguageSet(string message)
+    {
+        var match = LanguageSetCommand.Match(message);
+        if (!match.Success && message.Length <= 40 && message.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= 6
+            && LanguageChangeWord.IsMatch(message))
+            match = LanguageNamed.Match(message);
+        if (!match.Success) return null;
+        var word = match.Groups["lang"].Value.ToLowerInvariant().Replace(" ", "");
+        // Targets are the words Lang.Resolve understands.
+        var target = word switch
+        {
+            "urdu" or "اردو" => "اردو",
+            "english" or "انگریزی" => "english",
+            _ => "roman urdu",
+        };
+        return new ParsedCommand { Kind = CommandKind.ChangeLanguage, Text = target };
+    }
+
+    // "reports" alone: the report list as taps (ConversationEngine.ReportMenu.cs).
+    private static readonly Regex ReportMenuCmd = new(@"^(?:reports|reports\s+menu|report\s+menu|رپورٹس)$", Opts);
     private static readonly Regex GuideLater = new(@"^baad\s+mein$", Opts);
     private static readonly Regex ChangeLanguage = new(@"^(change\s+language|language(\s+(badlein|badlo|change))?|zabaan\s+badlein|language\s+badal(na|ein)?|زبان\s+بدلیں)$", Opts);
     private static readonly Regex BusinessSetup = new(@"^(business\s+setup|setup|settings)$", Opts);
@@ -1340,7 +1367,7 @@ public static class CommandParser
     private static readonly Regex NewOrderNoun = new(@"(?<!\p{L})orders?(?!\p{L})|آرڈر|اڈر", Opts);
     private static readonly Regex NewOrderVerb = new(@"(?<!\p{L})(?:bana\p{L}*|bnao|bna\p{L}*|create|make|add|naya|nayi|nya|new|likh\p{L}*|darj\p{L}*|daal\p{L}*|dal\s*(?:do|dein|den|o|ein)|kar\s*(?:do|dein|den|o|ein)|karein|start|shuru\p{L}*)(?!\p{L})|بنا\p{L}*|بنائ\p{L}*|بناو\p{L}*|لکھ\p{L}*|درج|ڈال\p{L}*|کر\s*دیں|کریں|کر\s*دو|شروع", Opts);
     // Words that make a create-sentence into another command (a question, a lookup, an edit, a status change, a number).
-    private const string NotActionWords = @"\p{Nd}|[?؟]|(?<!\p{L})(?:edit|cancel|mark|status|delete|undo|receipt|label|summary|list|kitn\p{L}*|kya|kab|kaun\p{L}*|show|dikhao|dekh\p{L}*|search|find|remove|hata\p{L}*|track\p{L}*|return\p{L}*|wapas|shipped|delivered|paid|advance|bhej\p{L}*|forward|export|total|courier|payout)(?!\p{L})|(?<!\p{L})(?:chahte|chahti|chahta|chahiye|hain|kehna|kehte)(?!\p{L})|ترمیم|منسوخ|حذف|دکھ|کیا|کتن|کب|کون|رسید|لیبل|خلاصہ|فہرست|ختم";
+    private const string NotActionWords = @"\p{Nd}|[?؟]|(?<!\p{L})(?:edit|cancel|mark|status|delete|undo|receipt|label|summary|list|kitn\p{L}*|kya|kab|kaun\p{L}*|show|dikhao|dekh\p{L}*|search|find|talash|khoj|dhoond\p{L}*|dhund\p{L}*|remove|hata\p{L}*|track\p{L}*|return\p{L}*|wapas|shipped|delivered|paid|advance|bhej\p{L}*|forward|export|total|courier|payout)(?!\p{L})|(?<!\p{L})(?:chahte|chahti|chahta|chahiye|hain|kehna|kehte)(?!\p{L})|ترمیم|منسوخ|حذف|دکھ|کیا|کتن|کب|کون|رسید|لیبل|خلاصہ|فہرست|ختم|تلاش|ڈھونڈ|کھوج";
     // A short request to start something ("naya expense bana do", "expense add karna hai"), not a statement about it ("ek naya product hai").
     private static readonly Regex NotCreateHelpRequest = new(NotActionWords + @"|(?<!\p{L})(?:ye|yeh|jo|ke|ki|ek)(?!\p{L})|(?<!(?:karna|karni|karne|likhna|likhni|likhein|likho) )(?<!\p{L})hai(?!\p{L})", Opts);
     // Nouns that belong to another command when they are the subject of an order sentence.
@@ -1517,6 +1544,8 @@ public static class CommandParser
         (new Regex(@"^order\s+\d+\s+undo$", CasualOpts), "notice.undo.001"),
         (new Regex(@"^(?:last|pichla|aakhri)\s+(?:expense|kharcha)\s+(?:wapas|undo)(?:\s+karo|\s+kar\s*do)?$", CasualOpts), "notice.undo.001"),
         (new Regex(@"^[^\d,:]{2,40}?\s+(?:ka|ki)\s+(?:phone|number|mobile)\s+[^\s\d]+$", CasualOpts), "notice.phone.001"),
+        // Changing a saved order's date: an order word, a date word and a change word in any order ("order ki date kaise badlein", "change order date").
+        (new Regex(@"^(?=.*\b(?:order|orders|آرڈر)\b)(?=.*\b(?:date|tareekh|tarikh|تاریخ)\b)(?=.*\b(?:change|bad(?:a)?l\w*|tabdeel\w*|edit|update|بدل\w*|تبدیل\w*)\b).{8,}$", CasualOpts), "notice.orderdate.001"),
     };
 
     private static ParsedCommand? ParseNotice(string text)
@@ -1635,8 +1664,10 @@ public static class CommandParser
         if (Greeting.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Greeting };
         if (Help.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Help };
         if (ChangeLanguage.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ChangeLanguage };
+        if (TryParseLanguageSet(message) is { } setLanguage) return setLanguage;
         if (BusinessSetup.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.BusinessSetup };
         if (PaymentMethodPrompt.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.PaymentMethodPrompt };
+        if (ReportMenuCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ReportMenu };
         if (Guide.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Guide, Text = message.Contains("dekh", StringComparison.OrdinalIgnoreCase) || message.StartsWith("poora", StringComparison.OrdinalIgnoreCase) ? "full" : null };
         if (CategorySalesCmd.Match(message) is { Success: true } catSales)
         {

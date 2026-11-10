@@ -1,0 +1,12 @@
+{
+  "agent.001": "ℹ️ Which one do you mean? {0}\nPlease write the full name and send it again.",
+  "agent.002": "🙏 Sorry, I could not clearly understand one of the tasks, so I stopped there. Please send that task on its own.",
+  "agent.003": "ℹ️ Please write the price too, for example: Kurti - 500",
+  "agent.004": "ℹ️ Which customer is the order for? Write the name, for example: Sara ko Kurti 2",
+  "agent.005": "✅ {0} products saved.",
+  "agent.006": "✅ Okay. {0} products saved.",
+  "agent.007": "➡️ Understood: {0}",
+  "agent.008": "ℹ️ Okay, send them one by one: Name - price. Write \"done\" when you have finished.",
+  "agent.009": "ℹ️ Please tell me: do you want to change the price or the cost? For example: Kurti - 1800 (price) or Kurti - 1800, cost 900 (cost).",
+  "agent.010": "ℹ️ Please write the exact new price, for example: Kurti - 1900. I cannot tell the exact amount from \"increase\" or \"reduce\"."
+}

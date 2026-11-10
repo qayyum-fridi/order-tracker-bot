@@ -400,6 +400,71 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
         }
     }
 
+    /// <summary>Most tokens a plan may use. With the schema every step also prints its null arguments (about 60 tokens), so 8 steps with items fit.</summary>
+    private const int PlannerMaxTokens = 800;
+
+    private static bool IsValidJson(string text)
+    {
+        try { using var _ = JsonDocument.Parse(text); return true; }
+        catch (JsonException) { return false; }
+    }
+
+    public async Task<OrderTrackerBot.Application.Agent.AgentPlan?> PlanAsync(string message, string sellerContext,
+        IReadOnlyList<OrderTrackerBot.Application.Agent.AgentTool> tools, CancellationToken cancellationToken = default)
+    {
+        var menu = string.Join("\n", tools.Select(t =>
+            $"- {t.Name}: {t.Description} Args: {string.Join(", ", t.Args.Select(a => $"{a.Name} ({a.Kind}{(a.Required ? ", required" : "")})"))}" +
+            (t.TakesItems ? ". Also items: [{\"product_id\": <id or omit>, \"name\": \"<as said>\", \"qty\": <n>}]" : "")));
+        var system =
+            "You plan the work for a small shop owner (Pakistan; Roman Urdu, Urdu script or English; spelling and word order vary) who talks to a WhatsApp order-tracking bot. " +
+            "Decide what the bot should do for the message, using ONLY these tools:\n" + menu + "\n\n" +
+            "The lines before \"Message\" are facts from the owner's own database. They are for understanding who or what is meant; they are NOT a to-do list: a product or customer being listed is never a reason to plan something for it.\n" +
+            "Answer with ONLY this JSON shape: {\"steps\": [<step objects only>], \"question\": <string or null>, \"awaiting\": <null or {\"tool\": \"<tool>\", \"count\": <n>}>, \"confidence\": <0 to 1>, \"missing_for\": <the tool the question is for, or \"none\">}. " +
+            "question, awaiting and confidence are top-level keys, never inside steps. A step is {\"tool\": \"<tool>\", \"args\": {...}} (plus \"items\" only for a tool that has items).\n\n" +
+            "Rules:\n" +
+            "1. Plan ONLY what the message asks, in the order it asks, each task once. Never add a step the owner did not ask for (no order after adding a product, no edits to other products). A phone number, address or other detail on its own is not an order.\n" +
+            "2. add_product: only for a NEW product, with the price the owner said (if the owner corrects a number, \"100 nahi 120\", use the last one); several products with their prices in one message are one add_product each. edit_product: only when the owner asks to change the price, cost or stock of a LISTED product; give its product_id from the list and ONLY the argument that changes. " +
+            "If the owner corrects themselves (\"500 nahi 650\"), use the final value. draft_order: only when the owner says who gets what.\n" +
+            "3. Ids: put a product_id or customer_id ONLY when that exact number is listed in the facts, as a plain number. Otherwise leave the id out and give the name as said (customer_name, items.name); never invent an id and never put a name, text or # in an id.\n" +
+            "4. Every args key is required by the schema: write null for each argument the owner did not say (never 0 or an empty string as a placeholder), and an empty items list for a tool without items. Numbers are digits, exactly as the owner said them; never calculate or guess one.\n" +
+            "5. If something needed is missing (a price for a new product), if an edit names a product that is NOT in the facts, or if two listed people or products match equally, plan NO step for it and put ONE short question in question, in the owner's language (awaiting stays null). Never fill a missing price with 0. question is ONLY for asking the owner a missing detail of a task the tools can do. Never answer the owner's own questions, never state a price or any other fact, and never ask about something the tools cannot do (expenses, reports, cancelling): for those return the empty answer of rule 7.\n" +
+            "5a. missing_for names the tool that the question is for. Use \"none\" when no tool needs anything from the owner: a question the owner asked you, an expense or money entry, a report, a payment, cancelling or deleting anything (the tools cannot do these), small talk. With \"none\", question must be null. A cancel or delete request has no steps and missing_for none.\n" +
+            "5b. Names can be written in another script than the facts (Urdu script for a customer or product listed in Roman letters): match by sound and meaning and use the listed id; plan a new customer only when no listed person could be the one meant.\n" +
+            "6. If the owner will give details one by one (\"3 products add karne hain, ek ek karke dunga\"), return no steps (awaiting is ONLY for this case, never together with steps), set awaiting to the tool and the count the owner said (in digits; if no number was said, 0 = until the owner says done), and put a short \"send the first one\" line in question.\n" +
+            "7. confidence is how sure you are of this answer, including an answer that is only a question or an awaiting promise (0.8 or more when clear). Use 0 ONLY when none of the tools apply: then return {\"steps\": [], \"question\": null, \"awaiting\": null, \"confidence\": 0}. " +
+            "Reports, small talk, cancelling or deleting anything, and questions about the business need none of the tools.\n" +
+            "8. At most " + OrderTrackerBot.Application.Agent.AgentTools.MaxSteps + " steps.\n\n" +
+            "Examples (different shop):\n" +
+            "\"Scarf 450 add karo\" -> {\"steps\":[{\"tool\":\"add_product\",\"args\":{\"name\":\"Scarf\",\"price\":450}}],\"question\":null,\"awaiting\":null,\"confidence\":0.95}\n" +
+            "\"Mug ka stock 30 kar do\" with \"#12 Mug\" in the facts -> {\"steps\":[{\"tool\":\"edit_product\",\"args\":{\"product_id\":12,\"stock\":30}}],\"question\":null,\"awaiting\":null,\"confidence\":0.95}\n" +
+            "\"Rida ko 3 Mug bhej do\" with no Rida in the facts -> {\"steps\":[{\"tool\":\"draft_order\",\"args\":{\"customer_name\":\"Rida\"},\"items\":[{\"name\":\"Mug\",\"qty\":3}]}],\"question\":null,\"awaiting\":null,\"confidence\":0.9}\n" +
+            "\"5 products add karne hain ek ek karke\" -> {\"steps\":[],\"question\":\"Pehla product likhein: Name - price\",\"awaiting\":{\"tool\":\"add_product\",\"count\":5},\"confidence\":0.9}\n" +
+            "\"Scarf 450 aur Belt 300 dono add karo\" -> {\"steps\":[{\"tool\":\"add_product\",\"args\":{\"name\":\"Scarf\",\"price\":450}},{\"tool\":\"add_product\",\"args\":{\"name\":\"Belt\",\"price\":300}}],\"question\":null,\"awaiting\":null,\"confidence\":0.95}\n" +
+            "\"Belt add karo\" (no price said) -> {\"steps\":[],\"question\":\"Belt ka price kya hai?\",\"awaiting\":null,\"confidence\":0.9}\n" +
+            "\"Lamp ka price 90 kar do\" with no Lamp in the facts -> {\"steps\":[],\"question\":\"Lamp catalog mein nahi hai. Pehle add karein: Lamp - 90\",\"awaiting\":null,\"confidence\":0.9}\n" +
+            "\"Lamp 90 add karo, uska phone 03001234567\" -> {\"steps\":[{\"tool\":\"add_product\",\"args\":{\"name\":\"Lamp\",\"price\":90}}],\"question\":null,\"awaiting\":null,\"confidence\":0.9}\n" +
+            "\"Mug ka rate kya hai\" (a question about a price) -> {\"steps\":[],\"question\":null,\"awaiting\":null,\"confidence\":0}\n" +
+            "\"kal 300 ka petrol dala\" (an expense) -> {\"steps\":[],\"question\":null,\"awaiting\":null,\"confidence\":0}\n" +
+            "\"Mug ki cost 120 hai\" with \"#12 Mug\" in the facts -> {\"steps\":[{\"tool\":\"edit_product\",\"args\":{\"product_id\":12,\"cost\":120}}],\"question\":null,\"awaiting\":null,\"confidence\":0.95,\"missing_for\":\"none\"}\n" +
+            "\"Sara ka order cancel kar do\" -> {\"steps\":[],\"question\":null,\"awaiting\":null,\"confidence\":0,\"missing_for\":\"none\"}\n" +
+            "\"aaj ka mausam\" -> {\"steps\":[],\"question\":null,\"awaiting\":null,\"confidence\":0}";
+        var user = $"{sellerContext}\nMessage: {message}";
+        // Structured outputs: the answer must follow the schema, so the small model cannot derail (before this it sometimes broke the JSON after the first step and looped
+        // "}  }  }" to the token limit: ~30 s, a proxy 502, or a 17-21 s retry on the stronger model). One more try on the stronger model if there is still no usable answer
+        // (a refusal, an API error, a model that does not support the schema).
+        var schema = (OrderTrackerBot.Application.Agent.AgentPlanSchema.Name, (JsonNode)OrderTrackerBot.Application.Agent.AgentPlanSchema.Build(OrderTrackerBot.Application.Agent.AgentTools.All));
+        var json = await CompleteTextAsync(system, user, 0, "agent plan", cancellationToken, jsonMode: true, maxTokens: PlannerMaxTokens, jsonSchema: schema);
+        if (json is null || !IsValidJson(json))
+        {
+            _logger.LogDebug("Planner gave no usable answer, asking {Model}: {Json}", _options.VoiceModel, json is null ? "(none)" : json.Length > 300 ? json[..300] : json);
+            json = await CompleteTextAsync(system, user, 0, "agent plan (retry)", cancellationToken, jsonMode: true, model: _options.VoiceModel, maxTokens: PlannerMaxTokens, jsonSchema: schema);
+        }
+        var plan = OrderTrackerBot.Application.Agent.AgentPlanParser.Parse(json);
+        // An answer the parser refused is kept at Debug level only (it holds the owner's words), so a bad prompt can be diagnosed from the log.
+        if (plan is null && json is not null) _logger.LogDebug("Planner answer not used: {Json}", json);
+        return plan;
+    }
+
     public async Task<string?> ClassifyYesNoAsync(string question, string answer, CancellationToken cancellationToken = default)
     {
         var input = new JsonObject { ["bot_question"] = question.Length > 600 ? question[..600] : question, ["owner_answer"] = answer };
@@ -741,7 +806,7 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
     }
 
     private async Task<string?> CompleteTextAsync(string systemPrompt, string userText, double temperature, string purpose,
-        CancellationToken cancellationToken, bool jsonMode = false, string? model = null, JsonNode? userContent = null)
+        CancellationToken cancellationToken, bool jsonMode = false, string? model = null, JsonNode? userContent = null, int? maxTokens = null, (string Name, JsonNode Schema)? jsonSchema = null)
     {
         if (string.IsNullOrWhiteSpace(_options.ApiKey)) return null;
 
@@ -757,7 +822,14 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
                     new JsonObject { ["role"] = "user", ["content"] = userContent ?? JsonValue.Create(userText) }
                 }
             };
-            if (jsonMode) requestBody["response_format"] = new JsonObject { ["type"] = "json_object" };
+            if (jsonSchema is { } strict)   // structured outputs: the answer must follow the schema
+                requestBody["response_format"] = new JsonObject
+                {
+                    ["type"] = "json_schema",
+                    ["json_schema"] = new JsonObject { ["name"] = strict.Name, ["strict"] = true, ["schema"] = strict.Schema.DeepClone() }
+                };
+            else if (jsonMode) requestBody["response_format"] = new JsonObject { ["type"] = "json_object" };
+            if (maxTokens is { } cap) requestBody["max_completion_tokens"] = cap;   // a runaway answer ends here instead of after ~30 s (and a proxy timeout)
 
             var clock = System.Diagnostics.Stopwatch.StartNew();
             using var response = await SendWithRetryAsync("chat/completions", requestBody, cancellationToken);

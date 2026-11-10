@@ -83,10 +83,16 @@ public partial class ConversationEngine
             await ReplyAsync(seller, MessageTemplates.Get("sale-record.001"), ct);
             return;
         }
+        // "Hat 100 ka add karo, Polo ka price 600, phir Bilal ko 2 Hat": the order reader sees new products and would save them without the other tasks (seen live).
+        // With the planner on, a message it reads as new products goes to the planner first; when the planner has nothing for it, the old path runs as before.
+        if (_features.Agent && analysis.Intent == "add_products" && session.State == ConversationState.Idle && seller.OnboardingComplete
+            && await TryPlanAgentAsync(seller, session, ctx, message, ct)) return;
         // The order reader found no order: the intent catalog may place it ("aaj kitna bika", "naya client hai"). Idle only: mid-flow replies belong to their step.
         if ((analysis.AiUnavailable || analysis.Intent is "unclear" or "off_topic") && analysis.Order is null && session.State == ConversationState.Idle)
         {
             if (await TryRunRoutedIntentAsync(seller, session, ctx, message, ct)) return;
+            // The catalog did not place it either: the planner may (several tasks in one message, or "I will send them one by one").
+            if (await TryPlanAgentAsync(seller, session, ctx, message, ct)) return;
             // The router was not sure: ask "do you mean ...?" with the command it guessed, before any keyword question.
             if (await TrySuggestAiGuessAsync(seller, session, ctx, message, ct)) return;
             await RecordUnplacedAsync(seller, "freeform_" + (analysis.Intent == "" ? "ai_unavailable" : analysis.Intent), message, analysis.Intent, null, ct);
@@ -480,6 +486,16 @@ public partial class ConversationEngine
             SetState(session, ConversationState.AwaitingOrderMissingFields);
             await ReplyAsync(seller, MessageTemplates.Get("order-flow.006"), ct);
             return;
+        }
+
+        // No phone in the message, but the seller already has exactly one customer with this exact name: that customer's phone is used (seen live: "Sara Ali ko 2 Kurti"
+        // asked for her number again). Two customers with the same name are not guessed: the phone is still asked.
+        if (string.IsNullOrWhiteSpace(pending.Phone) && !pending.PaidInFull && !string.IsNullOrWhiteSpace(pending.CustomerName))
+        {
+            var savedPhones = await _db.Customers.AsNoTracking()
+                .Where(c => c.SellerId == seller.Id && c.DeletedAt == null && c.Name.ToLower() == pending.CustomerName.Trim().ToLower() && c.Phone != null)
+                .Select(c => c.Phone).Take(2).ToListAsync(ct);
+            if (savedPhones.Count == 1 && savedPhones[0] is { } savedPhone && IsPlausiblePhone(savedPhone)) pending.Phone = savedPhone;
         }
 
         // A phone read from the message ("030011122": a digit short) is checked like one typed as an answer, instead of being saved as it is.

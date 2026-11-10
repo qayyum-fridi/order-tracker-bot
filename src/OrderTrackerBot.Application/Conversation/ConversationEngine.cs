@@ -113,6 +113,7 @@ public partial class ConversationEngine
         _turnVotes = new List<LearnedKeywordVote>();
         _turnRouteIntent = null;
         _turnGuess = null;
+        _agentRun = null;
         await LearnFromMissTapAsync(fromPhoneNumber, rawMessage, ct);
         // An answer to "did you mean ...?": Yes continues with the corrected message, No has already sent the usual options.
         var (answered, corrected) = await TakeWordFixAnswerAsync(fromPhoneNumber, rawMessage, ct);
@@ -123,6 +124,11 @@ public partial class ConversationEngine
         _draftPutOnHold = false;
         await HandleIncomingCoreAsync(fromPhoneNumber, rawMessage, ct);
         if (_draftPutOnHold) await HoldParkedVoiceStepsAsync(fromPhoneNumber, ct);
+        if (_agentRun is not null)
+        {
+            await RunAgentPlanAsync(fromPhoneNumber, ct);
+            return;
+        }
         await ResumeVoiceContinueAsync(fromPhoneNumber, answeredDraft, ct);
         await FlushStockWarningsAsync(fromPhoneNumber, ct);
         await RunAutoStepAsync(fromPhoneNumber, ct);
@@ -532,6 +538,8 @@ public partial class ConversationEngine
         }
 
         if (await TryHandlePictureLabelAsync(seller, session, ctx, message, ct)) return;
+        if (await TryHandleAgentAwaitingAsync(seller, session, ctx, message, ct)) return;
+        if (await TryResumeAgentPendingAsync(seller, session, ctx, message, ct)) return;
         if (await TryHandleOrderForCustomerItemsAsync(seller, session, ctx, message, ct)) return;
         if (await TryHandleItemsOnlyAsync(seller, session, ctx, message, ct)) return;
         if (await TryHandleBackReferenceOrderAsync(seller, ctx, message, ct)) return;
@@ -832,6 +840,12 @@ public sealed class FeatureOptions
     /// full rewrite as before. Off in code so existing tests keep their behaviour.
     /// </summary>
     public bool VoiceIntentFirst { get; set; }
+
+    /// <summary>
+    /// A message nothing else placed goes to the planner (ConversationEngine.Agent.cs): it plans steps from the seller's own data, the verifier checks them, and they run as typed
+    /// messages. Off in code and in appsettings until it has been tried with the real model.
+    /// </summary>
+    public bool Agent { get; set; }
 
     /// <summary>Log every message the bot could NOT understand (path, state and the seller's text) so the owner can see which real phrasings fail. The log holds seller text: keep it off if that is not acceptable. Off = nothing logged (unit tests).</summary>
     public bool TurnLog { get; set; }
