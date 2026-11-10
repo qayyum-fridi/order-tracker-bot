@@ -20,6 +20,7 @@ public partial class ConversationEngine
 {
     private readonly IAppDbContext _db;
     private readonly IAiOrderAssistant _ai;
+    private readonly ITurnInterpreter? _turnInterpreter;
     private readonly IWhatsAppSender _sender;
     private readonly TranslatingSender _translator;
     private readonly IFounderAlertNotifier _founderAlerts;
@@ -61,8 +62,9 @@ public partial class ConversationEngine
         IIssueReporter? issues = null, IAudioTranscriber? transcriber = null, IImportFileReader? importReader = null,
         INewSellerNotifier? newSellers = null, MediaRateLimiter? mediaLimiter = null, TimeProvider? clock = null,
         IMerchantEmailSender? emailSender = null, Microsoft.Extensions.Logging.ILogger<ConversationEngine>? logger = null, BuildInfo? build = null,
-        DashboardOptions? dashboard = null, SupportOptions? support = null)
+        DashboardOptions? dashboard = null, SupportOptions? support = null, ITurnInterpreter? turn = null)
     {
+        _turnInterpreter = turn;
         _support = support ?? new SupportOptions();
         _build = build ?? new BuildInfo();
         _dashboard = dashboard ?? new DashboardOptions();
@@ -561,6 +563,8 @@ public partial class ConversationEngine
 
         // A scanner types a product's barcode as a message: a code that is some product's barcode goes to the scan cart.
         if (await TryHandleScannedCodeAsync(seller, ctx, message, ct)) return;
+
+        if (await TryModelFirstAsync(seller, session, ctx, message, ct)) return;
 
         var command = CommandParser.TryParse(message);
         // A sentence the rules do not know but THIS seller once taught (by picking the right option) is understood without asking again.
