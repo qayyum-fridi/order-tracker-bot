@@ -112,6 +112,8 @@ public class Product
     public decimal? CostPrice { get; set; }
     /// <summary>Seller-defined extra attributes ("fabric": "cotton") as a JSON object of name -> value; Color/Size/Category/Sku have their own columns.</summary>
     public string? AttributesJson { get; set; }
+    /// <summary>The price before the sale. Shown as "was X, now Y" when set and above <see cref="Price"/>; null = no regular price.</summary>
+    public decimal? RegularPrice { get; set; }
     /// <summary>Who the product is for: kids, men, women, unisex (clothing and lawn).</summary>
     public string? AgeGroup { get; set; }
     /// <summary>The size chart as the seller writes it, e.g. "S 36, M 38, L 40".</summary>

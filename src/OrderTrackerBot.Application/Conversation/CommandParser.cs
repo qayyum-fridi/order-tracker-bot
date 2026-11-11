@@ -1232,6 +1232,7 @@ public static class CommandParser
         decimal? cost = null; int? stock = null;
         decimal? priceA = null, priceB = null, priceC = null;
         string? category = null, size = null, color = null, sku = null;
+        IReadOnlyList<string>? sizeList = null;
         Dictionary<string, string>? attributes = null;
         var any = false;
 
@@ -1261,7 +1262,12 @@ public static class CommandParser
                         else priceC = level;
                         break;
                     case "color" or "colour" or "rang": color = value; break;
-                    case "size": size = value; break;
+                    case "size":
+                        // "size: S, M, L" is several sizes: one listing each (the same variants the AI path makes); one size is just that size.
+                        var sizes = value.Split(new[] { ',', '/' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                        if (sizes.Length > 1) sizeList = sizes;
+                        else size = value;
+                        break;
                     case "category" or "qism" or "kism": category = value; break;
                     default: sku = value; break;
                 }
@@ -1278,7 +1284,7 @@ public static class CommandParser
         }
 
         if (!any) return false;
-        extras = new ProductExtras(cost, stock, category, size, color, sku, attributes, priceA, priceB, priceC);
+        extras = new ProductExtras(cost, stock, category, size, color, sku, attributes, priceA, priceB, priceC, SizeList: sizeList);
         return true;
     }
 
