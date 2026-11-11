@@ -41,8 +41,8 @@ public sealed partial class ConversationEngine
             var exact = allProducts.Where(p => HasProductCode(p, wanted)).ToList();
             if (exact.Count > 0)
             {
-                var lines = exact.Select(p => $"• {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}" + (p.StockQty is { } q ? $" (stock {q})" : ""));
-                await ReplyAsync(seller, MessageTemplates.Get("product-code.001", wanted, string.Join("\n", lines)), ct);
+                var codeLines = exact.Select(p => $"• {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}" + (p.StockQty is { } q ? $" (stock {q})" : ""));
+                await ReplyAsync(seller, MessageTemplates.Get("product-code.001", wanted, string.Join("\n", codeLines)), ct);
                 return;
             }
             action = "q:" + wanted;
