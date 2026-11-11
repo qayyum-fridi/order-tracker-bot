@@ -1305,9 +1305,14 @@ public partial class ConversationEngine
         if (extras.Sku is not null) product.Sku = extras.Sku;
         if (extras.Attributes is { Count: > 0 } added)
         {
-            var merged = ProductAttributes(product);
-            foreach (var (name, value) in added) merged[name] = value;
-            product.AttributesJson = System.Text.Json.JsonSerializer.Serialize(merged);
+            // Typed details (expiry, batch, model, ...) go to their own columns; the rest stay as details.
+            var details = added.Where(a => !ProductTypedDetails.TrySet(product, a.Key, a.Value)).ToList();
+            if (details.Count > 0)
+            {
+                var merged = ProductAttributes(product);
+                foreach (var (name, value) in details) merged[name] = value;
+                product.AttributesJson = System.Text.Json.JsonSerializer.Serialize(merged);
+            }
         }
     }
 
