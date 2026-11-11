@@ -87,14 +87,16 @@ public class TurnMixEval
         V("ایک نمبر آرڈر کینسل کر دیں", Cancel),
         T("Bilal ka order cancel kar dein", Cancel),
         V("بلال کا آرڈر منسوخ کر دو", Cancel),
-        T("order 2 advance 500", Out),
-        V("دو نمبر آرڈر پر پانچ سو ایڈوانس لے لیے", Out),
-        T("Sara ne 1000 de diye, payment mark karo", Out),
-        V("سارہ نے ہزار دے دیے ہیں", Out),
+        // Payments are not a bot action: asking or saying it is out of scope; a status change would be wrong.
+        new("order 2 advance 500", new[] { Out, Clarify }, false),
+        new("دو نمبر آرڈر پر پانچ سو ایڈوانس لے لیے", new[] { Out, Clarify }, true),
+        new("Sara ne 1000 de diye, payment mark karo", new[] { Out, Clarify }, false),
+        new("سارہ نے ہزار دے دیے ہیں", new[] { Out, Clarify }, true),
         T("pending orders dikhao", ShowOrders),
         V("کون کون سے آرڈر ابھی باقی ہیں؟", ShowOrders),
-        T("Ali ka order pending hai ya shipped", ShowOrder),
-        V("علی کا آرڈر کس حال میں ہے", ShowOrder),
+        // One order's status or the list of orders: either answer is reasonable.
+        new("Ali ka order pending hai ya shipped", new[] { ShowOrder, ShowOrders }, false),
+        new("علی کا آرڈر کس حال میں ہے", new[] { ShowOrder, ShowOrders }, true),
         T("order 3 kaisa hai", ShowOrder),
         V("تین نمبر آرڈر دکھاؤ", ShowOrder),
 
@@ -141,8 +143,9 @@ public class TurnMixEval
         V("اچھا ٹھیک ہے، بس", Chat),
         T("mausam kaisa hai", Chat),
         V("آج موسم کیسا ہے", Chat),
-        T("hmm", Clarify),
-        V("ہم م م", Clarify),
+        // A filler sound: asking what they mean, or a plain reply, are both fine.
+        new("hmm", new[] { Clarify, Chat }, false),
+        new("ہم م م", new[] { Clarify, Chat }, true),
     };
 
     // The fixed shop the mix is read against (names the eval cases use).

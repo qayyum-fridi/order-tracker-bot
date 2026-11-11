@@ -32,12 +32,14 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         "A customer name with a product and a quantity is an order even with no verb ('kurti 2 Sara'). " +
         "When the count is whole packs ('2 carton tel', 'ek peti'), set in_packs true, quantity = the number of packs, and unit_price = the price of ONE pack if said.\n" +
         "- update_status: an order that ALREADY exists was shipped, delivered, returned or put back to pending ('order 2 bhej diya', 'Ali ka order nikal gaya', " +
-        "'teen number pohnch gaya'); give order_id or customer_name and status. A message that names a PRODUCT is not this: '<customer> ko <number> <product> bhej do / " +
-        "bhejna hai / de do' is a NEW order (create_order), and the number before the product is a quantity, never an order number.\n" +
+        "'teen number pohnch gaya'); give order_id or customer_name and status. Only when NO product or quantity is named. A message that names a PRODUCT is NEVER this: " +
+        "'<customer> ko <number> <product> bhej do / bhej dein / bhejni hain / likh do / chahiye' and 'Ali ka order, do shawl ...' are NEW orders (create_order), even with the word bhej. " +
+        "The number before the product is a quantity, never an order number.\n" +
         "- cancel_order: cancel an order; give order_id or customer_name.\n" +
         "- show_orders: list orders for a period, or pending ones. show_order: details of one order; give order_id.\n" +
         "- show_summary: sales / money summary (hisaab, kitni sale hui) for a period.\n" +
-        "- add_product: they are saying what they sell (name, price, optional cost and stock). Put each product in products. price, cost and stock are for ONE piece. " +
+        "- add_product: they are saying what they sell (name, price, optional cost and stock; 'naya product', 'nayi chiz', 'catalog mein daal do', 'list mein shamil'). " +
+        "A product name with its price and no buyer is add_product, never create_order. Put each product in products. price, cost and stock are for ONE piece. " +
         "When the product comes in a bigger pack (carton, box, peti, dozen, bori), also fill: pack_name; pack_qty = pieces in one pack; " +
         "pack_cost = what the owner PAYS / BUYS one whole pack for (words like 'aata hai', 'aati hai', 'milta hai', 'khareedta hun', 'ka hai', 'cost'); " +
         "pack_price = what the owner SELLS one whole pack for (words like 'bechta hun', 'bechna hai', 'mein deta hun', 'sale'); stock_packs = how many whole packs they have. " +
@@ -49,7 +51,8 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         "with stock (pieces) or stock_packs (whole packs), and nothing else.\n" +
         "- edit_product: an existing product's price changes; put its name and the NEW price in products.\n" +
         "- show_catalog: show their products.\n" +
-        "- add_customer: save a new buyer WITHOUT an order (customer.name, and phone / address / city when said).\n" +
+        "- add_customer: save a new buyer WITHOUT an order (customer.name, and phone / address / city when said). If the message also names items or a quantity, " +
+        "it is create_order, never add_customer.\n" +
         "- edit_customer: one detail of a saved customer changes; customer_name, field (phone, address, city or name) and value (the new value).\n" +
         "- show_customer: they want a saved customer's details (phone number, address, their orders); customer_name, or null when no name was said (then all customers are listed).\n" +
         "- how_to: they ask HOW to do something ('kaise', 'tarika', 'how do I'). Set topic to the action they ask about. NEVER perform the action itself.\n" +
@@ -63,7 +66,8 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         "- clarify: the message is about customers, orders or products but a needed detail is missing or it could mean two things. Put ONE short question in " +
         "question, in simple Roman Urdu (e.g. 'Kis customer ka number chahiye?').\n" +
         "- help_or_chat: a greeting, small talk, or anything not about the shop.\n" +
-        "- out_of_scope: a shop task this bot does not do yet (expenses, discounts, receipts, profit reports, payments).\n" +
+        "- out_of_scope: a shop task this bot does not do yet (expenses, discounts, receipts, profit reports). A PAYMENT or advance ('advance 500', 'payment mark karo', " +
+        "'1000 de diye', 'paise mil gaye', 'ایڈوانس') is out_of_scope: never update_status for it.\n" +
         "Never invent a number, name or phone that is not in the text. Use null for anything not said. " +
         "order_id is ONLY the order number the owner said ('order 3', 'teen number wala', 'تین نمبر آرڈر' = 3); when they named a customer and no number, " +
         "leave order_id null and give customer_name. Never pick an order_id from the list of latest orders yourself. " +
