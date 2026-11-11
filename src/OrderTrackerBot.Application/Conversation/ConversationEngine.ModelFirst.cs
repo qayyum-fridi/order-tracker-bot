@@ -520,7 +520,7 @@ public partial class ConversationEngine
             else if (edit.Kind == TurnAction.EditOrder)
                 await ApplyModelOrderEditAsync(seller, session, ctx, edit, ct);
             else if (edit.Kind == PictureProductKind)
-                await SaveScreenshotProductsAsync(seller, ctx, edit.Lines, ct);
+                await SaveScreenshotProductsAsync(seller, ctx, edit.Lines, edit.Field, ct);
             else if (edit.Kind == TurnAction.ExchangeSize)
                 await HandleSizeExchangeAsync(seller, ctx, new ParsedCommand { Kind = CommandKind.SizeExchange, Number = edit.OrderId, Text = edit.ItemNo?.ToString(), Text2 = edit.Value }, ct);
             else

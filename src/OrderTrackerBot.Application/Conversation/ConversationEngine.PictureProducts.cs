@@ -42,9 +42,17 @@ public partial class ConversationEngine
         var lines = action.Products.SelectMany(p => p.Sizes.Count == 0
             ? new[] { ScreenshotProductLine(p) }
             : p.Sizes.Select(size => ScreenshotProductLine(p, size))).ToList();
-        ctx.ModelEdit = new ModelEditData { Kind = PictureProductKind, Lines = lines };
+
+        // A category the seller has not created yet is asked about in the same confirmation; YES creates it, then saves the products.
+        var newCategories = new List<string>();
+        foreach (var category in action.Products.Select(p => p.Attributes.TryGetValue("category", out var c) ? c.Trim() : "")
+                     .Where(c => c.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase))
+            if (!await CategoryKnownAsync(seller, category, ct)) newCategories.Add(category);
+
+        var question = newCategories.Count == 0 ? "" : MessageTemplates.Get("picture-product.006", string.Join(", ", newCategories)) + "\n\n";
+        ctx.ModelEdit = new ModelEditData { Kind = PictureProductKind, Lines = lines, Field = string.Join("|", newCategories) };
         SetState(session, ConversationState.AwaitingModelStatusConfirmation);
-        await AskYesNoAsync(seller, MessageTemplates.Get("picture-product.001", string.Join("\n", lines)), ct);
+        await AskYesNoAsync(seller, question + MessageTemplates.Get("picture-product.001", string.Join("\n", lines)), ct);
     }
 
     /// <summary>One typed product line: "Name - price, cost X, stock N, color C, size S, sku K, category G, fabric: F, ...".</summary>
@@ -76,8 +84,10 @@ public partial class ConversationEngine
         return string.Join(", ", new[] { head }.Concat(parts));
     }
 
-    private async Task SaveScreenshotProductsAsync(Seller seller, SessionContextData ctx, IReadOnlyList<string> lines, CancellationToken ct)
+    private async Task SaveScreenshotProductsAsync(Seller seller, SessionContextData ctx, IReadOnlyList<string> lines, string? newCategories, CancellationToken ct)
     {
+        foreach (var category in (newCategories ?? "").Split('|', StringSplitOptions.RemoveEmptyEntries))
+            await HandleCreateCategoryAsync(seller, category, ct);
         foreach (var line in lines)
         {
             var parsed = CommandParser.TryParse(line);
