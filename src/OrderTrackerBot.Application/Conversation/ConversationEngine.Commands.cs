@@ -213,6 +213,9 @@ public partial class ConversationEngine
             case CommandKind.CustomerUpdate:
                 await HandleCustomerUpdateAsync(seller, ctx, cmd, ct);
                 return;
+            case CommandKind.SizeExchange:
+                await HandleSizeExchangeAsync(seller, ctx, cmd, ct);
+                return;
             case CommandKind.CustomerAdd:
                 await HandleCustomerAddAsync(seller, cmd, ct);
                 return;

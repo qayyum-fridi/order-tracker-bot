@@ -32,6 +32,7 @@ public class IntentCatalogTests
         "AddProductsBulk", "ImportCatalogSheet",       // the whole message is the data (a pasted list, a file link)
         "CreateLoyalty",                               // loyalty is off in the MVP cut; loyalty.create explains it
         "ForwardedQuery",                              // the whole message is the buyer's question and who asked it, no typed line to template
+        "SizeExchange",                                // changes stock and the order: typed only, never routed by the AI
         "Notice",                                      // a template answer the parser picks for phrases it must not act on
     };
 

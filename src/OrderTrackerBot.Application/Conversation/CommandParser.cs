@@ -99,6 +99,7 @@ public enum CommandKind
     Loss,
     Wage,
     CustomerUpdate,
+    SizeExchange,
     CustomerAdd,
     OrderPayment,
     OrderDeliveryCharge,
@@ -283,6 +284,8 @@ public static class CommandParser
     private static readonly Regex CatalogPageSize = new(@"^(?:(?:catalog|list|page|products)\s+size|per\s+page|page\s+per|catalog\s+per\s+page)\s*[:=]?\s*(?<n>\d{1,3})$", Opts);
     // "search customer: Sara", "find order 12": other commands that begin with the same words stay theirs.
     private static readonly Regex SearchOtherThings = new(@"^(?:customers?|orders?|order\s*id|discounts?|expenses?|suppliers?|couriers?|payouts?|queries|query|#?\d+|گاہک|آرڈر)\b", Opts);
+    // "exchange 12 1 to L" / "size exchange 12 1 to color white": order 12, item 1 switches to that size or colour of the same product.
+    private static readonly Regex SizeExchangeCmd = new(@"^(?:size\s+)?exchange\s+#?(?<o>\d+)\s+(?:item\s+|#)?(?<i>\d+)\s+(?:to|ko)\s+(?<v>[^,]{1,40}?)\s*$", Opts);
     private static readonly Regex ProductCodeLookup = new(@"^(?:sku|code|design(?:\s+(?:no|code))?)\s+(?<c>[A-Za-z0-9][A-Za-z0-9\-]{1,39})$", Opts);
     private static readonly Regex CatalogSearch = new(@"^(?:(?:catalog|products)\s+)?(?:search|find|dhoondo|dhundo|talash|ڈھونڈو|تلاش)\s+(?<q>.{2,60})$", Opts);
     private static readonly Regex Catalog = new(@"^(?:catalog|catalogue|products|my\s+products|product\s+list|item\s+list|show\s+products|all\s+products|(?:saare\s+)?products?\s+dikhao|saare\s+products|maal|rate\s+list|price\s+list|کیٹلاگ|(?:show|dikhao|dikhana|dekhao|dekhein|view)\s+(?:my\s+|mera\s+)?catalog|catalog\s+(?:show|list|view|dikhao|dikhana|dekhao|dekhein|dekhna))$", Opts);
@@ -1740,6 +1743,8 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.OrderSearch, Text = m.Groups["q"].Value.Trim() };
         if ((m = CustomerSearchWords.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.CustomerSearch, Text = m.Groups["q"].Value.Trim() };
+        if (SizeExchangeCmd.Match(message) is { Success: true } exchange)
+            return new ParsedCommand { Kind = CommandKind.SizeExchange, Number = int.Parse(exchange.Groups["o"].Value), Text = exchange.Groups["i"].Value, Text2 = exchange.Groups["v"].Value.Trim() };
         if (ProductCodeLookup.Match(message) is { Success: true } codeLookup)
             return new ParsedCommand { Kind = CommandKind.Catalog, Text = "code:" + codeLookup.Groups["c"].Value };
         if (CatalogSearch.Match(message) is { Success: true } search

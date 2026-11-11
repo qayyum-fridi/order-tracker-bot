@@ -1,0 +1,9 @@
+{
+  "order-exchange.001": "❌ Order #{0} not found. Type \"orders today\" to see your orders.",
+  "order-exchange.002": "⚠️ Order #{0} is cancelled or returned, so it cannot be exchanged.",
+  "order-exchange.003": "❌ Item {0} is not in order #{1}. The order has {2} items.",
+  "order-exchange.004": "⚠️ Item {0} (order #{1}) is not a catalog product, so it cannot be exchanged.",
+  "order-exchange.005": "❌ No other listing of \"{0}\" with that size or colour was found in the catalog. Add it to the catalog first.",
+  "order-exchange.006": "❌ Several listings match \"{0}\": {1}. Type the full name.",
+  "order-exchange.007": "✅ Order #{0}, item {1}: {2} → {3}. The rate {4} stays the same. Stock adjusted.\nType \"undo\" to reverse it."
+}
