@@ -1,4 +1,5 @@
 using System.Globalization;
+using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Ai;
 using OrderTrackerBot.Application.Templates;
 using OrderTrackerBot.Domain.Entities;
@@ -11,6 +12,18 @@ namespace OrderTrackerBot.Application.Conversation;
 public partial class ConversationEngine
 {
     internal const string PictureProductKind = "add_picture_product";
+    private const string AutoSkuPrefix = "AUTO-";
+
+    /// <summary>A block copied from a web page or a list (several lines, or long): its products are shown for YES like a screenshot.</summary>
+    internal static bool IsPastedProductBlock(string message) => message.Count(c => c == '\n') >= 2 || message.Length > 250;
+
+    /// <summary>The next code this shop gives a product without its own SKU: AUTO-00001, AUTO-00002 ...</summary>
+    private async Task<string> NextAutoSkuAsync(Seller seller, CancellationToken ct)
+    {
+        var used = await _db.Products.Where(p => p.SellerId == seller.Id && p.Sku != null && p.Sku.StartsWith(AutoSkuPrefix)).Select(p => p.Sku!).ToListAsync(ct);
+        var highest = used.Select(s => int.TryParse(s[AutoSkuPrefix.Length..], out var n) ? n : 0).DefaultIfEmpty(0).Max();
+        return $"{AutoSkuPrefix}{highest + 1:D5}";
+    }
 
     private async Task ProposeScreenshotProductsAsync(Seller seller, ConversationSession session, SessionContextData ctx, TurnAction action, CancellationToken ct)
     {
@@ -37,7 +50,8 @@ public partial class ConversationEngine
         {
             if (string.IsNullOrWhiteSpace(value)) continue;
             var name = key.Trim().ToLowerInvariant();
-            if (name is "price" or "stock" or "cost" || (name == "color" && product.Colors.Count > 0)) continue;
+            // The site's own SKU is not copied: the shop gives its own code.
+            if (name is "price" or "stock" or "cost" or "sku" || (name == "color" && product.Colors.Count > 0)) continue;
             parts.Add(name switch
             {
                 "colour" => $"color {value.Trim()}",

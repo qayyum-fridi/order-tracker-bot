@@ -1263,6 +1263,7 @@ public partial class ConversationEngine
 
         var product = new Product { SellerId = seller.Id, Name = line.Name, Price = line.Price, UnitType = line.UnitType, UnitQty = line.UnitQty };
         ApplyProductExtras(product, line.Extras);
+        product.Sku ??= await NextAutoSkuAsync(seller, ct);   // the seller's own code when typed; otherwise ours
         _db.Products.Add(product);
         await _db.SaveChangesAsync(ct);
         SuggestNext("catalog", "menu");

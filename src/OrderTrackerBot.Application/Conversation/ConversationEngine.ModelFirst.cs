@@ -223,7 +223,7 @@ public partial class ConversationEngine
             action = new TurnAction { Action = action.Action, Products = perPiece.Select(p => p.Product).ToList() };
         }
         // A product screenshot: its figures are in the picture, not in the words, so they are shown for YES instead of refused as unsaid.
-        if (fromScreenshot && action.Action == TurnAction.AddProduct && action.Products.Count > 0)
+        if ((fromScreenshot || IsPastedProductBlock(message)) && action.Action == TurnAction.AddProduct && action.Products.Count > 0)
         {
             await ProposeScreenshotProductsAsync(seller, session, ctx, action, ct);
             return true;
