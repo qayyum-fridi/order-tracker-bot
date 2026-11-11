@@ -1006,7 +1006,7 @@ public static class CommandParser
     // Token rule: a delivered word, a plural word (sab, sara, in ...), and no number, so "order 12 delivered" stays a single order.
     private static readonly HashSet<string> DeliveredWords = new(StringComparer.OrdinalIgnoreCase) { "deliver", "delivered", "delever", "delivar" };
     // Only words that mean "all of them" or "today": common words such as "in" or "status" would pull other commands in.
-    private static readonly HashSet<string> AllWords = new(StringComparer.OrdinalIgnoreCase) { "sab", "sabhi", "sare", "saare", "sara", "saara", "inka", "inke", "inhe", "inhein", "aaj" };
+    private static readonly HashSet<string> AllWords = new(StringComparer.OrdinalIgnoreCase) { "sab", "sabhi", "sare", "saare", "inka", "inke", "inhe", "inhein", "aaj" };  // "sara" is left out: it is also a customer name (Sara).
 
     internal static bool IsBulkTodayDelivered(string message)
     {

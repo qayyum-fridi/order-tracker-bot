@@ -13,13 +13,14 @@ public class ClothingFeatureTests
     [InlineData("sab aaj wale delivered")]
     [InlineData("aaj ke sab delivered karo")]
     [InlineData("inka status delivered kar do")]
-    [InlineData("sara delivered karo")]
+    [InlineData("sare delivered karo")]
     [InlineData("mark all today shipped as delivered")]
     public void BulkDelivered_Accepts(string message) =>
         Assert.True(CommandParser.IsBulkTodayDelivered(message));
 
     [Theory]
     [InlineData("Sara ka order deliver ho gaya")]   // one customer's status, not a bulk change
+    [InlineData("Sara delivered karo")]            // "Sara" is a name here
     [InlineData("order 12 delivered")]                // a number: one order
     [InlineData("sab delivered orders dikhao")]       // asks to see, does not change
     [InlineData("delivery charge 200")]               // not a status
