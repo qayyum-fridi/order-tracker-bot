@@ -49,17 +49,20 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         "pack_price 1200, stock_packs 3.\n" +
         "- add_stock: more stock of an EXISTING product arrived or is being counted ('tel ke 2 carton aur aaye', 'kurti 5 aur aa gayi'). Put the product in products " +
         "with stock (pieces) or stock_packs (whole packs), and nothing else.\n" +
-        "- edit_product: an existing product's price changes; put its name and the NEW price in products.\n" +
+        "- edit_product: an existing product's price changes; put its name and the NEW price in products. 'Dupatta ka rate 800', 'Bag ka daam 2200', 'shirt ki qeemat 1500 kar do' " +
+        "are edit_product. add_product only when the product name is NEW to the shop.\n" +
         "- show_catalog: show their products.\n" +
         "- add_customer: save a new buyer WITHOUT an order (customer.name, and phone / address / city when said). If the message also names items or a quantity, " +
         "it is create_order, never add_customer.\n" +
         "- edit_customer: one detail of a saved customer changes; customer_name, field (phone, address, city or name) and value (the new value).\n" +
-        "- show_customer: they want a saved customer's details (phone number, address, their orders); customer_name, or null when no name was said (then all customers are listed).\n" +
+        "- show_customer: they want a saved customer's details (phone number, address, their orders); customer_name, or null when no name was said (then all customers are listed). " +
+        "'Zohaib ka number do', 'kahan rehta hai Hamza', 'Mehwish ka address kya tha' are show_customer, never clarify, when the name is a saved customer.\n" +
         "- how_to: they ask HOW to do something ('kaise', 'tarika', 'how do I'). Set topic to the action they ask about. NEVER perform the action itself.\n" +
         "- contact_support: ONLY when they ask to TALK to a person, the support team or the makers of this bot ('kisi insaan se baat karni hai', 'support se baat karao'). " +
         "Asking for a 'contact number', 'phone number' or 'number' is about a CUSTOMER's number, never this: use show_customer when a customer is named, " +
         "otherwise clarify and ask which customer's number they want.\n" +
-        "- edit_order: change the items of an order that ALREADY exists ('order 3 mein kurti ki quantity 2 kar do', 'Ali ke order se shirt nikal do', " +
+        "- edit_order: change the items of an order that ALREADY exists. 'Hamza ke order mein 1 chappal aur daal do', 'nau number mein lawn teen hazar', " +
+        "'order 3 mein kurti ki quantity 2 kar do', 'Ali ke order se shirt nikal do' are edit_order, never create_order, when an existing order is named or numbered. " +
         "'Sara ke order mein lawn suit ka rate 3000'). Give order_id (or customer_name) and edit_lines: one line per change, op set_quantity (item, quantity), " +
         "set_price (item, price), remove (item), or add (item = product name, quantity). A new order is create_order, never edit_order.\n" +
         "- undo: reverse the bot's last action.\n" +
@@ -76,7 +79,12 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         "and copy the owner's own item name in product_name. Use a saved customer's name as it is listed when the owner clearly means that customer. " +
         "Periods: today, yesterday, this_week, last_week, this_month, last_month, last_7_days, last_30_days.\n" +
         "SEVERAL REQUESTS: one message may ask for more than one thing ('Ali ka order bhej do aur Sara ka phone 0300...'). Return each one as its own entry in " +
-        "actions, in the order the owner said them, up to 5. A single request is one entry. Every entry is complete on its own: its own action, order_id, customer and fields.";
+        "actions, in the order the owner said them, up to 5. A single request is one entry. Every entry is complete on its own: its own action, order_id, customer and fields. " +
+        "A new buyer with items ('new customer Asim, phone 0300..., 2 shirt') is create_order first (the buyer is saved with the order); add_customer only when no items are named.\n" +
+        "MESSY TEXT: typos and misspellings are the same words ('shrt' = shirt, 'odr' = order, 'cathalog' = catalog, 'shiped' = shipped); read the meaning. " +
+        "Emoji carry no meaning on their own (📦, ✅, 🙏, 👍): ignore them and read the words. " +
+        "An order with no buyer named ('2 shirt bhej do cod'): clarify and ask who it is for. " +
+        "A message cut off mid-thought ('Sara ko', 'order 3 ka', 'kal ke liye'): clarify and ask for the missing part, never guess.";
 
     public async Task<TurnAction?> UnderstandAsync(TurnContext context, string text, AiImageInput? image = null, CancellationToken cancellationToken = default)
     {
