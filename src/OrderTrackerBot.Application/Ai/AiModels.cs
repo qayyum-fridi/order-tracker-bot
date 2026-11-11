@@ -122,6 +122,8 @@ public sealed class AiNewProduct
     public decimal? PriceHigh { get; init; }
     /// <summary>Several colours / sizes the seller named for this one product (variants), each in the seller's own words; each combination becomes a listing.</summary>
     public List<string> Colors { get; init; } = new();
+    /// <summary>Standard sizes the product comes in (XS, S, M, L ...), normalised; one listing per size is made.</summary>
+    public List<string> Sizes { get; init; } = new();
     public List<string> Sizes { get; init; } = new();
     /// <summary>
     /// For each number above, the exact words the seller used to say it (same spelling and script as in their message), or null. The bot checks that the words really

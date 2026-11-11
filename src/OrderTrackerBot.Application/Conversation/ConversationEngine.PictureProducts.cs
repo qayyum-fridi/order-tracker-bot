@@ -38,18 +38,23 @@ public partial class ConversationEngine
             await ReplyAsync(seller, MessageTemplates.Get("picture-product.002", withoutPrice.Name), ct);
             return;
         }
-        var lines = action.Products.Select(ScreenshotProductLine).ToList();
+        // One listing per standard size (same name, colour and price; size is what tells them apart).
+        var lines = action.Products.SelectMany(p => p.Sizes.Count == 0
+            ? new[] { ScreenshotProductLine(p) }
+            : p.Sizes.Select(size => ScreenshotProductLine(p, size))).ToList();
         ctx.ModelEdit = new ModelEditData { Kind = PictureProductKind, Lines = lines };
         SetState(session, ConversationState.AwaitingModelStatusConfirmation);
         await AskYesNoAsync(seller, MessageTemplates.Get("picture-product.001", string.Join("\n", lines)), ct);
     }
 
     /// <summary>One typed product line: "Name - price, cost X, stock N, color C, size S, sku K, category G, fabric: F, ...".</summary>
-    internal static string ScreenshotProductLine(AiNewProduct product)
+    internal static string ScreenshotProductLine(AiNewProduct product, string? size = null)
     {
         var parts = new List<string>();
         if (product.Cost is { } cost) parts.Add($"cost {cost.ToString("0.##", CultureInfo.InvariantCulture)}");
-        if (product.Stock is { } stock) parts.Add($"stock {stock}");
+        // The stock on the page is for all sizes together, so it is not put on one size's listing.
+        if (product.Stock is { } stock && size is null) parts.Add($"stock {stock}");
+        if (size is not null) parts.Add($"size {size}");
         if (product.Colors.Count > 0) parts.Add($"color {string.Join(" / ", product.Colors)}");
         foreach (var (key, value) in product.Attributes)
         {
@@ -57,6 +62,7 @@ public partial class ConversationEngine
             var name = key.Trim().ToLowerInvariant();
             // The site's own SKU is not copied: the shop gives its own code.
             if (name is "price" or "stock" or "cost" or "sku" || (name == "color" && product.Colors.Count > 0)) continue;
+            if (name == "size" && (size is not null || product.Sizes.Count > 0)) continue;
             parts.Add(name switch
             {
                 "colour" => $"color {value.Trim()}",

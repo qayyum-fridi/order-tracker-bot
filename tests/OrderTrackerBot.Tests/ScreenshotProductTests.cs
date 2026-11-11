@@ -79,6 +79,24 @@ public class ScreenshotProductTests
         Assert.Equal(1990m, parsed.Product.Price);
     }
 
+    [Fact]
+    public void Sizes_OneListingPerSize_SameNameAndPrice()
+    {
+        var product = new AiNewProduct { Name = "Knit Abaya Set", Price = 9490, Sizes = new List<string> { "S", "M", "L" } };
+
+        Assert.Equal("Knit Abaya Set - 9490, size M", ConversationEngine.ScreenshotProductLine(product, "M"));
+    }
+
+    [Theory]
+    [InlineData("Small", "S")]
+    [InlineData("Double XL", "XXL")]
+    [InlineData("extra large", "XL")]
+    [InlineData("m", "M")]
+    [InlineData("Free size", "Free Size")]
+    [InlineData("Foo", null)]
+    public void StandardSizes_MapsCommonSpellings(string raw, string? expected) =>
+        Assert.Equal(expected, StandardSizes.Normalize(raw));
+
     [Theory]
     [InlineData("Ready to wear category banao", false)]
     [InlineData("Basic Hijab - 1990", false)]

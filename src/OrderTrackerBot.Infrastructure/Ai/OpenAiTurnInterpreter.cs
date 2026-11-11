@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OrderTrackerBot.Application.Ai;
+using OrderTrackerBot.Application.Conversation;
 
 namespace OrderTrackerBot.Infrastructure.Ai;
 
@@ -211,6 +212,9 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
                     PackCost = Dec(p, "pack_cost"),
                     PackPrice = Dec(p, "pack_price"),
                     StockPacks = Int(p, "stock_packs"),
+                    Sizes = StandardSizes.NormalizeAll(p.TryGetProperty("sizes", out var sizesEl) && sizesEl.ValueKind == JsonValueKind.Array
+                        ? sizesEl.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()!).ToList()
+                        : new List<string>()),
                 });
             }
 
@@ -310,6 +314,7 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
             ["pack_cost"] = NullableNumber(),
             ["pack_price"] = NullableNumber(),
             ["stock_packs"] = NullableNumber(),
+            ["sizes"] = new JsonObject { ["type"] = "array", ["items"] = new JsonObject { ["type"] = "string" } },
         });
         var editLine = Obj(new JsonObject
         {
