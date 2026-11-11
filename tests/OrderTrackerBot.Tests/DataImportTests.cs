@@ -661,7 +661,7 @@ public class DataImportTests : IDisposable
 
         await engine.HandleIncomingMessageAsync(Phone, "Yes", default);
 
-        Assert.Equal(new string?[] { null, "222", null }, (await db.Products.Where(p => p.Name != "Lawn Suit" && p.Name != "Old Tea").OrderBy(p => p.Id).Select(p => p.Sku).ToListAsync()).ToArray());
+        Assert.Equal(new string?[] { null, "222", null }, (await db.Products.Where(p => p.Name != "Lawn Suit" && p.Name != "Old Tea").OrderBy(p => p.Id).Select(p => p.Barcode).ToListAsync()).ToArray());
         Assert.Equal(3, await db.Products.CountAsync(p => p.Name != "Lawn Suit" && p.Name != "Old Tea"));
     }
 
