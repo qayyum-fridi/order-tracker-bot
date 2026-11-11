@@ -1018,7 +1018,8 @@ public static class CommandParser
         var mark = words.Any(w => w.Equals("mark", StringComparison.OrdinalIgnoreCase) || w.Equals("all", StringComparison.OrdinalIgnoreCase));
         // A question or a request to see the list is not an order to change.
         var asksToSee = words.Any(w => w.Equals("dikhao", StringComparison.OrdinalIgnoreCase) || w.Equals("dikha", StringComparison.OrdinalIgnoreCase) || w.Equals("show", StringComparison.OrdinalIgnoreCase) || w.Equals("list", StringComparison.OrdinalIgnoreCase) || w.Equals("kitne", StringComparison.OrdinalIgnoreCase) || w.Equals("kitna", StringComparison.OrdinalIgnoreCase) || w.Equals("kab", StringComparison.OrdinalIgnoreCase) || w.Equals("kaun", StringComparison.OrdinalIgnoreCase) || w.Equals("report", StringComparison.OrdinalIgnoreCase));
-        return hasDelivered && (hasAll || mark) && words.Count <= 10 && !asksToSee;
+        var today = words.Any(w => w.Equals("today", StringComparison.OrdinalIgnoreCase) || w.Equals("aaj", StringComparison.OrdinalIgnoreCase));
+        return hasDelivered && (hasAll || (mark && today)) && words.Count <= 10 && !asksToSee;
     }
     // "mark 3 shipped" / "mark 3 bhej diya" / "آرڈر 3 شپ ہو گیا": the verb phrase is mapped by StatusFromPhrase.
     private static readonly Regex MarkStatus = new(@"^(?:mark|order|آرڈر)\s+(\d+)\s+(.+)$", Opts);
