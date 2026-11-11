@@ -5,5 +5,7 @@
   "order-exchange.004": "⚠️ Item {0} (order #{1}) catalog ka product nahi hai, exchange nahi ho sakta.",
   "order-exchange.005": "❌ \"{0}\" ka koi aur listing \"{1}\" ke naam se catalog mein nahi mila. Size ya colour pehle catalog mein add karein.",
   "order-exchange.006": "❌ \"{0}\" se mel khane wale kai listings hain: {1}. Poora naam likhein.",
-  "order-exchange.007": "✅ Order #{0}, item {1}: {2} → {3}. Rate {4} wahi rahega. Stock adjust ho gaya.\nWapas karne ke liye \"undo\" likhein."
+  "order-exchange.007": "✅ Order #{0}, item {1}: {2} → {3}. Rate {4} wahi rahega. Stock adjust ho gaya.\nWapas karne ke liye \"undo\" likhein.",
+  "order-exchange.008": "❌ Order #{0} mein \"{1}\" naam ka item nahi mila. Item ka poora naam likhein, ya \"order {0}\" dekh kar item number use karein.",
+  "order-exchange.009": "Order #{0}, item {1} ({2}) ko \"{3}\" mein badalna hai? Stock adjust ho jayega."
 }

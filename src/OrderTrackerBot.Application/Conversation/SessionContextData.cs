@@ -326,6 +326,9 @@ public sealed class ModelEditData
     public decimal? Amount { get; set; }
     public string? Field { get; set; }
     public string? Value { get; set; }
+    /// <summary>exchange_size: the order and its 1-based item number, plus the new size or colour in Value.</summary>
+    public int? OrderId { get; set; }
+    public int? ItemNo { get; set; }
     /// <summary>edit_order: the "edit order" instructions to run after YES, one per line ("1 = 3", "remove 2", "add Shirt 1").</summary>
     public List<string> Lines { get; set; } = new();
 }

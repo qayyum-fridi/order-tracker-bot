@@ -19,6 +19,7 @@ public sealed class TurnAction
     public const string AddCustomer = "add_customer";
     public const string EditCustomer = "edit_customer";
     public const string EditOrder = "edit_order";
+    public const string ExchangeSize = "exchange_size";
     public const string ShowCustomer = "show_customer";
     public const string HowTo = "how_to";
     public const string ContactSupport = "contact_support";
@@ -31,7 +32,7 @@ public sealed class TurnAction
     public static readonly IReadOnlyList<string> All = new[]
     {
         CreateOrder, UpdateStatus, CancelOrder, ShowOrders, ShowOrder, ShowSummary, AddProduct, EditProduct, AddStock, ShowCatalog,
-        AddCustomer, EditCustomer, EditOrder, ShowCustomer, HowTo, ContactSupport, Clarify, Undo, HelpOrChat, OutOfScope
+        AddCustomer, EditCustomer, EditOrder, ExchangeSize, ShowCustomer, HowTo, ContactSupport, Clarify, Undo, HelpOrChat, OutOfScope
     };
 
     /// <summary>Most actions one message may carry. Extra ones beyond this are dropped by the parser.</summary>
@@ -42,6 +43,9 @@ public sealed class TurnAction
 
     /// <summary>edit_order: one change to a saved order's items. set_quantity / set_price / remove name an item; add names a product and a quantity.</summary>
     public static readonly IReadOnlyList<string> OrderEditOps = new[] { "set_quantity", "remove", "add", "set_price" };
+
+    /// <summary>exchange_size: the item of a saved order whose size or colour changes, as the seller named the product. The new variant is <see cref="Value"/>.</summary>
+    public string? ItemName { get; init; }
 
     /// <summary>how_to: what the seller asks how to do. "other" = something else.</summary>
     public static readonly IReadOnlyList<string> HowToTopics = new[]

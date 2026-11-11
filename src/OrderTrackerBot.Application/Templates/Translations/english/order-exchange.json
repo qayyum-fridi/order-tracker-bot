@@ -5,5 +5,7 @@
   "order-exchange.004": "⚠️ Item {0} (order #{1}) is not a catalog product, so it cannot be exchanged.",
   "order-exchange.005": "❌ No other listing of \"{0}\" with that size or colour was found in the catalog. Add it to the catalog first.",
   "order-exchange.006": "❌ Several listings match \"{0}\": {1}. Type the full name.",
-  "order-exchange.007": "✅ Order #{0}, item {1}: {2} → {3}. The rate {4} stays the same. Stock adjusted.\nType \"undo\" to reverse it."
+  "order-exchange.007": "✅ Order #{0}, item {1}: {2} → {3}. The rate {4} stays the same. Stock adjusted.\nType \"undo\" to reverse it.",
+  "order-exchange.008": "❌ No item named \"{1}\" in order #{0}. Type the full item name, or check \"order {0}\" for the item number.",
+  "order-exchange.009": "Change order #{0}, item {1} ({2}) to \"{3}\"? Stock will be adjusted."
 }
