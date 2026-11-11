@@ -11,7 +11,7 @@
   "orderExample": "Ayesha, 2 lawn suit, 03001234567, Gulberg Lahore",
   "tips": [
     "Design number product ke naam mein likhein, jaise \"Design 1203 - 3500\": order mein wohi naam bol dein.",
-    "Size aur colour ke liye likhein: \"Kurti - 1800, size M, color blue\".",
+    "Size aur colour ke liye likhein: \"Lawn Suit - 3500, size M, color blue\".",
     "Eid / lawn season se pehle poochein: \"kaunsa product khatam hone wala hai\"."
   ],
   "dataFocus": "cost price, category (lawn / stitched / bridal) aur stock",

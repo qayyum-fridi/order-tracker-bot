@@ -59,7 +59,7 @@ public class PakistaniAmountTests
     [InlineData("sawa do baje")]
     [InlineData("3.5 kg atta")]                  // kilograms, not thousands
     [InlineData("3kurti")]
-    [InlineData("Kurti 3 piece")]
+    [InlineData("Shirt 3 piece")]
     public void NearbyPhrases_AreNotAmounts(string said)
     {
         Assert.Empty(SpokenNumbers.Amounts(said));

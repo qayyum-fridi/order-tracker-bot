@@ -72,7 +72,7 @@ public class UnderstandingEval
             CancelUndoIntents = Environment.GetEnvironmentVariable("OTB_AI_CANCEL_UNDO") == "1",
             Catalog = new List<AiCatalogItem>
             {
-                new() { Name = "Kurti", Price = 1800 }, new() { Name = "Dupatta", Price = 600 }, new() { Name = "Lawn Suit", Price = 3500 },
+                new() { Name = "Shirt", Price = 1800 }, new() { Name = "Dupatta", Price = 600 }, new() { Name = "Lawn Suit", Price = 3500 },
                 new() { Name = "Sharara Set", Price = 4200 }, new() { Name = "Shawl", Price = 2500 }, new() { Name = "Polo Shirt", Price = 500 },
             },
         };

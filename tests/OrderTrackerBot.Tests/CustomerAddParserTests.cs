@@ -38,7 +38,7 @@ public class CustomerAddParserTests
     [InlineData("customer list")]
     [InlineData("customers")]
     [InlineData("new order")]
-    [InlineData("naya order Sara 2 kurti")]
+    [InlineData("naya order Sara 2 shirt")]
     [InlineData("new customer 123")]
     [InlineData("add customer order Sara")]
     [InlineData("new customer kya hai?")]

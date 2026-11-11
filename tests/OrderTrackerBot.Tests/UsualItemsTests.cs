@@ -38,7 +38,7 @@ public class UsualItemsTests : IDisposable
         await db.SaveChangesAsync();
         _sara = new Customer { SellerId = _seller.Id, Name = "Sara", Phone = "03001112222", Address = "Model Town" };
         db.Customers.Add(_sara);
-        foreach (var (name, price) in new[] { ("Kurti", 1800m), ("Lawn Suit", 3500m), ("Dupatta", 600m), ("Shawl", 2500m) })
+        foreach (var (name, price) in new[] { ("Shirt", 1800m), ("Lawn Suit", 3500m), ("Dupatta", 600m), ("Shawl", 2500m) })
         {
             var product = new Product { SellerId = _seller.Id, Name = name, Price = price };
             _p[name] = product;
@@ -65,14 +65,14 @@ public class UsualItemsTests : IDisposable
     {
         var (engine, db) = await SetupAsync();
         using var db2 = db;
-        await OrderAsync(db, OrderStatus.Delivered, "Kurti", "Lawn Suit");
-        await OrderAsync(db, OrderStatus.Delivered, "Kurti", "Lawn Suit", "Dupatta");
-        await OrderAsync(db, OrderStatus.Pending, "Kurti");
+        await OrderAsync(db, OrderStatus.Delivered, "Shirt", "Lawn Suit");
+        await OrderAsync(db, OrderStatus.Delivered, "Shirt", "Lawn Suit", "Dupatta");
+        await OrderAsync(db, OrderStatus.Pending, "Shirt");
 
         await engine.HandleIncomingMessageAsync(Phone, "order for Sara", default);
 
         var offer = Assert.Single(_buttons);
-        Assert.Equal(new[] { "Kurti Rs.1800", "Lawn Suit Rs.3500", "Dupatta Rs.600" }, offer.Labels);
+        Assert.Equal(new[] { "Shirt Rs.1800", "Lawn Suit Rs.3500", "Dupatta Rs.600" }, offer.Labels);
         Assert.Contains("Sara ke liye order", offer.Body);
     }
 
@@ -84,13 +84,13 @@ public class UsualItemsTests : IDisposable
         await OrderAsync(db, OrderStatus.Delivered, "Shawl", "Shawl");     // 4th most recent: out of the window
         await OrderAsync(db, OrderStatus.Cancelled, "Dupatta");             // cancelled: ignored
         await OrderAsync(db, OrderStatus.Returned, "Dupatta");              // returned: ignored
-        await OrderAsync(db, OrderStatus.Delivered, "Kurti");
+        await OrderAsync(db, OrderStatus.Delivered, "Shirt");
         await OrderAsync(db, OrderStatus.Delivered, "Lawn Suit");
-        await OrderAsync(db, OrderStatus.Delivered, "Kurti");
+        await OrderAsync(db, OrderStatus.Delivered, "Shirt");
 
         await engine.HandleIncomingMessageAsync(Phone, "order for Sara", default);
 
-        Assert.Equal(new[] { "Kurti Rs.1800", "Lawn Suit Rs.3500" }, Assert.Single(_buttons).Labels);
+        Assert.Equal(new[] { "Shirt Rs.1800", "Lawn Suit Rs.3500" }, Assert.Single(_buttons).Labels);
     }
 
     [Fact]
@@ -99,12 +99,12 @@ public class UsualItemsTests : IDisposable
         var (engine, db) = await SetupAsync();
         using var db2 = db;
         await OrderAsync(db, OrderStatus.Delivered, "Dupatta");
-        await OrderAsync(db, OrderStatus.Delivered, "Kurti");
+        await OrderAsync(db, OrderStatus.Delivered, "Shirt");
         await OrderAsync(db, OrderStatus.Delivered, "Lawn Suit");
 
         await engine.HandleIncomingMessageAsync(Phone, "order for Sara", default);
 
-        Assert.Equal(new[] { "Lawn Suit Rs.3500", "Kurti Rs.1800", "Dupatta Rs.600" }, Assert.Single(_buttons).Labels);
+        Assert.Equal(new[] { "Lawn Suit Rs.3500", "Shirt Rs.1800", "Dupatta Rs.600" }, Assert.Single(_buttons).Labels);
     }
 
     [Fact]
@@ -112,13 +112,13 @@ public class UsualItemsTests : IDisposable
     {
         var (engine, db) = await SetupAsync();
         using var db2 = db;
-        await OrderAsync(db, OrderStatus.Delivered, "Kurti", "Shawl");
+        await OrderAsync(db, OrderStatus.Delivered, "Shirt", "Shawl");
         _p["Shawl"].IsActive = false;
         await db.SaveChangesAsync();
 
         await engine.HandleIncomingMessageAsync(Phone, "order for Sara", default);
 
-        Assert.Equal(new[] { "Kurti Rs.1800" }, Assert.Single(_buttons).Labels);
+        Assert.Equal(new[] { "Shirt Rs.1800" }, Assert.Single(_buttons).Labels);
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public class UsualItemsTests : IDisposable
     {
         var (engine, db) = await SetupAsync(buttons: false);
         using var db2 = db;
-        await OrderAsync(db, OrderStatus.Delivered, "Kurti");
+        await OrderAsync(db, OrderStatus.Delivered, "Shirt");
 
         await engine.HandleIncomingMessageAsync(Phone, "order for Sara", default);
 

@@ -17,8 +17,8 @@ public class AdvancedInsightParserTests
 
     [Theory]
     [InlineData("جب کوئی کسٹمر کُرتی خریدتا ہے، تو وہ اس کے ساتھ زیادہ تر کیا لیتا ہے؟ مجھے بیسٹ جوڑے (Combinations) بتاؤ۔")]
-    [InlineData("kurti ke saath sab se zyada kya bikta hai")]
-    [InlineData("what do customers buy together with kurti")]
+    [InlineData("shirt ke saath sab se zyada kya bikta hai")]
+    [InlineData("what do customers buy together with shirt")]
     [InlineData("کیا ڈوپٹے کو کُرتی کے ساتھ ملا کر بیچنے سے میری نیٹ سیل بڑھی ہے یا گاہک الگ الگ خریدنا پسند کر رہے ہیں؟")]
     public void BoughtTogether(string text) => Topic(text, "pairs");
 

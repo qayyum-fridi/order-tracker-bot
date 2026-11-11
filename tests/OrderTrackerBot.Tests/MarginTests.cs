@@ -78,19 +78,19 @@ public class MarginEngineTests : IDisposable
     {
         var (engine, db) = await SetupAsync();
         using var db2 = db;
-        var kurti = await ProductAsync(db, "Kurti", 1800, 1000);      // margin 44.4%
+        var shirt = await ProductAsync(db, "Shirt", 1800, 1000);      // margin 44.4%
         var lawn = await ProductAsync(db, "Lawn Suit", 3500, 3000);   // margin 14.3%
-        await SoldAsync(db, kurti, 3);
-        await SoldAsync(db, kurti, 2, daysAgo: 3);
+        await SoldAsync(db, shirt, 3);
+        await SoldAsync(db, shirt, 2, daysAgo: 3);
 
         await engine.HandleIncomingMessageAsync(Phone, "margin", default);
 
         var reply = Assert.Single(_text);
-        Assert.Contains("1. Kurti — Rs.1,800, cost Rs.1,000", reply);
+        Assert.Contains("1. Shirt — Rs.1,800, cost Rs.1,000", reply);
         Assert.Contains("margin 44% · munasib discount ~22% · is se zyada nahi 44% · 30 din: 5 bike", reply);
         Assert.Contains("2. Lawn Suit — Rs.3,500, cost Rs.3,000", reply);
         Assert.Contains("margin 14% · munasib discount ~7% · is se zyada nahi 14% · 30 din: 0 bike", reply);
-        Assert.True(reply.IndexOf("1. Kurti", StringComparison.Ordinal) < reply.IndexOf("2. Lawn Suit", StringComparison.Ordinal));
+        Assert.True(reply.IndexOf("1. Shirt", StringComparison.Ordinal) < reply.IndexOf("2. Lawn Suit", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -98,11 +98,11 @@ public class MarginEngineTests : IDisposable
     {
         var (engine, db) = await SetupAsync();
         using var db2 = db;
-        var kurti = await ProductAsync(db, "Kurti", 1800, 1000);
-        await SoldAsync(db, kurti, 1);
-        await SoldAsync(db, kurti, 7, status: OrderStatus.Cancelled);
-        await SoldAsync(db, kurti, 7, status: OrderStatus.Returned);
-        await SoldAsync(db, kurti, 7, daysAgo: 45);
+        var shirt = await ProductAsync(db, "Shirt", 1800, 1000);
+        await SoldAsync(db, shirt, 1);
+        await SoldAsync(db, shirt, 7, status: OrderStatus.Cancelled);
+        await SoldAsync(db, shirt, 7, status: OrderStatus.Returned);
+        await SoldAsync(db, shirt, 7, daysAgo: 45);
 
         await engine.HandleIncomingMessageAsync(Phone, "margin", default);
 
@@ -114,7 +114,7 @@ public class MarginEngineTests : IDisposable
     {
         var (engine, db) = await SetupAsync();
         using var db2 = db;
-        await ProductAsync(db, "Kurti", 1800, 1000);
+        await ProductAsync(db, "Shirt", 1800, 1000);
         await ProductAsync(db, "Sample", 500, 500);       // sells at cost
         await ProductAsync(db, "Dupatta", 600, null);     // no cost saved
         await ProductAsync(db, "Old Shawl", 900, 100, active: false); // switched off
@@ -137,7 +137,7 @@ public class MarginEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "margin", default);
         Assert.Contains("koi product nahi", _text.Last());
 
-        await ProductAsync(db, "Kurti", 1800, null);
+        await ProductAsync(db, "Shirt", 1800, null);
         await engine.HandleIncomingMessageAsync(Phone, "margin", default);
         Assert.Contains("cost save nahi", _text.Last());
         Assert.Contains("Water Bottle - 500, cost 350", _text.Last());
@@ -164,7 +164,7 @@ public class MarginEngineTests : IDisposable
     {
         var (engine, db) = await SetupAsync();
         using var db2 = db;
-        await ProductAsync(db, "Kurti", 1800, 1000);
+        await ProductAsync(db, "Shirt", 1800, 1000);
         var other = new Seller { WhatsAppPhoneNumber = "923009999999", BusinessName = "Other", OnboardingComplete = true };
         db.Sellers.Add(other);
         await db.SaveChangesAsync();

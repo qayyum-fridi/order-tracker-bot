@@ -13,7 +13,7 @@ namespace OrderTrackerBot.Tests;
 public class ConfirmButtonTests : IDisposable
 {
     private const string Phone = "923001234567";
-    private const string Draft = "new order: Sara Khan, Kurti 2, 03001112222, Model Town Lahore";
+    private const string Draft = "new order: Sara Khan, Shirt 2, 03001112222, Model Town Lahore";
     private readonly TestDbContextFactory _dbFactory = new();
     private readonly Mock<IWhatsAppSender> _sender = new();
     private readonly Mock<IAiOrderAssistant> _ai = new();
@@ -38,7 +38,7 @@ public class ConfirmButtonTests : IDisposable
                     CustomerName = "Sara Khan",
                     Phone = "03001112222",
                     Address = "Model Town Lahore",
-                    Items = { new AiOrderItemDraft { ProductName = "Kurti", Quantity = 2 } }
+                    Items = { new AiOrderItemDraft { ProductName = "Shirt", Quantity = 2 } }
                 }
             });
     }
@@ -51,7 +51,7 @@ public class ConfirmButtonTests : IDisposable
         var seller = new Seller { WhatsAppPhoneNumber = Phone, BusinessName = "Ayesha Collections", OnboardingComplete = true, Session = new ConversationSession { State = ConversationState.Idle } };
         db.Sellers.Add(seller);
         await db.SaveChangesAsync();
-        db.Products.Add(new Product { SellerId = seller.Id, Name = "Kurti", Price = 1800 });
+        db.Products.Add(new Product { SellerId = seller.Id, Name = "Shirt", Price = 1800 });
         await db.SaveChangesAsync();
     }
 
@@ -105,7 +105,7 @@ public class ConfirmButtonTests : IDisposable
         Assert.Equal(new[] { "✅ Save", "✏️ Edit", "❌ Cancel" }, draft.Labels);
         Assert.All(draft.Labels, l => Assert.True(l.Length <= 20));
         Assert.DoesNotContain("Reply YES", draft.Body);
-        Assert.Contains("Kurti", draft.Body);
+        Assert.Contains("Shirt", draft.Body);
     }
 
     [Fact]

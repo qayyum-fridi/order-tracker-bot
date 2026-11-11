@@ -172,12 +172,12 @@ public class AgentRealSentencesReport(ITestOutputHelper output)
         Inbound(db, "923001110000", "pehle Hat 100 ka add karo phir Cap 200 ka");        // the same text again
         Inbound(db, "923999990000", "kisi ajnabi ka paigham yahan hai");                 // unknown sender
         db.MessageLogs.Add(new MessageLog { Phone = "923001110000", Direction = "outbound", RawText = "bot ka jawab yahan likha hai" });
-        Inbound(db, "923001110000", "Sara ko do Kurti bhej dena aaj hi");
+        Inbound(db, "923001110000", "Sara ko do Shirt bhej dena aaj hi");
         await db.SaveChangesAsync();
 
         var picked = await AgentRealReport.PickAsync(db, 10);
 
-        Assert.Equal(new[] { "Sara ko do Kurti bhej dena aaj hi", "pehle Hat 100 ka add karo phir Cap 200 ka" }, picked.Select(p => p.Text));
+        Assert.Equal(new[] { "Sara ko do Shirt bhej dena aaj hi", "pehle Hat 100 ka add karo phir Cap 200 ka" }, picked.Select(p => p.Text));
         Assert.All(picked, p => Assert.Equal("Shop A", p.Seller.BusinessName));
     }
 

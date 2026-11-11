@@ -45,7 +45,7 @@ public class SetupCompletionTests : IDisposable
     public async Task ARealCommand_AfterAProduct_EndsSetup_AndRuns()
     {
         using var db = _dbFactory.CreateContext();
-        var engine = await AtTheProductStepAsync(db, "Kurti - 1800");
+        var engine = await AtTheProductStepAsync(db, "Shirt - 1800");
 
         await engine.HandleIncomingMessageAsync(Phone, "expense 500 packaging", default);
 
@@ -61,7 +61,7 @@ public class SetupCompletionTests : IDisposable
     public async Task ACustomerAfterAProduct_EndsSetup_WithoutDone()
     {
         using var db = _dbFactory.CreateContext();
-        var engine = await AtTheProductStepAsync(db, "Kurti - 1800");
+        var engine = await AtTheProductStepAsync(db, "Shirt - 1800");
 
         await engine.HandleIncomingMessageAsync(Phone, "customer add Sara, Model Town, 03001234567", default);
 
@@ -76,7 +76,7 @@ public class SetupCompletionTests : IDisposable
     public async Task ACustomerInLooserWords_AfterAProduct_EndsSetup_WithoutDone()
     {
         using var db = _dbFactory.CreateContext();
-        var engine = await AtTheProductStepAsync(db, "Kurti - 1800");
+        var engine = await AtTheProductStepAsync(db, "Shirt - 1800");
         _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiMessageAnalysis { Intent = "add_customer", NewCustomer = new AiNewCustomer { Name = "Sara", Address = "Model Town" } });
 
@@ -115,7 +115,7 @@ public class SetupCompletionTests : IDisposable
     public async Task ReadOnlyLookups_AfterAProduct_DoNotEndSetup()
     {
         using var db = _dbFactory.CreateContext();
-        var engine = await AtTheProductStepAsync(db, "Kurti - 1800");
+        var engine = await AtTheProductStepAsync(db, "Shirt - 1800");
 
         await engine.HandleIncomingMessageAsync(Phone, "orders today", default);
 

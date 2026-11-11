@@ -13,8 +13,8 @@ namespace OrderTrackerBot.Tests;
 public class LossWageParserTests
 {
     [Theory]
-    [InlineData("loss 2 Kurti damaged", 2, "Kurti", "damaged")]
-    [InlineData("nuqsan 2 Kurti", 2, "Kurti", null)]
+    [InlineData("loss 2 Shirt damaged", 2, "Shirt", "damaged")]
+    [InlineData("nuqsan 2 Shirt", 2, "Shirt", null)]
     [InlineData("damage 1 Lawn Suit expired", 1, "Lawn Suit", "expired")]
     public void ParsesLoss(string message, int quantity, string name, string? reason)
     {
@@ -73,7 +73,7 @@ public class LossWageEngineTests : IDisposable
     private async Task<Seller> OnboardAsync(AppDbContext db)
     {
         var engine = CreateEngine(db);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800", "done" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Shirt - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
         _sent.Clear();
         return await db.Sellers.FirstAsync();
@@ -81,9 +81,9 @@ public class LossWageEngineTests : IDisposable
 
     private static async Task SetKurtiAsync(AppDbContext db, int? stock, decimal? cost)
     {
-        var kurti = await db.Products.FirstAsync(p => p.Name == "Kurti");
-        kurti.StockQty = stock;
-        kurti.CostPrice = cost;
+        var shirt = await db.Products.FirstAsync(p => p.Name == "Shirt");
+        shirt.StockQty = stock;
+        shirt.CostPrice = cost;
         await db.SaveChangesAsync();
     }
 
@@ -95,19 +95,19 @@ public class LossWageEngineTests : IDisposable
         await SetKurtiAsync(db, stock: 10, cost: 800);
         var engine = CreateEngine(db);
 
-        await engine.HandleIncomingMessageAsync(Phone, "loss 2 Kurti damaged", default);
+        await engine.HandleIncomingMessageAsync(Phone, "loss 2 Shirt damaged", default);
 
         var loss = await db.Losses.SingleAsync();
         Assert.Equal(2, loss.Quantity);
         Assert.Equal(800m, loss.UnitCost);
         Assert.Equal("damaged", loss.Reason);
-        Assert.Equal(8, (await db.Products.FirstAsync(p => p.Name == "Kurti")).StockQty);
+        Assert.Equal(8, (await db.Products.FirstAsync(p => p.Name == "Shirt")).StockQty);
         Assert.Contains(_sent, m => m.Contains("Cost: Rs.1,600"));
 
         await engine.HandleIncomingMessageAsync(Phone, "undo", default);
 
         Assert.Empty(db.Losses);
-        Assert.Equal(10, (await db.Products.FirstAsync(p => p.Name == "Kurti")).StockQty);
+        Assert.Equal(10, (await db.Products.FirstAsync(p => p.Name == "Shirt")).StockQty);
     }
 
     [Fact]
@@ -160,7 +160,7 @@ public class LossWageEngineTests : IDisposable
 
         await engine.HandleIncomingMessageAsync(Phone, "expense 200 packaging", default);
         await engine.HandleIncomingMessageAsync(Phone, "Ali ki 300 dihari", default);
-        await engine.HandleIncomingMessageAsync(Phone, "loss 1 Kurti", default);
+        await engine.HandleIncomingMessageAsync(Phone, "loss 1 Shirt", default);
         _sent.Clear();
 
         await engine.HandleIncomingMessageAsync(Phone, "monthly net", default);

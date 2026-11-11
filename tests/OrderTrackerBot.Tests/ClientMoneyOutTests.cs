@@ -103,7 +103,7 @@ public sealed class ClientMoneyOutTests : IDisposable
     public async Task A_loss_takes_units_out_of_tracked_stock_only()
     {
         await SellerAsync();
-        var tracked = await ProductAsync("Kurti", 1000, stock: 10);
+        var tracked = await ProductAsync("Shirt", 1000, stock: 10);
         var untracked = await ProductAsync("Sticker", 20);
         var losses = new ClientLosses(_db);
 
@@ -122,7 +122,7 @@ public sealed class ClientMoneyOutTests : IDisposable
     public async Task Stock_can_be_set_only_on_tracked_products()
     {
         await SellerAsync();
-        var tracked = await ProductAsync("Kurti", 1000, stock: 4);
+        var tracked = await ProductAsync("Shirt", 1000, stock: 4);
         var untracked = await ProductAsync("Sticker", 20);
         var stock = new ClientStock(_db);
 
@@ -137,14 +137,14 @@ public sealed class ClientMoneyOutTests : IDisposable
     public async Task Dashboard_order_uses_catalog_or_price_group_prices_discount_and_stock()
     {
         await SellerAsync();
-        var kurti = await ProductAsync("Kurti", 1000, stock: 10, priceA: 900);
+        var shirt = await ProductAsync("Shirt", 1000, stock: 10, priceA: 900);
         var customer = await CustomerAsync("Sara", "A");
         _db.Discounts.Add(new Discount { SellerId = _sellerId, Code = "SAVE10", Type = DiscountType.Percent, Value = 10 });
         await _db.SaveChangesAsync();
         var create = new ClientOrderCreate(_db, _queries);
 
         var (problem, order) = await create.CreateAsync(_sellerId, new NewOrderInput(
-            customer.Id, [new NewOrderLineInput(kurti.Id, 2)], "Cod", 0, null, "save10", "gift wrap"), default);
+            customer.Id, [new NewOrderLineInput(shirt.Id, 2)], "Cod", 0, null, "save10", "gift wrap"), default);
 
         Assert.Null(problem);
         Assert.Equal(1800, order!.Subtotal);      // group A price 900 x 2
@@ -152,7 +152,7 @@ public sealed class ClientMoneyOutTests : IDisposable
         Assert.Equal(1770, order.Total);          // 1800 - 180 + delivery 150 (seller default)
         Assert.Equal("SAVE10", order.DiscountCode);
         Assert.Equal("Pending", order.Status);
-        Assert.Equal(8, (await _db.Products.FindAsync(kurti.Id))!.StockQty);  // 2 units held by the new order
+        Assert.Equal(8, (await _db.Products.FindAsync(shirt.Id))!.StockQty);  // 2 units held by the new order
         Assert.Equal(1, await _db.ActionLogs.CountAsync(l => l.ActionType == ActionType.OrderCreated && l.OrderId == order.Id));
     }
 
@@ -160,17 +160,17 @@ public sealed class ClientMoneyOutTests : IDisposable
     public async Task Dashboard_order_refuses_bad_input_without_saving()
     {
         await SellerAsync();
-        var kurti = await ProductAsync("Kurti", 1000, stock: 10);
+        var shirt = await ProductAsync("Shirt", 1000, stock: 10);
         var customer = await CustomerAsync("Sara");
         var create = new ClientOrderCreate(_db, _queries);
 
-        Assert.NotNull((await create.CreateAsync(_sellerId, new NewOrderInput(null, [new NewOrderLineInput(kurti.Id, 1)], null, null, null, null, null), default)).Problem);
+        Assert.NotNull((await create.CreateAsync(_sellerId, new NewOrderInput(null, [new NewOrderLineInput(shirt.Id, 1)], null, null, null, null, null), default)).Problem);
         Assert.NotNull((await create.CreateAsync(_sellerId, new NewOrderInput(customer.Id, [], null, null, null, null, null), default)).Problem);
-        Assert.NotNull((await create.CreateAsync(_sellerId, new NewOrderInput(customer.Id, [new NewOrderLineInput(kurti.Id, 1)], "Crypto", null, null, null, null), default)).Problem);
-        Assert.NotNull((await create.CreateAsync(_sellerId, new NewOrderInput(customer.Id, [new NewOrderLineInput(kurti.Id, 1)], null, 99999, null, null, null), default)).Problem);
-        Assert.NotNull((await create.CreateAsync(_sellerId, new NewOrderInput(customer.Id, [new NewOrderLineInput(kurti.Id, 1)], null, null, null, "NOPE", null), default)).Problem);
+        Assert.NotNull((await create.CreateAsync(_sellerId, new NewOrderInput(customer.Id, [new NewOrderLineInput(shirt.Id, 1)], "Crypto", null, null, null, null), default)).Problem);
+        Assert.NotNull((await create.CreateAsync(_sellerId, new NewOrderInput(customer.Id, [new NewOrderLineInput(shirt.Id, 1)], null, 99999, null, null, null), default)).Problem);
+        Assert.NotNull((await create.CreateAsync(_sellerId, new NewOrderInput(customer.Id, [new NewOrderLineInput(shirt.Id, 1)], null, null, null, "NOPE", null), default)).Problem);
 
         Assert.Equal(0, await _db.Orders.CountAsync());
-        Assert.Equal(10, (await _db.Products.FindAsync(kurti.Id))!.StockQty);
+        Assert.Equal(10, (await _db.Products.FindAsync(shirt.Id))!.StockQty);
     }
 }

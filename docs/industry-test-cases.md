@@ -48,29 +48,29 @@ Test seller: **Ayesha Collections**, shehar **Lahore**, business type **Clothing
 | CLO-11 | `3 Piece Lawn Suit - 3500, cost 2400, stock 20, category lawn` | "pehle se catalog mein hai — koi tabdeeli nahi" (dobara bhejne par kuch nahi badalta) |  | ☐ |
 | CLO-12 | `3 Piece Lawn Suit - 3600` | "price updated: 3,500 → 3,600" |  | ☐ |
 | CLO-13 | `3 Piece Lawn Suit - 3500` | Price wapas 3,500 |  | ☐ |
-| CLO-14 | `Kurti - 1800, cost 1100, stock 15, category stitched<br>Dupatta - 600` | Dono products ek saath save (do lines wala message): Kurti, Dupatta |  | ☐ |
+| CLO-14 | `Shirt - 1800, cost 1100, stock 15, category stitched<br>Dupatta - 600` | Dono products ek saath save (do lines wala message): Shirt, Dupatta |  | ☐ |
 | CLO-15 | `catalog` | Teeno products ki list, qeematon ke saath |  | ☐ |
 | CLO-16 | `3 Piece Lawn Suit - -5` | Product save NAHI hota (naam '-' par khatam, price -5): `catalog` mein is naam ka koi naya product nahi |  | ☐ |
 | CLO-17 | `3 Piece Lawn Suit - abc` | Product save NAHI hota (price 'abc' number nahi): `catalog` mein badlav nahi |  | ☐ |
 | CLO-18 | `Design 1203 - 3500, cost 2400, category lawn` | Product ban jata hai, naam 'Design 1203' |  | ☐ |
 | CLO-19 | `note 1 sleeves lambi, chaak 6 inch` | Order #1 par note save, receipt par chhapta hai |  | ☐ |
-| CLO-20 | `Kurti - 1800, size M, color blue` | Kurti ki details update (size, colour) |  | ☐ |
+| CLO-20 | `Shirt - 1800, size M, color blue` | Shirt ki details update (size, colour) |  | ☐ |
 | | **C. Order banana** | | | |
-| CLO-21 | `Ayesha, 2 kurti, 03001234567, Gulberg Lahore` | Draft: customer Ayesha, 2x Kurti, total Rs.3,600; Save / Edit / Cancel buttons ("Confirm order") | 🤖 | ☐ |
+| CLO-21 | `Ayesha, 2 shirt, 03001234567, Gulberg Lahore` | Draft: customer Ayesha, 2x Shirt, total Rs.3,600; Save / Edit / Cancel buttons ("Confirm order") | 🤖 | ☐ |
 | CLO-22 | `✅ Save (ya yes)` | Order #1 save, status PENDING, total Rs.3,600 |  | ☐ |
-| CLO-23 | `order 1` | Order #1 poora: Kurti x2, Rs.3,600, customer Ayesha |  | ☐ |
+| CLO-23 | `order 1` | Order #1 poora: Shirt x2, Rs.3,600, customer Ayesha |  | ☐ |
 | CLO-24 | `Ayesha ka order` | Is customer ke orders ki list (#1) |  | ☐ |
-| CLO-25 | `Ayesha, 1 kurta, 03001234567, Gulberg Lahore` | "kurta" catalog mein nahi mila + qareeb ka product button (Kurti) aur "➕ Naya product" (did-you-mean) | 🤖 | ☐ |
-| CLO-26 | `2 Kurti` | Kurti chun liya gaya; draft aage barhta hai (agar sawal baaqi ho to wohi pooche) |  | ☐ |
+| CLO-25 | `Ayesha, 1 kurta, 03001234567, Gulberg Lahore` | "kurta" catalog mein nahi mila + qareeb ka product button (Shirt) aur "➕ Naya product" (did-you-mean) | 🤖 | ☐ |
+| CLO-26 | `2 Shirt` | Shirt chun liya gaya; draft aage barhta hai (agar sawal baaqi ho to wohi pooche) |  | ☐ |
 | CLO-27 | `cancel` | Draft khatam, koi order nahi bana |  | ☐ |
-| CLO-28 | `Ayesha ne Kurti 1500 ki li, 03001234567, Gulberg Lahore` | ⚠️ Qeemat mein farq: catalog mein Rs.1,800, aapne Rs.1,500; 3 options: 1 likhi hui qeemat / 2 catalog rate / 3 catalog update | 🤖 | ☐ |
+| CLO-28 | `Ayesha ne Shirt 1500 ki li, 03001234567, Gulberg Lahore` | ⚠️ Qeemat mein farq: catalog mein Rs.1,800, aapne Rs.1,500; 3 options: 1 likhi hui qeemat / 2 catalog rate / 3 catalog update | 🤖 | ☐ |
 | CLO-29 | `haan theek hai` | Dobara 1, 2 ya 3 likhne ka kaha jata hai (draft nahi bantaa) |  | ☐ |
 | CLO-30 | `2` | Catalog rate Rs.1,800 par draft; "Confirm order" |  | ☐ |
 | CLO-31 | `cancel` | Draft khatam |  | ☐ |
-| CLO-32 | `Ayesha, Kurti, 03001234567` | Address missing ho to bot address poochta hai; ya draft (address optional jahan setting ho) | 🤖 | ☐ |
-| CLO-33 | `Zara, Kurti, 12345` | ⚠️ Phone sahi nahi (5 digits) — dobara sahi number maangta hai; order save NAHI | 🤖 | ☐ |
+| CLO-32 | `Ayesha, Shirt, 03001234567` | Address missing ho to bot address poochta hai; ya draft (address optional jahan setting ho) | 🤖 | ☐ |
+| CLO-33 | `Zara, Shirt, 12345` | ⚠️ Phone sahi nahi (5 digits) — dobara sahi number maangta hai; order save NAHI | 🤖 | ☐ |
 | CLO-34 | `cancel` | Draft khatam |  | ☐ |
-| CLO-35 | `walkin Kurti 1` | Counter sale ka draft (customer 'Walk-in', phone nahi poochta) Rs.1,800 |  | ☐ |
+| CLO-35 | `walkin Shirt 1` | Counter sale ka draft (customer 'Walk-in', phone nahi poochta) Rs.1,800 |  | ☐ |
 | CLO-36 | `yes` | Order save: Delivered + Paid (counter sale) |  | ☐ |
 | CLO-37 | `mark 1 shipped` | Order #1 → SHIPPED; "label 1" ka mashwara |  | ☐ |
 | CLO-38 | `label 1` | Parcel label PDF (to/from, order id, COD amount) aata hai |  | ☐ |
@@ -97,16 +97,16 @@ Test seller: **Ayesha Collections**, shehar **Lahore**, business type **Clothing
 | CLO-58 | `which products are running out of stock` | Wohi sawal English mein; wohi qism ka jawab |  | ☐ |
 | CLO-59 | `export` | Excel (.xlsx) file bheji jati hai (Orders, Customers, Catalog... aur Guide tab) |  | ☐ |
 | | **F. Data check (missing aur galat data)** | | | |
-| CLO-60 | `data check` | 📋 Data check: X/5 mukammal, Y galat entries; Kurti ka cost nahi ('Cost price nahi: ...'); jaise line: "3 Piece Lawn Suit - 3500, cost 2400, stock 20, category lawn" |  | ☐ |
-| CLO-61 | `Kurti - 1000, cost 1200` | Kurti ka cost price (1200) > sale price (1000) save ho jata hai (rok nahi) |  | ☐ |
-| CLO-62 | `data check` | 🔎 'Cost price >= sale price (1): Kurti (cost 1200 / price 1000)' |  | ☐ |
-| CLO-63 | `Kurti - 1800, cost 1100` | Theek kar diya; cost 1100 |  | ☐ |
+| CLO-60 | `data check` | 📋 Data check: X/5 mukammal, Y galat entries; Shirt ka cost nahi ('Cost price nahi: ...'); jaise line: "3 Piece Lawn Suit - 3500, cost 2400, stock 20, category lawn" |  | ☐ |
+| CLO-61 | `Shirt - 1000, cost 1200` | Shirt ka cost price (1200) > sale price (1000) save ho jata hai (rok nahi) |  | ☐ |
+| CLO-62 | `data check` | 🔎 'Cost price >= sale price (1): Shirt (cost 1200 / price 1000)' |  | ☐ |
+| CLO-63 | `Shirt - 1800, cost 1100` | Theek kar diya; cost 1100 |  | ☐ |
 | CLO-64 | `data check` | Ab 'Cost price >= sale price' wali line nahi |  | ☐ |
 | CLO-65 | `3 piece lawn suit - 3500` | Naya product bana ya 'pehle se hai' (case alag) — dono dafa se data check par 'Milte-julte product naam' ho sakta hai |  | ☐ |
 | CLO-66 | `checklist` | `data check` jaisa hi jawab |  | ☐ |
 | CLO-67 | `ڈیٹا چیک` | Wohi jawab (Urdu mein likha command) |  | ☐ |
 | | **G. Voice notes 🎤** | | | |
-| CLO-68 | `🎤 (bol kar) "Ayesha ka 2 kurti ka order, phone 03001234567"` | Bot pehle "🎤 Maine suna: …" phir "➡️ Samjha: …" likhta hai, phir draft; paisay/qeemat badalne wali baat ho to YES maangta hai | 🤖 | ☐ |
+| CLO-68 | `🎤 (bol kar) "Ayesha ka 2 shirt ka order, phone 03001234567"` | Bot pehle "🎤 Maine suna: …" phir "➡️ Samjha: …" likhta hai, phir draft; paisay/qeemat badalne wali baat ho to YES maangta hai | 🤖 | ☐ |
 | CLO-69 | `🎤 "kaunsa maal khatam hone wala hai"` | "Maine suna" + "Samjha" + sawal ka jawab (report) | 🤖 | ☐ |
 | CLO-70 | `🎤 "کس چیز کا اسٹاک ختم ہونے والا ہے"` | Urdu voice se wohi report | 🤖 | ☐ |
 | CLO-71 | `🎤 (khamoshi / shor)` | "dobara bhejein" jaisa jawab, koi order nahi bantaa | 🤖 | ☐ |
@@ -566,7 +566,7 @@ Test seller: **Test General Store**, shehar **Lahore**, business type **Mix stor
 | GEN-11 | `Lawn Suit - 3500, cost 2400, stock 20, category lawn` | "pehle se catalog mein hai — koi tabdeeli nahi" (dobara bhejne par kuch nahi badalta) |  | ☐ |
 | GEN-12 | `Lawn Suit - 3600` | "price updated: 3,500 → 3,600" |  | ☐ |
 | GEN-13 | `Lawn Suit - 3500` | Price wapas 3,500 |  | ☐ |
-| GEN-14 | `Kurti - 1800<br>Sugar 5 kg - 500` | Dono products ek saath save (do lines wala message): Kurti, Sugar 5 kg |  | ☐ |
+| GEN-14 | `Shirt - 1800<br>Sugar 5 kg - 500` | Dono products ek saath save (do lines wala message): Shirt, Sugar 5 kg |  | ☐ |
 | GEN-15 | `catalog` | Teeno products ki list, qeematon ke saath |  | ☐ |
 | GEN-16 | `Lawn Suit - -5` | Product save NAHI hota (naam '-' par khatam, price -5): `catalog` mein is naam ka koi naya product nahi |  | ☐ |
 | GEN-17 | `Lawn Suit - abc` | Product save NAHI hota (price 'abc' number nahi): `catalog` mein badlav nahi |  | ☐ |
@@ -612,10 +612,10 @@ Test seller: **Test General Store**, shehar **Lahore**, business type **Mix stor
 | GEN-55 | `how many categories do I have` | Wohi sawal English mein; wohi qism ka jawab |  | ☐ |
 | GEN-56 | `export` | Excel (.xlsx) file bheji jati hai (Orders, Customers, Catalog... aur Guide tab) |  | ☐ |
 | | **F. Data check (missing aur galat data)** | | | |
-| GEN-57 | `data check` | 📋 Data check: X/5 mukammal, Y galat entries; Kurti ka cost nahi ('Cost price nahi: ...'); jaise line: "Lawn Suit - 3500, cost 2400, stock 20, category lawn" |  | ☐ |
-| GEN-58 | `Kurti - 1000, cost 1200` | Kurti ka cost price (1200) > sale price (1000) save ho jata hai (rok nahi) |  | ☐ |
-| GEN-59 | `data check` | 🔎 'Cost price >= sale price (1): Kurti (cost 1200 / price 1000)' |  | ☐ |
-| GEN-60 | `Kurti - 1800, cost 1100` | Theek kar diya; cost 1100 |  | ☐ |
+| GEN-57 | `data check` | 📋 Data check: X/5 mukammal, Y galat entries; Shirt ka cost nahi ('Cost price nahi: ...'); jaise line: "Lawn Suit - 3500, cost 2400, stock 20, category lawn" |  | ☐ |
+| GEN-58 | `Shirt - 1000, cost 1200` | Shirt ka cost price (1200) > sale price (1000) save ho jata hai (rok nahi) |  | ☐ |
+| GEN-59 | `data check` | 🔎 'Cost price >= sale price (1): Shirt (cost 1200 / price 1000)' |  | ☐ |
+| GEN-60 | `Shirt - 1800, cost 1100` | Theek kar diya; cost 1100 |  | ☐ |
 | GEN-61 | `data check` | Ab 'Cost price >= sale price' wali line nahi |  | ☐ |
 | GEN-62 | `lawn suit - 3500` | Naya product bana ya 'pehle se hai' (case alag) — dono dafa se data check par 'Milte-julte product naam' ho sakta hai |  | ☐ |
 | GEN-63 | `checklist` | `data check` jaisa hi jawab |  | ☐ |
@@ -654,7 +654,7 @@ Test seller: **Test General Store**, shehar **Lahore**, business type **Mix stor
 | COM-19 | `House 5 - 300` | Product NAHI banta (address jaisa) |  | ☐ |
 | COM-20 | `🎤 + 31 voice notes ek ghante mein` | Hadd (default 30/ghanta) ke baad "limit" wala jawab | 🤖 | ☐ |
 | COM-21 | `(ek hi message dobara bhejna, Meta retry)` | Duplicate nahi banta — ek hi order |  | ☐ |
-| COM-22 | `Kurti (naam ke pehle zero-width space copy-paste ho jaye)` | Alag look-alike product NAHI banta; wohi Kurti |  | ☐ |
+| COM-22 | `Shirt (naam ke pehle zero-width space copy-paste ho jaye)` | Alag look-alike product NAHI banta; wohi Shirt |  | ☐ |
 
 ---
 

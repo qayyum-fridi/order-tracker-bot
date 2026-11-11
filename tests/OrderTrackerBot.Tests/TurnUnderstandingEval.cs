@@ -58,8 +58,8 @@ public class TurnUnderstandingEval
         new("شال پچیس سو روپے کی ہے اسے لسٹ میں شامل کر دو", new[] { TurnAction.AddProduct }, a => Product(a, 2500), Voice: true),
         new("add a new item bedsheet for 1200", new[] { TurnAction.AddProduct }, a => Product(a, 1200, "bedsheet")),
         new("میرے پاس ایک نئی چیز آئی ہے چادر بارہ سو کی ہے", new[] { TurnAction.AddProduct }, a => Product(a, 1200), Voice: true),
-        new("kurti ka rate ab 2000 hai", new[] { TurnAction.EditProduct }, a => Product(a, 2000, "kurti")),
-        new("2000 kar do kurti ki qeemat", new[] { TurnAction.EditProduct }, a => Product(a, 2000, "kurti")),
+        new("shirt ka rate ab 2000 hai", new[] { TurnAction.EditProduct }, a => Product(a, 2000, "shirt")),
+        new("2000 kar do shirt ki qeemat", new[] { TurnAction.EditProduct }, a => Product(a, 2000, "shirt")),
         new("دوپٹے کی قیمت سات سو کر دیں", new[] { TurnAction.EditProduct }, a => Product(a, 700), Voice: true),
         new("meri cheezein dikhao jo main bechta hun", new[] { TurnAction.ShowCatalog }),
         new("kya kya products hain mere paas", new[] { TurnAction.ShowCatalog }),
@@ -73,13 +73,13 @@ public class TurnUnderstandingEval
         new("Ali Raza ka naya number 03339998877 hai", new[] { TurnAction.EditCustomer }, a => Named(a, "Ali") && a.Field == "phone" && Has(a.Value, "03339998877")),
         new("03339998877 yeh Ali ka phone likh lo", new[] { TurnAction.EditCustomer }, a => Named(a, "Ali") && a.Field == "phone" && Has(a.Value, "03339998877")),
         // orders
-        new("Sara ko do kurti bhejni hain", new[] { Order }, a => Buyer(a, "Sara") && Item(a, "kurti", 2)),
-        new("do kurti aur ek dupatta, Sara Khan ke liye likh lo", new[] { Order }, a => Buyer(a, "Sara") && Item(a, "kurti", 2) && Item(a, "dupatta", 1)),
-        new("kurti 2 Sara", new[] { Order }, a => Buyer(a, "Sara") && Item(a, "kurti", 2)),
+        new("Sara ko do shirt bhejni hain", new[] { Order }, a => Buyer(a, "Sara") && Item(a, "shirt", 2)),
+        new("do shirt aur ek dupatta, Sara Khan ke liye likh lo", new[] { Order }, a => Buyer(a, "Sara") && Item(a, "shirt", 2) && Item(a, "dupatta", 1)),
+        new("shirt 2 Sara", new[] { Order }, a => Buyer(a, "Sara") && Item(a, "shirt", 2)),
         new("علی رضا کا آرڈر لکھیں تین لان سوٹ", new[] { Order }, a => Buyer(a, "Ali", "علی") && a.Orders[0].Items.Count == 1 && a.Orders[0].Items[0].Quantity == 3, Voice: true),
         new("likh lo ke Ali Raza ne mangwaye hain lawn suit, teen", new[] { Order }, a => Buyer(a, "Ali") && Item(a, "lawn", 3)),
         new("order for Sara Khan: 1 lawn suit and 2 dupatta, delivery 200", new[] { Order }, a => Buyer(a, "Sara") && Item(a, "lawn", 1) && Item(a, "dupatta", 2) && a.Orders[0].DeliveryCharge == 200),
-        new("Hamza Sheikh 03451112223 ko ek kurti bhejni hai Johar Town Lahore", new[] { Order }, a => Buyer(a, "Hamza") && Item(a, "kurti", 1) && Has(a.Orders[0].Phone, "03451112223")),
+        new("Hamza Sheikh 03451112223 ko ek shirt bhejni hai Johar Town Lahore", new[] { Order }, a => Buyer(a, "Hamza") && Item(a, "shirt", 1) && Has(a.Orders[0].Phone, "03451112223")),
         new("سارہ کو پانچ دوپٹے چاہیے", new[] { Order }, a => Buyer(a, "Sara", "سارہ") && a.Orders[0].Items.Count == 1 && a.Orders[0].Items[0].Quantity == 5, Voice: true),
         // status
         new("order 2 nikal gaya hai courier se", new[] { Status }, a => a.OrderId == 2 && a.Status == "shipped"),
@@ -105,7 +105,7 @@ public class TurnUnderstandingEval
         new("assalam o alaikum kya haal hai", new[] { TurnAction.HelpOrChat }),
         new("mausam kaisa hai aaj", new[] { TurnAction.HelpOrChat, TurnAction.OutOfScope }),
         new("petrol ka 500 kharcha likh lo", new[] { TurnAction.OutOfScope }),
-        new("ek kurti", new[] { Clarify, Order }),
+        new("ek shirt", new[] { Clarify, Order }),
     };
 
     private static readonly TurnContext Shop = new()
@@ -114,7 +114,7 @@ public class TurnUnderstandingEval
         ShopType = "Kapray / Lawn / Boutique",
         Catalog = new[]
         {
-            new AiCatalogItem { Name = "Kurti", Price = 1800 }, new AiCatalogItem { Name = "Lawn Suit", Price = 3500 }, new AiCatalogItem { Name = "Dupatta", Price = 600 },
+            new AiCatalogItem { Name = "Shirt", Price = 1800 }, new AiCatalogItem { Name = "Lawn Suit", Price = 3500 }, new AiCatalogItem { Name = "Dupatta", Price = 600 },
         },
         CatalogSize = 3,
         KnownCustomers = new[] { "Sara Khan (03004445566, Model Town Lahore)", "Ali Raza (03215557788, Saddar Karachi)" },

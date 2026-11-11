@@ -72,7 +72,7 @@ Actual:   OrderSearch
 Not found: cost price nahi likhi gayi
 In value:  📊 Product ke hisab se profit — pichle 30 din
 
-1. Kurti — 2 piece · bikri Rs.0 · munafa Rs.0 · margin 0%
+1. Shirt — 2 piece · bikri Rs.0 · munafa Rs.0 · margin 0%
 
 ℹ️ 1 item ki cost nahi likhi thi, is liye woh shamil nahi. Cost likhne ke liye product line mein "cost 300" likhein.
   Stack Trace:

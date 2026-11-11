@@ -12,9 +12,9 @@ namespace OrderTrackerBot.Tests;
 public class BuyerEnquiryParserTests
 {
     [Theory]
-    [InlineData("enquiry Kurti blue", "Kurti blue")]
+    [InlineData("enquiry Shirt blue", "Shirt blue")]
     [InlineData("buyer ne pucha Lawn Suit", "Lawn Suit")]
-    [InlineData("customer ne pucha: Kurti ka rate", "Kurti ka rate")]
+    [InlineData("customer ne pucha: Shirt ka rate", "Shirt ka rate")]
     public void BuyerQuestion_IsLoggedAsWritten(string text, string expected)
     {
         var parsed = CommandParser.TryParse(text);
@@ -57,12 +57,12 @@ public class BuyerEnquiryEngineTests : IDisposable
     {
         var (engine, db) = await SetupAsync();
         using var db2 = db;
-        db.Products.Add(new Product { SellerId = _seller.Id, Name = "Kurti", Price = 1800 });
+        db.Products.Add(new Product { SellerId = _seller.Id, Name = "Shirt", Price = 1800 });
         await db.SaveChangesAsync();
 
-        await engine.HandleIncomingMessageAsync(Phone, "enquiry Kurti blue", default);
+        await engine.HandleIncomingMessageAsync(Phone, "enquiry Shirt blue", default);
 
-        Assert.Contains("Note ho gaya: \"Kurti blue\"", Assert.Single(_text));
+        Assert.Contains("Note ho gaya: \"Shirt blue\"", Assert.Single(_text));
         var logged = Assert.Single(db.BuyerEnquiries);
         Assert.NotNull(logged.ProductId);
     }
@@ -72,28 +72,28 @@ public class BuyerEnquiryEngineTests : IDisposable
     {
         var (engine, db) = await SetupAsync();
         using var db2 = db;
-        var kurti = new Product { SellerId = _seller.Id, Name = "Kurti", Price = 1800 };
+        var shirt = new Product { SellerId = _seller.Id, Name = "Shirt", Price = 1800 };
         var lawn = new Product { SellerId = _seller.Id, Name = "Lawn Suit", Price = 3500 };
-        db.Products.AddRange(kurti, lawn);
+        db.Products.AddRange(shirt, lawn);
         await db.SaveChangesAsync();
         var customer = new Customer { SellerId = _seller.Id, Name = "Sara", Phone = "03001112222" };
         db.Customers.Add(customer);
         await db.SaveChangesAsync();
         var order = new Order { SellerId = _seller.Id, CustomerId = customer.Id, Status = OrderStatus.Delivered, CreatedAt = DateTime.UtcNow.AddHours(-1), Subtotal = 1800, Total = 1800 };
-        order.Items.Add(new OrderItem { ProductId = kurti.Id, ProductNameSnapshot = "Kurti", UnitPrice = 1800, Quantity = 1 });
+        order.Items.Add(new OrderItem { ProductId = shirt.Id, ProductNameSnapshot = "Shirt", UnitPrice = 1800, Quantity = 1 });
         db.Orders.Add(order);
         await db.SaveChangesAsync();
 
-        await engine.HandleIncomingMessageAsync(Phone, "enquiry Kurti blue", default);
-        await engine.HandleIncomingMessageAsync(Phone, "buyer ne pucha Kurti", default);
+        await engine.HandleIncomingMessageAsync(Phone, "enquiry Shirt blue", default);
+        await engine.HandleIncomingMessageAsync(Phone, "buyer ne pucha Shirt", default);
         await engine.HandleIncomingMessageAsync(Phone, "enquiry Lawn Suit", default);
         _text.Clear();
 
         await engine.HandleIncomingMessageAsync(Phone, "enquiries", default);
 
         var reply = Assert.Single(_text);
-        Assert.Contains("• Kurti — pucha 2 baar, bika 1 piece", reply);
+        Assert.Contains("• Shirt — pucha 2 baar, bika 1 piece", reply);
         Assert.Contains("• Lawn Suit — pucha 1 baar, bika 0 piece · ⚠️ pucha gaya, bikri nahi", reply);
-        Assert.True(reply.IndexOf("Kurti —", StringComparison.Ordinal) < reply.IndexOf("Lawn Suit —", StringComparison.Ordinal));
+        Assert.True(reply.IndexOf("Shirt —", StringComparison.Ordinal) < reply.IndexOf("Lawn Suit —", StringComparison.Ordinal));
     }
 }

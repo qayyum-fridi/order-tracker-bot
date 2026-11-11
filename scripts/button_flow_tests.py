@@ -19,15 +19,15 @@ PHONE = "923001234567"
 # The steps are written so the same flow can be run with the correct tap and then with a wrong tap.
 FLOWS = [
     ("draft: Save (correct)", [
-        ("Sara, Kurti 2", "Save"),
+        ("Sara, Shirt 2", "Save"),
         ("✅ Save", "saved"),
     ]),
     ("draft: Cancel (correct exit)", [
-        ("Sara, Kurti 2", "Save"),
+        ("Sara, Shirt 2", "Save"),
         ("❌ Cancel", "cancel"),
     ]),
     ("draft: Edit (discard, resend)", [
-        ("Sara, Kurti 2", "Save"),
+        ("Sara, Shirt 2", "Save"),
         ("✏️ Edit", "resend"),
     ]),
     ("draft: Save with no draft (wrong tap)", [
@@ -35,7 +35,7 @@ FLOWS = [
     ]),
     ("order for customer: usual item tap", [
         ("order for Sara", "items"),
-        ("Kurti Rs.2000", None),
+        ("Shirt Rs.2000", None),
         ("❌ Cancel", None),
     ]),
     ("cod pending: 7+ days", [
@@ -91,12 +91,12 @@ FLOWS = [
         ("aaj ka hisaab", None),
     ]),
     ("did-you-mean: Naya product", [
-        ("Kurti 1, Dupatta 2", "Naya product"),
+        ("Shirt 1, Dupatta 2", "Naya product"),
         ("➕ Naya product", None),
     ]),
     ("did-you-mean: catalog suggestion (wrong item)", [
-        ("Kurti 1, Dupatta 2", "Kurti"),
-        ("Kurti Rs.2000", None),
+        ("Shirt 1, Dupatta 2", "Shirt"),
+        ("Shirt Rs.2000", None),
     ]),
     ("language: change language, tap English (switch)", [
         ("change language", "Konsi language"),

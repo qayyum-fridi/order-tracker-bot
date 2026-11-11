@@ -37,7 +37,7 @@
   "enquiries.003": "📝 خریدار کے سوال — {0}\n\n{1}{2}\n\nیہ صرف وہ ہے جو آپ نے لکھا۔ خریدار کی چیٹ بوٹ نہیں دیکھتا۔",
   "enquiries.004": "• {0} — {1} بار پوچھا، {2} پیس بکا{3}",
   "enquiries.005": " · ⚠️ پوچھا گیا، بکری نہیں",
-  "enquiries.006": "ℹ️ {0} میں کوئی سوال نوٹ نہیں ہوا۔ لکھنے کے لیے: \"enquiry Kurti blue\" یا \"buyer ne pucha Lawn Suit\"۔",
+  "enquiries.006": "ℹ️ {0} میں کوئی سوال نوٹ نہیں ہوا۔ لکھنے کے لیے: \"enquiry Shirt blue\" یا \"buyer ne pucha Lawn Suit\"۔",
   "enquiries.007": "\n\nℹ️ {0} سوال کسی پروڈکٹ کا نام نہیں لے رہے، اس لیے ان کا حساب الگ نہیں۔",
   "enquiries.008": "• پروڈکٹ پہچانا نہیں گیا ({0} سوال)",
   "receipt-settings.035": "ℹ️ {0} کا ای میل محفوظ نہیں ہے۔ پہلے لکھیں: \"<نام> ka email customer@mail.com\"، پھر \"email receipt {1} to buyer\"۔"

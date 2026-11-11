@@ -15,9 +15,9 @@ public class AgentPlannerTests
 {
     private const string ThreeTaskPlan = """
     {"steps":[
-      {"tool":"add_product","args":{"name":"Kurti","price":500}},
+      {"tool":"add_product","args":{"name":"Shirt","price":500}},
       {"tool":"edit_product","args":{"product_id":7,"price":600}},
-      {"tool":"draft_order","args":{"customer_id":14},"items":[{"name":"Kurti","qty":2}]}
+      {"tool":"draft_order","args":{"customer_id":14},"items":[{"name":"Shirt","qty":2}]}
     ],"question":null,"awaiting":null,"confidence":0.92}
     """;
 
@@ -29,7 +29,7 @@ public class AgentPlannerTests
         Assert.Equal(new[] { "add_product", "edit_product", "draft_order" }, plan.Steps.Select(s => s.Tool));
         Assert.Equal("500", plan.Steps[0].Args["price"]);
         Assert.Equal("7", plan.Steps[1].Args["product_id"]);
-        Assert.Equal(new PlanItem(null, "Kurti", 2), plan.Steps[2].Items.Single());
+        Assert.Equal(new PlanItem(null, "Shirt", 2), plan.Steps[2].Items.Single());
         Assert.Equal(0.92, plan.Confidence);
     }
 
@@ -128,12 +128,12 @@ public class AgentPlannerTests
     {
         var handler = new CapturingOpenAi(ThreeTaskPlan);
 
-        var plan = await Assistant(handler).PlanAsync("Kurti 500 add karo, Polo 600 kar do, Sara ko 2 Kurti",
+        var plan = await Assistant(handler).PlanAsync("Shirt 500 add karo, Polo 600 kar do, Sara ko 2 Shirt",
             "Catalog: #7 Polo Shirt Rs.500\nCustomers: #14 Sara Khan", AgentTools.All);
 
         Assert.Equal(3, plan!.Steps.Count);
         Assert.Contains("#14 Sara Khan", handler.RequestBody);
-        Assert.Contains("Sara ko 2 Kurti", handler.RequestBody);
+        Assert.Contains("Sara ko 2 Shirt", handler.RequestBody);
         foreach (var tool in AgentTools.All) Assert.Contains(tool.Name, handler.RequestBody);
         Assert.Contains("never invent an id", handler.RequestBody);
     }
@@ -158,7 +158,7 @@ public class AgentPlannerTests
         const string derailed = "{\"steps\":[{\"tool\":\"draft_order\",\"args\":{\"customer_name\":\"Bilal\"}},\"question”:null,\"   , \"confidence”:0.95}  }  }  }";
         var handler = new SequenceOpenAi(derailed, ThreeTaskPlan);
 
-        var plan = await Assistant(handler).PlanAsync("Bilal ko 2 Kurti bhej do", "Customers: #3 Bilal", AgentTools.All);
+        var plan = await Assistant(handler).PlanAsync("Bilal ko 2 Shirt bhej do", "Customers: #3 Bilal", AgentTools.All);
 
         Assert.Equal(3, plan!.Steps.Count);
         Assert.Equal(2, handler.Requests.Count);
@@ -232,13 +232,13 @@ public class AgentPlannerTests
     {
         var plan = AgentPlanParser.Parse("""
         {"steps":[{"tool":"draft_order","args":{"customer_id":3,"customer_name":"Bilal","phone":null},
-                   "items":[{"product_id":null,"name":"Kurti","qty":2}]}],
+                   "items":[{"product_id":null,"name":"Shirt","qty":2}]}],
          "question":null,"awaiting":null,"confidence":0.95}
         """)!;
 
         var step = Assert.Single(plan.Steps);
         Assert.Equal(new[] { "customer_id", "customer_name" }, step.Args.Keys.OrderBy(k => k));
-        Assert.Equal(new PlanItem(null, "Kurti", 2), step.Items.Single());
+        Assert.Equal(new PlanItem(null, "Shirt", 2), step.Items.Single());
     }
 
     [Fact]

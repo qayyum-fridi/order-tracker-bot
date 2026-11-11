@@ -33,7 +33,7 @@ public class DraftConfirmationTests : IDisposable
                     CustomerName = "Sara",
                     Phone = "03009876543",
                     Address = "Gulberg Lahore",
-                    Items = { new AiOrderItemDraft { ProductName = "Kurti", MatchedCatalogProductName = "Kurti", Quantity = 1 } }
+                    Items = { new AiOrderItemDraft { ProductName = "Shirt", MatchedCatalogProductName = "Shirt", Quantity = 1 } }
                 }
             });
     }
@@ -44,9 +44,9 @@ public class DraftConfirmationTests : IDisposable
     {
         var db = _dbFactory.CreateContext();
         var engine = CreateEngine(db);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800", "done" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Shirt - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
-        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03009876543, Gulberg Lahore", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 shirt, 03009876543, Gulberg Lahore", default);
         Assert.Contains(_sent, m => m.Contains("Confirm order"));
         return (engine, db);
     }

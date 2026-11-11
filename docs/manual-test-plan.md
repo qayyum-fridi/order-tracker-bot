@@ -20,13 +20,13 @@ Business used throughout: **Ayesha Collections, Lahore** (clothes + a few grocer
 | 1.4 | `Ayesha Collections` | Saved, next question |
 | 1.5 | `skip` (Instagram) | Skipped |
 | 1.6 | `10 ke qareeb` (catalog size) | Asks for products |
-| 1.7 | `Kurti - 1800` | Product saved |
+| 1.7 | `Shirt - 1800` | Product saved |
 | 1.8 | `done` | Setup complete, main help list |
 
 ## 2. Catalog and product details
 | # | Send | Expect |
 |---|---|---|
-| 2.0 | `naya product: Kurti - 1800` (wording the menu shows) | Saved like `Kurti - 1800` |
+| 2.0 | `naya product: Shirt - 1800` (wording the menu shows) | Saved like `Shirt - 1800` |
 | 2.1 | `Lawn Suit - 3500, cost 2200, stock 20, color white` | Saved; confirmation echoes cost, stock, color. Quick bar after it: `walkin Lawn Suit 1` / `catalog` / `Menu` |
 | 2.2 | `Dupatta - 600, cost 300, stock 50` | Saved |
 | 2.3 | `Polo Shirt - 500, cost 300, stock 10, color white, fabric: cotton` | Saved with attribute fabric |
@@ -35,7 +35,7 @@ Business used throughout: **Ayesha Collections, Lahore** (clothes + a few grocer
 | 2.6 | `Rs. 2,200 Shawl - 2,200` or `Shawl - Rs. 2,200` | Price read as 2200 (commas / Rs accepted) |
 | 2.7 | During onboarding product step only: `Handbag - abc` | Says which part was not understood (outside onboarding it is not a product line and goes to the AI) |
 | 2.8 | `catalog` | List of all products |
-| 2.9 | `Kurti - 1900` | Price updated to 1900 |
+| 2.9 | `Shirt - 1900` | Price updated to 1900 |
 | 2.10 | `products category Shirts` | Before any product has a category: "Category abhi kisi product par likha hua nahi" (correct). Set one first with `Polo Shirt - 500, category: Shirts`, then the filter lists Polo Shirt |
 | 2.11 | `share catalog` | Shareable catalog text |
 | 2.12 | `delete product Handbag` | Handbag removed (if it exists) |
@@ -45,18 +45,18 @@ Business used throughout: **Ayesha Collections, Lahore** (clothes + a few grocer
 | # | Send | Expect |
 |---|---|---|
 | 3.1 | `stock` | Stock list: Lawn Suit 20, Dupatta 50, Polo 10 |
-| 3.2 | `stock Kurti 20` | Kurti now tracked, 20 |
-| 3.3 | `stock Kurti +10` | 30 |
+| 3.2 | `stock Shirt 20` | Shirt now tracked, 20 |
+| 3.3 | `stock Shirt +10` | 30 |
 | 3.4 | `stock Polo Shirt 4` | 4 |
 | 3.5 | (after orders below) place an order that takes Polo Shirt to ≤3 | Low-stock warning once, after the reply |
-| 3.6 | `stock Kurti off` | Kurti no longer tracked |
+| 3.6 | `stock Shirt off` | Shirt no longer tracked |
 
 ## 4. Customers
 | # | Send | Expect |
 |---|---|---|
 | 4.1 🔑 | `Sara: Lawn Suit 2, 03001112222, Gulberg Lahore, COD` | Draft confirmation: Customer Sara, total 7,000, phone, COD |
 | 4.2 | `yes` | Order #1 saved + action buttons (shipped / receipt…) |
-| 4.3 🔑 | `Bilal: Kurti 1, Dupatta 2, 03004445555, Johar Town, easypaisa` | Draft total 3,100 (1900 + 1200), advance/manual payment |
+| 4.3 🔑 | `Bilal: Shirt 1, Dupatta 2, 03004445555, Johar Town, easypaisa` | Draft total 3,100 (1900 + 1200), advance/manual payment |
 | 4.4 | `delivery 200` | Draft total 3,300 |
 | 4.5 | `yes` | Order #2 saved |
 | 4.6 | `customer list` | Sara, Bilal |
@@ -72,10 +72,10 @@ Business used throughout: **Ayesha Collections, Lahore** (clothes + a few grocer
 | # | Send | Expect |
 |---|---|---|
 | 5.1 | `order for Sara` (or `Sara ke liye order`) | "Sara ke liye order — items likhein" |
-| 5.2 | `Kurti 2, Dupatta` | Draft for Sara with her phone/address, total 4,400 |
+| 5.2 | `Shirt 2, Dupatta` | Draft for Sara with her phone/address, total 4,400 |
 | 5.3 | `yes` | Order #3 saved, still one Sara in customer list |
 | 5.4 | `order for Zainab` | "saved nahi hai" + how to start |
-| 5.5 | `order for Sara` then `catalog` | Request dropped, catalog shown; a later `Kurti 2` is **not** treated as Sara's |
+| 5.5 | `order for Sara` then `catalog` | Request dropped, catalog shown; a later `Shirt 2` is **not** treated as Sara's |
 
 ## 6. Order lifecycle
 | # | Send | Expect |
@@ -117,12 +117,12 @@ Business used throughout: **Ayesha Collections, Lahore** (clothes + a few grocer
 | # | Send | Expect |
 |---|---|---|
 | 8.1 | `walkin` | Usage help |
-| 8.2 | `walkin Kurti 2, Dupatta` | Draft for **Walk-in**, no phone asked, "counter sale, paid", total 4,400 |
+| 8.2 | `walkin Shirt 2, Dupatta` | Draft for **Walk-in**, no phone asked, "counter sale, paid", total 4,400 |
 | 8.3 | `yes` | Saved Delivered + Paid |
 | 8.4 | `counter sale 1500` | Draft "Counter sale" 1,500 |
 | 8.5 | `offline sale Chai - 200 bank` | Ad-hoc item, bank payment |
-| 8.6 | `walkin Kurti 1 kal` | Draft shows yesterday's date |
-| 8.7 | Same `walkin Kurti 1` twice quickly | No duplicate warning, one Walk-in customer |
+| 8.6 | `walkin Shirt 1 kal` | Draft shows yesterday's date |
+| 8.7 | Same `walkin Shirt 1` twice quickly | No duplicate warning, one Walk-in customer |
 | 8.8 | `orders today` | Walk-in cash sales included, the backdated one is not |
 | 8.9 | **Offline phone test:** turn on airplane mode, send `expense 300 tea`, wait 5 min, turn it off | Expense recorded at the time you sent it (check `expenses today`) |
 
@@ -130,7 +130,7 @@ Business used throughout: **Ayesha Collections, Lahore** (clothes + a few grocer
 | # | Send | Expect |
 |---|---|---|
 | 9.1 | `drawer open 5000` | Drawer opened with 5,000 |
-| 9.2 | `walkin Kurti 1` then `yes` (cash) | Counted as drawer cash |
+| 9.2 | `walkin Shirt 1` then `yes` (cash) | Counted as drawer cash |
 | 9.3 | `cash in 500 float` | +500 |
 | 9.4 | `cash out 200 chai` | -200 |
 | 9.5 | `cash undo` | Last movement reverted |
@@ -173,15 +173,15 @@ Prepare: 3 COD orders (1900 + 3500 + 1800 …), each `mark N shipped`, `add trac
 ## 12. Barcode scanner
 | # | Send | Expect |
 |---|---|---|
-| 12.1 | `barcode Kurti 8961234567890` | Code stored |
+| 12.1 | `barcode Shirt 8961234567890` | Code stored |
 | 12.2 | `barcode Dupatta 8961234567891` | Stored |
-| 12.3 | Send `8961234567890` (as the scanner would) | "Kurti" added to scan cart |
-| 12.4 | Send `8961234567890` again, then `8961234567891` | Kurti ×2, Dupatta ×1 |
+| 12.3 | Send `8961234567890` (as the scanner would) | "Shirt" added to scan cart |
+| 12.4 | Send `8961234567890` again, then `8961234567891` | Shirt ×2, Dupatta ×1 |
 | 12.5 | `scan cart` | Cart with total |
 | 12.6 | `scan done` | Draft asks customer name/phone, then confirm |
 | 12.7 | `scan clear` | Cart emptied |
 | 12.8 | Send `03001112222` (a phone) | **Not** treated as a barcode |
-| 12.9 | `barcode remove Kurti` | Code removed |
+| 12.9 | `barcode remove Shirt` | Code removed |
 
 ## 13. Expenses, profit, reports
 | # | Send | Expect |
@@ -248,7 +248,7 @@ Prepare: 3 COD orders (1900 + 3500 + 1800 …), each `mark N shipped`, `add trac
 | 18.3 | `cancel 1` then `no` | Nothing cancelled |
 | 18.4 | `mark 999 shipped` | "Order not found" |
 | 18.5 | `Sara ka phone abc` | Rejected, not saved |
-| 18.6 | `Kurti - -5` | Not saved (it used to create a product named "Kurti -" at Rs.5). `Kurti - 0` is allowed on purpose (free sample product) |
+| 18.6 | `Shirt - -5` | Not saved (it used to create a product named "Shirt -" at Rs.5). `Shirt - 0` is allowed on purpose (free sample product) |
 | 18.7 | `reset account` | Asks YES |
 | 18.8 | `yes` after 11 min | Expired, nothing wiped |
 | 18.9 | `reset account` then `yes` within 10 min | Everything wiped (orders, customers, products, expenses, drawer, payouts, email/receipt settings), onboarding restarts |

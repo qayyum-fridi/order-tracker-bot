@@ -77,15 +77,15 @@ public class HyperInsightReportTests : IDisposable
     public async Task CustomerContribution_RanksBigSpendersByWhatTheyLeaveAfterDiscountAndReturns()
     {
         await SetupAsync();
-        var kurti = await ProductAsync("Kurti", 1800, cost: 1200);
+        var shirt = await ProductAsync("Shirt", 1800, cost: 1200);
         var a = await CustomerAsync("Bilal Khan");
         var b = await CustomerAsync("Sara");
         var c = await CustomerAsync("Hina");
         var now = DateTime.UtcNow;
-        for (var i = 1; i <= 3; i++) await SaleAsync(a, now.AddDays(-i * 10), kurti, 2, discount: 600);             // sale 3000, profit 600 each
-        await SaleAsync(a, now.AddDays(-5), kurti, 2, status: OrderStatus.Returned, delivery: 200);                   // came back: delivery charge lost
-        for (var i = 1; i <= 3; i++) await SaleAsync(b, now.AddDays(-i * 10), kurti, 1);                              // sale 1800, profit 600 each
-        await SaleAsync(c, now.AddDays(-3), kurti, 1);
+        for (var i = 1; i <= 3; i++) await SaleAsync(a, now.AddDays(-i * 10), shirt, 2, discount: 600);             // sale 3000, profit 600 each
+        await SaleAsync(a, now.AddDays(-5), shirt, 2, status: OrderStatus.Returned, delivery: 200);                   // came back: delivery charge lost
+        for (var i = 1; i <= 3; i++) await SaleAsync(b, now.AddDays(-i * 10), shirt, 1);                              // sale 1800, profit 600 each
+        await SaleAsync(c, now.AddDays(-3), shirt, 1);
 
         var ranking = await AskAsync("kaun sa customer bade orders deta hai magar discount aur return ki wajah se mera net profit contribution sab se kam hai");
         Assert.Contains("1. Bilal Khan — sale Rs.9,000 · discount Rs.1,800 · return 1 · khalis fayda Rs.1,600", ranking);
@@ -139,16 +139,16 @@ public class HyperInsightReportTests : IDisposable
         await SetupAsync();
         var sara = await CustomerAsync("Sara");
         var shawl = await ProductAsync("Shawl", 3500, cost: 2500, stock: 12);
-        var kurti = await ProductAsync("Kurti", 1800);
+        var shirt = await ProductAsync("Shirt", 1800);
         var now = DateTime.UtcNow;
         await SaleAsync(sara, now.AddDays(-20), shawl, 8); await SaleAsync(sara, now.AddDays(-3), shawl, 2);
-        await SaleAsync(sara, now.AddDays(-20), kurti, 6); await SaleAsync(sara, now.AddDays(-3), kurti, 6);
+        await SaleAsync(sara, now.AddDays(-20), shirt, 6); await SaleAsync(sara, now.AddDays(-3), shirt, 6);
 
         var reply = await AskAsync("un products ki list do jin ki sales velocity pichle 15 din mein achanak 50% gir gayi hai");
 
         Assert.Contains("1. Shawl — 8 → 2 piece (75% kam)", reply);
         Assert.Contains("stock 12", reply);
-        Assert.DoesNotContain("Kurti", reply);
+        Assert.DoesNotContain("Shirt", reply);
     }
 
     [Fact]
@@ -203,14 +203,14 @@ public class HyperInsightReportTests : IDisposable
     {
         await SetupAsync();
         var sara = await CustomerAsync("Sara");
-        var kurti = await ProductAsync("Kurti", 1800, cost: 1000);
+        var shirt = await ProductAsync("Shirt", 1800, cost: 1000);
         var now = DateTime.UtcNow;
-        await SaleAsync(sara, now.AddDays(-45), kurti, 2, unitCost: 1000);
-        await SaleAsync(sara, now.AddDays(-5), kurti, 2, unitCost: 1400);
+        await SaleAsync(sara, now.AddDays(-45), shirt, 2, unitCost: 1000);
+        await SaleAsync(sara, now.AddDays(-5), shirt, 2, unitCost: 1400);
 
         var reply = await AskAsync("pichle 30 din mein kaun se 5 products ka profit margin lagat barhne ki wajah se sab se zyada gira hai");
 
-        Assert.Contains("1. Kurti — margin 44.4% → 22.2%; cost Rs.1,000 → Rs.1,400", reply);
+        Assert.Contains("1. Shirt — margin 44.4% → 22.2%; cost Rs.1,000 → Rs.1,400", reply);
     }
 
     [Fact]
@@ -218,10 +218,10 @@ public class HyperInsightReportTests : IDisposable
     {
         await SetupAsync();
         var sara = await CustomerAsync("Sara");
-        var kurti = await ProductAsync("Kurti", 1800, cost: 1200, category: "Kapron");
+        var shirt = await ProductAsync("Shirt", 1800, cost: 1200, category: "Kapron");
         var rice = await ProductAsync("Rice", 500, cost: 400, category: "Grocery");
         var now = DateTime.UtcNow;
-        await SaleAsync(sara, now.AddDays(-5), kurti, 10);                       // revenue 18000, cost 12000
+        await SaleAsync(sara, now.AddDays(-5), shirt, 10);                       // revenue 18000, cost 12000
         await SaleAsync(sara, now.AddDays(-5), rice, 100);                       // different category: left out when kapron is named
         _db.Expenses.Add(new Expense { SellerId = _seller.Id, Amount = 4000, Category = "rent", CreatedAt = now.AddDays(-3) });
         await _db.SaveChangesAsync();
@@ -240,15 +240,15 @@ public class HyperInsightReportTests : IDisposable
     {
         await SetupAsync();
         var sara = await CustomerAsync("Sara");
-        var kurti = await ProductAsync("Kurti", 1800, cost: 1000);        // cost is now 1000
+        var shirt = await ProductAsync("Shirt", 1800, cost: 1000);        // cost is now 1000
         var tee = await ProductAsync("Tee", 300, cost: 100);              // unchanged cost
         var now = DateTime.UtcNow;
-        await SaleAsync(sara, now.AddDays(-20), kurti, 1, unitCost: 1200);
+        await SaleAsync(sara, now.AddDays(-20), shirt, 1, unitCost: 1200);
         await SaleAsync(sara, now.AddDays(-20), tee, 1, unitCost: 100);
 
         var reply = await AskAsync("kya koi product hai jis ki cost kam hui hai lekin maine rate purana hi rakha hua hai");
 
-        Assert.Contains("1. Kurti — cost Rs.1,200 → Rs.1,000, price wohi Rs.1,800", reply);
+        Assert.Contains("1. Shirt — cost Rs.1,200 → Rs.1,000, price wohi Rs.1,800", reply);
         Assert.Contains("margin 33.3% → 44.4%", reply);
         Assert.DoesNotContain("Tee", reply);
     }
@@ -481,9 +481,9 @@ public class HyperInsightReportTests : IDisposable
     {
         await SetupAsync();
         var sara = await CustomerAsync("Sara");
-        var kurti = await ProductAsync("Kurti", 1800, cost: 1200);
+        var shirt = await ProductAsync("Shirt", 1800, cost: 1200);
         var now = DateTime.UtcNow;
-        await SaleAsync(sara, now.AddDays(-45), kurti, 100);                         // 90-day margin 33.3%
+        await SaleAsync(sara, now.AddDays(-45), shirt, 100);                         // 90-day margin 33.3%
         _db.Expenses.AddRange(
             new Expense { SellerId = _seller.Id, Amount = 30000, Category = "kiraya", CreatedAt = now.AddDays(-40) },
             new Expense { SellerId = _seller.Id, Amount = 6000, Category = "bijli", CreatedAt = now.AddDays(-40) },
@@ -503,16 +503,16 @@ public class HyperInsightReportTests : IDisposable
         await SetupAsync();
         var sara = await CustomerAsync("Sara");
         var shawl = await ProductAsync("Shawl", 3500, stock: 9);
-        var kurti = await ProductAsync("Kurti", 1800);
+        var shirt = await ProductAsync("Shirt", 1800);
         var now = DateTime.UtcNow;
         await SaleAsync(sara, now.AddDays(-80), shawl, 10); await SaleAsync(sara, now.AddDays(-50), shawl, 6); await SaleAsync(sara, now.AddDays(-10), shawl, 2);
-        await SaleAsync(sara, now.AddDays(-80), kurti, 5); await SaleAsync(sara, now.AddDays(-50), kurti, 5); await SaleAsync(sara, now.AddDays(-10), kurti, 5);
+        await SaleAsync(sara, now.AddDays(-80), shirt, 5); await SaleAsync(sara, now.AddDays(-50), shirt, 5); await SaleAsync(sara, now.AddDays(-10), shirt, 5);
 
         var reply = await AskAsync("kaun sa product apne life cycle ke aakhri marhale par hai aur kya mujhe naya order rok dena chahiye");
 
         Assert.Contains("1. Shawl — 10 → 6 → 2 piece", reply);
         Assert.Contains("stock 9", reply);
-        Assert.DoesNotContain("Kurti", reply);
+        Assert.DoesNotContain("Shirt", reply);
     }
 
     [Fact]
@@ -521,7 +521,7 @@ public class HyperInsightReportTests : IDisposable
         await SetupAsync();
         var sara = await CustomerAsync("Sara");
         var lawn = await ProductAsync("Lawn Suit", 3500);
-        var kurti = await ProductAsync("Kurti", 1000);
+        var shirt = await ProductAsync("Shirt", 1000);
         var tee = await ProductAsync("Tee", 300);
         var now = DateTime.UtcNow;
         await SaleAsync(sara, now.AddDays(-45), lawn, 1); await SaleAsync(sara, now.AddDays(-45), tee, 10);       // premium 3500 / 6500
@@ -542,8 +542,8 @@ public class HyperInsightReportTests : IDisposable
         await SetupAsync();
         var sara = await CustomerAsync("Sara");
         await ProductAsync("Old Shawl", 3500, cost: 2500, stock: 4, createdDaysAgo: 200);
-        var kurti = await ProductAsync("Kurti", 1800, cost: 1750);          // thin margin
-        await SaleAsync(sara, DateTime.UtcNow.AddDays(-45), kurti, 1);       // unpaid 45 days
+        var shirt = await ProductAsync("Shirt", 1800, cost: 1750);          // thin margin
+        await SaleAsync(sara, DateTime.UtcNow.AddDays(-45), shirt, 1);       // unpaid 45 days
 
         var reply = await AskAsync("mere business ka audit karo");
 

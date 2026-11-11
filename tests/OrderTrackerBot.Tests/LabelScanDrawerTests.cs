@@ -36,7 +36,7 @@ public class LabelScanDrawerParserTests
     [InlineData("cash", CommandKind.CashDrawer)]
     [InlineData("cash in 500 udhaar mila", CommandKind.CashMovement)]
     [InlineData("cash out 300 chai", CommandKind.CashMovement)]
-    [InlineData("cash sale 1200 kurti", CommandKind.CashMovement)]
+    [InlineData("cash sale 1200 shirt", CommandKind.CashMovement)]
     [InlineData("cash undo", CommandKind.CashMovement)]
     public void NewCommands_AreRecognised(string text, CommandKind kind) =>
         Assert.Equal(kind, CommandParser.TryParse(text)?.Kind);
@@ -113,7 +113,7 @@ public class LabelPdfTests
 {
     private static ShippingLabelData Shipping(string size = "4x6", bool cod = true) => new(
         12, "Ali Collections", "923001234567", "Lahore", "Ayesha Khan", "03001112222", "House 5, Street 3, Gulberg, Lahore",
-        "2x Lawn Suit, 1x Kurti", cod, 8800, "TCS", "123456789", "Gift wrap", size);
+        "2x Lawn Suit, 1x Shirt", cod, 8800, "TCS", "123456789", "Gift wrap", size);
 
     [Theory]
     [InlineData("4x6")]
@@ -286,13 +286,13 @@ public class LabelScanDrawerEngineTests : IDisposable
 
     // ---- scanner ---------------------------------------------------------------------------------------------------------------------------------
 
-    private async Task<(Product Lawn, Product Kurti)> SeedProductsAsync(AppDbContext db, int sellerId)
+    private async Task<(Product Lawn, Product Shirt)> SeedProductsAsync(AppDbContext db, int sellerId)
     {
         var lawn = new Product { SellerId = sellerId, Name = "Lawn Suit", Price = 3500 };
-        var kurti = new Product { SellerId = sellerId, Name = "Kurti", Price = 1800 };
-        db.Products.AddRange(lawn, kurti);
+        var shirt = new Product { SellerId = sellerId, Name = "Shirt", Price = 1800 };
+        db.Products.AddRange(lawn, shirt);
         await db.SaveChangesAsync();
-        return (lawn, kurti);
+        return (lawn, shirt);
     }
 
     [Fact]
@@ -304,7 +304,7 @@ public class LabelScanDrawerEngineTests : IDisposable
         var engine = Engine(db);
 
         await engine.HandleIncomingMessageAsync(Phone, "barcode Lawn Suit 8961234567890", default);
-        await engine.HandleIncomingMessageAsync(Phone, "barcode Kurti KRT-001", default);
+        await engine.HandleIncomingMessageAsync(Phone, "barcode Shirt KRT-001", default);
         Assert.Equal("8961234567890", (await db.Products.AsNoTracking().FirstAsync(p => p.Name == "Lawn Suit")).Sku);
 
         _sent.Clear();
@@ -357,12 +357,12 @@ public class LabelScanDrawerEngineTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var (seller, _) = await SeedAsync(db);
-        var (lawn, kurti) = await SeedProductsAsync(db, seller.Id);
+        var (lawn, shirt) = await SeedProductsAsync(db, seller.Id);
         db.Products.Add(new Product { SellerId = seller.Id, Name = "Lawn Suit Blue", Price = 4000 });
         await db.SaveChangesAsync();
         var engine = Engine(db);
 
-        await engine.HandleIncomingMessageAsync(Phone, "barcode Kurti 1112223334", default);
+        await engine.HandleIncomingMessageAsync(Phone, "barcode Shirt 1112223334", default);
         await engine.HandleIncomingMessageAsync(Phone, "barcode Lawn Suit Blue 1112223334", default);
         Assert.Null((await db.Products.AsNoTracking().FirstAsync(p => p.Name == "Lawn Suit Blue")).Sku);
         Assert.Contains(_sent, m => m.Contains("pehle se hai"));
@@ -371,7 +371,7 @@ public class LabelScanDrawerEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "barcode Suit 9998887776", default); // "Suit" fits two products
         Assert.Contains(_sent, m => m.Contains("kai products") || m.Contains("kis ka barcode"));
         Assert.Equal(ConversationState.AwaitingClarificationChoice, (await db.Sessions.AsNoTracking().FirstAsync()).State);
-        _ = lawn; _ = kurti;
+        _ = lawn; _ = shirt;
     }
 
     [Fact]

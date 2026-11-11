@@ -31,7 +31,7 @@ public class ShippedOrderLockTests : IDisposable
     private async Task OnboardAsync(AppDbContext db)
     {
         var engine = CreateEngine(db);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800", "done" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Shirt - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
         _sent.Clear();
     }
@@ -42,7 +42,7 @@ public class ShippedOrderLockTests : IDisposable
         var customer = db.Customers.Add(new Customer { SellerId = seller.Id, Name = "Sara", Phone = "03001112222" }).Entity;
         await db.SaveChangesAsync();
         var order = new Order { SellerId = seller.Id, CustomerId = customer.Id, Status = status, Subtotal = 2000, Total = 2000 };
-        order.Items.Add(new OrderItem { ProductNameSnapshot = "Kurti", UnitPrice = 2000, Quantity = 1 });
+        order.Items.Add(new OrderItem { ProductNameSnapshot = "Shirt", UnitPrice = 2000, Quantity = 1 });
         db.Orders.Add(order);
         await db.SaveChangesAsync();
         return order.Id;
@@ -60,7 +60,7 @@ public class ShippedOrderLockTests : IDisposable
 
         await engine.HandleIncomingMessageAsync(Phone, $"edit order {id}", default);
         await engine.HandleIncomingMessageAsync(Phone, "1 = 2", default);
-        await engine.HandleIncomingMessageAsync(Phone, "add Kurti 1", default);
+        await engine.HandleIncomingMessageAsync(Phone, "add Shirt 1", default);
         await engine.HandleIncomingMessageAsync(Phone, "price 1 = 500", default);
         await engine.HandleIncomingMessageAsync(Phone, "delivery 300", default);
         await engine.HandleIncomingMessageAsync(Phone, "done", default);

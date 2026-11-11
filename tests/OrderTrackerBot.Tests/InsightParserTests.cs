@@ -102,7 +102,7 @@ public class InsightParserTests
     [Theory]
     [InlineData("اگر میں لان سوٹ پر 10% ڈسکاؤنٹ دوں تو میرا مارجن کتنا بچے گا؟", 10)]
     [InlineData("agar lawn suit par 10% discount doon to margin kitna bachega", 10)]
-    [InlineData("if I give 15 percent discount on kurti what margin is left", 15)]
+    [InlineData("if I give 15 percent discount on shirt what margin is left", 15)]
     public void DiscountWhatIf(string text, int percent)
     {
         var parsed = Parse(text);
@@ -360,10 +360,10 @@ public class InsightParserTests
     [InlineData("orders today")]
     [InlineData("mark 3 shipped")]
     [InlineData("Ayesha ka order")]
-    [InlineData("stock Kurti 20")]
+    [InlineData("stock Shirt 20")]
     [InlineData("expense 500 petrol")]
     [InlineData("cod pending")]
-    [InlineData("Kurti - 1800, cost 1200")]
+    [InlineData("Shirt - 1800, cost 1200")]
     [InlineData("create discount: EID10 10%")]
     [InlineData("loyal customers")]
     [InlineData("margin")]
@@ -371,7 +371,7 @@ public class InsightParserTests
     public void OrdinaryCommands_KeepTheirMeaning(string text) => Assert.NotEqual(CommandKind.Insight, Parse(text).Kind);
 
     [Theory]
-    [InlineData("Ayesha 03001234567 Lahore Kurti 2 delivery 200")]
+    [InlineData("Ayesha 03001234567 Lahore Shirt 2 delivery 200")]
     [InlineData("Sara, Model Town, 2 Lawn Suit 3500")]
     [InlineData("hello")]
     [InlineData("thanks")]

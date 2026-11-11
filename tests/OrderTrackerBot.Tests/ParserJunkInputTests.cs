@@ -37,7 +37,7 @@ public class ParserJunkInputTests
     [Theory]
     [InlineData("House Dress - 1500", "House Dress", 1500)]
     [InlineData("Sector Lawn - 900", "Sector Lawn", 900)]
-    [InlineData("Block Print Kurti - 2200", "Block Print Kurti", 2200)]
+    [InlineData("Block Print Shirt - 2200", "Block Print Shirt", 2200)]
     public void ProductsWhoseNameStartsWithAnAddressWord_StillParse(string line, string name, decimal price)
     {
         Assert.True(CommandParser.TryParseProductLine(line, out var product));
@@ -74,7 +74,7 @@ public class ParserJunkInputTests
     [InlineData("Qty 2")]
     [InlineData("House 500")]
     [InlineData("Sector F 10")]
-    [InlineData("stock Kurti 20")]
+    [InlineData("stock Shirt 20")]
     public void SpacedLine_BookkeepingOrAddressWords_AreNotProducts(string line)
     {
         Assert.False(CommandParser.TryParseSpacedProductLine(line, out _));

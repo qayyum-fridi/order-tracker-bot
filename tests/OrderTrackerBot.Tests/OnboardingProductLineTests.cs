@@ -7,10 +7,10 @@ namespace OrderTrackerBot.Tests;
 public class OnboardingProductLineTests
 {
     [Theory]
-    [InlineData("kurti price 1800", "kurti", 1800)]
-    [InlineData("kurti rate 1800", "kurti", 1800)]
-    [InlineData("kurti price - 1800", "kurti", 1800)]
-    [InlineData("Kurti - 1800", "Kurti", 1800)]
+    [InlineData("shirt price 1800", "shirt", 1800)]
+    [InlineData("shirt rate 1800", "shirt", 1800)]
+    [InlineData("shirt price - 1800", "shirt", 1800)]
+    [InlineData("Shirt - 1800", "Shirt", 1800)]
     public void Price_word_is_not_part_of_the_name(string line, string name, decimal price)
     {
         var parsed = ConversationEngine.ParseLooseProductLine(line);

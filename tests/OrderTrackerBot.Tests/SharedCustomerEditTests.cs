@@ -35,7 +35,7 @@ public class SharedCustomerEditTests : IDisposable
     private async Task OnboardAsync(AppDbContext db)
     {
         var engine = CreateEngine(db);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800", "done" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Shirt - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
         _sent.Clear();
     }
@@ -50,7 +50,7 @@ public class SharedCustomerEditTests : IDisposable
         for (var i = 0; i < orderCount; i++)
         {
             var order = new Order { SellerId = seller.Id, CustomerId = customer.Id, Status = OrderStatus.Pending, Subtotal = 1800, Total = 1800 };
-            order.Items.Add(new OrderItem { ProductNameSnapshot = "Kurti", UnitPrice = 1800, Quantity = 1 });
+            order.Items.Add(new OrderItem { ProductNameSnapshot = "Shirt", UnitPrice = 1800, Quantity = 1 });
             db.Orders.Add(order);
             await db.SaveChangesAsync();
             firstId = firstId == 0 ? order.Id : firstId;

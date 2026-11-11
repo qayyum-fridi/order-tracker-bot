@@ -33,7 +33,7 @@ public class ResetAccountTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = CreateEngine(db);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800", "done" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Shirt - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
         await engine.HandleIncomingMessageAsync(Phone, "Lawn Suit - 3500", default);
         Assert.True(await db.Products.AnyAsync());
@@ -49,7 +49,7 @@ public class ResetAccountTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = CreateEngine(db);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800", "done" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Shirt - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
 
         await engine.HandleIncomingMessageAsync(Phone, "reset account", default);
@@ -70,7 +70,7 @@ public class ResetAccountTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = CreateEngine(db);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800", "done" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Shirt - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
 
         await engine.HandleIncomingMessageAsync(Phone, "reset account", default);
@@ -89,7 +89,7 @@ public class ResetAccountTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = CreateEngine(db);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800", "done" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Shirt - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
         await engine.HandleIncomingMessageAsync(Phone, "reset account", default);
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
@@ -103,10 +103,10 @@ public class ResetAccountTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = CreateEngine(db);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800", "done" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Shirt - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
-        var kurti = await db.Products.FirstAsync();
-        db.PriceTiers.Add(new PriceTier { ProductId = kurti.Id, MinQty = 10, PricePerUnit = 1500 });
+        var shirt = await db.Products.FirstAsync();
+        db.PriceTiers.Add(new PriceTier { ProductId = shirt.Id, MinQty = 10, PricePerUnit = 1500 });
         await db.SaveChangesAsync();
 
         await engine.HandleIncomingMessageAsync(Phone, "reset account", default);

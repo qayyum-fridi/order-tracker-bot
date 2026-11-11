@@ -37,7 +37,7 @@
   "enquiries.003": "📝 Buyer's questions — {0}\n\n{1}{2}\n\nThis is only what you wrote. The bot does not see the buyer's chat.",
   "enquiries.004": "• {0} — asked {1} times, sold {2} pieces{3}",
   "enquiries.005": " · ⚠️ asked about, not sold",
-  "enquiries.006": "ℹ️ No question has been noted in {0}. To note one, write: \"enquiry Kurti blue\" or \"buyer asked Lawn Suit\".",
+  "enquiries.006": "ℹ️ No question has been noted in {0}. To note one, write: \"enquiry Shirt blue\" or \"buyer asked Lawn Suit\".",
   "enquiries.007": "\n\nℹ️ {0} questions do not name a product, so they are not counted separately.",
   "enquiries.008": "• Product not recognised ({0} questions)",
   "receipt-settings.035": "ℹ️ {0} has no saved email. First write: \"<name> ka email customer@mail.com\", then \"email receipt {1} to buyer\"."

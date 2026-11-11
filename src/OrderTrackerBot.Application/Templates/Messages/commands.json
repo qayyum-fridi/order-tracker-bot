@@ -17,7 +17,7 @@
   "commands.016": "Catalog abhi khali hai — pehle products add karein (e.g. {0}).",
   "commands.017": "📋 {0} — Catalog\n\n{1}\n\nYeh copy kar ke customer ko bhej dein, ya screenshot le kar forward karein.",
   "commands.018": "✅ {0} products save ho gaye:\n\n{1}\n\n\"catalog\" likh kar poori list dekhein.",
-  "commands.019": "⚠️ Sheet se products load nahi ho sake. Check karein ke sheet \"Anyone with the link can view\" par set ho, ya products ek ek karke bhi bhej sakte hain (e.g. 'Kurti - 1800').",
+  "commands.019": "⚠️ Sheet se products load nahi ho sake. Check karein ke sheet \"Anyone with the link can view\" par set ho, ya products ek ek karke bhi bhej sakte hain (e.g. 'Shirt - 1800').",
   "commands.020": "Sheet parh li lekin koi valid product row nahi mila — har row mein pehla column naam, doosra column price hona chahiye.",
   "commands.021": "✅ Sheet se {0} products import ho gaye:\n\n{1}\n\n\"catalog\" likh kar poori list dekhein.",
   "commands.022": "\"{0}\" catalog mein nahi mila. \"catalog\" likh kar list dekhein.",

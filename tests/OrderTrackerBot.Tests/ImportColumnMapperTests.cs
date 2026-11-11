@@ -79,7 +79,7 @@ public class ImportColumnMapperTests
         var mapping = ImportColumnMapper.Map(new[]
         {
             Sheet("Guide", Row("Sheet|Column|Needed?"), Row("Customers|Name|REQUIRED")),
-            Sheet("Orders", Row("Customer|Phone|Items|Total"), Row("Sara|0300|1 x Kurti|500")),
+            Sheet("Orders", Row("Customer|Phone|Items|Total"), Row("Sara|0300|1 x Shirt|500")),
             Sheet("Needs Checking", Row("Excel row|Photo|What to check"), Row("7|Photo 1|Barcode faint")),
             Sheet("Products", Row("Item|Price"), Row("Bread|120"))
         });

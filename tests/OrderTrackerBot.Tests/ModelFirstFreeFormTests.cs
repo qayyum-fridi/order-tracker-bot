@@ -34,7 +34,7 @@ public class ModelFirstFreeFormTests : IDisposable
         _seller = new Seller { WhatsAppPhoneNumber = Phone, BusinessName = "Ayesha Collection", OnboardingComplete = true, Session = new ConversationSession { State = ConversationState.Idle } };
         _db.Sellers.Add(_seller);
         _db.SaveChanges();
-        _db.Products.Add(new Product { SellerId = _seller.Id, Name = "Kurti", Price = 1800 });
+        _db.Products.Add(new Product { SellerId = _seller.Id, Name = "Shirt", Price = 1800 });
         _db.Customers.Add(new Customer { SellerId = _seller.Id, Name = "Sara Khan", Phone = "03004445566", Address = "Model Town Lahore" });
         _db.SaveChanges();
     }
@@ -129,10 +129,10 @@ public class ModelFirstFreeFormTests : IDisposable
     [Fact]
     public async Task Price_change_waits_for_yes()
     {
-        await SayAsync("kurti ka rate ab 2000 hai",
-            new TurnAction { Action = TurnAction.EditProduct, Products = { new AiNewProduct { Name = "Kurti", Price = 2000 } } });
+        await SayAsync("shirt ka rate ab 2000 hai",
+            new TurnAction { Action = TurnAction.EditProduct, Products = { new AiNewProduct { Name = "Shirt", Price = 2000 } } });
 
-        Assert.Contains("Kurti ki qeemat", Assert.Single(_sent));
+        Assert.Contains("Shirt ki qeemat", Assert.Single(_sent));
         Assert.Equal(1800, (await _db.Products.SingleAsync()).Price);
 
         await Engine().HandleIncomingMessageAsync(Phone, "yes", default);
@@ -142,8 +142,8 @@ public class ModelFirstFreeFormTests : IDisposable
     [Fact]
     public async Task Price_change_is_dropped_on_no()
     {
-        await SayAsync("kurti ka rate ab 2000 hai",
-            new TurnAction { Action = TurnAction.EditProduct, Products = { new AiNewProduct { Name = "Kurti", Price = 2000 } } });
+        await SayAsync("shirt ka rate ab 2000 hai",
+            new TurnAction { Action = TurnAction.EditProduct, Products = { new AiNewProduct { Name = "Shirt", Price = 2000 } } });
         await Engine().HandleIncomingMessageAsync(Phone, "no", default);
 
         Assert.Equal(1800, (await _db.Products.SingleAsync()).Price);
@@ -243,7 +243,7 @@ public class ModelFirstFreeFormTests : IDisposable
     public void Stray_fields_of_another_action_are_dropped()
     {
         var action = OrderTrackerBot.Infrastructure.Ai.OpenAiTurnInterpreter.Parse(
-            """{"action":"show_order","order_id":2,"customer_name":null,"orders":[{"customer_name":"Ali Raza","items":[{"product_name":"Lawn Suit","quantity":1,"unit_price":null}]}],"products":[{"name":"Kurti","price":1800}],"customer":{"name":"Ali Raza","phone":"03215557788","address":null,"city":null}}""");
+            """{"action":"show_order","order_id":2,"customer_name":null,"orders":[{"customer_name":"Ali Raza","items":[{"product_name":"Lawn Suit","quantity":1,"unit_price":null}]}],"products":[{"name":"Shirt","price":1800}],"customer":{"name":"Ali Raza","phone":"03215557788","address":null,"city":null}}""");
 
         Assert.NotNull(action);
         Assert.Empty(action!.Orders);

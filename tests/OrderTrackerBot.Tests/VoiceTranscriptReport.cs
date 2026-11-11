@@ -229,8 +229,8 @@ public class VoiceTranscriptReport(ITestOutputHelper output)
         {
             new VoiceSample("price 3500 kar do", null),
             new VoiceSample("price teen hazar paanch sau", null),
-            new VoiceSample("kurti pachpanxx hazar ki", null),            // unknown word before a multiplier -> no amount parsed
-            new VoiceSample("kurti hazr ki", null),                       // misspelt multiplier
+            new VoiceSample("shirt pachpanxx hazar ki", null),            // unknown word before a multiplier -> no amount parsed
+            new VoiceSample("shirt hazr ki", null),                       // misspelt multiplier
             new VoiceSample("orders today", null),
             new VoiceSample("order 03001234567 ka price teen sau", "order 03001234567 price 300 3000"), // rewrite invents an extra amount
         });

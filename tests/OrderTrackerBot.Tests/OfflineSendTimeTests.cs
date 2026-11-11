@@ -32,7 +32,7 @@ public class OfflineSendTimeTests : IDisposable
     private async Task<ConversationEngine> OnboardAsync(AppDbContext db)
     {
         var engine = CreateEngine(db);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800", "done" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Shirt - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
         _sent.Clear();
         return engine;
@@ -81,7 +81,7 @@ public class OfflineSendTimeTests : IDisposable
             .ReturnsAsync(new AiMessageAnalysis
             {
                 Intent = "new_order", IsOrderAttempt = true,
-                Order = new AiOrderDraft { CustomerName = "Ramsha", Phone = "03001112222", Items = { new AiOrderItemDraft { ProductName = "Kurti", Quantity = 1 } } }
+                Order = new AiOrderDraft { CustomerName = "Ramsha", Phone = "03001112222", Items = { new AiOrderItemDraft { ProductName = "Shirt", Quantity = 1 } } }
             });
 
         var sentAt = DateTime.UtcNow.AddHours(-2);
