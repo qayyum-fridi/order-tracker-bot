@@ -95,4 +95,12 @@ public class ModelAmountQuoteTests
         var action = new TurnAction { Action = TurnAction.UpdateStatus, OrderId = fromModel, Status = "delivered" };
         Assert.Equal(expected, ConversationEngine.SaidOrderId(action, message));
     }
+
+    [Theory]
+    [InlineData("Ali Raza", "Ali ka order bhej diya hai", true)]
+    [InlineData("Sara Khan", "سارہ کا پارسل پہنچ گیا", true)]
+    [InlineData("Ali Raza", "تین نمبر آرڈر پہنچ گیا ہے گاہک کو", false)]   // the live miss: a customer nobody named
+    [InlineData(null, "order 3 pohnch gaya", false)]
+    public void Customer_counts_for_a_status_change_only_when_named(string? name, string message, bool expected) =>
+        Assert.Equal(expected, ConversationEngine.SaidName(name, message));
 }

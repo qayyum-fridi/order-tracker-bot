@@ -19,5 +19,9 @@
   "model-status.002": "❓ Order #{0} ({1}) ka status {2} karein? Haan ke liye YES likhein, nahi ke liye NO.",
   "model-edit.001": "❓ {0} ki qeemat {1} kar dein? Haan ke liye YES likhein, nahi ke liye NO.",
   "model-edit.002": "❓ {0} ka {1} \"{2}\" kar dein? Haan ke liye YES likhein, nahi ke liye NO.",
-  "model-edit.003": "⚠️ Phone number \"{0}\" poora nahi laga. Barae meherbani poora number (11 hindse) dobara bol dein ya likh dein."
+  "model-edit.003": "⚠️ Phone number \"{0}\" poora nahi laga. Barae meherbani poora number (11 hindse) dobara bol dein ya likh dein.",
+  "pack.001": "❓ {0} ke ek carton mein kitne piece aate hain? Barae meherbani bata dein, jaise: \"ek carton mein 10 piece\".",
+  "pack.002": "❓ {0} ke kitne piece ya carton aaye hain? Barae meherbani ginti bata dein.",
+  "pack.003": "✅ {0} ka stock {1} piece barh gaya. Ab stock: {2}.",
+  "model-first.howto.addstock": "📦 Stock barhane ke liye product ka naam aur ginti bol dein, jaise:\n\n\"tel ke 2 carton aur aaye\" ya \"kurti 5 aur aa gayi\""
 }

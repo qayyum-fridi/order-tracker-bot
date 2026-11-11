@@ -100,4 +100,68 @@ public class TurnLiveEngineTests
         older.Verify(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         older.Verify(a => a.RouteIntentAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<OrderTrackerBot.Application.Intents.IntentDefinition>>(), It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    /// <summary>The seller's own example: mustard oil that comes in a carton of 10, bought by the carton, sold by the piece or the carton.</summary>
+    [Fact]
+    public async Task A_product_that_comes_in_a_carton()
+    {
+        var key = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+        if (Environment.GetEnvironmentVariable("OTB_TURN_LIVE") != "1" || string.IsNullOrWhiteSpace(key)) return;
+
+        using var factory = new TestDbContextFactory();
+        var db = factory.CreateContext();
+        var seller = new Seller { WhatsAppPhoneNumber = Phone, BusinessName = "Bismillah Kiryana", OnboardingComplete = true, Session = new ConversationSession { State = ConversationState.Idle } };
+        db.Sellers.Add(seller);
+        db.Customers.Add(new Customer { Seller = seller, Name = "Ali Raza", Phone = "03215557788", Address = "Saddar Karachi" });
+        await db.SaveChangesAsync();
+
+        var sent = new List<string>();
+        var sender = new Mock<IWhatsAppSender>();
+        sender.Setup(s => s.SendTextMessageAsync(Phone, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, CancellationToken>((_, t, _) => sent.Add(t)).Returns(Task.CompletedTask);
+        sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, b, _, _) => sent.Add(b)).Returns(Task.CompletedTask);
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+        var interpreter = new OpenAiTurnInterpreter(http, Options.Create(new OpenAiOptions { ApiKey = key }), NullLogger<OpenAiTurnInterpreter>.Instance);
+
+        async Task<string> SayAsync(string message)
+        {
+            sent.Clear();
+            var engine = new ConversationEngine(db, Mock.Of<IAiOrderAssistant>(), sender.Object, Mock.Of<IFounderAlertNotifier>(),
+                features: new FeatureOptions { ModelFirst = "on", MvpOnly = true, ShortcutButtons = false, ConfirmButtons = false, SuggestionButtons = false },
+                turn: interpreter);
+            await engine.HandleIncomingMessageAsync(Phone, message, default);
+            var reply = string.Join("\n---\n", sent);
+            _output.WriteLine($"> {message}\n{reply}\n");
+            return reply;
+        }
+
+        await SayAsync("mere paas sarson ke tel ki product hai jo carton mein aati hai, fi carton 1000 rupay ka hai aur us mein 10 pieces aate hain, " +
+                       "mere paas 3 carton hain, fi piece 130 se 140 mein bechna hai aur carton 1150 se 1200 mein");
+        var oil = await db.Products.SingleOrDefaultAsync();
+        Assert.NotNull(oil);
+        Assert.Equal(140, oil!.Price);
+        Assert.Equal(100, oil.CostPrice);
+        Assert.Equal(30, oil.StockQty);
+        Assert.Equal(new ProductPack("carton", 10, 1200), ProductPack.Of(oil));
+
+        // two cartons: 20 pieces at the carton rate, taken from stock after YES
+        Assert.Contains("2,400", await SayAsync("Ali Raza ko 2 carton tel bhej do"));
+        await SayAsync("yes");
+        var item = (await db.Orders.Include(o => o.Items).SingleAsync()).Items.Single();
+        Assert.Equal(20, item.Quantity);
+        Assert.Equal(120, item.UnitPrice);
+        Assert.Equal(10, (await db.Products.SingleAsync()).StockQty);
+
+        // loose pieces at the piece price
+        // a second order for the same customer within minutes: the bot asks whether it is a repeat; "1" = it is a new one
+        var loose = await SayAsync("Ali Raza ko 3 tel de do");
+        if (!loose.Contains("420")) loose = await SayAsync("1");
+        if (loose.Contains("420") && !loose.Contains("saved")) await SayAsync("yes");
+        Assert.Equal(7, (await db.Products.SingleAsync()).StockQty);
+
+        // new cartons arrive
+        await SayAsync("tel ke 2 carton aur aa gaye hain");
+        Assert.Equal(27, (await db.Products.SingleAsync()).StockQty);
+    }
 }

@@ -29,12 +29,24 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         "write well, speak Urdu with a Punjabi accent, and never type English commands. Their text or voice may be misheard, unpunctuated, " +
         "phonetically spelled, in any word order, or mixed with English words. Understand the MEANING, not exact words. Pick exactly one action:\n" +
         "- create_order: they are recording a customer's purchase (customer name, items with quantities, phone, address, delivery charge). " +
-        "A customer name with a product and a quantity is an order even with no verb ('kurti 2 Sara').\n" +
-        "- update_status: an order was shipped, delivered, returned or put back to pending; give order_id or customer_name and status.\n" +
+        "A customer name with a product and a quantity is an order even with no verb ('kurti 2 Sara'). " +
+        "When the count is whole packs ('2 carton tel', 'ek peti'), set in_packs true, quantity = the number of packs, and unit_price = the price of ONE pack if said.\n" +
+        "- update_status: an order that ALREADY exists was shipped, delivered, returned or put back to pending ('order 2 bhej diya', 'Ali ka order nikal gaya', " +
+        "'teen number pohnch gaya'); give order_id or customer_name and status. A message that names a PRODUCT is not this: '<customer> ko <number> <product> bhej do / " +
+        "bhejna hai / de do' is a NEW order (create_order), and the number before the product is a quantity, never an order number.\n" +
         "- cancel_order: cancel an order; give order_id or customer_name.\n" +
         "- show_orders: list orders for a period, or pending ones. show_order: details of one order; give order_id.\n" +
         "- show_summary: sales / money summary (hisaab, kitni sale hui) for a period.\n" +
-        "- add_product: they are saying what they sell (name, price, optional cost and stock). Put each product in products.\n" +
+        "- add_product: they are saying what they sell (name, price, optional cost and stock). Put each product in products. price, cost and stock are for ONE piece. " +
+        "When the product comes in a bigger pack (carton, box, peti, dozen, bori), also fill: pack_name; pack_qty = pieces in one pack; " +
+        "pack_cost = what the owner PAYS / BUYS one whole pack for (words like 'aata hai', 'aati hai', 'milta hai', 'khareedta hun', 'ka hai', 'cost'); " +
+        "pack_price = what the owner SELLS one whole pack for (words like 'bechta hun', 'bechna hai', 'mein deta hun', 'sale'); stock_packs = how many whole packs they have. " +
+        "Each only when said; pack_cost and pack_price are different things and are never copied from each other. NEVER divide or multiply yourself: cost stays null when only " +
+        "a pack's cost was said. When a range is said, use its HIGHER number for that field. Example: 'tel carton mein aata hai, carton 1000 ka hai, us mein 10 piece, " +
+        "3 carton hain, piece 130 se 140 mein bechna hai, carton 1150 se 1200 mein' = price 140, cost null, stock null, pack_name carton, pack_qty 10, pack_cost 1000, " +
+        "pack_price 1200, stock_packs 3.\n" +
+        "- add_stock: more stock of an EXISTING product arrived or is being counted ('tel ke 2 carton aur aaye', 'kurti 5 aur aa gayi'). Put the product in products " +
+        "with stock (pieces) or stock_packs (whole packs), and nothing else.\n" +
         "- edit_product: an existing product's price changes; put its name and the NEW price in products.\n" +
         "- show_catalog: show their products.\n" +
         "- add_customer: save a new buyer WITHOUT an order (customer.name, and phone / address / city when said).\n" +
@@ -48,7 +60,7 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         "- clarify: the message is about customers, orders or products but a needed detail is missing or it could mean two things. Put ONE short question in " +
         "question, in simple Roman Urdu (e.g. 'Kis customer ka number chahiye?').\n" +
         "- help_or_chat: a greeting, small talk, or anything not about the shop.\n" +
-        "- out_of_scope: a shop task this bot does not do yet (expenses, discounts, stock counts, receipts, profit reports, payments).\n" +
+        "- out_of_scope: a shop task this bot does not do yet (expenses, discounts, receipts, profit reports, payments).\n" +
         "Never invent a number, name or phone that is not in the text. Use null for anything not said. " +
         "order_id is ONLY the order number the owner said ('order 3', 'teen number wala', 'تین نمبر آرڈر' = 3); when they named a customer and no number, " +
         "leave order_id null and give customer_name. Never pick an order_id from the list of latest orders yourself. " +
@@ -134,7 +146,11 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
                         var name = Str(i, "product_name");
                         if (name is null) continue;
                         var qty = i.TryGetProperty("quantity", out var q) && q.ValueKind == JsonValueKind.Number && q.TryGetInt32(out var qv) && qv > 0 ? qv : 1;
-                        items.Add(new AiOrderItemDraft { ProductName = name, Quantity = qty, StatedUnitPrice = Dec(i, "unit_price") });
+                        items.Add(new AiOrderItemDraft
+                        {
+                            ProductName = name, Quantity = qty, StatedUnitPrice = Dec(i, "unit_price"),
+                            InPacks = i.TryGetProperty("in_packs", out var inPacks) && inPacks.ValueKind == JsonValueKind.True,
+                        });
                     }
                 orders.Add(new AiOrderDraft
                 {
@@ -158,7 +174,12 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
                     Name = name,
                     Price = Dec(p, "price"),
                     Cost = Dec(p, "cost"),
-                    Stock = p.TryGetProperty("stock", out var s) && s.ValueKind == JsonValueKind.Number && s.TryGetInt32(out var sv) && sv >= 0 ? sv : null,
+                    Stock = Int(p, "stock"),
+                    PackName = Str(p, "pack_name"),
+                    PackQty = Int(p, "pack_qty"),
+                    PackCost = Dec(p, "pack_cost"),
+                    PackPrice = Dec(p, "pack_price"),
+                    StockPacks = Int(p, "stock_packs"),
                 });
             }
 
@@ -174,8 +195,11 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         // The model fills fields that do not belong to its action (a customer block on a "show" action, an order on a status change).
         // Only the fields of the chosen action are kept, so nothing is run or checked from a stray one.
         if (action != TurnAction.CreateOrder) orders.Clear();
-        if (action is not (TurnAction.AddProduct or TurnAction.EditProduct)) products.Clear();
+        if (action is not (TurnAction.AddProduct or TurnAction.EditProduct or TurnAction.AddStock)) products.Clear();
         if (action != TurnAction.AddCustomer) customer = null;
+        // Stock that arrived is a product's name and a count; a price the model copied from the catalog is not part of it.
+        if (action == TurnAction.AddStock)
+            products = products.Select(p => new AiNewProduct { Name = p.Name, Stock = p.Stock, StockPacks = p.StockPacks }).ToList();
 
         return new TurnAction
         {
@@ -201,6 +225,9 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
     private static decimal? Dec(JsonElement e, string name) =>
         e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetDecimal(out var d) && d >= 0 ? d : null;
 
+    private static int? Int(JsonElement e, string name) =>
+        e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var n) && n >= 0 ? n : null;
+
     private static JsonObject NullableString() => new() { ["type"] = new JsonArray { "string", "null" } };
     private static JsonObject NullableNumber() => new() { ["type"] = new JsonArray { "number", "null" } };
 
@@ -217,6 +244,7 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
             ["product_name"] = NullableString(),
             ["quantity"] = NullableNumber(),
             ["unit_price"] = NullableNumber(),
+            ["in_packs"] = new JsonObject { ["type"] = "boolean" },
         });
         var order = Obj(new JsonObject
         {
@@ -233,6 +261,11 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
             ["price"] = NullableNumber(),
             ["cost"] = NullableNumber(),
             ["stock"] = NullableNumber(),
+            ["pack_name"] = NullableString(),
+            ["pack_qty"] = NullableNumber(),
+            ["pack_cost"] = NullableNumber(),
+            ["pack_price"] = NullableNumber(),
+            ["stock_packs"] = NullableNumber(),
         });
         var root = Obj(new JsonObject
         {
