@@ -66,6 +66,7 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         "'Sara ke order mein lawn suit ka rate 3000'). Give order_id (or customer_name) and edit_lines: one line per change, op set_quantity (item, quantity), " +
         "set_price (item, price), remove (item), or add (item = product name, quantity). A new order is create_order, never edit_order.\n" +
         "- exchange_size: a saved order's item changes size or colour ('exchange 12 1 to L', 'order 12 ka pehla item L size mein kar do', 'Sara ke order mein shirt ka size M se L'). Give order_id (or customer_name), item_name (the product name as said) and value (the new size or colour, e.g. 'L', 'color white'). Never create_order, never edit_order.\n" +
+        "- create_category: the seller wants a catalog category made ('category Ready to Wear banao', 'ye catalog ki type hai, ready to wear'). value = the category name only. It is not a product: never add_product for it.\n" +
         "- undo: reverse the bot's last action.\n" +
         "- clarify: the message is about customers, orders or products but a needed detail is missing or it could mean two things. Put ONE short question in " +
         "question, in simple Roman Urdu (e.g. 'Kis customer ka number chahiye?').\n" +

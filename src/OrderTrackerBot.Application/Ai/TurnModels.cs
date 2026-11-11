@@ -20,6 +20,7 @@ public sealed class TurnAction
     public const string EditCustomer = "edit_customer";
     public const string EditOrder = "edit_order";
     public const string ExchangeSize = "exchange_size";
+    public const string CreateCategory = "create_category";
     public const string ShowCustomer = "show_customer";
     public const string HowTo = "how_to";
     public const string ContactSupport = "contact_support";
@@ -32,7 +33,7 @@ public sealed class TurnAction
     public static readonly IReadOnlyList<string> All = new[]
     {
         CreateOrder, UpdateStatus, CancelOrder, ShowOrders, ShowOrder, ShowSummary, AddProduct, EditProduct, AddStock, ShowCatalog,
-        AddCustomer, EditCustomer, EditOrder, ExchangeSize, ShowCustomer, HowTo, ContactSupport, Clarify, Undo, HelpOrChat, OutOfScope
+        AddCustomer, EditCustomer, EditOrder, ExchangeSize, CreateCategory, ShowCustomer, HowTo, ContactSupport, Clarify, Undo, HelpOrChat, OutOfScope
     };
 
     /// <summary>Most actions one message may carry. Extra ones beyond this are dropped by the parser.</summary>

@@ -164,6 +164,7 @@ public partial class ConversationEngine
                                 || (SaidName(action.CustomerName, message) && await FindLatestOrderByCustomerNameAsync(seller, action.CustomerName!, ct) is not null)),
         TurnAction.ExchangeSize => action.ItemName is not null && !string.IsNullOrWhiteSpace(action.Value) && (SaidOrderId(action, message) is not null
                                 || (SaidName(action.CustomerName, message) && await FindLatestOrderByCustomerNameAsync(seller, action.CustomerName!, ct) is not null)),
+        TurnAction.CreateCategory => !string.IsNullOrWhiteSpace(action.Value),
         _ => false,
     };
 
@@ -343,6 +344,10 @@ public partial class ConversationEngine
 
             case TurnAction.ExchangeSize:
                 await ProposeSizeExchangeAsync(seller, session, ctx, action, orderId, ct);
+                return true;
+
+            case TurnAction.CreateCategory:
+                await HandleCreateCategoryAsync(seller, action.Value!, ct);
                 return true;
 
             case TurnAction.HowTo:
