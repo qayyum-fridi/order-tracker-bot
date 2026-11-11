@@ -446,6 +446,9 @@ public partial class ConversationEngine
             var intro = MessageTemplates.Get("order-flow.049", unresolved.ProductName);
             if (suggestions.Count > 0)
             {
+                // The buttons cut long names: the full names and prices are written out here.
+                var listed = suggestions.Select(sg => $"• {sg.Label} - {Formatters.Money(catalog.FirstOrDefault(c => c.Label == sg.Label)?.Product.Price ?? 0)}");
+                intro += "\n\n" + MessageTemplates.Get("order-flow.suggest.list", string.Join("\n", listed));
                 var titles = suggestions.Select(s => s.Title).ToList();
                 if (titles.Count < 3) titles.Add(NewProductButtonTitle);
                 await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("order-flow.004", intro), titles, ct);
