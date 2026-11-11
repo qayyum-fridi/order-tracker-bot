@@ -126,7 +126,6 @@ public sealed class AiNewProduct
     public decimal? OldPrice { get; init; }
     /// <summary>Standard sizes the product comes in (XS, S, M, L ...), normalised; one listing per size is made.</summary>
     public List<string> Sizes { get; init; } = new();
-    public List<string> Sizes { get; init; } = new();
     /// <summary>
     /// For each number above, the exact words the seller used to say it (same spelling and script as in their message), or null. The bot checks that the words really
     /// are in the message, so a number needs no entry in a word list to be believed, and a number the model made up has no words to show.
