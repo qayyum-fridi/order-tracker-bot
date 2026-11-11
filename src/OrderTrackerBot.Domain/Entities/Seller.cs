@@ -112,6 +112,28 @@ public class Product
     public decimal? CostPrice { get; set; }
     /// <summary>Seller-defined extra attributes ("fabric": "cotton") as a JSON object of name -> value; Color/Size/Category/Sku have their own columns.</summary>
     public string? AttributesJson { get; set; }
+    /// <summary>Who the product is for: kids, men, women, unisex (clothing and lawn).</summary>
+    public string? AgeGroup { get; set; }
+    /// <summary>The size chart as the seller writes it, e.g. "S 36, M 38, L 40".</summary>
+    public string? SizeChart { get; set; }
+    /// <summary>Last date the stock may be sold (grocery, beauty, food).</summary>
+    public DateTime? ExpiryDate { get; set; }
+    /// <summary>The manufacturer's batch or lot number (grocery, beauty).</summary>
+    public string? BatchNumber { get; set; }
+    /// <summary>Warranty length in months (electronics).</summary>
+    public int? WarrantyMonths { get; set; }
+    /// <summary>Model name or number (electronics, hardware).</summary>
+    public string? Model { get; set; }
+    /// <summary>Brand or maker (electronics, hardware, beauty).</summary>
+    public string? Brand { get; set; }
+    /// <summary>Minutes to prepare a made-to-order item (food and bakery).</summary>
+    public int? PrepMinutes { get; set; }
+    /// <summary>True when the item is made after the order (food and bakery); null = not said.</summary>
+    public bool? MadeToOrder { get; set; }
+    /// <summary>Allergens the item contains, as the seller writes them (food and bakery).</summary>
+    public string? Allergens { get; set; }
+    /// <summary>Length x width x height as the seller writes it, e.g. "30 x 20 x 10 cm" (hardware).</summary>
+    public string? Dimensions { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

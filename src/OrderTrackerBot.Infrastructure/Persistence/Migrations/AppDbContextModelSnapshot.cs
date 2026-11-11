@@ -163,9 +163,11 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<decimal?>("CountedAmount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal?>("ExpectedAmount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("Note")
@@ -175,6 +177,7 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<decimal>("OpeningAmount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("SellerId")
@@ -196,6 +199,7 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime>("CreatedAt")
@@ -446,6 +450,7 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("Value")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");
@@ -464,6 +469,7 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("Category")
@@ -743,6 +749,7 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("UnitCost")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");
@@ -761,6 +768,7 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<decimal>("DiscountPercent")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(5,2)");
 
                     b.Property<bool>("IsActive")
@@ -883,6 +891,7 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<decimal>("AmountPaid")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime?>("CancelledAt")
@@ -892,6 +901,7 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                         .HasColumnType("bit");
 
                     b.Property<decimal?>("CourierFee")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime>("CreatedAt")
@@ -904,12 +914,14 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<decimal>("DeliveryCharge")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime?>("DeliveryDate")
                         .HasColumnType("datetime2");
 
                     b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("DiscountCode")
@@ -946,6 +958,7 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("SalesTaxRate")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(5,2)");
 
                     b.Property<int>("SellerId")
@@ -958,12 +971,15 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("Subtotal")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("TaxWithheld")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("Total")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("TrackingCourier")
@@ -1012,9 +1028,11 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal?>("UnitCost")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");
@@ -1033,9 +1051,11 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("Fee")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("Note")
@@ -1099,9 +1119,11 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<decimal>("MinQty")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,3)");
 
                     b.Property<decimal>("PricePerUnit")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("ProductId")
@@ -1138,7 +1160,19 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("AgeGroup")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Allergens")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("AttributesJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("BatchNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Brand")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Category")
@@ -1148,6 +1182,7 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal?>("CostPrice")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime>("CreatedAt")
@@ -1156,32 +1191,54 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     b.Property<string>("DefaultPriceGroup")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("Dimensions")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("ExpiryDate")
+                        .HasColumnType("datetime2");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
                     b.Property<string>("ItemKind")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool?>("MadeToOrder")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Model")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int?>("PrepMinutes")
+                        .HasColumnType("int");
+
                     b.Property<decimal>("Price")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal?>("PriceA")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal?>("PriceB")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal?>("PriceC")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("SellerId")
                         .HasColumnType("int");
 
                     b.Property<string>("Size")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SizeChart")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Sku")
@@ -1191,12 +1248,16 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("UnitQty")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,3)");
 
                     b.Property<string>("UnitType")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<int?>("WarrantyMonths")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
@@ -1307,6 +1368,7 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<decimal>("DefaultDeliveryCharge")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("Email")
@@ -1351,6 +1413,7 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("SalesTaxRate")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(5,2)");
 
                     b.Property<int>("Status")
@@ -1637,6 +1700,7 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime>("CreatedAt")
