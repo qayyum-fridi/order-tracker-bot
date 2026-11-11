@@ -1,3 +1,4 @@
 {
-  "order-flow.suggest.list": "These similar products were found:\n{0}"
+  "order-flow.suggest.list": "These similar products were found:\n{0}",
+  "order-flow.undo.hint": "↩️ To reverse this, type \"undo\"."
 }

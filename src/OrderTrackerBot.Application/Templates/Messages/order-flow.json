@@ -69,5 +69,6 @@
   "order-flow.edit.004": "❓ Order mein item {0} nahi hai. Is order mein {1} item hain.",
   "order-flow.edit.005": "ℹ️ Aakhri item hata nahi sakte. Poora order \"cancel\" karke naya bhejein.",
   "order-flow.edit.006": "❓ Quantity 1 se {0} ke beech honi chahiye.",
-  "order-flow.suggest.list": "Ye milte julte products hain:\n{0}"
+  "order-flow.suggest.list": "Ye milte julte products hain:\n{0}",
+  "order-flow.undo.hint": "↩️ Wapas karna ho to \"undo\" likhein."
 }

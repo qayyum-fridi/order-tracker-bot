@@ -958,18 +958,19 @@ public partial class ConversationEngine
     /// </summary>
     private Task SendOrderActionButtonsAsync(Seller seller, Order order, CancellationToken ct) =>
         _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("order-flow.013"),
-            new[] { $"Receipt {order.Id}", $"Mark {order.Id} shipped", "Undo" }, ct);
+            new[] { $"Receipt {order.Id}", $"Mark {order.Id} shipped" }, ct);   // Undo is typed ("undo"), not a button: it reverses the save.
 
     private static string SavedText(Seller seller, Order order, PendingOrderData pending) =>
         SavedText(seller, order) + (pending.CommentLeadNumber is { } leadNumber ? $"\nLead #{leadNumber} marked CONVERTED." : "");
 
     private static string SavedText(Seller seller, Order order) =>
-        Lang.Normalize(seller.PreferredLanguage) == Lang.UrduScript
+        (Lang.Normalize(seller.PreferredLanguage) == Lang.UrduScript
             ? $"✅ آرڈر محفوظ ہو گیا (#{order.Id})\nتبدیلی کے لیے: edit order {order.Id}"
             : (order.PaymentMethod == OrderPaymentMethod.Cod
                 ? $"✅ Order saved as {Formatters.Status(order.Status)} (#{order.Id}) — COD."
                 : $"✅ Order saved as {Formatters.Status(order.Status)} (#{order.Id}).") +
-              $"\n✏️ Kuch badalna ho to: \"edit order {order.Id}\"";
+              $"\n✏️ Kuch badalna ho to: \"edit order {order.Id}\"") +
+        "\n" + MessageTemplates.Get("order-flow.undo.hint");
 
     private async Task HandleMultiOrderConfirmationAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {

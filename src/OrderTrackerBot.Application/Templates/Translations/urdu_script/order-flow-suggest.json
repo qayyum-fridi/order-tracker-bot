@@ -1,3 +1,4 @@
 {
-  "order-flow.suggest.list": "یہ ملتے جلتے پروڈکٹس ملے ہیں:\n{0}"
+  "order-flow.suggest.list": "یہ ملتے جلتے پروڈکٹس ملے ہیں:\n{0}",
+  "order-flow.undo.hint": "↩️ واپس کرنے کے لیے \"undo\" لکھیں۔"
 }
