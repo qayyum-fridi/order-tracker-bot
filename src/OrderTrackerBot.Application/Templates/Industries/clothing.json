@@ -16,5 +16,5 @@
   ],
   "dataFocus": "cost price, category (lawn / stitched / bridal) aur stock",
   "menuTip": "Size aur colour product ke naam ke saath likhein, phir \"stock\" se stock dekhein.",
-  "units": ["piece", "set", "pair", "meter", "yard", "dozen"]
+  "units": ["piece", "set", "pair", "meter", "yard", "gaz", "dozen"]
 }
