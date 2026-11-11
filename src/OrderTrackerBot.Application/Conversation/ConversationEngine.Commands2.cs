@@ -361,7 +361,7 @@ public partial class ConversationEngine
             .FirstOrDefaultAsync(ct)!;
 
     private static readonly Regex DiscountSpec = new(
-        @"^(?<code>\S+)\s*,\s*(?:(?<percent>\d+(?:\.\d+)?)\s*(?:percent|%|pc)|Rs\.?\s*(?<flat>\d+(?:\.\d+)?)(?:\s*flat)?|(?<flat>\d+(?:\.\d+)?)\s*(?:rs|rupees?|flat))\s*(?:,\s*(?<exp>.+?))?\s*$",
+        @"^(?<code>\S+)\s*,\s*(?:(?<percent>\d+(?:\.\d+)?)\s*(?:percent|%|pc)|Rs\.?\s*(?<flat>\d+(?:\.\d+)?)(?:\s*flat)?|(?<flat>\d+(?:\.\d+)?)\s*(?:rs|rupees?|flat))\s*(?:,\s*category\s+(?<cat>[^,]+?))?\s*(?:,\s*(?<exp>.+?))?\s*$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly Regex DiscountCodeOnly = new(@"^[A-Za-z0-9_-]{3,20}$", RegexOptions.Compiled);
@@ -441,6 +441,13 @@ public partial class ConversationEngine
             return;
         }
 
+        var category = match.Groups["cat"].Success ? match.Groups["cat"].Value.Trim() : null;
+        if (category is not null && !isPercent)
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("discount-sale.001"), ct);
+            return;
+        }
+
         var code = match.Groups["code"].Value.ToUpperInvariant();
         if (await _db.Discounts.AnyAsync(d => d.SellerId == seller.Id && d.Code == code, ct))
         {
@@ -453,13 +460,24 @@ public partial class ConversationEngine
             Code = code,
             Type = isPercent ? DiscountType.Percent : DiscountType.Flat,
             Value = value,
-            ExpiresAt = expiresAt
+            ExpiresAt = expiresAt,
+            Category = category
         });
 
-        var valueText = isPercent ? $"{value}% off" : $"{Formatters.Money(value)} flat off";
-        var reply = expiresAt is null
-            ? MessageTemplates.Get("commands2.049", code, valueText)
-            : MessageTemplates.Get("commands2.050", code, valueText, (expiresAt.Value - DateTime.UtcNow).Days, $"{expiresAt:dd MMM}");
+        string reply;
+        if (category is not null)
+        {
+            reply = expiresAt is null
+                ? MessageTemplates.Get("discount-sale.002", code, $"{value}%", category)
+                : MessageTemplates.Get("discount-sale.003", code, $"{value}%", category, (expiresAt.Value - DateTime.UtcNow).Days, $"{expiresAt:dd MMM}");
+        }
+        else
+        {
+            var valueText = isPercent ? $"{value}% off" : $"{Formatters.Money(value)} flat off";
+            reply = expiresAt is null
+                ? MessageTemplates.Get("commands2.049", code, valueText)
+                : MessageTemplates.Get("commands2.050", code, valueText, (expiresAt.Value - DateTime.UtcNow).Days, $"{expiresAt:dd MMM}");
+        }
         await ReplyAsync(seller, reply, ct);
     }
 

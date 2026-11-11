@@ -65,6 +65,7 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         "'order 3 mein kurti ki quantity 2 kar do', 'Ali ke order se shirt nikal do' are edit_order, never create_order, when an existing order is named or numbered. " +
         "'Sara ke order mein lawn suit ka rate 3000'). Give order_id (or customer_name) and edit_lines: one line per change, op set_quantity (item, quantity), " +
         "set_price (item, price), remove (item), or add (item = product name, quantity). A new order is create_order, never edit_order.\n" +
+        "- exchange_size: a saved order's item changes size or colour ('exchange 12 1 to L', 'order 12 ka pehla item L size mein kar do', 'Sara ke order mein shirt ka size M se L'). Give order_id (or customer_name), item_name (the product name as said) and value (the new size or colour, e.g. 'L', 'color white'). Never create_order, never edit_order.\n" +
         "- undo: reverse the bot's last action.\n" +
         "- clarify: the message is about customers, orders or products but a needed detail is missing or it could mean two things. Put ONE short question in " +
         "question, in simple Roman Urdu (e.g. 'Kis customer ka number chahiye?').\n" +
@@ -236,6 +237,7 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         if (action is not (TurnAction.AddProduct or TurnAction.EditProduct or TurnAction.AddStock)) products.Clear();
         if (action != TurnAction.AddCustomer) customer = null;
         if (action != TurnAction.EditOrder) orderEdits.Clear();
+        var itemName = action == TurnAction.ExchangeSize ? Str(root, "item_name") : null;
         // Stock that arrived is a product's name and a count; a price the model copied from the catalog is not part of it.
         if (action == TurnAction.AddStock)
             products = products.Select(p => new AiNewProduct { Name = p.Name, Stock = p.Stock, StockPacks = p.StockPacks }).ToList();
@@ -253,6 +255,7 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
             Customer = customer,
             Field = field is not null && TurnAction.CustomerFields.Contains(field) ? field : null,
             Value = Str(root, "value"),
+            ItemName = itemName,
             Topic = topic is not null && TurnAction.HowToTopics.Contains(topic) ? topic : null,
             Question = Str(root, "question"),
             OrderEdits = orderEdits,
@@ -333,6 +336,7 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
             }),
             ["field"] = NullableEnum(TurnAction.CustomerFields),
             ["value"] = NullableString(),
+            ["item_name"] = NullableString(),
             ["topic"] = NullableEnum(TurnAction.HowToTopics),
             ["question"] = NullableString(),
             ["edit_lines"] = new JsonObject { ["type"] = "array", ["items"] = editLine },

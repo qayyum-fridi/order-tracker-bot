@@ -395,7 +395,13 @@ public partial class ConversationEngine
         order.Subtotal = order.Items.Sum(i => i.UnitPrice * i.Quantity);
         if (order.DiscountCode is { } code && code != "LOYALTY"
             && await _db.Discounts.FirstOrDefaultAsync(d => d.SellerId == seller.Id && d.Code == code, ct) is { Type: DiscountType.Percent } percent)
-            order.DiscountAmount = Math.Round(order.Subtotal * percent.Value / 100m, 2);
+        {
+            var baseAmount = percent.Category is null
+                ? order.Subtotal
+                : CategoryBase(order.Items.Select(i => ((int?)i.ProductId, i.UnitPrice * i.Quantity)),
+                    await ProductCategoriesAsync(seller, order.Items.Select(i => i.ProductId), ct), percent.Category);
+            order.DiscountAmount = Math.Round(baseAmount * percent.Value / 100m, 2);
+        }
         order.DiscountAmount = Math.Min(order.DiscountAmount, order.Subtotal);
         order.Total = OrderTotal(order.Subtotal, order.DiscountAmount, order.DeliveryCharge);
     }

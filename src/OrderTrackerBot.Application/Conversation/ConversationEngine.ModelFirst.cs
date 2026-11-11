@@ -162,6 +162,8 @@ public partial class ConversationEngine
         TurnAction.EditCustomer => action.CustomerName is not null && action.Field is not null && !string.IsNullOrWhiteSpace(action.Value),
         TurnAction.EditOrder => action.OrderEdits.Count > 0 && (SaidOrderId(action, message) is not null
                                 || (SaidName(action.CustomerName, message) && await FindLatestOrderByCustomerNameAsync(seller, action.CustomerName!, ct) is not null)),
+        TurnAction.ExchangeSize => action.ItemName is not null && !string.IsNullOrWhiteSpace(action.Value) && (SaidOrderId(action, message) is not null
+                                || (SaidName(action.CustomerName, message) && await FindLatestOrderByCustomerNameAsync(seller, action.CustomerName!, ct) is not null)),
         _ => false,
     };
 
@@ -339,6 +341,10 @@ public partial class ConversationEngine
                 await ProposeOrderEditAsync(seller, session, ctx, action, orderId, message, ct);
                 return true;
 
+            case TurnAction.ExchangeSize:
+                await ProposeSizeExchangeAsync(seller, session, ctx, action, orderId, ct);
+                return true;
+
             case TurnAction.HowTo:
                 var profile = Industry(seller);
                 var topic = action.Topic is not null && action.Topic != "other" ? action.Topic : "other";
@@ -501,6 +507,8 @@ public partial class ConversationEngine
                 await HandleEditProductAsync(seller, new ParsedCommand { Kind = CommandKind.EditProduct, Text = edit.Name, Amount = edit.Amount }, ct);
             else if (edit.Kind == TurnAction.EditOrder)
                 await ApplyModelOrderEditAsync(seller, session, ctx, edit, ct);
+            else if (edit.Kind == TurnAction.ExchangeSize)
+                await HandleSizeExchangeAsync(seller, ctx, new ParsedCommand { Kind = CommandKind.SizeExchange, Number = edit.OrderId, Text = edit.ItemNo?.ToString(), Text2 = edit.Value }, ct);
             else
                 await HandleCustomerUpdateAsync(seller, ctx, new ParsedCommand { Kind = CommandKind.CustomerUpdate, Text = edit.Name, Text2 = edit.Field, Text3 = edit.Value }, ct);
             return;

@@ -33,6 +33,21 @@ public sealed partial class ConversationEngine
     /// </summary>
     private async Task ShowCatalogPageAsync(Seller seller, SessionContextData ctx, List<Product> allProducts, string? action, CancellationToken ct)
     {
+        // "sku 1203" / "code 1203" / "design 1203": the product whose SKU or design code is exactly that, shown at once with price and stock.
+        // No exact code: the same as a catalog search for the word.
+        if (action is not null && action.StartsWith("code:", StringComparison.Ordinal))
+        {
+            var wanted = action[5..].Trim().ToLowerInvariant();
+            var exact = allProducts.Where(p => HasProductCode(p, wanted)).ToList();
+            if (exact.Count > 0)
+            {
+                var codeLines = exact.Select(p => $"• {Formatters.ProductLabel(p)} - {Formatters.Money(p.Price)}" + (p.StockQty is { } q ? $" (stock {q})" : ""));
+                await ReplyAsync(seller, MessageTemplates.Get("product-code.001", wanted, string.Join("\n", codeLines)), ct);
+                return;
+            }
+            action = "q:" + wanted;
+        }
+
         var page = Math.Max(1, ctx.CatalogPage);
         string? notice = null;
         switch (action)

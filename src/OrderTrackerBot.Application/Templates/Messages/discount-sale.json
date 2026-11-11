@@ -1,0 +1,5 @@
+{
+  "discount-sale.001": "❌ Category sale sirf percent mein ho sakti hai, jaise: \"WINTER20, 20 percent, category Winter 26\".",
+  "discount-sale.002": "✅ Category sale {0} bana:\n{1} off sirf \"{2}\" category ke items par. Naye orders mein khud lagega.",
+  "discount-sale.003": "✅ Category sale {0} bana:\n{1} off sirf \"{2}\" category ke items par, {3} din mein khatam ({4}). Naye orders mein khud lagega."
+}
