@@ -5,7 +5,7 @@
   "aliases": "grocer\\w*|kiryana|karyana|kariyana|rashan|ration|general\\s*store|mart|supermart|گروسری|راشن|کریانہ",
   "productLines": [
     "Chini 5 kg - 950, cost 880, stock 40, category rashan",
-    "Ghee Dalda 2.5 kg - 1850, cost 1600",
+    "Ghee Dalda 2.5 kg - 1850, cost 1600, expiry: 2027-03, batch: GD-204",
     "Daal Masoor 1 kg - 330"
   ],
   "orderExample": "Bilal, 2 chini 5 kg, 1 ghee 2.5 kg, 03001234567, DHA Karachi",
