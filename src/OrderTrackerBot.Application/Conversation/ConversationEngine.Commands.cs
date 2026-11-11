@@ -575,6 +575,9 @@ public partial class ConversationEngine
             case CommandKind.MarkAllPendingShipped:
                 await HandleMarkAllPendingShippedAsync(seller, session, ctx, ct);
                 return;
+            case CommandKind.MarkAllTodayDelivered:
+                await HandleMarkAllTodayDeliveredAsync(seller, session, ctx, ct);
+                return;
             case CommandKind.CancelOrder:
                 await HandleCancelOrderRequestAsync(seller, session, ctx, cmd, ct);
                 return;

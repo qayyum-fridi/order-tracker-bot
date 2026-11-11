@@ -1,0 +1,6 @@
+{
+  "bulk.delivered.001": "📦 Aaj ke {0} shipped orders ({1}) delivered mark karoon? YES likhein.",
+  "bulk.delivered.002": "ℹ️ Aaj koi shipped order nahi hai jo delivered mark ho.",
+  "bulk.delivered.003": "✅ {0} orders delivered mark ho gaye.\n↩️ Wapas karna ho to \"undo\" likhein.",
+  "bulk.delivered.004": "↩️ Aaj ke delivered orders wapas shipped ho gaye."
+}

@@ -33,6 +33,7 @@ public enum CommandKind
     EditProduct,
     MarkStatus,
     MarkAllPendingShipped,
+    MarkAllTodayDelivered,
     CancelOrder,
     Undo,
     UndoNote,
@@ -1001,6 +1002,8 @@ public static class CommandParser
     private static readonly Regex AddProduct = new(@"^add\s+product:\s*(.+?)\s*-\s*(\d+(?:\.\d+)?)$", Opts);
     private static readonly Regex EditProduct = new(@"^edit\s+product:\s*(.+?)\s*-\s*(\d+(?:\.\d+)?)$", Opts);
     private static readonly Regex MarkAllPendingShipped = new(@"^mark\s+all\s+pending\s+as\s+shipped$", Opts);
+    // "sab aaj wale delivered", "aaj ke sab delivered karo", "mark all today shipped as delivered": today's shipped orders, after YES.
+    private static readonly Regex MarkAllTodayDelivered = new(@"^(?:(?:sab|sare|saare)\s+aaj\s+(?:wale|ke|k)|aaj\s+(?:wale|ke|k)\s+(?:sab|sare|saare))(?:\s+shipped)?\s+delivered(?:\s+(?:karo|kar\s+do|kardo|kar\s+dein))?$|^mark\s+all\s+today\s+shipped\s+as\s+delivered$", Opts);
     // "mark 3 shipped" / "mark 3 bhej diya" / "آرڈر 3 شپ ہو گیا": the verb phrase is mapped by StatusFromPhrase.
     private static readonly Regex MarkStatus = new(@"^(?:mark|order|آرڈر)\s+(\d+)\s+(.+)$", Opts);
     private const string DoneWords = @"(?:\s+(?:ho\s*(?:gaya|gya|gaye|gai|gayi)|kar\s+(?:diya|dia|do|dein|den)|ہو\s+گیا(?:\s+ہے)?|کر\s+(?:دیا|دو|دیں)))?";
@@ -1934,6 +1937,7 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.EditProduct, Text = m.Groups[1].Value.Trim(), Amount = decimal.Parse(m.Groups[2].Value) };
 
         if (MarkAllPendingShipped.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.MarkAllPendingShipped };
+        if (MarkAllTodayDelivered.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.MarkAllTodayDelivered };
 
         if ((m = StatusPicker.Match(message)).Success && !OrderDetail.IsMatch(message))
             return new ParsedCommand { Kind = CommandKind.StatusPicker, Number = m.Groups["n"].Success ? int.Parse(m.Groups["n"].Value) : null };
