@@ -1335,6 +1335,7 @@ public partial class ConversationEngine
     {
         var parts = new List<string>();
         if (product.CostPrice is { } cost) parts.Add($"cost {Formatters.Money(cost)}");
+        if (product.RegularPrice is { } regular && regular > product.Price) parts.Add($"regular price {Formatters.Money(regular)}");
         var pack = ProductPack.Of(product);
         if (product.StockQty is { } stock) parts.Add($"stock {pack?.StockText(stock) ?? stock.ToString()}");
         if (pack is not null) parts.Add(pack.Describe());

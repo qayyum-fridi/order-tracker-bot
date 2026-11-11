@@ -23,6 +23,11 @@ internal static class ProductTypedDetails
                 if (!TryDate(text, out var expiry)) return false;
                 product.ExpiryDate = expiry;
                 return true;
+            case "regular":
+            case "regular price":
+                if (!decimal.TryParse(text.Replace(",", ""), NumberStyles.Number, CultureInfo.InvariantCulture, out var regular) || regular <= 0) return false;
+                product.RegularPrice = regular;
+                return true;
             case "batch":
                 product.BatchNumber = text;
                 return true;
