@@ -36,6 +36,9 @@ public interface IWhatsAppSender
 
     /// <summary>Uploads and sends a file (e.g. a PDF receipt) as a WhatsApp document. Returns false when Meta rejected it.</summary>
     Task<bool> SendDocumentAsync(string toPhoneNumber, byte[] content, string fileName, string mimeType, string? caption, CancellationToken cancellationToken = default);
+
+    /// <summary>Uploads Ogg/Opus audio and sends it as a voice note the seller can play. False when Meta rejected it; a sender that cannot do it keeps this default.</summary>
+    Task<bool> SendVoiceNoteAsync(string toPhoneNumber, byte[] audio, CancellationToken cancellationToken = default) => Task.FromResult(false);
 }
 
 /// <summary>Downloads media (screenshots) a seller sent, by the media id in the webhook.</summary>

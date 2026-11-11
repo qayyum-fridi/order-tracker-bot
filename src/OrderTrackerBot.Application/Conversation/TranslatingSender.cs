@@ -126,6 +126,9 @@ internal sealed class TranslatingSender : IWhatsAppSender
     public Task<bool> SendDocumentAsync(string toPhoneNumber, byte[] content, string fileName, string mimeType, string? caption, CancellationToken cancellationToken = default) =>
         _inner.SendDocumentAsync(toPhoneNumber, content, fileName, mimeType, caption, cancellationToken);
 
+    public Task<bool> SendVoiceNoteAsync(string toPhoneNumber, byte[] audio, CancellationToken cancellationToken = default) =>
+        _inner.SendVoiceNoteAsync(toPhoneNumber, audio, cancellationToken);
+
     private static string FitOrOriginal(string translated, string original, int maxLength) =>
         translated.Length <= maxLength ? translated : original;
 

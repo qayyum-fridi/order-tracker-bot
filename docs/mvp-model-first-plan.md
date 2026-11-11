@@ -1,6 +1,6 @@
 # MVP plan: the model understands, the code checks
 
-Status: **plan only, no code written.** Supersedes the order of work in `dynamic-understanding-plan.md` (that plan keeps "lists first, AI on failure"; this one reverses it for the MVP jobs).
+Status: **implemented.** Model-first routing, multi-action messages, order edits by speech and spoken replies are built and tested (see `CLAUDE.md`, "Free-form understanding"). Nothing from this plan is pending. Supersedes the order of work in `dynamic-understanding-plan.md` (that plan keeps "lists first, AI on failure"; this one reverses it for the MVP jobs).
 
 ## 1. Why the current design cannot launch
 

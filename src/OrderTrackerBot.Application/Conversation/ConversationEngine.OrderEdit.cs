@@ -48,15 +48,21 @@ public partial class ConversationEngine
             return;
         }
 
+        await OpenOrderEditAsync(seller, session, ctx, order, ct);
+        await ReplyAsync(seller,
+            (number is null ? "(Aakhri order)\n" : "") + (fromList ? $"(\"{number}\" aapki last list ka number tha)\n" : "") +
+            $"{OrderEditSummary(order)}\n\n{OrderEditHelp}", ct);
+    }
+
+    /// <summary>Puts the session into "edit order" for this order: the baseline for "undo" is the newest snapshot already logged for it.</summary>
+    private async Task OpenOrderEditAsync(Seller seller, ConversationSession session, SessionContextData ctx, Order order, CancellationToken ct)
+    {
         ctx.EditOrderId = order.Id;
         ctx.EditSnapshotLogged = false;
         ctx.EditDiscardPending = false;
         ctx.EditBaselineLogId = await _db.ActionLogs.Where(a => a.SellerId == seller.Id && a.OrderId == order.Id && a.ActionType == ActionType.OrderEdited)
             .OrderByDescending(a => a.Id).Select(a => a.Id).FirstOrDefaultAsync(ct);
         SetState(session, ConversationState.AwaitingOrderEdit);
-        await ReplyAsync(seller,
-            (number is null ? "(Aakhri order)\n" : "") + (fromList ? $"(\"{number}\" aapki last list ka number tha)\n" : "") +
-            $"{OrderEditSummary(order)}\n\n{OrderEditHelp}", ct);
     }
 
     // Once an order has gone out, its items, rates and delivery charge are fixed: the receipt, the stock and the money must keep matching.

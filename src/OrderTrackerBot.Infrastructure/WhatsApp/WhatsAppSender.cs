@@ -229,6 +229,53 @@ public class WhatsAppSender : IWhatsAppSender
         }, cancellationToken);
     }
 
+    public async Task<bool> SendVoiceNoteAsync(string toPhoneNumber, byte[] audio, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(_options.AccessToken))
+        {
+            _logger.LogWarning("WhatsApp access token not configured — skipping voice note to {Phone}", toPhoneNumber);
+            return true;
+        }
+
+        string? mediaId;
+        try
+        {
+            using var form = new MultipartFormDataContent
+            {
+                { new StringContent("whatsapp"), "messaging_product" },
+                { new StringContent("audio/ogg"), "type" }
+            };
+            var file = new ByteArrayContent(audio);
+            file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/ogg");
+            form.Add(file, "file", "reply.ogg");
+
+            using var upload = new HttpRequestMessage(HttpMethod.Post, $"{_options.GraphApiBaseUrl.TrimEnd('/')}/{_options.PhoneNumberId}/media") { Content = form };
+            upload.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.AccessToken);
+            var response = await _httpClient.SendAsync(upload, cancellationToken);
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("WhatsApp voice note upload failed ({Status}) for {Phone}: {Body}", response.StatusCode, toPhoneNumber, body);
+                return false;
+            }
+            mediaId = System.Text.Json.Nodes.JsonNode.Parse(body)?["id"]?.GetValue<string>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "WhatsApp voice note upload threw for {Phone}", toPhoneNumber);
+            return false;
+        }
+        if (string.IsNullOrEmpty(mediaId)) return false;
+
+        return await PostAsync(toPhoneNumber, "[voice note]", new
+        {
+            messaging_product = "whatsapp",
+            to = toPhoneNumber,
+            type = "audio",
+            audio = new { id = mediaId }
+        }, cancellationToken);
+    }
+
     private async Task<bool> PostAsync(string toPhoneNumber, string logText, object payload, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(_options.AccessToken))

@@ -31,8 +31,10 @@ public partial class ConversationEngine
         _lastAudioHash = null;
         _turnMissed = false;
         _turnTracked = false;
+        _lastReply = null;
         await HandleAudioCoreAsync(fromPhoneNumber, mediaId, messageId, replyToId, ct);
         await TrackMissesAsync(fromPhoneNumber, ct);
+        await SpeakReplyAsync(fromPhoneNumber, ct);
         _logger?.LogInformation("Voice note: handled in {TotalMs} ms, reply included", handling.ElapsedMilliseconds);
 
         // The actions this note made are remembered for "undo note". A note that made none (a refused reply) keeps the earlier range.
