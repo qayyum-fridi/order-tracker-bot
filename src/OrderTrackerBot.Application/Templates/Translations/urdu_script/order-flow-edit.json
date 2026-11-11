@@ -1,4 +1,8 @@
 {
-  "order-flow.edit.001": "✏️ ٹھیک ہے، ڈرافٹ محفوظ ہے۔ جو بدلنا ہو وہ ایک لائن میں بھیجیں:\nphone 03001234567\naddress Model Town Lahore\nname Ayesha Khan\nڈرافٹ دوبارہ دکھایا جائے گا، اور YES سے محفوظ ہوگا۔\nپورا آرڈر بدلنا ہو تو \"cancel\" لکھ کر نیا بھیجیں۔",
-  "order-flow.edit.002": "❓ یہ فون نمبر درست نہیں لگتا۔ 10 سے 13 ہندسے لکھیں، جیسے: phone 03001234567"
+  "order-flow.edit.001": "✏️ ٹھیک ہے، ڈرافٹ محفوظ ہے۔ جو بدلنا ہو وہ ایک لائن میں بھیجیں:\nphone 03001234567\naddress Model Town Lahore\nname Ayesha Khan\npayment cod\nitem 1 qty 3\nitem 2 remove\nڈرافٹ دوبارہ دکھایا جائے گا، اور YES سے محفوظ ہوگا۔\nپورا آرڈر بدلنا ہو تو \"cancel\" لکھ کر نیا بھیجیں۔",
+  "order-flow.edit.002": "❓ یہ فون نمبر درست نہیں لگتا۔ 10 سے 13 ہندسے لکھیں، جیسے: phone 03001234567",
+  "order-flow.edit.003": "❓ یہ payment سمجھ نہیں آئی۔ یہ لکھیں: cod, bank, jazzcash, easypaisa, card",
+  "order-flow.edit.004": "❓ آرڈر میں آئٹم {0} نہیں ہے۔ اس میں {1} آئٹم ہیں۔",
+  "order-flow.edit.005": "ℹ️ آخری آئٹم نہیں ہٹا سکتے۔ \"cancel\" لکھ کر پورا آرڈر دوبارہ بھیجیں۔",
+  "order-flow.edit.006": "❓ مقدار 1 سے {0} کے درمیان ہونی چاہیے۔"
 }
