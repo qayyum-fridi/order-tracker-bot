@@ -44,8 +44,6 @@ public sealed class PendingOrderData
     public string? Phone { get; set; }
     /// <summary>The seller said the phone is not known yet and will be added later ("Hamira ka phone 0300…"): the order is saved without one.</summary>
     public bool PhoneLater { get; set; }
-    /// <summary>Setup just ended: the next tap or word answers "shop only or delivery too" (see SalesMode).</summary>
-    public bool AwaitingSalesMode { get; set; }
     public string? Address { get; set; }
     public string? PaymentMethodText { get; set; }
     public string? DiscountCode { get; set; }
@@ -106,6 +104,8 @@ public sealed class ProductSuggestion
 /// <summary>Everything an in-flight multi-turn flow needs, serialized to ConversationSession.ContextJson.</summary>
 public sealed class SessionContextData
 {
+    /// <summary>Setup just ended: the next tap or word answers "shop only or delivery too" (see SalesMode).</summary>
+    public bool AwaitingSalesMode { get; set; }
     /// <summary>When the seller last asked to reach support (UTC); a repeat inside a few hours is told the first request is already with the team, and the founder is not alerted again.</summary>
     public DateTime? SupportRequestedAt { get; set; }
 
