@@ -62,5 +62,7 @@
   "order-flow.052": "🌟 {0} ka {1} order hai — {2}% loyalty discount apply karna chahenge?",
   "order-flow.053": "📝 آرڈر کی تصدیق کریں:",
   "order-flow.054": "📝 Screenshot se order parh liya:",
-  "order-flow.055": "📝 Confirm order:"
+  "order-flow.055": "📝 Confirm order:",
+  "order-flow.edit.001": "✏️ Theek hai, draft wahi hai. Jo badalna ho wo ek line mein bhejein:\nphone 03001234567\naddress Model Town Lahore\nname Ayesha Khan\nPhir draft dobara dikhega, aur YES se save hoga.\nPoora order badalna ho to \"cancel\" likh kar naya bhejein.",
+  "order-flow.edit.002": "❓ Ye phone number sahi nahi lag raha. 10 se 13 ankon ka number likhein, jaise: phone 03001234567"
 }

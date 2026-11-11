@@ -817,6 +817,8 @@ public partial class ConversationEngine
         return true;
     }
 
+    private static readonly System.Text.RegularExpressions.Regex DraftFieldEdit = new(@"^(?<field>phone|address|name)\s+(?<value>.{2,200})$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
     private async Task HandleOrderConfirmationAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         // "Reply YES to save": an explicit yes, or "ok" / "theek hai" as agreement to exactly this question.
@@ -861,12 +863,34 @@ public partial class ConversationEngine
             return;
         }
 
+        // "Edit" keeps the draft: the seller sends only the line to change ("phone ...", "address ...", "name ..."), then the draft is shown again.
         if (message.Trim().Equals("edit", StringComparison.OrdinalIgnoreCase))
         {
-            await RetractAutoPricesAsync(seller, ctx.PendingOrder, ct);
-            ctx.PendingOrder = null;
-            SetState(session, ConversationState.Idle);
-            await ReplyAsync(seller, MessageTemplates.Get("order-flow.012"), ct);
+            await ReplyAsync(seller, MessageTemplates.Get("order-flow.edit.001"), ct);
+            return;
+        }
+
+        if (ctx.PendingOrder is { } editing && DraftFieldEdit.Match(message.Trim()) is { Success: true } fieldEdit)
+        {
+            var value = fieldEdit.Groups["value"].Value.Trim();
+            switch (fieldEdit.Groups["field"].Value.ToLowerInvariant())
+            {
+                case "phone":
+                    if (!IsPlausiblePhone(value))
+                    {
+                        await ReplyAsync(seller, MessageTemplates.Get("order-flow.edit.002"), ct);
+                        return;
+                    }
+                    editing.Phone = value;
+                    break;
+                case "address":
+                    editing.Address = value;
+                    break;
+                case "name":
+                    editing.CustomerName = value;
+                    break;
+            }
+            await SendDraftConfirmationAsync(seller, BuildConfirmationText(seller.PreferredLanguage, editing), ct);
             return;
         }
 

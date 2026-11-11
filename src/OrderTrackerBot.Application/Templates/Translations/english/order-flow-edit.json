@@ -1,0 +1,4 @@
+{
+  "order-flow.edit.001": "✏️ OK, the draft is kept. Send the one line to change:\nphone 03001234567\naddress Model Town Lahore\nname Ayesha Khan\nThe draft is shown again, and YES saves it.\nTo change the whole order, type \"cancel\" and send it again.",
+  "order-flow.edit.002": "❓ That phone number does not look right. Send 10 to 13 digits, e.g.: phone 03001234567"
+}
