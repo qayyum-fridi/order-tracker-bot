@@ -529,7 +529,8 @@ public partial class ConversationEngine
             pending.Phone = null;
         }
 
-        if (string.IsNullOrWhiteSpace(pending.Phone) && !pending.PaidInFull && !pending.PhoneLater)
+        // A shop that sells only at the counter is not asked for a phone on every order.
+        if (string.IsNullOrWhiteSpace(pending.Phone) && !pending.PaidInFull && !pending.PhoneLater && seller.SalesMode != "counter")
         {
             ctx.PendingMissingField = "Phone";
             SetState(session, ConversationState.AwaitingOrderMissingFields);

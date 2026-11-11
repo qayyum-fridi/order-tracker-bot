@@ -9,6 +9,8 @@ public class Seller
     public required string WhatsAppPhoneNumber { get; set; }
     public string? BusinessName { get; set; }
     public bool OnboardingComplete { get; set; }
+    /// <summary>"counter" = sells only at the shop (no phone or address asked for an order); "delivery" = ships too; null = not asked yet.</summary>
+    public string? SalesMode { get; set; }
     public string PreferredLanguage { get; set; } = "roman_urdu";
     public string? City { get; set; }
     /// <summary>IANA zone used for "today" boundaries; all stored timestamps stay UTC.</summary>

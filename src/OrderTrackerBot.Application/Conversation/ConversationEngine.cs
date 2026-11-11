@@ -225,6 +225,17 @@ public partial class ConversationEngine
         _turnSeller = seller;
         _turnCtx = ctx;
 
+        // The answer to "do you ship too?" asked at the end of setup.
+        if (ctx.AwaitingSalesMode && ReadSalesMode(message) is { } salesMode)
+        {
+            ctx.AwaitingSalesMode = false;
+            seller.SalesMode = salesMode;
+            await _db.SaveChangesAsync(ct);
+            await ReplyAsync(seller, MessageTemplates.Get(salesMode == "counter" ? "sales-mode.counter.done" : "sales-mode.delivery.done"), ct);
+            await PersistAsync(session, ctx, ct);
+            return;
+        }
+
         // A product line waiting for YES: saved on YES, dropped on NO (see ConversationEngine.ProductConfirm.cs).
         if (await TryHandlePendingProductAsync(seller, ctx, message, ct))
         {

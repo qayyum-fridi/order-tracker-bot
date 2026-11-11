@@ -1,0 +1,7 @@
+{
+  "sales-mode.001": "🛒 How do you sell?",
+  "sales-mode.counter.label": "🏪 Only at the shop",
+  "sales-mode.delivery.label": "🚚 I deliver too",
+  "sales-mode.counter.done": "✅ OK. Shop orders will not ask for a phone or address.",
+  "sales-mode.delivery.done": "✅ OK. Delivery orders will ask for a phone and address."
+}
