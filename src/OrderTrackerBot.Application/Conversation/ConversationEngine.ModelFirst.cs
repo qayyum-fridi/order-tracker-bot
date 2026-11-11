@@ -42,19 +42,108 @@ public partial class ConversationEngine
 
         var action = await _turnInterpreter.UnderstandAsync(context, message, image, ct);
         // Metadata only: the message holds customer names and phone numbers, so its text is never logged.
-        _logger?.LogInformation("ModelFirst {Mode}: action={Action} length={Length}", _features.ModelFirst, action?.Action ?? "none", message.Length);
+        _logger?.LogInformation("ModelFirst {Mode}: action={Action} actions={Count} length={Length}", _features.ModelFirst, action?.Action ?? "none",
+            action is null ? 0 : 1 + action.Also.Count, message.Length);
         if (_features.ModelFirst != "on" || action is null) return false;
 
         // An idle, set-up seller whose words are no typed command gets the whole answer from this one call: a question, a how-to or "not yet",
         // never the older keyword router or voice rewrite (they guessed a command from loose words, e.g. "contact number" became a support request).
         var final = image is null && seller.OnboardingComplete && session.State == ConversationState.Idle && CommandParser.TryParse(message) is null;
-        var runnable = await CanRunAsync(seller, action, message, ct);
-        if (!runnable && !final) return false;
+        var actions = MergeOrderActions(action);
+
+        if (actions.Count == 1)
+        {
+            var runnable = await CanRunAsync(seller, action, message, ct);
+            if (!runnable && !final) return false;
+            if (beforeRun is not null) await beforeRun();
+            if (runnable && await RunTurnActionAsync(seller, session, ctx, action, catalog, message, ct, fromScreenshot)) return true;
+            if (!final) return false;
+            await ReplyNotRunAsync(seller, action, ct);
+            return true;
+        }
+
+        // Several requests in one message: all of them must be runnable, or the older pipeline answers the whole message (unless this one is final).
+        var ready = new List<bool>();
+        foreach (var a in actions) ready.Add(await CanRunAsync(seller, a, message, ct));
+        if (!ready.All(r => r) && !final) return false;
         if (beforeRun is not null) await beforeRun();
-        if (runnable && await RunTurnActionAsync(seller, session, ctx, action, catalog, message, ct, fromScreenshot)) return true;
-        if (!final) return false;
-        await ReplyNotRunAsync(seller, action, ct);
+        for (var i = 0; i < actions.Count; i++)
+        {
+            if (!ready[i])
+            {
+                await ReplyNotRunAsync(seller, actions[i], ct);
+                continue;
+            }
+            await RunOrQueueAsync(seller, session, ctx, actions[i], catalog, message, ct, fromScreenshot);
+        }
         return true;
+    }
+
+    /// <summary>
+    /// The actions of one message in order. Several create_order entries become one, so the draft handler takes them as one order with extra customers
+    /// (the same as a typed multi-customer order) instead of each one replacing the draft before it.
+    /// </summary>
+    private static List<TurnAction> MergeOrderActions(TurnAction first)
+    {
+        var all = new List<TurnAction> { first };
+        all.AddRange(first.Also);
+        if (all.Count(a => a.Action == TurnAction.CreateOrder) < 2) return all;
+        var orders = all.Where(a => a.Action == TurnAction.CreateOrder).SelectMany(a => a.Orders).ToList();
+        var merged = new TurnAction { Action = TurnAction.CreateOrder, Orders = orders };
+        var result = new List<TurnAction>();
+        var placed = false;
+        foreach (var a in all)
+        {
+            if (a.Action != TurnAction.CreateOrder) { result.Add(a); continue; }
+            if (!placed) { result.Add(merged); placed = true; }
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Runs one action now, unless a yes/no question is open or earlier actions of this message are still waiting: then it waits in
+    /// <see cref="SessionContextData.ModelQueue"/> and runs once the seller's answer has been handled (<see cref="DrainModelQueueAsync"/>).
+    /// </summary>
+    private async Task RunOrQueueAsync(Seller seller, ConversationSession session, SessionContextData ctx, TurnAction action, List<CatalogEntry> catalog,
+        string message, CancellationToken ct, bool fromScreenshot)
+    {
+        if (session.State != ConversationState.Idle || ctx.ModelQueue.Count > 0)
+        {
+            ctx.ModelQueue.Add(new QueuedModelTurn(Plain(action), message));
+            return;
+        }
+        if (!await RunTurnActionAsync(seller, session, ctx, action, catalog, message, ct, fromScreenshot))
+            await ReplyNotRunAsync(seller, action, ct);
+    }
+
+    /// <summary>A copy of the action without the list of further actions (the queue keeps one action per entry).</summary>
+    private static TurnAction Plain(TurnAction action) => new()
+    {
+        Action = action.Action, Orders = action.Orders, Products = action.Products, OrderId = action.OrderId, CustomerName = action.CustomerName,
+        Status = action.Status, Period = action.Period, PendingOnly = action.PendingOnly, Customer = action.Customer, Field = action.Field,
+        Value = action.Value, Topic = action.Topic, Question = action.Question, OrderEdits = action.OrderEdits,
+    };
+
+    /// <summary>
+    /// Runs the queued actions of the same message once no question is open, in order. A queued action that opens a yes/no question stops the loop
+    /// until that answer; the rest stay queued. Called at the end of every incoming message.
+    /// </summary>
+    private async Task DrainModelQueueAsync(string fromPhoneNumber, CancellationToken ct)
+    {
+        var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
+        if (seller.Session is not { } session) return;
+        var ctx = SessionContextData.FromJson(session.ContextJson);
+        if (ctx.ModelQueue.Count == 0 || session.State != ConversationState.Idle) return;
+        var catalog = await LoadCatalogAsync(seller, ct);
+        while (ctx.ModelQueue.Count > 0 && session.State == ConversationState.Idle)
+        {
+            var next = ctx.ModelQueue[0];
+            ctx.ModelQueue.RemoveAt(0);
+            await PersistAsync(session, ctx, ct);
+            if (!await RunTurnActionAsync(seller, session, ctx, next.Action, catalog, next.Message, ct, false))
+                await ReplyNotRunAsync(seller, next.Action, ct);
+            await PersistAsync(session, ctx, ct);
+        }
     }
 
     /// <summary>True when the action has the details its handler needs, so the echo ("Maine suna") is sent only when this path answers.</summary>
@@ -71,6 +160,8 @@ public partial class ConversationEngine
         TurnAction.CancelOrder => SaidOrderId(action, message) is not null,
         TurnAction.AddCustomer => action.Customer is not null,
         TurnAction.EditCustomer => action.CustomerName is not null && action.Field is not null && !string.IsNullOrWhiteSpace(action.Value),
+        TurnAction.EditOrder => action.OrderEdits.Count > 0 && (SaidOrderId(action, message) is not null
+                                || (SaidName(action.CustomerName, message) && await FindLatestOrderByCustomerNameAsync(seller, action.CustomerName!, ct) is not null)),
         _ => false,
     };
 
@@ -244,6 +335,10 @@ public partial class ConversationEngine
                 await HandleCustomerListAsync(seller, ctx, ct);
                 return true;
 
+            case TurnAction.EditOrder when action.OrderEdits.Count > 0:
+                await ProposeOrderEditAsync(seller, session, ctx, action, orderId, message, ct);
+                return true;
+
             case TurnAction.HowTo:
                 var profile = Industry(seller);
                 var topic = action.Topic is not null && action.Topic != "other" ? action.Topic : "other";
@@ -404,6 +499,8 @@ public partial class ConversationEngine
         {
             if (edit.Kind == TurnAction.EditProduct)
                 await HandleEditProductAsync(seller, new ParsedCommand { Kind = CommandKind.EditProduct, Text = edit.Name, Amount = edit.Amount }, ct);
+            else if (edit.Kind == TurnAction.EditOrder)
+                await ApplyModelOrderEditAsync(seller, session, ctx, edit, ct);
             else
                 await HandleCustomerUpdateAsync(seller, ctx, new ParsedCommand { Kind = CommandKind.CustomerUpdate, Text = edit.Name, Text2 = edit.Field, Text3 = edit.Value }, ct);
             return;

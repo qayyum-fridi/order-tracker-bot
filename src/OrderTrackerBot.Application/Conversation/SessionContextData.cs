@@ -172,6 +172,10 @@ public sealed class SessionContextData
     public string? ModelStatusValue { get; set; }
     /// <summary>A product price or customer detail change Features:ModelFirst picked, waiting for YES/NO in the same state.</summary>
     public ModelEditData? ModelEdit { get; set; }
+
+    /// <summary>Actions from one message that run once the open yes/no question is answered, in order.</summary>
+    public List<QueuedModelTurn> ModelQueue { get; set; } = new();
+
     public int? CodCollectedOrderId { get; set; }
     public string? RuntimeFilterCommand { get; set; }
     public int? TrackingPromptOrderId { get; set; }
@@ -322,4 +326,9 @@ public sealed class ModelEditData
     public decimal? Amount { get; set; }
     public string? Field { get; set; }
     public string? Value { get; set; }
+    /// <summary>edit_order: the "edit order" instructions to run after YES, one per line ("1 = 3", "remove 2", "add Shirt 1").</summary>
+    public List<string> Lines { get; set; } = new();
 }
+
+/// <summary>A further action from the same message, waiting until the open question is answered (see <c>DrainModelQueueAsync</c>).</summary>
+public sealed record QueuedModelTurn(OrderTrackerBot.Application.Ai.TurnAction Action, string Message);

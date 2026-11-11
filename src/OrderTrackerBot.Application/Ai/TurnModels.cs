@@ -18,6 +18,7 @@ public sealed class TurnAction
     public const string ShowCatalog = "show_catalog";
     public const string AddCustomer = "add_customer";
     public const string EditCustomer = "edit_customer";
+    public const string EditOrder = "edit_order";
     public const string ShowCustomer = "show_customer";
     public const string HowTo = "how_to";
     public const string ContactSupport = "contact_support";
@@ -30,11 +31,17 @@ public sealed class TurnAction
     public static readonly IReadOnlyList<string> All = new[]
     {
         CreateOrder, UpdateStatus, CancelOrder, ShowOrders, ShowOrder, ShowSummary, AddProduct, EditProduct, AddStock, ShowCatalog,
-        AddCustomer, EditCustomer, ShowCustomer, HowTo, ContactSupport, Clarify, Undo, HelpOrChat, OutOfScope
+        AddCustomer, EditCustomer, EditOrder, ShowCustomer, HowTo, ContactSupport, Clarify, Undo, HelpOrChat, OutOfScope
     };
+
+    /// <summary>Most actions one message may carry. Extra ones beyond this are dropped by the parser.</summary>
+    public const int MaxActionsPerMessage = 5;
 
     /// <summary>edit_customer: the one detail of a saved customer that changes.</summary>
     public static readonly IReadOnlyList<string> CustomerFields = new[] { "phone", "address", "city", "name" };
+
+    /// <summary>edit_order: one change to a saved order's items. set_quantity / set_price / remove name an item; add names a product and a quantity.</summary>
+    public static readonly IReadOnlyList<string> OrderEditOps = new[] { "set_quantity", "remove", "add", "set_price" };
 
     /// <summary>how_to: what the seller asks how to do. "other" = something else.</summary>
     public static readonly IReadOnlyList<string> HowToTopics = new[]
@@ -85,6 +92,24 @@ public sealed class TurnAction
 
     /// <summary>clarify: the one short question to ask the seller, in simple Roman Urdu.</summary>
     public string? Question { get; init; }
+
+    /// <summary>edit_order: the changes to the order's items, in the order the seller said them.</summary>
+    public List<AiOrderEdit> OrderEdits { get; init; } = new();
+
+    /// <summary>
+    /// The further actions the same message asked for ("Ali ka order bhej do aur Sara ka phone 0300..."), in the order said.
+    /// Only the first action is held in the top-level object; the parser fills this list, and the engine runs them one after another.
+    /// </summary>
+    public List<TurnAction> Also { get; init; } = new();
+}
+
+/// <summary>One change to a saved order's items, as the seller said it. Item is the product name as spoken; the engine finds its line in the order.</summary>
+public sealed class AiOrderEdit
+{
+    public string Op { get; init; } = "";
+    public string? Item { get; init; }
+    public int? Quantity { get; init; }
+    public decimal? Price { get; init; }
 }
 
 /// <summary>What the model is shown besides the message, so its answer is about THIS seller's shop.</summary>

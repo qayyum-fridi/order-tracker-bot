@@ -56,6 +56,9 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         "- contact_support: ONLY when they ask to TALK to a person, the support team or the makers of this bot ('kisi insaan se baat karni hai', 'support se baat karao'). " +
         "Asking for a 'contact number', 'phone number' or 'number' is about a CUSTOMER's number, never this: use show_customer when a customer is named, " +
         "otherwise clarify and ask which customer's number they want.\n" +
+        "- edit_order: change the items of an order that ALREADY exists ('order 3 mein kurti ki quantity 2 kar do', 'Ali ke order se shirt nikal do', " +
+        "'Sara ke order mein lawn suit ka rate 3000'). Give order_id (or customer_name) and edit_lines: one line per change, op set_quantity (item, quantity), " +
+        "set_price (item, price), remove (item), or add (item = product name, quantity). A new order is create_order, never edit_order.\n" +
         "- undo: reverse the bot's last action.\n" +
         "- clarify: the message is about customers, orders or products but a needed detail is missing or it could mean two things. Put ONE short question in " +
         "question, in simple Roman Urdu (e.g. 'Kis customer ka number chahiye?').\n" +
@@ -67,7 +70,9 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         "Amounts spoken in words (Urdu, Roman Urdu or English) become digits. " +
         "The shop's products listed below are the likely ones; match item names to them by sound when the owner misspells or misspeaks them, " +
         "and copy the owner's own item name in product_name. Use a saved customer's name as it is listed when the owner clearly means that customer. " +
-        "Periods: today, yesterday, this_week, last_week, this_month, last_month, last_7_days, last_30_days.";
+        "Periods: today, yesterday, this_week, last_week, this_month, last_month, last_7_days, last_30_days.\n" +
+        "SEVERAL REQUESTS: one message may ask for more than one thing ('Ali ka order bhej do aur Sara ka phone 0300...'). Return each one as its own entry in " +
+        "actions, in the order the owner said them, up to 5. A single request is one entry. Every entry is complete on its own: its own action, order_id, customer and fields.";
 
     public async Task<TurnAction?> UnderstandAsync(TurnContext context, string text, AiImageInput? image = null, CancellationToken cancellationToken = default)
     {
@@ -132,6 +137,20 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
     {
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
+        // The reply lists every action the message asked for; the first is returned, the rest hang off it in order (TurnAction.Also).
+        if (root.TryGetProperty("actions", out var list) && list.ValueKind == JsonValueKind.Array)
+        {
+            var parsed = list.EnumerateArray().Select(ParseOne).OfType<TurnAction>().Take(TurnAction.MaxActionsPerMessage).ToList();
+            if (parsed.Count == 0) return null;
+            parsed[0].Also.AddRange(parsed.Skip(1));
+            return parsed[0];
+        }
+        return ParseOne(root);
+    }
+
+    /// <summary>One action object (the fields of the closed list), or null when its action is not in the list.</summary>
+    internal static TurnAction? ParseOne(JsonElement root)
+    {
         var action = Str(root, "action");
         if (action is null || !TurnAction.All.Contains(action)) return null;
 
@@ -183,6 +202,15 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
                 });
             }
 
+        var orderEdits = new List<AiOrderEdit>();
+        if (root.TryGetProperty("edit_lines", out var editEl) && editEl.ValueKind == JsonValueKind.Array)
+            foreach (var e in editEl.EnumerateArray())
+            {
+                var op = Str(e, "op");
+                if (op is null || !TurnAction.OrderEditOps.Contains(op)) continue;
+                orderEdits.Add(new AiOrderEdit { Op = op, Item = Str(e, "item"), Quantity = Int(e, "quantity"), Price = Dec(e, "price") });
+            }
+
         int? orderId = root.TryGetProperty("order_id", out var oid) && oid.ValueKind == JsonValueKind.Number && oid.TryGetInt32(out var idv) && idv > 0 ? idv : null;
         var status = Str(root, "status");
         var period = Str(root, "period");
@@ -197,6 +225,7 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         if (action != TurnAction.CreateOrder) orders.Clear();
         if (action is not (TurnAction.AddProduct or TurnAction.EditProduct or TurnAction.AddStock)) products.Clear();
         if (action != TurnAction.AddCustomer) customer = null;
+        if (action != TurnAction.EditOrder) orderEdits.Clear();
         // Stock that arrived is a product's name and a count; a price the model copied from the catalog is not part of it.
         if (action == TurnAction.AddStock)
             products = products.Select(p => new AiNewProduct { Name = p.Name, Stock = p.Stock, StockPacks = p.StockPacks }).ToList();
@@ -216,6 +245,7 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
             Value = Str(root, "value"),
             Topic = topic is not null && TurnAction.HowToTopics.Contains(topic) ? topic : null,
             Question = Str(root, "question"),
+            OrderEdits = orderEdits,
         };
     }
 
@@ -267,7 +297,14 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
             ["pack_price"] = NullableNumber(),
             ["stock_packs"] = NullableNumber(),
         });
-        var root = Obj(new JsonObject
+        var editLine = Obj(new JsonObject
+        {
+            ["op"] = new JsonObject { ["type"] = "string", ["enum"] = new JsonArray(TurnAction.OrderEditOps.Select(o => (JsonNode?)JsonValue.Create(o)).ToArray()) },
+            ["item"] = NullableString(),
+            ["quantity"] = NullableNumber(),
+            ["price"] = NullableNumber(),
+        });
+        var actionSchema = Obj(new JsonObject
         {
             ["action"] = new JsonObject { ["type"] = "string", ["enum"] = new JsonArray(TurnAction.All.Select(a => (JsonNode?)JsonValue.Create(a)).ToArray()) },
             ["orders"] = new JsonObject { ["type"] = "array", ["items"] = order },
@@ -288,13 +325,21 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
             ["value"] = NullableString(),
             ["topic"] = NullableEnum(TurnAction.HowToTopics),
             ["question"] = NullableString(),
+            ["edit_lines"] = new JsonObject { ["type"] = "array", ["items"] = editLine },
+        });
+        var root = Obj(new JsonObject
+        {
+            ["actions"] = new JsonObject { ["type"] = "array", ["items"] = actionSchema },
         });
         return new JsonObject
         {
             ["type"] = "json_schema",
-            ["json_schema"] = new JsonObject { ["name"] = "turn_action", ["strict"] = true, ["schema"] = root },
+            ["json_schema"] = new JsonObject { ["name"] = "turn_actions", ["strict"] = true, ["schema"] = root },
         };
     }
+
+    /// <summary>The strict reply schema, for tests that check it describes what the parser reads.</summary>
+    internal static JsonObject BuildSchemaForTests() => Schema();
 
     private static JsonObject Obj(JsonObject properties) => new()
     {

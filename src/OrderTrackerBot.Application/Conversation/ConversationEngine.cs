@@ -21,6 +21,9 @@ public partial class ConversationEngine
     private readonly IAppDbContext _db;
     private readonly IAiOrderAssistant _ai;
     private readonly ITurnInterpreter? _turnInterpreter;
+    private readonly ISpeechSynthesizer? _speech;
+    /// <summary>The last text reply of this turn: a voice note's answer is spoken from it (see <see cref="SpeakReplyAsync"/>).</summary>
+    private string? _lastReply;
     private readonly IWhatsAppSender _sender;
     private readonly TranslatingSender _translator;
     private readonly IFounderAlertNotifier _founderAlerts;
@@ -62,9 +65,10 @@ public partial class ConversationEngine
         IIssueReporter? issues = null, IAudioTranscriber? transcriber = null, IImportFileReader? importReader = null,
         INewSellerNotifier? newSellers = null, MediaRateLimiter? mediaLimiter = null, TimeProvider? clock = null,
         IMerchantEmailSender? emailSender = null, Microsoft.Extensions.Logging.ILogger<ConversationEngine>? logger = null, BuildInfo? build = null,
-        DashboardOptions? dashboard = null, SupportOptions? support = null, ITurnInterpreter? turn = null)
+        DashboardOptions? dashboard = null, SupportOptions? support = null, ITurnInterpreter? turn = null, ISpeechSynthesizer? speech = null)
     {
         _turnInterpreter = turn;
+        _speech = speech;
         _support = support ?? new SupportOptions();
         _build = build ?? new BuildInfo();
         _dashboard = dashboard ?? new DashboardOptions();
@@ -126,6 +130,8 @@ public partial class ConversationEngine
         _draftPutOnHold = false;
         await HandleIncomingCoreAsync(fromPhoneNumber, rawMessage, ct);
         if (_draftPutOnHold) await HoldParkedVoiceStepsAsync(fromPhoneNumber, ct);
+        // The rest of a multi-request message runs once any question it opened has been answered.
+        await DrainModelQueueAsync(fromPhoneNumber, ct);
         if (_agentRun is not null)
         {
             await RunAgentPlanAsync(fromPhoneNumber, ct);
@@ -679,8 +685,11 @@ public partial class ConversationEngine
     private readonly DashboardOptions _dashboard;
     private readonly SupportOptions _support;
 
-    private Task ReplyAsync(Seller seller, string text, CancellationToken ct) =>
-        _sender.SendTextMessageAsync(seller.WhatsAppPhoneNumber, text, ct);
+    private Task ReplyAsync(Seller seller, string text, CancellationToken ct)
+    {
+        _lastReply = text;
+        return _sender.SendTextMessageAsync(seller.WhatsAppPhoneNumber, text, ct);
+    }
 
     private static readonly string[] YesNoButtons = { "Yes", "No" };
 
@@ -688,10 +697,13 @@ public partial class ConversationEngine
     /// A yes / no question the bot waits on: the same text with Yes / No tap buttons (a tap arrives as "Yes" / "No", which the confirmation handlers already read),
     /// so a seller need not type or speak the answer. Typed and spoken answers still work; with buttons off (or a body too long for them) it is the plain text as before.
     /// </summary>
-    private Task AskYesNoAsync(Seller seller, string text, CancellationToken ct) =>
-        _features.ConfirmButtons && text.Length <= MaxButtonBodyLength
+    private Task AskYesNoAsync(Seller seller, string text, CancellationToken ct)
+    {
+        _lastReply = text;
+        return _features.ConfirmButtons && text.Length <= MaxButtonBodyLength
             ? _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, text, YesNoButtons, ct)
-            : ReplyAsync(seller, text, ct);
+            : _sender.SendTextMessageAsync(seller.WhatsAppPhoneNumber, text, ct);
+    }
 
     private static void SetState(ConversationSession session, ConversationState state) => session.State = state;
 
@@ -753,6 +765,12 @@ public partial class ConversationEngine
         {
             Log(toPhoneNumber, $"[document {fileName}] {caption}");
             return _inner.SendDocumentAsync(toPhoneNumber, content, fileName, mimeType, caption, cancellationToken);
+        }
+
+        public Task<bool> SendVoiceNoteAsync(string toPhoneNumber, byte[] audio, CancellationToken cancellationToken = default)
+        {
+            Log(toPhoneNumber, "[voice note]");
+            return _inner.SendVoiceNoteAsync(toPhoneNumber, audio, cancellationToken);
         }
     }
 }
