@@ -302,6 +302,13 @@ public partial class ConversationEngine
             }
             var entry = FindCatalogEntry(catalog, item.MatchedCatalogProductName ?? item.ProductName);
             var line = new PendingOrderItemData { ProductName = item.ProductName, Quantity = quantity, UnitPrice = -1m };
+            // "2 carton tel": the count is whole packs; the catalog entry turns it into pieces and the pack's rate. A price said with it is one pack's price.
+            if (item.InPacks)
+            {
+                line.PackCount = quantity;
+                line.PackStatedPrice = stated;
+                stated = null;
+            }
             if (entry is not null)
             {
                 ApplyCatalogEntry(line, entry);
@@ -381,6 +388,19 @@ public partial class ConversationEngine
         line.IsTierPrice = tier is not null;
         line.TierMinQty = tier?.MinQty;
         line.UnitPrice = tier?.PricePerUnit ?? entry.Product.Price;
+        // Whole packs of a product that comes in a carton / box: the quantity is packs x pieces, and the pack's price (the one said in this order,
+        // else the listed one) is the rate per piece. It is kept like a wholesale tier, so a buyer price group does not replace it.
+        if (line.PackCount is { } packs && ProductPack.Of(entry.Product) is { } pack)
+        {
+            line.Quantity = packs * pack.Qty;
+            line.PackName = pack.Name;
+            if ((line.PackStatedPrice ?? pack.Price) is { } packPrice)
+            {
+                line.IsTierPrice = true;
+                line.TierMinQty = pack.Qty;
+                line.UnitPrice = Math.Round(packPrice / pack.Qty, 2, MidpointRounding.AwayFromZero);
+            }
+        }
     }
 
     /// <summary>
@@ -630,7 +650,13 @@ public partial class ConversationEngine
             $"Customer: {pending.CustomerName}"
         };
 
-        if (pending.Items.Count == 1 && pending.Items[0] is { IsTierPrice: true } tier)
+        if (pending.Items.Count == 1 && pending.Items[0] is { PackCount: { } packCount, PackName: { } packName } packed)
+        {
+            // "2 carton (20 pc)" with the rate of one carton: what the seller said, and what leaves the stock.
+            lines.Add($"Product: {packed.ProductName} - {packCount} {packName} ({Formatters.Quantity(packed.Quantity)}{Formatters.UnitShort(packed.UnitType)})");
+            lines.Add($"Rate: {Formatters.Money(packed.UnitPrice * packed.Quantity / packCount)}/{packName}");
+        }
+        else if (pending.Items.Count == 1 && pending.Items[0] is { IsTierPrice: true } tier)
         {
             lines.Add($"Product: {tier.ProductName} - {Formatters.Quantity(tier.Quantity)}{Formatters.UnitShort(tier.UnitType)}");
             lines.Add($"Rate: {Formatters.Money(tier.UnitPrice)}/{Formatters.UnitShort(tier.UnitType).Trim()} ({Formatters.Quantity(tier.TierMinQty ?? 1)}{Formatters.UnitShort(tier.UnitType)}+ tier)");

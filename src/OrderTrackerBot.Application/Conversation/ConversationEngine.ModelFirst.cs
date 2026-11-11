@@ -63,9 +63,11 @@ public partial class ConversationEngine
         TurnAction.CreateOrder => action.Orders.Count > 0,
         TurnAction.AddProduct => action.Products.Count > 0,
         TurnAction.EditProduct => action.Products.Count > 0 && action.Products[0].Price is > 0,
+        TurnAction.AddStock => action.Products.Count > 0 && (action.Products[0].Stock is > 0 || action.Products[0].StockPacks is > 0),
         TurnAction.ShowCatalog or TurnAction.ShowSummary or TurnAction.ShowOrders or TurnAction.ShowCustomer or TurnAction.HowTo or TurnAction.ContactSupport => true,
         TurnAction.ShowOrder => SaidOrderId(action, message) is not null || await ModelCustomerAsync(seller, action.CustomerName, ct) is not null,
-        TurnAction.UpdateStatus => action.Status is not null && (SaidOrderId(action, message) is not null || await ModelCustomerAsync(seller, action.CustomerName, ct) is not null),
+        TurnAction.UpdateStatus => action.Status is not null && (SaidOrderId(action, message) is not null
+                                   || (SaidName(action.CustomerName, message) && await ModelCustomerAsync(seller, action.CustomerName, ct) is not null)),
         TurnAction.CancelOrder => SaidOrderId(action, message) is not null,
         TurnAction.AddCustomer => action.Customer is not null,
         TurnAction.EditCustomer => action.CustomerName is not null && action.Field is not null && !string.IsNullOrWhiteSpace(action.Value),
@@ -115,11 +117,21 @@ public partial class ConversationEngine
         // and a saved customer's name and phone ("Bilal ko do kurti" comes back as Bilal Ahmed, his number and Rs.1800 each).
         var savedCustomers = await _db.Customers.Where(c => c.SellerId == seller.Id && c.DeletedAt == null).Select(c => new { c.Name, c.Phone }).ToListAsync(ct);
         var recordAmounts = catalog.Select(c => (long)Math.Round(c.Product.Price, MidpointRounding.AwayFromZero))
+            .Concat(catalog.Select(c => ProductPack.Of(c.Product)?.Price).Where(p => p is not null).Select(p => (long)Math.Round(p!.Value, MidpointRounding.AwayFromZero)))
             .Append((long)Math.Round(seller.DefaultDeliveryCharge, MidpointRounding.AwayFromZero)).ToHashSet();
+        // A product that comes in a carton / box: the per-piece cost, stock and price are worked out here from what the seller said about the pack.
+        var saidNumbers = SaidNumbers(message);
+        var derivedFigures = new List<decimal>();
+        if (action.Action == TurnAction.AddProduct)
+        {
+            var perPiece = action.Products.Select(p => ProductPack.FromModel(p, saidNumbers)).ToList();
+            derivedFigures.AddRange(perPiece.SelectMany(p => p.Derived));
+            action = new TurnAction { Action = action.Action, Products = perPiece.Select(p => p.Product).ToList() };
+        }
         var recordPhones = savedCustomers.Select(c => new string((c.Phone ?? "").Where(char.IsDigit).ToArray())).Where(d => d.Length >= 7)
             .Select(d => d.Length > 10 ? d[^10..] : d).ToHashSet(StringComparer.Ordinal);
         var recordNames = savedCustomers.Select(c => c.Name.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var unquoted = UnquotedAmounts(action, message, recordAmounts).Select(a => a.ToString())
+        var unquoted = UnquotedAmounts(action, message, recordAmounts, derivedFigures).Select(a => a.ToString())
             .Concat(UnquotedDetails(action, message, recordPhones, recordNames)).ToList();
         if (unquoted.Count > 0)
         {
@@ -137,7 +149,14 @@ public partial class ConversationEngine
                 return true;
 
             case TurnAction.AddProduct when action.Products.Count > 0:
-                await HandleNewProductsAsync(seller, ctx, action.Products, message, ct);
+                // The handler keeps only numbers and details found in the seller's words; the figures worked out from the pack are added to those words.
+                var support = derivedFigures.Select(d => d.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))
+                    .Concat(action.Products.SelectMany(p => p.Attributes.Where(a => ProductPack.IsPackKey(a.Key)).Select(a => a.Value)));
+                await HandleNewProductsAsync(seller, ctx, action.Products, string.Join(' ', support.Prepend(message)), ct);
+                return true;
+
+            case TurnAction.AddStock when action.Products.Count > 0:
+                await HandleModelStockAsync(seller, action.Products[0], saidNumbers, ct);
                 return true;
 
             case TurnAction.ShowCatalog:
@@ -181,7 +200,8 @@ public partial class ConversationEngine
                     new ParsedCommand { Kind = CommandKind.CancelOrder, Number = cancelId }, ct);
                 return true;
 
-            case TurnAction.UpdateStatus when action.Status is not null && await ModelCustomerAsync(seller, action.CustomerName, ct) is { } statusCustomer
+            case TurnAction.UpdateStatus when action.Status is not null && SaidName(action.CustomerName, message)
+                                              && await ModelCustomerAsync(seller, action.CustomerName, ct) is { } statusCustomer
                                               && await FindLatestOrderByCustomerNameAsync(seller, statusCustomer.Name, ct) is { } latest:
                 ctx.ModelStatusOrderId = latest.Id;
                 ctx.ModelStatusValue = action.Status;
@@ -248,6 +268,62 @@ public partial class ConversationEngine
         }
     }
 
+    /// <summary>
+    /// True when some word of the name is in the message, by sound (so "Sara" in Roman matches an Urdu-script transcript). A status change is offered for a
+    /// customer's latest order only when the seller named that customer: the model once added a customer nobody mentioned to "تین نمبر آرڈر پہنچ گیا".
+    /// </summary>
+    internal static bool SaidName(string? name, string message)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        var said = SoundMatch.Keys(message).ToHashSet(StringComparer.Ordinal);
+        return SoundMatch.Keys(name).Any(said.Contains);
+    }
+
+    /// <summary>Every number the seller said, in digits or in words (amounts and small counts).</summary>
+    internal static IReadOnlySet<long> SaidNumbers(string message) =>
+        SpokenNumbers.DigitAmounts(message).Concat(SpokenNumbers.Amounts(message)).Concat(SpokenNumbers.SmallCounts(message).Select(c => (long)c)).ToHashSet();
+
+    /// <summary>
+    /// "tel ke 2 carton aur aaye" / "kurti 5 aur aa gayi": stock added to one existing product, in pieces or in whole packs (packs x the product's pieces
+    /// per pack). The count must be a number the seller said; packs of a product with no pack size are asked about, never guessed.
+    /// </summary>
+    private async Task HandleModelStockAsync(Seller seller, AiNewProduct said, IReadOnlySet<long> saidNumbers, CancellationToken ct)
+    {
+        var wanted = said.Name.Trim();
+        var products = await _db.Products.Where(p => p.SellerId == seller.Id && p.IsActive).ToListAsync(ct);
+        var matches = products.Where(p => string.Equals(p.Name, wanted, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (matches.Count == 0) matches = products.Where(p => p.Name.Contains(wanted, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (matches.Count != 1)
+        {
+            await ReplyAsync(seller, matches.Count == 0
+                ? MessageTemplates.Get("commands.026", wanted)
+                : MessageTemplates.Get("stock.005", wanted, string.Join(", ", matches.Select(Formatters.ProductLabel))), ct);
+            return;
+        }
+
+        var product = matches[0];
+        var pack = ProductPack.Of(product);
+        int pieces;
+        if (said.StockPacks is { } packs && packs > 0 && saidNumbers.Contains(packs))
+        {
+            if (pack is null)
+            {
+                await ReplyAsync(seller, MessageTemplates.Get("pack.001", Formatters.ProductLabel(product)), ct);
+                return;
+            }
+            pieces = packs * pack.Qty;
+        }
+        else if (said.Stock is { } count && count > 0 && saidNumbers.Contains(count)) pieces = count;
+        else
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("pack.002", Formatters.ProductLabel(product)), ct);
+            return;
+        }
+
+        product.StockQty = (product.StockQty ?? 0) + pieces;
+        await ReplyAsync(seller, MessageTemplates.Get("pack.003", Formatters.ProductLabel(product), pieces, pack?.StockText(product.StockQty.Value) ?? product.StockQty.Value.ToString()), ct);
+    }
+
     private static string ModelFieldLabel(string field) => field switch { "phone" => "phone", "address" => "address", "city" => "shehar", _ => "naam" };
 
     /// <summary>
@@ -255,7 +331,8 @@ public partial class ConversationEngine
     /// Quantities are not checked: a small count is often not written as an amount. Zero (free delivery) is not an amount to check.
     /// </summary>
     /// <param name="recordAmounts">Order figures the shop's records already hold (catalog prices, the usual delivery charge): never "unsaid" in an order.</param>
-    internal static IReadOnlyList<long> UnquotedAmounts(TurnAction action, string message, IReadOnlySet<long>? recordAmounts = null)
+    /// <param name="derived">Per-piece figures the engine itself worked out from a pack (<see cref="ProductPack.FromModel"/>): not the model's, so not checked.</param>
+    internal static IReadOnlyList<long> UnquotedAmounts(TurnAction action, string message, IReadOnlySet<long>? recordAmounts = null, IReadOnlyList<decimal>? derived = null)
     {
         var said = SpokenNumbers.Amounts(message);
         var figures = new List<decimal>();
@@ -267,8 +344,8 @@ public partial class ConversationEngine
         }
         foreach (var product in action.Products)
         {
-            if (product.Price is { } price) figures.Add(price);
-            if (product.Cost is { } cost) figures.Add(cost);
+            if (product.Price is { } price && derived?.Contains(price) != true) figures.Add(price);
+            if (product.Cost is { } cost && derived?.Contains(cost) != true) figures.Add(cost);
         }
         return figures
             .Where(f => f > 0)
