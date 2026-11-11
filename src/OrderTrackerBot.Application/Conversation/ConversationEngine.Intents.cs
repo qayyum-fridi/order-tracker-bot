@@ -120,6 +120,8 @@ public partial class ConversationEngine
     private RoutedIntent? DirectKeywordRoute(string message)
     {
         var hits = IntentKeywords.Match(message, IntentCatalog.All);
+        // Nothing matched exactly: a plural or singular form may still name one intent ("orders dikhao" for "order").
+        if (hits.Count == 0) hits = IntentKeywords.MatchPlural(message, IntentCatalog.All);
         // "Customers support ka document do": a single word ("customers") and a phrase ("customers support") both match; the phrase is what was meant.
         if (hits.Count > 1 && IntentKeywords.MatchPhrase(message, hits.Select(IntentCatalog.Find).OfType<IntentDefinition>()) is { Count: 1 } phrase)
             hits = phrase;
