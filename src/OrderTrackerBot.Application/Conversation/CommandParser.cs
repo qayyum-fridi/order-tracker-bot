@@ -1161,6 +1161,7 @@ public static class CommandParser
     {
         ["kg"] = "kg", ["kgs"] = "kg", ["kilo"] = "kg", ["g"] = "gram", ["gm"] = "gram", ["gms"] = "gram", ["gram"] = "gram", ["grams"] = "gram",
         ["dozen"] = "dozen", ["darjan"] = "dozen", ["l"] = "liter", ["ltr"] = "liter", ["liter"] = "liter", ["litre"] = "liter", ["liters"] = "liter",
+        ["thaan"] = "thaan", ["thaans"] = "thaan", ["taan"] = "thaan", ["taans"] = "thaan",
         ["m"] = "meter", ["meter"] = "meter", ["metre"] = "meter", ["meters"] = "meter", ["yard"] = "yard", ["yards"] = "yard", ["gaz"] = "gaz", ["gaz."] = "gaz",
         ["pack"] = "pack", ["packs"] = "pack", ["packet"] = "pack", ["pc"] = "piece", ["pcs"] = "piece", ["piece"] = "piece", ["pieces"] = "piece",
         ["set"] = "set", ["sets"] = "set", ["pair"] = "pair", ["pairs"] = "pair", ["ml"] = "ml", ["box"] = "box", ["boxes"] = "box",
@@ -1295,7 +1296,7 @@ public static class CommandParser
     public static bool TryParseProductLine(string line, out ProductLine? product)
     {
         if (!ParseProductLineCore(line, out product)) return false;
-        product = SplitColourWord(product!);
+        product = ApplyUnitAttribute(SplitColourWord(product!));
         // "Kurti - -5" (name "Kurti -", price 5) is a typo, not a product: never saved. (A price of 0 stays allowed: free sample products.)
         var name = product!.Name.Trim();
         if (!name.Any(char.IsLetter) || name.EndsWith('-') || name.EndsWith('–') || name.EndsWith('='))
@@ -1304,6 +1305,20 @@ public static class CommandParser
             return false;
         }
         return true;
+    }
+
+    /// <summary>
+    /// "Lawn - 3500, unit: thaan": the unit the seller names. A known unit word is mapped; any other short word (letters only, 2 to 15) is kept as typed.
+    /// Without "unit:" the line keeps its unit (piece). The unit attribute is taken out of the other attributes.
+    /// </summary>
+    private static ProductLine ApplyUnitAttribute(ProductLine product)
+    {
+        var attributes = product.Extras?.Attributes;
+        if (attributes is null || !attributes.TryGetValue("unit", out var word)) return product;
+        var unit = NormalizeUnit(word) ?? (word.Trim() is { Length: >= 2 and <= 15 } typed && typed.All(c => char.IsLetter(c) || c == ' ') ? typed.ToLowerInvariant() : null);
+        if (unit is null) return product;
+        var rest = attributes.Where(kv => !kv.Key.Equals("unit", StringComparison.OrdinalIgnoreCase)).ToDictionary(kv => kv.Key, kv => kv.Value);
+        return product with { UnitType = unit, Extras = product.Extras! with { Attributes = rest.Count == 0 ? null : rest } };
     }
 
     private static bool ParseProductLineCore(string line, out ProductLine? product)
