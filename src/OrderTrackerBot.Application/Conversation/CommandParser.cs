@@ -283,6 +283,7 @@ public static class CommandParser
     private static readonly Regex CatalogPageSize = new(@"^(?:(?:catalog|list|page|products)\s+size|per\s+page|page\s+per|catalog\s+per\s+page)\s*[:=]?\s*(?<n>\d{1,3})$", Opts);
     // "search customer: Sara", "find order 12": other commands that begin with the same words stay theirs.
     private static readonly Regex SearchOtherThings = new(@"^(?:customers?|orders?|order\s*id|discounts?|expenses?|suppliers?|couriers?|payouts?|queries|query|#?\d+|گاہک|آرڈر)\b", Opts);
+    private static readonly Regex ProductCodeLookup = new(@"^(?:sku|code|design(?:\s+(?:no|code))?)\s+(?<c>[A-Za-z0-9][A-Za-z0-9\-]{1,39})$", Opts);
     private static readonly Regex CatalogSearch = new(@"^(?:(?:catalog|products)\s+)?(?:search|find|dhoondo|dhundo|talash|ڈھونڈو|تلاش)\s+(?<q>.{2,60})$", Opts);
     private static readonly Regex Catalog = new(@"^(?:catalog|catalogue|products|my\s+products|product\s+list|item\s+list|show\s+products|all\s+products|(?:saare\s+)?products?\s+dikhao|saare\s+products|maal|rate\s+list|price\s+list|کیٹلاگ|(?:show|dikhao|dikhana|dekhao|dekhein|view)\s+(?:my\s+|mera\s+)?catalog|catalog\s+(?:show|list|view|dikhao|dikhana|dekhao|dekhein|dekhna))$", Opts);
     private static readonly Regex ShareCatalog = new(@"^share\s+catalog$", Opts);
@@ -1739,6 +1740,8 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.OrderSearch, Text = m.Groups["q"].Value.Trim() };
         if ((m = CustomerSearchWords.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.CustomerSearch, Text = m.Groups["q"].Value.Trim() };
+        if (ProductCodeLookup.Match(message) is { Success: true } codeLookup)
+            return new ParsedCommand { Kind = CommandKind.Catalog, Text = "code:" + codeLookup.Groups["c"].Value };
         if (CatalogSearch.Match(message) is { Success: true } search
             && (message.TrimStart().StartsWith("catalog", StringComparison.OrdinalIgnoreCase) || message.TrimStart().StartsWith("products", StringComparison.OrdinalIgnoreCase)
                 || (!search.Groups["q"].Value.Contains(':') && !SearchOtherThings.IsMatch(search.Groups["q"].Value))))
