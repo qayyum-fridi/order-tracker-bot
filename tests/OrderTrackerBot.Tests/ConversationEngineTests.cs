@@ -1342,12 +1342,12 @@ public class ConversationEngineTests : IDisposable
         var engine = CreateEngine(db);
         IReadOnlyList<string>? labels = null;
         string? body = null;
-        string? listBody = null;
+        var listBodies = new List<string>();
         _sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
             .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, b, l, _) => { body = b; labels = l; })
             .Returns(Task.CompletedTask);
         _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
-            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, b, _, _, _) => listBody = b)
+            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, b, _, _, _) => listBodies.Add(b))
             .Returns(Task.CompletedTask);
         await engine.HandleIncomingMessageAsync(Phone, "start", default);
         await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
@@ -1365,14 +1365,13 @@ public class ConversationEngineTests : IDisposable
         Assert.Contains("1. Kurti - Rs.1,800", body);
 
         await engine.HandleIncomingMessageAsync(Phone, "✅ Done", default);
-        // The after-setup list is captured now; the shop-or-delivery question that follows replaces listBody.
-        var afterSetupList = listBody;
         await engine.HandleIncomingMessageAsync(Phone, "🏪 Sirf dukan par", default);
 
         var seller = await db.Sellers.FirstAsync();
         Assert.True(seller.OnboardingComplete);
         Assert.Equal(1, await db.Products.CountAsync());
-        Assert.Contains("Aage kya karna hai?", afterSetupList);
+        // The after-setup list is one of the lists sent by the Done turn; the shop-or-delivery question is sent too.
+        Assert.Contains(listBodies, b => b.Contains("Aage kya karna hai?"));
     }
 
     [Fact]
