@@ -222,6 +222,13 @@ public partial class ConversationEngine
             derivedFigures.AddRange(perPiece.SelectMany(p => p.Derived));
             action = new TurnAction { Action = action.Action, Products = perPiece.Select(p => p.Product).ToList() };
         }
+        // A product screenshot: its figures are in the picture, not in the words, so they are shown for YES instead of refused as unsaid.
+        if (fromScreenshot && action.Action == TurnAction.AddProduct && action.Products.Count > 0)
+        {
+            await ProposeScreenshotProductsAsync(seller, session, ctx, action, ct);
+            return true;
+        }
+
         var recordPhones = savedCustomers.Select(c => new string((c.Phone ?? "").Where(char.IsDigit).ToArray())).Where(d => d.Length >= 7)
             .Select(d => d.Length > 10 ? d[^10..] : d).ToHashSet(StringComparer.Ordinal);
         var recordNames = savedCustomers.Select(c => c.Name.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -512,10 +519,18 @@ public partial class ConversationEngine
                 await HandleEditProductAsync(seller, new ParsedCommand { Kind = CommandKind.EditProduct, Text = edit.Name, Amount = edit.Amount }, ct);
             else if (edit.Kind == TurnAction.EditOrder)
                 await ApplyModelOrderEditAsync(seller, session, ctx, edit, ct);
+            else if (edit.Kind == PictureProductKind)
+                await SaveScreenshotProductsAsync(seller, ctx, edit.Lines, ct);
             else if (edit.Kind == TurnAction.ExchangeSize)
                 await HandleSizeExchangeAsync(seller, ctx, new ParsedCommand { Kind = CommandKind.SizeExchange, Number = edit.OrderId, Text = edit.ItemNo?.ToString(), Text2 = edit.Value }, ct);
             else
                 await HandleCustomerUpdateAsync(seller, ctx, new ParsedCommand { Kind = CommandKind.CustomerUpdate, Text = edit.Name, Text2 = edit.Field, Text3 = edit.Value }, ct);
+            return;
+        }
+        if (edit is { Kind: PictureProductKind })
+        {
+            // Not a YES: nothing from the screenshot is saved. A corrected line sent next is read as typed.
+            await ReplyAsync(seller, MessageTemplates.Get("picture-product.003"), ct);
             return;
         }
         if (edit is not null || orderId is null || status is null || !CommandParser.IsAffirmative(message))
