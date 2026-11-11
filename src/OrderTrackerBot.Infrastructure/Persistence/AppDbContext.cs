@@ -60,6 +60,13 @@ public class AppDbContext : DbContext, IAppDbContext
         return base.SaveChangesAsync(cancellationToken);
     }
 
+    /// <summary>Every money column gets an explicit SQL Server precision (18,2), so none is left to the provider default (EF warning: silent truncation).</summary>
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        configurationBuilder.Properties<decimal>().HavePrecision(18, 2);
+        base.ConfigureConventions(configurationBuilder);
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<UnplacedUtterance>(e => e.HasIndex(u => u.CreatedAt));

@@ -186,6 +186,18 @@ public partial class ConversationEngine
             return;
         }
 
+        // Features:ModelFirst: the transcript is read by the one understanding call. The echo is sent only when that call's action is going to run.
+        if (_features.ModelFirst is "shadow" or "on")
+        {
+            var modelCtx = SessionContextData.FromJson(seller.Session!.ContextJson);
+            if (await TryModelFirstAsync(seller, seller.Session!, modelCtx, text, ct, fromVoice: true,
+                    beforeRun: () => _sender.SendTextMessageAsync(fromPhoneNumber, heard, ct)))
+            {
+                await PersistAsync(seller.Session!, modelCtx, ct);
+                return;
+            }
+        }
+
         // A transcript that is only a phone number needs no rewrite (a second, slow model call): it is the answer as typed.
         var joined = JoinSpacedPhones(text.Trim().Trim('.', '!', '?', '،', '۔', ' '));
         _droppedVoiceSteps.Clear();
@@ -250,7 +262,8 @@ public partial class ConversationEngine
                 await _db.SaveChangesAsync(ct);
                 return;
             }
-            var understood = $"\n➡️ Samjha: {string.Join("  →  ", decision.Steps.Select(s => $"\"{s}\""))}";
+            var understoodSteps = string.Join("  →  ", decision.Steps.Select(s => $"\"{s}\""));
+            var understood = "\n" + MessageTemplates.Get("voice-heard.002", understoodSteps);
             await ParkVoiceStepsAsync(fromPhoneNumber, seller, decision.Steps, $"{heard}{understood}\n\n{decision.Message}", ct);
             return;
         }
@@ -277,7 +290,7 @@ public partial class ConversationEngine
         }
 
         if (steps.Count != 1 || !string.Equals(steps[0], text, StringComparison.OrdinalIgnoreCase))
-            heard += $"\n➡️ Samjha: {string.Join("  →  ", steps.Select(s => $"\"{s}\""))}";
+            heard += "\n" + MessageTemplates.Get("voice-heard.002", string.Join("  →  ", steps.Select(s => $"\"{s}\"")));
         if (prefetch is not null)
             foreach (var (nameHeard, nameMatched) in NameMatches(text, steps, prefetch.CustomerNames.Concat(prefetch.Catalog.Select(c => c.Label))).Take(3))
                 heard += $"\n{MessageTemplates.Get("voice-confirm.020", nameHeard, nameMatched)}";
@@ -866,6 +879,9 @@ public partial class ConversationEngine
     /// </summary>
     public static IReadOnlyList<string> CorrectMarginQuestion(string transcript, IReadOnlyList<string> steps)
     {
+        // "contact number bata sakte hain?" is a question about a record, not a request for a person: "contact support" is only for a seller who asks for support.
+        if (steps.Any(st => st.TrimStart().StartsWith("contact support", StringComparison.OrdinalIgnoreCase)) && !SupportWords.IsMatch(transcript))
+            steps = steps.Select(st => st.TrimStart().StartsWith("contact support", StringComparison.OrdinalIgnoreCase) ? "guide" : st).Distinct().ToList();
         // "category wise list of products" is not a sales question: the rewrite must not turn it into a sales report.
         if (steps.Any(st => st.TrimStart().StartsWith("sales by category", StringComparison.OrdinalIgnoreCase)) && !SalesWords.IsMatch(transcript))
             steps = steps.Select(st => st.TrimStart().StartsWith("sales by category", StringComparison.OrdinalIgnoreCase) ? "category products" : st).Distinct().ToList();
@@ -886,6 +902,10 @@ public partial class ConversationEngine
 
     private static bool IsBareCreateDiscount(string step) =>
         System.Text.RegularExpressions.Regex.IsMatch(step.Trim(), @"^(?:create|add|new|naya)\s+discount\.?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    private static readonly System.Text.RegularExpressions.Regex SupportWords = new(
+        @"support|sapport|team|insaan|insan|founder|human|baat karn|baat karao|سپورٹ|ٹیم|انسان|بات کر",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.Compiled);
 
     private static readonly System.Text.RegularExpressions.Regex MarginWords = new(
         @"margin|marjin|profit|munafa|nafa|مارجن|مارگن|پرافٹ|پروفٹ|پروفیٹ|منافع|نفع",
@@ -951,13 +971,11 @@ public partial class ConversationEngine
 
     private static bool StepsAreRisky(IEnumerable<string> steps) => steps.Any(ActionRisk.IsRiskyStep);
 
-    private const string RejectedUnfaithful =
-        "Maaf kijiye, aapki baat poori tarah samajh nahi aayi, is liye koi tabdeeli nahi ki gayi. Barae meherbani apni baat saaf alfaz mein likh kar bhej dein.";
+    private static readonly string RejectedUnfaithful = MessageTemplates.Get("voice-heard.003");
 
     // Three different outcomes, three different replies: a rewrite that changed the meaning, a transcript nothing could read, and (above) a rewrite
     // that was used. None of them runs a step.
-    private const string UnfaithfulQuestion =
-        "Maaf kijiye, yeh poori tarah samajh nahi aaya. Barae meherbani rakam, quantity ya \"nahi\" wali baat alag alag likh kar dobara bhej dein.";
+    private static readonly string UnfaithfulQuestion = MessageTemplates.Get("voice-heard.004");
 
     /// <summary>Ids, totals and prices the model was shown for this voice note: a rewrite may legitimately use them ("pichla order" -> "edit order 105").</summary>
     private static IReadOnlySet<long> KnownVoiceNumbers(IEnumerable<Order> recent, IEnumerable<CatalogEntry> catalog, IEnumerable<string>? recentChatTexts = null)
@@ -1252,6 +1270,15 @@ public partial class ConversationEngine
         // Without a type word the picture is read as an order or a payment receipt as before, and remembered for a few minutes:
         // a following "expense" / "wages" / "customer" message (typed or spoken) then labels it.
         RememberPicture(ctx, mediaId);
+
+        // Features:ModelFirst: the picture is read by the one understanding call first. When its action is not one of the core jobs, the picture reader below answers.
+        if (_features.ModelFirst is "shadow" or "on"
+            && await TryModelFirstAsync(seller, session, ctx, caption ?? "", ct,
+                image: new AiImageInput(media.Value.Bytes, media.Value.MimeType, caption), fromScreenshot: true))
+        {
+            await PersistAsync(session, ctx, ct);
+            return;
+        }
 
         var catalog = await LoadCatalogAsync(seller, ct);
         var analysis = await _ai.AnalyzeImageAsync(AiContext(seller, catalog), new AiImageInput(media.Value.Bytes, media.Value.MimeType, caption), ct);

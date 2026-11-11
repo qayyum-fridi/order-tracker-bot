@@ -25,6 +25,12 @@ public sealed class PendingOrderItemData
     public string? AutoPriceArm { get; set; }
     /// <summary>Listings of one name that differ by size or colour, and the typed name names none of them; the seller picks one (VariantChoice). Null once chosen.</summary>
     public List<int>? VariantProductIds { get; set; }
+    /// <summary>The seller ordered this many whole packs ("2 carton"); <see cref="Quantity"/> is then packs x the product's pieces per pack (see <c>ProductPack</c>).</summary>
+    public int? PackCount { get; set; }
+    /// <summary>The product's pack word ("carton"), set with <see cref="PackCount"/> once the catalog product is known; shown in the draft.</summary>
+    public string? PackName { get; set; }
+    /// <summary>The price of ONE pack the seller said in the order ("carton 1150 ka"); used as this line's rate instead of the listed pack price.</summary>
+    public decimal? PackStatedPrice { get; set; }
 }
 
 public sealed class PendingOrderData
@@ -161,6 +167,11 @@ public sealed class SessionContextData
     public string? PendingProductJson { get; set; }
     public List<int>? BulkStatusOrderIds { get; set; }
     public int? CancelOrderId { get; set; }
+    /// <summary>A status change Features:ModelFirst picked, waiting for YES/NO (AwaitingModelStatusConfirmation).</summary>
+    public int? ModelStatusOrderId { get; set; }
+    public string? ModelStatusValue { get; set; }
+    /// <summary>A product price or customer detail change Features:ModelFirst picked, waiting for YES/NO in the same state.</summary>
+    public ModelEditData? ModelEdit { get; set; }
     public int? CodCollectedOrderId { get; set; }
     public string? RuntimeFilterCommand { get; set; }
     public int? TrackingPromptOrderId { get; set; }
@@ -302,3 +313,13 @@ public sealed record AutoPriceUse(int OrderId, string Arm);
 
 /// <summary>An order saved with the delivery charge the seller wrote in the message (<see cref="PendingOrderData.TextDeliveryCharge"/>).</summary>
 public sealed record TextDeliveryUse(int OrderId, decimal Charge);
+
+/// <summary>An edit the model understood and the seller has not confirmed yet: a product's new price, or one field of a customer.</summary>
+public sealed class ModelEditData
+{
+    public string Kind { get; set; } = "";
+    public string Name { get; set; } = "";
+    public decimal? Amount { get; set; }
+    public string? Field { get; set; }
+    public string? Value { get; set; }
+}

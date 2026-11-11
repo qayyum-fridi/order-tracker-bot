@@ -76,6 +76,8 @@ public partial class ConversationEngine
         var built = IntentCatalog.Build(intent, route.Slots);
         // A question is answered with the line to type, not by doing it (except an entry that is only help or contact, which is what was asked for).
         if (isHowTo && !intent.RunOnHowTo) return new RoutedIntent(null, null, HowToReply(new[] { intent }));
+        // A help or contact entry may run on a how-to question only when its own words are in the message. The how-to word alone ("کیسے") is not a request to contact support.
+        if (isHowTo && intent.RunOnHowTo && IntentKeywords.Match(message, new[] { intent }).Count == 0) return HowToFallback(message);
         // A missing detail, or a command that would change money or delete data, is never run from a guess: the seller gets the exact line to type.
         if (built.Command is null) return new RoutedIntent(null, IntentCatalog.Example(intent));
 

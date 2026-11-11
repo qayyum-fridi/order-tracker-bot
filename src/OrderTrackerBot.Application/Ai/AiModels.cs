@@ -16,6 +16,8 @@ public sealed class AiAnalysisContext
     public string PreferredLanguage { get; init; } = "roman-urdu";
     /// <summary>Products the bot just asked the seller to price; a price in the next message is for these, not a new product.</summary>
     public IReadOnlyList<string> PendingPriceProducts { get; init; } = Array.Empty<string>();
+    /// <summary>Features:AiCancelUndo. When true the reader may answer cancel_order / undo, and reads number words as digits. False = the original prompt and schema.</summary>
+    public bool CancelUndoIntents { get; init; }
 }
 
 public sealed class AiOrderItemDraft
@@ -26,6 +28,8 @@ public sealed class AiOrderItemDraft
     public string? MatchedCatalogProductName { get; init; }
     /// <summary>The price of one unit as the seller wrote it in the order ("Lawn Suit 3500"); null when none was written. Only compared with the catalog price, never used as the price unasked.</summary>
     public decimal? StatedUnitPrice { get; init; }
+    /// <summary>True when <see cref="Quantity"/> counts whole packs ("2 carton tel"), not pieces; <see cref="StatedUnitPrice"/> is then the price of one pack.</summary>
+    public bool InPacks { get; init; }
 }
 
 public sealed class AiOrderDraft
@@ -55,7 +59,7 @@ public sealed class AiOrderDraft
 /// </summary>
 public sealed class AiMessageAnalysis
 {
-    /// <summary>new_order | status_update | customer_feedback | support_query | add_products | add_customer | create_discount | off_topic | unclear.</summary>
+    /// <summary>new_order | status_update | customer_feedback | support_query | add_products | add_customer | create_discount | off_topic | unclear, plus cancel_order | undo when <see cref="AiAnalysisContext.CancelUndoIntents"/> is on.</summary>
     public string Intent { get; init; } = "";
     public bool IsOrderAttempt { get; init; }
     /// <summary>True when the AI could not be reached (no API key, or the call failed) — distinct from "reached it, not an order".</summary>
@@ -128,6 +132,16 @@ public sealed class AiNewProduct
     public string? StockWords { get; init; }
     public string? PriceLowWords { get; init; }
     public string? PriceHighWords { get; init; }
+    /// <summary>The bigger pack this product comes in ("carton", "box", "peti", "dozen"), when the seller named one. See <c>ProductPack</c>.</summary>
+    public string? PackName { get; init; }
+    /// <summary>How many pieces one pack holds.</summary>
+    public int? PackQty { get; init; }
+    /// <summary>What the seller PAYS for one whole pack.</summary>
+    public decimal? PackCost { get; init; }
+    /// <summary>What the seller SELLS one whole pack for.</summary>
+    public decimal? PackPrice { get; init; }
+    /// <summary>How many whole packs the seller has (or received).</summary>
+    public int? StockPacks { get; init; }
 }
 
 /// <summary>A buyer the seller is saving before any order; phone, address and city are null when the seller did not say them.</summary>

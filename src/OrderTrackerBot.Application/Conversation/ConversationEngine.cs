@@ -20,6 +20,7 @@ public partial class ConversationEngine
 {
     private readonly IAppDbContext _db;
     private readonly IAiOrderAssistant _ai;
+    private readonly ITurnInterpreter? _turnInterpreter;
     private readonly IWhatsAppSender _sender;
     private readonly TranslatingSender _translator;
     private readonly IFounderAlertNotifier _founderAlerts;
@@ -61,8 +62,9 @@ public partial class ConversationEngine
         IIssueReporter? issues = null, IAudioTranscriber? transcriber = null, IImportFileReader? importReader = null,
         INewSellerNotifier? newSellers = null, MediaRateLimiter? mediaLimiter = null, TimeProvider? clock = null,
         IMerchantEmailSender? emailSender = null, Microsoft.Extensions.Logging.ILogger<ConversationEngine>? logger = null, BuildInfo? build = null,
-        DashboardOptions? dashboard = null, SupportOptions? support = null)
+        DashboardOptions? dashboard = null, SupportOptions? support = null, ITurnInterpreter? turn = null)
     {
+        _turnInterpreter = turn;
         _support = support ?? new SupportOptions();
         _build = build ?? new BuildInfo();
         _dashboard = dashboard ?? new DashboardOptions();
@@ -432,6 +434,9 @@ public partial class ConversationEngine
             case ConversationState.AwaitingOrderEdit:
                 await HandleOrderEditAsync(seller, session, ctx, message, ct);
                 break;
+            case ConversationState.AwaitingModelStatusConfirmation:
+                await HandleModelStatusConfirmationAsync(seller, session, ctx, message, ct);
+                break;
             case ConversationState.AwaitingReceiptDesign:
                 await HandleReceiptDesignAsync(seller, session, ctx, message, ct);
                 break;
@@ -561,6 +566,8 @@ public partial class ConversationEngine
 
         // A scanner types a product's barcode as a message: a code that is some product's barcode goes to the scan cart.
         if (await TryHandleScannedCodeAsync(seller, ctx, message, ct)) return;
+
+        if (await TryModelFirstAsync(seller, session, ctx, message, ct)) return;
 
         var command = CommandParser.TryParse(message);
         // A sentence the rules do not know but THIS seller once taught (by picking the right option) is understood without asking again.
@@ -809,6 +816,15 @@ public sealed class FeatureOptions
 
     /// <summary>MVP cut: the features that are off for now (discounts, loyalty, payments, payouts, drawer, labels, Instagram, import, walk-in, forms, scan) answer one "not available yet" reply when typed, not only hidden from menus. Off in code so existing tests keep their behaviour; on in appsettings.</summary>
     public bool MvpOnly { get; set; }
+
+    /// <summary>The AI order reader may answer cancel_order / undo (run through the intent router), and is told to read number words as digits. Off in code and in appsettings until measured.</summary>
+    public bool AiCancelUndo { get; set; }
+
+    /// <summary>The one-call turn interpreter (ITurnInterpreter) is consulted for core messages: off = today's pipeline only; shadow = logged beside it; on = it decides. Off in code and appsettings until measured.</summary>
+    public string ModelFirst { get; set; } = "off";
+
+    /// <summary>Short replies (see the spoken-reply list) are also sent as a voice note; the typed text is always sent too. Off until the voice-note send path exists.</summary>
+    public bool SpokenReplies { get; set; }
 
     /// <summary>Menu: discount rows (menu discounts, discount list, add discount, discount performance). Off = hidden from the menu; the typed commands still work.</summary>
     public bool Discounts { get; set; } = false;

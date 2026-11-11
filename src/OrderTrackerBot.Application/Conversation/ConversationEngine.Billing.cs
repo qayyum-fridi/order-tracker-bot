@@ -123,8 +123,15 @@ public partial class ConversationEngine
             return true;
         }
 
-        // A seller whose trial ended can still ask for a person (often exactly to ask about the plans).
-        if (!HasAccess(seller, now) && CommandParser.TryParse(trimmed)?.Kind != CommandKind.SupportContact)
+        // A seller whose trial ended can still ask for a person (often exactly to ask about the plans). It is answered here and nothing else
+        // runs, so the exemption cannot reach any other handler.
+        if (!HasAccess(seller, now) && CommandParser.TryParse(trimmed) is { Kind: CommandKind.SupportContact } contact)
+        {
+            await HandleSupportContactAsync(seller, ctx, contact, ct);
+            return true;
+        }
+
+        if (!HasAccess(seller, now))
         {
             var what = seller.SubscriptionActiveUntil is null ? "free trial" : "subscription";
             await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,

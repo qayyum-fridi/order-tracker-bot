@@ -33,6 +33,7 @@
 
   <ItemGroup>
     <None Update="Fixtures\*.xls" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Fixtures\understanding-cases.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

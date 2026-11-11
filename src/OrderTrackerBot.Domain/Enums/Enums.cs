@@ -42,6 +42,8 @@ public enum ConversationState
     /// <summary>A customers/catalog file was uploaded and checked; waiting for YES before anything is saved.</summary>
     AwaitingImportConfirmation,
     AwaitingReceiptDesign,
+    /// <summary>Features:ModelFirst picked update_status (often from a voice note, which can be misheard): waiting for YES/NO before the order's status actually changes.</summary>
+    AwaitingModelStatusConfirmation,
     /// <summary>Setup asks what kind of shop this is (after the shop name) so every example and guide matches the seller's trade.</summary>
     OnboardingIndustry
 }

@@ -15,6 +15,10 @@ public class OpenAiOptions
     /// <summary>Faster model for SHORT voice transcripts (a yes / no / number / simple command, up to <see cref="VoiceFastMaxWords"/> words); empty = always <see cref="VoiceModel"/>.</summary>
     public string VoiceFastModel { get; set; } = "gpt-4o-mini";
     public int VoiceFastMaxWords { get; set; } = 8;
+    /// <summary>Text-to-speech model for spoken replies (Features:SpokenReplies). Empty = spoken replies unavailable.</summary>
+    public string SpeechModel { get; set; } = "gpt-4o-mini-tts";
+    /// <summary>Voice used for spoken replies.</summary>
+    public string SpeechVoice { get; set; } = "alloy";
     /// <summary>Speech-to-text model for voice notes. whisper-1 / gpt-4o-transcribe are being shut down on 2027-02-26; gpt-transcribe replaces them.</summary>
     public string TranscriptionModel { get; set; } = "gpt-transcribe";
     /// <summary>

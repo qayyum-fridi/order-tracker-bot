@@ -98,6 +98,22 @@ public static class SpokenNumbers
     public static bool IsMultiplier(string word) => Multipliers.ContainsKey(word);
     public static bool IsNumberWord(string word) => Words.ContainsKey(word) || FractionWords.ContainsKey(word);
 
+    /// <summary>
+    /// The digits of a phone-like sequence said or written in the message: digit characters plus single-digit words ("zero teen zero zero ek" = "03001"),
+    /// in order. Words that are not single digits are skipped. Used only to check that a number the model returned was really said.
+    /// </summary>
+    public static string SpokenDigits(string text)
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (var raw in System.Text.RegularExpressions.Regex.Split(text.ToLowerInvariant(), @"[^\p{L}\p{Nd}]+"))
+        {
+            if (raw.Length == 0) continue;
+            if (raw.All(char.IsDigit)) { sb.Append(raw); continue; }
+            if (Words.TryGetValue(raw, out var value) && value is >= 0 and <= 9) sb.Append((int)value);
+        }
+        return sb.ToString();
+    }
+
     // "sadhe teen hazar" = 3,500; "sawa teen hazar" = 3,250; "paune chaar hazar" = 3,750. Spellings vary (saadhe, saṛhay, sāṛhe...).
     // Only the spelling with its diacritics removed is listed: Normalize strips combining marks before tokenising.
     private static readonly Dictionary<string, decimal> FractionWords = new(StringComparer.OrdinalIgnoreCase)

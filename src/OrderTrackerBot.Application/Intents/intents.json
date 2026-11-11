@@ -1126,7 +1126,9 @@
       "description": "How to add a product: shows the example lines.",
       "examples": [
         "product kaise add karun",
-        "add product"
+        "add product",
+        "نئی پراڈکٹ کیسے ایڈ کروں",
+        "میں نئی پراڈکٹ ایڈ کرنی ہے وہ کیسے کر سکتا ہوں"
       ],
       "slots": {},
       "template": "add product"
