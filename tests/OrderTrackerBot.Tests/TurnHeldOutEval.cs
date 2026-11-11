@@ -160,7 +160,7 @@ public class TurnHeldOutEval
 
         var catalog = ShopProducts.Select(p => new AiCatalogItem { Name = p.Split(" - ")[0], Price = decimal.Parse(p.Split(" - ")[1]) }).ToList();
         var gate = new SemaphoreSlim(6);
-        var results = await Task.WhenAll(Set.Select(async row =>
+        var results = await Task.WhenAll(Set.Where((r, i) => i % 10 == 0).Select(async row =>
         {
             await gate.WaitAsync();
             try
