@@ -2,5 +2,6 @@
   "picture-product.001": "📋 Screenshot se ye product padha gaya hai. Sab sahi hai to YES likhein. Kuch badalna ho to neeche wali line badal kar bhej dein:\n{0}",
   "picture-product.002": "❓ Screenshot mein \"{0}\" ki price saaf nahi padhi gayi. Product line likh dein, jaise: \"{0} - 1800\".",
   "picture-product.003": "ℹ️ Theek hai, screenshot se padhi details save nahi ki. Sahi line bhej dein to usay save kar dunga.",
-  "picture-product.004": "❌ Ye line samajh nahi aayi: {0}. Naam, price aur details dobara likhein."
+  "picture-product.004": "❌ Ye line samajh nahi aayi: {0}. Naam, price aur details dobara likhein.",
+  "picture-product.005": "❓ Screenshot mein product ka naam saaf nahi dikha. Naam aur price likh dein, jaise: \"Naam - 1800\"."
 }

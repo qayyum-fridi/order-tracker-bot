@@ -27,6 +27,11 @@ public partial class ConversationEngine
 
     private async Task ProposeScreenshotProductsAsync(Seller seller, ConversationSession session, SessionContextData ctx, TurnAction action, CancellationToken ct)
     {
+        if (action.Products.Any(p => string.IsNullOrWhiteSpace(p.Name)))
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("picture-product.005"), ct);
+            return;
+        }
         var withoutPrice = action.Products.FirstOrDefault(p => p.Price is null);
         if (withoutPrice is not null)
         {

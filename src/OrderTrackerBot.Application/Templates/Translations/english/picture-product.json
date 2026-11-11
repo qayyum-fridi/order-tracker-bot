@@ -2,5 +2,6 @@
   "picture-product.001": "📋 This product was read from the screenshot. Reply YES if everything is right. To change something, edit the line below and send it:\n{0}",
   "picture-product.002": "❓ The price of \"{0}\" was not clear in the screenshot. Send the product line, e.g.: \"{0} - 1800\".",
   "picture-product.003": "ℹ️ OK, the details from the screenshot were not saved. Send the correct line and I will save it.",
-  "picture-product.004": "❌ Could not understand this line: {0}. Write the name, price and details again."
+  "picture-product.004": "❌ Could not understand this line: {0}. Write the name, price and details again.",
+  "picture-product.005": "❓ The product name is not clear in the screenshot. Send the name and price, e.g.: \"Name - 1800\"."
 }
