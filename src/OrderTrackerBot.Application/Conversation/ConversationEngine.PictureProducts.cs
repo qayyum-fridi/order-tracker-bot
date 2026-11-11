@@ -80,7 +80,12 @@ public partial class ConversationEngine
         }
         // " - " inside the name would split the price off the name when the line is read back: a space keeps the name whole.
         var name = string.Join(" ", product.Name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries)).Replace(" - ", " ");
-        var head = $"{name} - {product.Price!.Value.ToString("0.##", CultureInfo.InvariantCulture)}";
+        // The price is the current one. If the page shows a crossed-out higher price, the lower one is saved and the old one is kept as a detail.
+        var price = product.Price!.Value;
+        var current = product.OldPrice is { } other ? Math.Min(price, other) : price;
+        var crossedOut = product.OldPrice is { } other2 ? Math.Max(price, other2) : (decimal?)null;
+        var head = $"{name} - {current.ToString("0.##", CultureInfo.InvariantCulture)}";
+        if (crossedOut is { } old && old > current) parts.Insert(0, $"old price: {old.ToString("0.##", CultureInfo.InvariantCulture)}");
         return string.Join(", ", new[] { head }.Concat(parts));
     }
 

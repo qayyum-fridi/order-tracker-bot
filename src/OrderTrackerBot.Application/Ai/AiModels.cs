@@ -122,6 +122,8 @@ public sealed class AiNewProduct
     public decimal? PriceHigh { get; init; }
     /// <summary>Several colours / sizes the seller named for this one product (variants), each in the seller's own words; each combination becomes a listing.</summary>
     public List<string> Colors { get; init; } = new();
+    /// <summary>The crossed-out (old) price the page shows next to the current price; null when none is shown.</summary>
+    public decimal? OldPrice { get; init; }
     /// <summary>Standard sizes the product comes in (XS, S, M, L ...), normalised; one listing per size is made.</summary>
     public List<string> Sizes { get; init; } = new();
     public List<string> Sizes { get; init; } = new();

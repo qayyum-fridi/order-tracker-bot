@@ -80,6 +80,26 @@ public class ScreenshotProductTests
     }
 
     [Fact]
+    public void CrossedOutPrice_SavesTheCurrentPriceAndKeepsTheOldAsADetail()
+    {
+        var product = new AiNewProduct { Name = "Beige Lawn 3PC", Price = 7194, OldPrice = 11990 };
+
+        Assert.Equal("Beige Lawn 3PC - 7194, old price: 11990", ConversationEngine.ScreenshotProductLine(product));
+    }
+
+    [Fact]
+    public void PageAttributes_AreKeptOnTheLine()
+    {
+        var product = new AiNewProduct
+        {
+            Name = "Basic Hijab", Price = 1990,
+            Attributes = new Dictionary<string, string> { ["material"] = "Silk", ["size chart"] = "Length 80" },
+        };
+
+        Assert.Equal("Basic Hijab - 1990, material: Silk, size chart: Length 80", ConversationEngine.ScreenshotProductLine(product));
+    }
+
+    [Fact]
     public void Sizes_OneListingPerSize_SameNameAndPrice()
     {
         var product = new AiNewProduct { Name = "Knit Abaya Set", Price = 9490, Sizes = new List<string> { "S", "M", "L" } };
