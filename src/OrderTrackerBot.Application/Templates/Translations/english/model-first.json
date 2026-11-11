@@ -19,5 +19,9 @@
   "model-status.002": "❓ Change order #{0} ({1}) to {2}? Reply YES to confirm or NO to cancel.",
   "model-edit.001": "❓ Change the price of {0} to {1}? Reply YES to confirm or NO to cancel.",
   "model-edit.002": "❓ Change {0}'s {1} to \"{2}\"? Reply YES to confirm or NO to cancel.",
-  "model-edit.003": "⚠️ The phone number \"{0}\" does not look complete. Please say or type the full number (11 digits) again."
+  "model-edit.003": "⚠️ The phone number \"{0}\" does not look complete. Please say or type the full number (11 digits) again.",
+  "pack.001": "❓ How many pieces come in one carton of {0}? Please tell me, for example: \"10 pieces in a carton\".",
+  "pack.002": "❓ How many pieces or cartons of {0} came in? Please tell me the count.",
+  "pack.003": "✅ Stock of {0} went up by {1} pieces. Stock now: {2}.",
+  "model-first.howto.addstock": "📦 To add stock, say the product's name and the count, for example:\n\n\"2 more cartons of oil came\" or \"5 more kurti arrived\""
 }

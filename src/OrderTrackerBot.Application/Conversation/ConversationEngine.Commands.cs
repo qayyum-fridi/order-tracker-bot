@@ -1178,13 +1178,14 @@ public partial class ConversationEngine
     {
         var parts = new List<string>();
         if (e.Cost is { } cost) parts.Add($"cost {Formatters.Money(cost)}");
-        if (e.Stock is { } stock) parts.Add($"stock {stock}");
+        if (e.Stock is { } stock) parts.Add($"stock {ProductPack.Of(e.Attributes)?.StockText(stock) ?? stock.ToString()}");
         if (e.Color is not null) parts.Add($"color: {e.Color}");
         if (e.Size is not null) parts.Add($"size: {e.Size}");
         if (e.ColorList is { Count: > 1 }) parts.Add($"colors: {string.Join(" / ", e.ColorList)}");
         if (e.SizeList is { Count: > 1 }) parts.Add($"sizes: {string.Join(" / ", e.SizeList)}");
         if (e.Category is not null) parts.Add($"category: {e.Category}");
-        if (e.Attributes is not null) parts.AddRange(e.Attributes.Select(a => $"{a.Key}: {a.Value}"));
+        if (ProductPack.Of(e.Attributes) is { } pack) parts.Add(pack.Describe());
+        if (e.Attributes is not null) parts.AddRange(e.Attributes.Where(a => !ProductPack.IsPackKey(a.Key)).Select(a => $"{a.Key}: {a.Value}"));
         return parts.Count == 0 ? "" : $" ({string.Join(", ", parts)})";
     }
 
@@ -1329,12 +1330,14 @@ public partial class ConversationEngine
     {
         var parts = new List<string>();
         if (product.CostPrice is { } cost) parts.Add($"cost {Formatters.Money(cost)}");
-        if (product.StockQty is { } stock) parts.Add($"stock {stock}");
+        var pack = ProductPack.Of(product);
+        if (product.StockQty is { } stock) parts.Add($"stock {pack?.StockText(stock) ?? stock.ToString()}");
+        if (pack is not null) parts.Add(pack.Describe());
         if (!string.IsNullOrWhiteSpace(product.Category)) parts.Add($"category: {product.Category}");
         if (product.PriceA is { } levelA) parts.Add($"price A {Formatters.Money(levelA)}");
         if (product.PriceB is { } levelB) parts.Add($"price B {Formatters.Money(levelB)}");
         if (product.PriceC is { } levelC) parts.Add($"price C {Formatters.Money(levelC)}");
-        parts.AddRange(ProductAttributes(product).Select(a => $"{a.Key}: {a.Value}"));
+        parts.AddRange(ProductAttributes(product).Where(a => !ProductPack.IsPackKey(a.Key)).Select(a => $"{a.Key}: {a.Value}"));
         return parts.Count == 0 ? "" : $" ({string.Join(", ", parts)})";
     }
 

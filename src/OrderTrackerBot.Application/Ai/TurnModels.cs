@@ -14,6 +14,7 @@ public sealed class TurnAction
     public const string ShowSummary = "show_summary";
     public const string AddProduct = "add_product";
     public const string EditProduct = "edit_product";
+    public const string AddStock = "add_stock";
     public const string ShowCatalog = "show_catalog";
     public const string AddCustomer = "add_customer";
     public const string EditCustomer = "edit_customer";
@@ -28,7 +29,7 @@ public sealed class TurnAction
     /// <summary>Every action the model may pick. Anything else in a reply is discarded.</summary>
     public static readonly IReadOnlyList<string> All = new[]
     {
-        CreateOrder, UpdateStatus, CancelOrder, ShowOrders, ShowOrder, ShowSummary, AddProduct, EditProduct, ShowCatalog,
+        CreateOrder, UpdateStatus, CancelOrder, ShowOrders, ShowOrder, ShowSummary, AddProduct, EditProduct, AddStock, ShowCatalog,
         AddCustomer, EditCustomer, ShowCustomer, HowTo, ContactSupport, Clarify, Undo, HelpOrChat, OutOfScope
     };
 
@@ -38,7 +39,7 @@ public sealed class TurnAction
     /// <summary>how_to: what the seller asks how to do. "other" = something else.</summary>
     public static readonly IReadOnlyList<string> HowToTopics = new[]
     {
-        AddProduct, EditProduct, ShowCatalog, AddCustomer, EditCustomer, ShowCustomer, CreateOrder, UpdateStatus, CancelOrder, ShowOrders, ShowSummary, Undo, "other"
+        AddProduct, EditProduct, AddStock, ShowCatalog, AddCustomer, EditCustomer, ShowCustomer, CreateOrder, UpdateStatus, CancelOrder, ShowOrders, ShowSummary, Undo, "other"
     };
 
     public static readonly IReadOnlyList<string> Statuses = new[] { "shipped", "delivered", "returned", "pending" };

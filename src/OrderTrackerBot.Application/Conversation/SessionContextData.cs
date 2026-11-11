@@ -25,6 +25,12 @@ public sealed class PendingOrderItemData
     public string? AutoPriceArm { get; set; }
     /// <summary>Listings of one name that differ by size or colour, and the typed name names none of them; the seller picks one (VariantChoice). Null once chosen.</summary>
     public List<int>? VariantProductIds { get; set; }
+    /// <summary>The seller ordered this many whole packs ("2 carton"); <see cref="Quantity"/> is then packs x the product's pieces per pack (see <c>ProductPack</c>).</summary>
+    public int? PackCount { get; set; }
+    /// <summary>The product's pack word ("carton"), set with <see cref="PackCount"/> once the catalog product is known; shown in the draft.</summary>
+    public string? PackName { get; set; }
+    /// <summary>The price of ONE pack the seller said in the order ("carton 1150 ka"); used as this line's rate instead of the listed pack price.</summary>
+    public decimal? PackStatedPrice { get; set; }
 }
 
 public sealed class PendingOrderData
