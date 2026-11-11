@@ -80,14 +80,14 @@ public class IndustryProfileTests : IDisposable
 
         Assert.Equal("Grocery / Kiryana", (await db.Sellers.FindAsync(seller.Id))!.BusinessType);
         var reply = string.Join("\n", sent);
-        Assert.Contains("Sugar 5 kg - 500", reply);
+        Assert.Contains("Chini 5 kg - 950", reply);
         Assert.Contains("Tips", reply);
         Assert.Contains("data check", reply);
 
         sent.Clear();
         await engine.HandleIncomingMessageAsync(Phone, "data check", default);
         Assert.Contains("Catalog abhi khali", string.Join("\n", sent));
-        Assert.Contains("Sugar 5 kg - 500, cost 440", string.Join("\n", sent));
+        Assert.Contains("Chini 5 kg - 950, cost 880", string.Join("\n", sent));
     }
 }
 
@@ -154,7 +154,7 @@ public class CatalogViewTests : IDisposable
     [InlineData("last page", "last")]
     [InlineData("search chini", "q:chini")]
     [InlineData("catalog search lawn suit", "q:lawn suit")]
-    [InlineData("find Sugar 5 kg", "q:Sugar 5 kg")]
+    [InlineData("find Chini 5 kg", "q:Chini 5 kg")]
     public void ParsesSearchSizeAndJump(string text, string action)
     {
         var cmd = CommandParser.TryParse(text);
@@ -237,7 +237,7 @@ public class CatalogViewTests : IDisposable
         Assert.Contains("Aapka Catalog (2 products)", reply);
         Assert.DoesNotContain("📂", reply);
         Assert.Contains("Category likhne se list category-wise", reply);
-        Assert.Contains("Sugar 5 kg - 500, category rashan", reply);
+        Assert.Contains("Chini 5 kg - 950, category rashan", reply);
     }
 
     [Fact]

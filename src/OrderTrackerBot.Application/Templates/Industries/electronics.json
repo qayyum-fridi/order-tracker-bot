@@ -4,11 +4,11 @@
   "title": "Electronics / Mobile",
   "aliases": "electronic\\w*|mobile\\w*|phone\\s*acc\\w*|gadget\\w*|computer\\w*|laptop\\w*|charger\\w*|appliance\\w*|الیکٹرانک\\w*|موبائل",
   "productLines": [
-    "Fast Charger 20W - 1800, cost 1100, stock 25, category charger",
-    "Earbuds Pro - 3500",
-    "Phone Cover - 600"
+    "Charger Type-C 20W - 1800, cost 1100, stock 25, category charger",
+    "Handsfree Wired - 350, stock 40",
+    "Power Bank 10000 mAh - 3200"
   ],
-  "orderExample": "Hamza, 1 fast charger 20w, 03001234567, Saddar Rawalpindi",
+  "orderExample": "Hamza, 1 charger type-c 20w, 03001234567, Saddar Rawalpindi",
   "tips": [
     "Model / watt / variant naam mein likhein, taake galat cheez na bike.",
     "Har cheez ka barcode jodein (\"barcode Earbuds Pro 8964000999\"), phir counter par scan se bechein.",
@@ -16,5 +16,10 @@
   ],
   "dataFocus": "cost price, stock aur barcode",
   "menuTip": "Model aur watt naam mein likhein, aur har cheez ka barcode jod kar counter par scan karein.",
-  "units": ["piece", "set", "pair", "box"]
+  "units": [
+    "piece",
+    "set",
+    "pair",
+    "box"
+  ]
 }

@@ -28,16 +28,16 @@ public sealed record IndustryProfile(
 
     private string[] FullParts => FullProduct.Split(',', StringSplitOptions.TrimEntries);
 
-    /// <summary>"Sugar 5 kg - 500": the first example without its details.</summary>
+    /// <summary>"Chini 5 kg - 950": the first example without its details.</summary>
     public string MainLine => FullParts[0];
 
-    /// <summary>"Sugar 5 kg".</summary>
+    /// <summary>"Chini 5 kg".</summary>
     public string MainName => MainLine.Split(" - ")[0];
 
-    /// <summary>"Sugar 5 kg - 500, cost 440": the first example with its cost.</summary>
+    /// <summary>"Chini 5 kg - 950, cost 440": the first example with its cost.</summary>
     public string CostLine => FullParts.Length > 1 ? FullParts[0] + ", " + FullParts[1] : MainLine;
 
-    /// <summary>The product name of <see cref="SimpleProduct"/> ("Sugar 5 kg"), for "stock Sugar 5 kg 20".</summary>
+    /// <summary>The product name of <see cref="SimpleProduct"/> ("Chini 5 kg"), for "stock Chini 5 kg 20".</summary>
     public string SimpleProductName => SimpleProduct.Split(" - ")[0];
 
     /// <summary>The complete line with cost, stock and category, which fills the most reports.</summary>
