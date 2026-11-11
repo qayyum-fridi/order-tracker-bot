@@ -59,7 +59,9 @@ public partial class ConversationEngine
                 _ => $"{key.Trim()}: {value.Trim()}",
             });
         }
-        var head = $"{product.Name.Trim()} - {product.Price!.Value.ToString("0.##", CultureInfo.InvariantCulture)}";
+        // " - " inside the name would split the price off the name when the line is read back: a space keeps the name whole.
+        var name = string.Join(" ", product.Name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries)).Replace(" - ", " ");
+        var head = $"{name} - {product.Price!.Value.ToString("0.##", CultureInfo.InvariantCulture)}";
         return string.Join(", ", new[] { head }.Concat(parts));
     }
 
