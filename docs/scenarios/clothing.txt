@@ -14,11 +14,11 @@ industry clothing
 # --- Catalog: mushkil products ---
 3 Piece Lawn Suit - 3500, cost 2400, stock 20, category lawn
 Design 1203 - 3500, cost 2400, stock 6, category lawn
-Kurti - 1800, cost 1100, stock 15, category stitched, size M, color blue
+Shirt - 1800, cost 1100, stock 15, category stitched, size M, color blue
 Cotton Shalwar Kameez 2 piece - 2800, cost 1900, stock 10, category stitched
 Bridal Lehenga - 45000, cost 30000, stock 2, category bridal
 Dupatta Chiffon - 600, cost 350, stock 40, category dupatta, fabric: chiffon
-Kurti - 1800, cost 1100, stock 15, category stitched
+Shirt - 1800, cost 1100, stock 15, category stitched
 3 Piece Lawn Suit - 3600
 3 Piece Lawn Suit - 3500
 stock Design 1203 2
@@ -33,7 +33,7 @@ Ayesha, 2 lawn suit, 03001234567, Gulberg Lahore
 yes
 Sana, 1 bridal lehenga, 1 dupatta chiffon, 03331234567, Johar Town Lahore, advance 15000, delivery 500
 yes
-Ayesha, 1 kurti, 03001234567, Gulberg Lahore
+Ayesha, 1 shirt, 03001234567, Gulberg Lahore
 cancel
 note 1 sleeves lambi, chaak 6 inch
 customer Sana name Sana Khan

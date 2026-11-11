@@ -25,9 +25,9 @@ public class SalesImportPlannerTests
     {
         var parse = ParseCsv("""
             Date,Customer,Phone,Product,Quantity,Price,Payment,Status
-            2026-10-18,Ayesha Khan,0300-1234567,Cotton Kurti,2,950,COD,Delivered
+            2026-10-18,Ayesha Khan,0300-1234567,Cotton Shirt,2,950,COD,Delivered
             2026-10-18,Ayesha Khan,0300-1234567,Lawn Suit,1,2500,COD,Delivered
-            2026-10-17,Ayesha Khan,0300-1234567,Cotton Kurti,1,950,COD,Delivered
+            2026-10-17,Ayesha Khan,0300-1234567,Cotton Shirt,1,950,COD,Delivered
             """);
 
         Assert.Null(parse.Problem);
@@ -41,7 +41,7 @@ public class SalesImportPlannerTests
     {
         var parse = ParseCsv("""
             Sale Date,Buyer Name,Item Name,Qty,Unit Price,Total,Notes
-            2026-10-18,Sara,Cotton Kurti,1,950,950,fast
+            2026-10-18,Sara,Cotton Shirt,1,950,950,fast
             """);
 
         Assert.Null(parse.Problem);
@@ -59,11 +59,11 @@ public class SalesImportPlannerTests
     }
 
     [Theory]
-    [InlineData("Date,Customer,Product,Quantity\n2026-10-18,Sara,Kurti,0\n", "quantity")]
-    [InlineData("Date,Customer,Product,Quantity\n2026-13-45,Sara,Kurti,1\n", "date")]
-    [InlineData("Date,Customer,Product,Quantity\n2026-12-01,Sara,Kurti,1\n", "future")]
-    [InlineData("Date,Customer,Product,Quantity,Payment\n2026-10-18,Sara,Kurti,1,Crypto\n", "payment")]
-    [InlineData("Date,Product,Quantity,Phone\n2026-10-18,Kurti,1,12345\n", "phone")]
+    [InlineData("Date,Customer,Product,Quantity\n2026-10-18,Sara,Shirt,0\n", "quantity")]
+    [InlineData("Date,Customer,Product,Quantity\n2026-13-45,Sara,Shirt,1\n", "date")]
+    [InlineData("Date,Customer,Product,Quantity\n2026-12-01,Sara,Shirt,1\n", "future")]
+    [InlineData("Date,Customer,Product,Quantity,Payment\n2026-10-18,Sara,Shirt,1,Crypto\n", "payment")]
+    [InlineData("Date,Product,Quantity,Phone\n2026-10-18,Shirt,1,12345\n", "phone")]
     public void Bad_rows_are_reported_with_their_row_number(string csv, string expected)
     {
         var parse = ParseCsv(csv);
@@ -77,7 +77,7 @@ public class SalesImportPlannerTests
     {
         var parse = ParseCsv("""
             Date,Customer,Product,Quantity,Status
-            2026-10-18,Sara,Kurti,1,Delivered
+            2026-10-18,Sara,Shirt,1,Delivered
             2026-10-18,Sara,Lawn,1,Pending
             """);
 
@@ -89,7 +89,7 @@ public class SalesImportPlannerTests
     [Fact]
     public void Excel_serial_dates_are_read_as_days()
     {
-        var parse = ParseCsv("Date,Customer,Product,Quantity\n46127,Sara,Kurti,1\n");
+        var parse = ParseCsv("Date,Customer,Product,Quantity\n46127,Sara,Shirt,1\n");
         Assert.Null(parse.Problem);
         Assert.Equal(new DateOnly(2026, 4, 15), parse.Orders[0].Day);
     }
@@ -122,7 +122,7 @@ public class SalesImportEngineTests : IDisposable
         var seller = new Seller { WhatsAppPhoneNumber = Phone, BusinessName = "Ayesha Collections", OnboardingComplete = true, Session = new ConversationSession { State = ConversationState.Idle } };
         db.Sellers.Add(seller);
         await db.SaveChangesAsync();
-        db.Products.Add(new Product { SellerId = seller.Id, Name = "Cotton Kurti", Price = 950, StockQty = 10 });
+        db.Products.Add(new Product { SellerId = seller.Id, Name = "Cotton Shirt", Price = 950, StockQty = 10 });
         db.Products.Add(new Product { SellerId = seller.Id, Name = "Lawn Suit", Price = 2500 });
         await db.SaveChangesAsync();
         return db;
@@ -134,9 +134,9 @@ public class SalesImportEngineTests : IDisposable
 
     private string Sales() => $"""
         Date,Customer,Phone,Product,Quantity,Price,Payment,Status
-        {Day(1)},Ayesha Khan,0300-1234567,Cotton Kurti,2,,COD,Delivered
+        {Day(1)},Ayesha Khan,0300-1234567,Cotton Shirt,2,,COD,Delivered
         {Day(1)},Ayesha Khan,0300-1234567,Lawn Suit,1,,COD,Delivered
-        {Day(1)},Sara,,Cotton Kurti,1,900,Bank,Pending
+        {Day(1)},Sara,,Cotton Shirt,1,900,Bank,Pending
         {Day(1)},Sara,,Mystery Item,1,100,Bank,Pending
         """;
 
@@ -173,7 +173,7 @@ public class SalesImportEngineTests : IDisposable
         var sara = await db.Orders.Include(o => o.Customer).SingleAsync(o => o.Customer!.Name == "Sara");
         Assert.Equal(900, sara.Total);                           // the row's own price
         Assert.Equal(PaymentStatus.Paid, sara.PaymentStatus);    // bank sales count as paid
-        Assert.Equal(7, (await db.Products.SingleAsync(p => p.Name == "Cotton Kurti")).StockQty); // 10 − 2 − 1
+        Assert.Equal(7, (await db.Products.SingleAsync(p => p.Name == "Cotton Shirt")).StockQty); // 10 − 2 − 1
     }
 
     [Fact]
@@ -186,7 +186,7 @@ public class SalesImportEngineTests : IDisposable
         await Engine(db).HandleIncomingMessageAsync(Phone, "undo", default);
 
         Assert.All(await db.Orders.ToListAsync(), o => Assert.Equal(OrderStatus.Cancelled, o.Status));
-        Assert.Equal(10, (await db.Products.SingleAsync(p => p.Name == "Cotton Kurti")).StockQty);
+        Assert.Equal(10, (await db.Products.SingleAsync(p => p.Name == "Cotton Shirt")).StockQty);
     }
 
     [Fact]

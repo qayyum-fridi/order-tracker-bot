@@ -30,10 +30,10 @@ public class ConfirmationPolicyTests : IDisposable
 
     private ConversationEngine CreateEngine(AppDbContext db) => new(db, _ai.Object, _sender.Object, _founderAlerts.Object);
 
-    // Only "ORDER Kurti <n>" becomes an order draft; everything else is "unclear".
+    // Only "ORDER Shirt <n>" becomes an order draft; everything else is "unclear".
     private static AiMessageAnalysis Analyze(string m)
     {
-        var order = Regex.Match(m, @"^ORDER Kurti (\d+)$");
+        var order = Regex.Match(m, @"^ORDER Shirt (\d+)$");
         if (order.Success)
             return new AiMessageAnalysis
             {
@@ -43,7 +43,7 @@ public class ConfirmationPolicyTests : IDisposable
                 {
                     CustomerName = "Sara",
                     Phone = "03001112222",
-                    Items = { new AiOrderItemDraft { ProductName = "Kurti", Quantity = int.Parse(order.Groups[1].Value) } },
+                    Items = { new AiOrderItemDraft { ProductName = "Shirt", Quantity = int.Parse(order.Groups[1].Value) } },
                 },
             };
         return new AiMessageAnalysis { Intent = "unclear", IsOrderAttempt = false };
@@ -51,7 +51,7 @@ public class ConfirmationPolicyTests : IDisposable
 
     private async Task OnboardAsync(ConversationEngine engine)
     {
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800", "done" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Shirt - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
     }
 
@@ -66,7 +66,7 @@ public class ConfirmationPolicyTests : IDisposable
         using var db = _dbFactory.CreateContext();
         var engine = CreateEngine(db);
         await OnboardAsync(engine);
-        await engine.HandleIncomingMessageAsync(Phone, "ORDER Kurti 2", default);
+        await engine.HandleIncomingMessageAsync(Phone, "ORDER Shirt 2", default);
 
         await engine.HandleIncomingMessageAsync(Phone, reply, default);
 
@@ -82,7 +82,7 @@ public class ConfirmationPolicyTests : IDisposable
         using var db = _dbFactory.CreateContext();
         var engine = CreateEngine(db);
         await OnboardAsync(engine);
-        await engine.HandleIncomingMessageAsync(Phone, "ORDER Kurti 2", default);
+        await engine.HandleIncomingMessageAsync(Phone, "ORDER Shirt 2", default);
 
         await engine.HandleIncomingMessageAsync(Phone, reply, default);
 
@@ -95,7 +95,7 @@ public class ConfirmationPolicyTests : IDisposable
         using var db = _dbFactory.CreateContext();
         var engine = CreateEngine(db);
         await OnboardAsync(engine);
-        await engine.HandleIncomingMessageAsync(Phone, "ORDER Kurti 1", default);
+        await engine.HandleIncomingMessageAsync(Phone, "ORDER Shirt 1", default);
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
         await engine.HandleIncomingMessageAsync(Phone, "cancel order 1", default);
 
@@ -110,7 +110,7 @@ public class ConfirmationPolicyTests : IDisposable
         using var db = _dbFactory.CreateContext();
         var engine = CreateEngine(db);
         await OnboardAsync(engine);
-        await engine.HandleIncomingMessageAsync(Phone, "ORDER Kurti 1", default);
+        await engine.HandleIncomingMessageAsync(Phone, "ORDER Shirt 1", default);
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
         await engine.HandleIncomingMessageAsync(Phone, "cancel order 1", default);
 
@@ -127,7 +127,7 @@ public class ConfirmationPolicyTests : IDisposable
         using var db = _dbFactory.CreateContext();
         var engine = CreateEngine(db);
         await OnboardAsync(engine);
-        await engine.HandleIncomingMessageAsync(Phone, "ORDER Kurti 2", default);
+        await engine.HandleIncomingMessageAsync(Phone, "ORDER Shirt 2", default);
 
         await engine.HandleIncomingMessageAsync(Phone, reply, default);
 
@@ -141,7 +141,7 @@ public class ConfirmationPolicyTests : IDisposable
         using var db = _dbFactory.CreateContext();
         var engine = CreateEngine(db);
         await OnboardAsync(engine);
-        await engine.HandleIncomingMessageAsync(Phone, "ORDER Kurti 2", default);
+        await engine.HandleIncomingMessageAsync(Phone, "ORDER Shirt 2", default);
 
         await engine.HandleIncomingMessageAsync(Phone, "Nahi bhai, cancel mat karo", default);
 

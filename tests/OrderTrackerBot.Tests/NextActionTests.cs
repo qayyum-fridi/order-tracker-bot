@@ -56,7 +56,7 @@ public class NextActionEngineTests : IDisposable
         db.Sellers.Add(seller);
         await db.SaveChangesAsync();
         db.Customers.Add(new Customer { SellerId = seller.Id, Name = "Sara", Phone = "03001112222", Address = "Lahore" });
-        db.Products.Add(new Product { SellerId = seller.Id, Name = "Kurti", Price = 1800 });
+        db.Products.Add(new Product { SellerId = seller.Id, Name = "Shirt", Price = 1800 });
         await db.SaveChangesAsync();
     }
 
@@ -108,7 +108,7 @@ public class NextActionEngineTests : IDisposable
         Assert.Contains(_sent, m => m.Contains("Sara ke liye order"));
         _sent.Clear();
 
-        await engine.HandleIncomingMessageAsync(Phone, "Kurti 2", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Shirt 2", default);
         Assert.Contains(_sent, m => m.Contains("Customer: Sara") && m.Contains("3,600") && m.Contains("03001112222"));
         Assert.DoesNotContain(_sent, m => m.Contains("phone number"));
 
@@ -129,7 +129,7 @@ public class NextActionEngineTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "order for Sara", default);
         await engine.HandleIncomingMessageAsync(Phone, "catalog", default);
         _sent.Clear();
-        await engine.HandleIncomingMessageAsync(Phone, "Kurti 2", default); // no longer "for Sara"
+        await engine.HandleIncomingMessageAsync(Phone, "Shirt 2", default); // no longer "for Sara"
 
         Assert.DoesNotContain(_sent, m => m.Contains("Customer: Sara"));
     }

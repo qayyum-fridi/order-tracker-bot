@@ -10,9 +10,9 @@ Manual WhatsApp voice tests for the bot, plus the developer test commands. Send 
 | 2 | "میں نئی پراڈکٹ ایڈ کرنی ہے وہ کیسے کر سکتا ہوں" | Same as 1 | Regression |
 | 3 | "میں پراڈکٹ میں کیسے ایڈ کر سکتا؟" | Same as 1 | Seen live: the how-to reply was given, but a second note with the same words got "Koi baat nahi, main sahi se samajh nahi pa raha" |
 | 4 | "mujhe support se baat karni hai" | `contact support` runs, support confirmation sent | |
-| 5 | "Kurti ka rate 2100 kar do" | Price of Kurti becomes 2100 | |
-| 6 | "Kurti mein 5 aur aaye" | Kurti stock +5 | |
-| 7 | "teen Kurti do Lawn Suit ek, Sara ke liye" | Draft order for Sara, asks YES | |
+| 5 | "Shirt ka rate 2100 kar do" | Price of Shirt becomes 2100 | |
+| 6 | "Shirt mein 5 aur aaye" | Shirt stock +5 | |
+| 7 | "teen Shirt do Lawn Suit ek, Sara ke liye" | Draft order for Sara, asks YES | |
 | 8 | "pehla wala" (after a numbered list) | First option chosen | |
 | 9 | "haan kar do" (after a YES question) | Treated as yes | |
 | 10 | "aaj ka hisaab" | Today's account summary | |

@@ -1,6 +1,6 @@
 # Real-world test scenario — "Ayesha Collections"
 
-A mid-size Lahore shop that sells **clothes** (lawn suits, kurtis, dupattas) and **dry fruit / grocery by weight** (kaju, sugar), takes orders from Instagram DMs and WhatsApp, ships by courier and COD, runs discounts and a loyalty rule, and has repeat customers. One run touches every part of the bot.
+A mid-size Lahore shop that sells **clothes** (lawn suits, shirts, dupattas) and **dry fruit / grocery by weight** (kaju, sugar), takes orders from Instagram DMs and WhatsApp, ships by courier and COD, runs discounts and a loyalty rule, and has repeat customers. One run touches every part of the bot.
 
 Use a **fresh WhatsApp number** (or `reset account` first). Send each message exactly as written (copy/paste). "Expect" is what should come back; if something differs, note the phase + step number and report it.
 Phones used: Ayesha `03001234567`, Bilal `03211234567`, Hassan `03331234567`, Sara `03451234567`, Zainab `03009998888`.
@@ -18,7 +18,7 @@ Phones used: Ayesha `03001234567`, Bilal `03211234567`, Hassan `03331234567`, Sa
 | 5 | `Lahore, Clothing, @ayesha.collections` | Saved, asks how many products |
 | 6 | `10 ke qareeb` | Moves to adding products |
 | 7 | `Lawn Suit - 3500` | Added |
-| 8 | `Kurti - 1800` + new line `Dupatta - 800` + new line `Shalwar - 900` (one message, 3 lines) | "3 products add ho gaye" |
+| 8 | `Shirt - 1800` + new line `Dupatta - 800` + new line `Shalwar - 900` (one message, 3 lines) | "3 products add ho gaye" |
 | 9 | `Sugar 5 kg - 500` | Added as a 5kg pack |
 | 10 | `mere paas 4 khaddar chadar aur 2 wool shawl hain` (no prices, no phone) | **NOT an order.** "yeh naye products hain, order nahi" + asks for prices |
 | 11 | `Khaddar Chadar - 2200` | Added |
@@ -33,11 +33,11 @@ Phones used: Ayesha `03001234567`, Bilal `03211234567`, Hassan `03331234567`, Sa
 | 13 | `catalog` | Numbered list of all products |
 | 14 | `Kaju - 320` | Added |
 | 15 | `Kaju - price tiers: 1kg=320, 10kg=300` | Wholesale tiers saved |
-| 16 | `stock Kurti 20` | Stock tracked: 20 |
+| 16 | `stock Shirt 20` | Stock tracked: 20 |
 | 17 | `stock Lawn Suit 3` | Tracked: 3 (will trigger low-stock warnings) |
 | 18 | `stock` | Lists tracked stock |
-| 19 | `stock Kurti +10` | 30 |
-| 20 | `Kurti - 1900` | "price updated" (edit product) |
+| 19 | `stock Shirt +10` | 30 |
+| 20 | `Shirt - 1900` | "price updated" (edit product) |
 | 21 | `add payment: jazzcash, 0300-1234567` | Payment method saved |
 | 22 | `delivery 200` | Default delivery charge Rs.200 |
 | 23 | `create discount: EID10, 10 percent, expires 15 days` | Code created |
@@ -53,14 +53,14 @@ Phones used: Ayesha `03001234567`, Bilal `03211234567`, Hassan `03331234567`, Sa
 | # | Send | Expect |
 |---|------|--------|
 | 28 | `Ayesha, 2 lawn suit, 03001234567, Gulberg Lahore` | Draft summary (2 × 3500 + delivery 200 = Rs.7,200) → reply `yes` → **Order #1** saved. **Low-stock warning** (Lawn Suit left 1) |
-| 29 | `Bilal, 1 kurti, 03211234567, DHA Karachi, code EID10` | Draft with 10% off → `yes` → Order #2 |
+| 29 | `Bilal, 1 shirt, 03211234567, DHA Karachi, code EID10` | Draft with 10% off → `yes` → Order #2 |
 | 30 | `Hassan, 1 lawn suit` (no phone) | **Follow-up asks for phone** → send `03331234567` → draft → `yes` → #3. Lawn Suit now 0 → "out of stock" warning |
-| 31 | `Sara 2 kurti aur Zainab 1 dupatta, Sara 03451234567, Zainab 03009998888` | **Two orders in one message** → both confirmed with one `yes` |
+| 31 | `Sara 2 shirt aur Zainab 1 dupatta, Sara 03451234567, Zainab 03009998888` | **Two orders in one message** → both confirmed with one `yes` |
 | 32 | `Ayesha, 3 kaju, 03001234567, delivery 300` | Kaju 3 kg; delivery charge picked up from the text (300, not 200) |
 | 33 | `Hina, 12 kaju, 03111234567, Islamabad, advance 2000` | Wholesale tier (10kg+ rate) applied; advance 2000 saved |
 | 34 | `Ayesha, 2 lawn suit, 03001234567, Gulberg Lahore` again within minutes | **Duplicate-order warning** → answer `no` |
 | 35 | `Rabia, 1 cotton suit, 03221234567` (product not in catalog) | Asks: **1** new product / **2** another name for an existing one → reply `1` → asks price → `2500` → continues the order |
-| 36 | `Nida, 1 kurti aur 1 dupatta, 03401234567` | If it asks "separate orders or one?" → reply `2` (one order) |
+| 36 | `Nida, 1 shirt aur 1 dupatta, 03401234567` | If it asks "separate orders or one?" → reply `2` (one order) |
 | 37 | `order 1` (also `#1`) | Full order detail: items, total, payment, status |
 
 **Tests:** AI order parsing, missing-field follow-up, multi-customer, discount codes, delivery-in-text, tier pricing, advance, duplicate guard, unmatched-product flow, grouping choice, stock warnings.

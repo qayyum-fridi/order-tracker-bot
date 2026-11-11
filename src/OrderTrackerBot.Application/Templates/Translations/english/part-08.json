@@ -147,7 +147,7 @@
   "expenses.014": "🗑️ Expense #{0} removed: {1} — {2}.\nIf there is a mistake, type \"undo\".",
   "expenses.015": "↩️ Reverted — the removed expense is back: {0} — {1}.",
   "expenses.016": "↩️ Reverted — expense #{0} back to the old amount: {1} — {2}.",
-  "losses.001": "The loss quantity must be more than 0. For example: \"loss 2 Kurti damaged\"",
+  "losses.001": "The loss quantity must be more than 0. For example: \"loss 2 Shirt damaged\"",
   "losses.002": "📉 Loss noted: {0} × {1}{2}\nCost: {3}{4}\nIf there is a mistake, type \"undo\"",
   "losses.003": "↩️ Reverted — loss {0} × {1} undone.",
   "losses.004": "The salary amount must be more than 0. For example: \"Ali ki 5000 dihari\" or \"wage Ali 5000\"",

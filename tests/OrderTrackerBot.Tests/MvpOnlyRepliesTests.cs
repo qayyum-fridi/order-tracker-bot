@@ -42,7 +42,7 @@ public class MvpOnlyRepliesTests : IDisposable
         new object[] { "label 1" },
         new object[] { "connect instagram" },
         new object[] { "import" },
-        new object[] { "walkin Kurti 1" },
+        new object[] { "walkin Shirt 1" },
         new object[] { "scan cart" },
     };
 

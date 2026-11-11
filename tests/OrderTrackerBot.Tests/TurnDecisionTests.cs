@@ -124,7 +124,7 @@ public class TurnDecisionTests
     }
 
     [Theory]
-    [InlineData(ConversationState.Idle, "stock Kurti 20", true)]
+    [InlineData(ConversationState.Idle, "stock Shirt 20", true)]
     [InlineData(ConversationState.Idle, "expense 500 petrol", true)]
     [InlineData(ConversationState.Idle, "delivery 250", false)]
     [InlineData(ConversationState.AwaitingOrderConfirmation, "haan", true)]
@@ -133,15 +133,15 @@ public class TurnDecisionTests
     [InlineData(ConversationState.AwaitingOrderConfirmation, "haan lekin delivery 300", false)]
     [InlineData(ConversationState.Idle, "cancel 12", false)]
     [InlineData(ConversationState.Idle, "expense 500 petrol nahi", false)]
-    [InlineData(ConversationState.Idle, "stock Kurti bees", false)]
-    [InlineData(ConversationState.Idle, "shayad stock Kurti 20", false)]
+    [InlineData(ConversationState.Idle, "stock Shirt bees", false)]
+    [InlineData(ConversationState.Idle, "shayad stock Shirt 20", false)]
     public void PlainSpokenCommands_SkipTheRewrite_OthersDoNot(ConversationState state, string transcript, bool skips)
     {
         Assert.Equal(skips, ConversationEngine.CanRunVoiceAsTyped(state, transcript));
     }
 
     [Theory]
-    [InlineData("Kurti", "Kurti")]
+    [InlineData("Shirt", "Shirt")]
     [InlineData("  Lawn Suit  ", "Lawn Suit")]
     [InlineData("Embroidered Chiffon Lawn Suit Three Piece Special", "Embroidered Chiffon Lawn Suit Three")]
     [InlineData("Supercalifragilisticexpialidocious-and-more-letters-here", "Supercalifragilisticexpialidocious-and-m")]

@@ -24,7 +24,7 @@ public class ProductLineNegativeTests
     [Theory]
     [InlineData("Lawn Suit - 3500", "Lawn Suit", 3500)]
     [InlineData("Lawn Suit -3500", "Lawn Suit", 3500)]
-    [InlineData("Kurti = 1800", "Kurti", 1800)]
+    [InlineData("Shirt = 1800", "Shirt", 1800)]
     public void RealProductLines_StillParse(string line, string name, decimal price)
     {
         Assert.True(CommandParser.TryParseProductLine(line, out var product));

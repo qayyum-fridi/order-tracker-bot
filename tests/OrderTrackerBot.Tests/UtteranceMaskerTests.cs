@@ -27,7 +27,7 @@ public class UtteranceMaskerTests
     {
         Assert.Equal("", UtteranceMasker.Mask(null, Array.Empty<string?>()));
         Assert.Equal("", UtteranceMasker.Mask("   ", Array.Empty<string?>()));
-        Assert.Equal("kurti", UtteranceMasker.Mask("​Kurti", Array.Empty<string?>()));
+        Assert.Equal("shirt", UtteranceMasker.Mask("​Shirt", Array.Empty<string?>()));
     }
 
     [Fact]

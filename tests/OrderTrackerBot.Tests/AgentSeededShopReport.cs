@@ -21,38 +21,38 @@ public class AgentSeededShopReport(ITestOutputHelper output)
     internal static readonly string[] Sentences =
     {
         // typos, filler, voice-like wording
-        "Kurti ka pirce 2000 kar do",
+        "Shirt ka pirce 2000 kar do",
         "oye bhai Cap add kar de 250 ka",
         "bhai Dupatta ka stock bees kar dena",
         "Polo shirt white 600 ka add karna hai",
         "Lawn Suit ki cost 2400 hai wese",
         "Hat 100 nahi 120 ka add karo",
         // orders in different shapes
-        "Bilal bhai ko 3 Kurti bhejni hain, delivery 200",
+        "Bilal bhai ko 3 Shirt bhejni hain, delivery 200",
         "Ayesha Raza ko ek Lawn Suit aur do Dupatta bhej dena",
-        "Zainab ko 2 Kurti dena advance 500 aya hai",
-        "Bilal ko 2 Kurti, address Model Town Multan",
+        "Zainab ko 2 Shirt dena advance 500 aya hai",
+        "Bilal ko 2 Shirt, address Model Town Multan",
         "Hamza ko 1 Polo Shirt bhejo phone 03001234567",
         "Sara Khan ko 1 Lawn Suit bhejna",
-        "Sara ko 2 Kurti bhej do",
-        "Bilal ko Kurti aur Dupatta dono bhej do 2 2",
+        "Sara ko 2 Shirt bhej do",
+        "Bilal ko Shirt aur Dupatta dono bhej do 2 2",
         // Urdu script
         "بلال کو دو کرتی بھیج دیں",
         "ہیٹ سو روپے کا شامل کر دیں",
         "کرتی کی قیمت دو ہزار کر دیں",
         "مجھے تین پروڈکٹ شامل کرنے ہیں ایک ایک کر کے بھیجوں گا",
         // several tasks
-        "pehle Cap 250 ka add karo phir Kurti ka price 1900 kar do phir Bilal ko 1 Cap bhejo",
+        "pehle Cap 250 ka add karo phir Shirt ka price 1900 kar do phir Bilal ko 1 Cap bhejo",
         "Dupatta ka stock 10 kar do aur Lawn Suit ki cost 2300 kar do",
         "Hat 100 aur Cap 250 aur Belt 300 teeno add karo",
         // missing or unclear details
         "Belt add karo",
-        "Kurti ka rate badal do",
+        "Shirt ka rate badal do",
         "ek order dena hai",
         "Jhumka ka price 300 kar do",
         "Bilal ko Jhumka bhej do",
         // not for the planner: reports, questions, cancel, delete, small talk
-        "Kurti ka price kya hai",
+        "Shirt ka price kya hai",
         "aaj kitni sale hui hai bhai",
         "Bilal ka order cancel kar do",
         "Dupatta delete kar do catalog se",
@@ -61,8 +61,8 @@ public class AgentSeededShopReport(ITestOutputHelper output)
         "kal Sara ne 500 ka kharcha kiya packaging pe",
         // numbers and details that must not become something else
         "Cap 250 add karo uska phone number 03001234567 hai",
-        "Kurti 1800 ki hai magar Bilal ko 1500 mein dena",
-        "Bilal ko 2 Kurti bhej do 5 baje tak",
+        "Shirt 1800 ki hai magar Bilal ko 1500 mein dena",
+        "Bilal ko 2 Shirt bhej do 5 baje tak",
     };
 
     /// <summary>
@@ -77,24 +77,24 @@ public class AgentSeededShopReport(ITestOutputHelper output)
         "wo Sara wali jo kal aayi thi usko 3 dupatte bhej do",
         "wohi pehle wala order dobara bhej do",
         "ek aur suit bhi daal do us order mein",
-        "madam ne kaha 2 kurti aur chahiye",
+        "madam ne kaha 2 shirt aur chahiye",
         "bilal ko wohi dena jo pichli dafa liya tha",
-        "3 kurti 1 dupatta Hira ke liye",
+        "3 shirt 1 dupatta Hira ke liye",
         "Hina bibi ka order likh lo 2 lawn suit 6400 total",
-        "Bilal 3 kurti",
-        "ek dozen kurti Bilal ko bhej do",
-        "Hamza ko 12 kurti chahiye aaj hi",
+        "Bilal 3 shirt",
+        "ek dozen shirt Bilal ko bhej do",
+        "Hamza ko 12 shirt chahiye aaj hi",
         // looking after the catalog
         "naya maal aaya hai chappal 800 wali",
-        "kurti khatam ho gayi hai",
-        "kurti ka maal aur mangwana hai",
+        "shirt khatam ho gayi hai",
+        "shirt ka maal aur mangwana hai",
         "dupatta sasta kar do thora",
         "lawn suit pe 200 kam kar do",
-        "kurti ka rate 100 barha do",
+        "shirt ka rate 100 barha do",
         "polo shirt ab 700 ki hai",
-        "Kurti band kar do ab nahi bechni",
+        "Shirt band kar do ab nahi bechni",
         "sab products ka price 10% barha do",
-        "Kurti 1800 Dupatta 600 Lawn Suit 3200",
+        "Shirt 1800 Dupatta 600 Lawn Suit 3200",
         "naya product Chappal",
         // money, rider, status: nothing for the planner to do
         "Ali ne paisay bhej diye",
@@ -118,9 +118,9 @@ public class AgentSeededShopReport(ITestOutputHelper output)
         "3 jhumke add karne hain ek ek karke bhejti hun",
         "Cap 250 add karo aur wo Sara ko bhi bhej dena 2",
         "kuch bhi add karna ho to kaise karun",
-        "Sara Khan ko Kurti",
-        "kurti ki cost 900 hai",
-        "kurti ka price 900 kar do",
+        "Sara Khan ko Shirt",
+        "shirt ki cost 900 hai",
+        "shirt ka price 900 kar do",
     };
 
     [Fact]

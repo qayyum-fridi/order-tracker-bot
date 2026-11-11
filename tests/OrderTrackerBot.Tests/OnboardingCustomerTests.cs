@@ -31,7 +31,7 @@ public class OnboardingCustomerTests : IDisposable
     private ConversationEngine CreateEngine(AppDbContext db) => new(db, _ai.Object, _sender.Object, _founderAlerts.Object);
 
     private async Task OnboardAsync(AppDbContext db) =>
-        await OnboardUntilAsync(db, "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800");
+        await OnboardUntilAsync(db, "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Shirt - 1800");
 
     /// <summary>Plays the first setup steps and stops, so the next message lands on that step.</summary>
     private async Task OnboardUntilAsync(AppDbContext db, params string[] steps)
@@ -151,10 +151,10 @@ public class OnboardingCustomerTests : IDisposable
         {
             Intent = "new_order",
             IsOrderAttempt = true,
-            Order = new AiOrderDraft { CustomerName = "Ayesha", Items = { new AiOrderItemDraft { ProductName = "Kurti", Quantity = 2 } } }
+            Order = new AiOrderDraft { CustomerName = "Ayesha", Items = { new AiOrderItemDraft { ProductName = "Shirt", Quantity = 2 } } }
         });
 
-        await CreateEngine(db).HandleIncomingMessageAsync(Phone, "Ayesha ko 2 Kurti bhej do", default);
+        await CreateEngine(db).HandleIncomingMessageAsync(Phone, "Ayesha ko 2 Shirt bhej do", default);
 
         Assert.True((await db.Sellers.SingleAsync()).OnboardingComplete);
         Assert.DoesNotContain(_sent, m => m.Contains("samajh nahi aaya"));
@@ -164,17 +164,17 @@ public class OnboardingCustomerTests : IDisposable
     {
         Intent = "new_order",
         IsOrderAttempt = true,
-        Order = new AiOrderDraft { CustomerName = buyer, Items = { new AiOrderItemDraft { ProductName = "Kurti", Quantity = 1 } } }
+        Order = new AiOrderDraft { CustomerName = buyer, Items = { new AiOrderItemDraft { ProductName = "Shirt", Quantity = 1 } } }
     };
 
     [Fact]
     public async Task ShortOrderNamingACatalogProduct_AtTheCityStep_IsTakenAsAnOrder()
     {
         using var db = _dbFactory.CreateContext();
-        await OnboardUntilAsync(db, "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Kurti - 1800");
+        await OnboardUntilAsync(db, "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Shirt - 1800");
         AnalysisIs(OrderFor("Ali"));
 
-        await CreateEngine(db).HandleIncomingMessageAsync(Phone, "Ali Kurti", default);
+        await CreateEngine(db).HandleIncomingMessageAsync(Phone, "Ali Shirt", default);
 
         Assert.True((await db.Sellers.SingleAsync()).OnboardingComplete);
     }
@@ -186,7 +186,7 @@ public class OnboardingCustomerTests : IDisposable
         await OnboardUntilAsync(db, "start", "Roman Urdu", "Setup shuru karein");
         AnalysisIs(OrderFor("Ali"));
 
-        await CreateEngine(db).HandleIncomingMessageAsync(Phone, "Ali ko Kurti", default);
+        await CreateEngine(db).HandleIncomingMessageAsync(Phone, "Ali ko Shirt", default);
 
         Assert.True((await db.Sellers.SingleAsync()).OnboardingComplete);
     }
@@ -198,7 +198,7 @@ public class OnboardingCustomerTests : IDisposable
     public async Task CityOrShopName_EvenWithAProductInTheCatalog_DoesNotCostAnAiCall(string answer)
     {
         using var db = _dbFactory.CreateContext();
-        await OnboardUntilAsync(db, "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Kurti - 1800");
+        await OnboardUntilAsync(db, "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Shirt - 1800");
 
         await CreateEngine(db).HandleIncomingMessageAsync(Phone, answer, default);
 
@@ -322,7 +322,7 @@ public class OnboardingCustomerTests : IDisposable
     public async Task CustomerAddCommand_WhenIdle_SavesWithoutTheAi_AndOffersTheOrder()
     {
         using var db = _dbFactory.CreateContext();
-        await OnboardUntilAsync(db, "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800", "done");
+        await OnboardUntilAsync(db, "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Shirt - 1800", "done");
 
         await CreateEngine(db).HandleIncomingMessageAsync(Phone, "customer add Sara, Model Town, 03001234567", default);
 

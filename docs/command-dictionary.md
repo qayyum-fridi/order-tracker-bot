@@ -30,7 +30,7 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 | One order in full | `order 12` | `#12` · `order 12 details` |
 | Change status | `mark 12 shipped` | `delivered` · `returned` · `paid` · `bhej diya` · `mukammal` |
 | Cancel an order | `cancel 12` | |
-| Edit a saved order | `edit order 12` | `edit order` (the latest) — inside: `1 = 3` · `price 1 = 1500` · `remove 2` · `add Kurti 2` · `phone ...` · `address ...` · `delivery 250` · `done` |
+| Edit a saved order | `edit order 12` | `edit order` (the latest) — inside: `1 = 3` · `price 1 = 1500` · `remove 2` · `add Shirt 2` · `phone ...` · `address ...` · `delivery 250` · `done` |
 | A customer's orders | `Ayesha ka order` | |
 | Order for a saved customer | `order for Sara` | her usual items appear as buttons |
 | Advance / part payment | `order 12 advance 500` | |
@@ -61,12 +61,12 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 | How to add a product (shows the example lines for your shop) | `add product` · `new product` |
 | Catalog pages and order (10 a page, grouped by category > sub-category) | `catalog next` · `catalog prev` · `catalog page 2` · `catalog a-z` · `catalog latest` · `catalog reset` |
 | Catalog search, jump, last page, page size (remembered) | `catalog search chini` · `search chini` · `find lawn suit` · `catalog page 8` · `page 8` · `catalog last` · `catalog size 25` (5-50) · `catalog reset` |
-| Add a product | `Kurti - 1800` · `naya product: Kurti - 1800` · `Polo Shirt - 500, cost 300, stock 10, category: Shirts` |
+| Add a product | `Shirt - 1800` · `naya product: Shirt - 1800` · `Polo Shirt - 500, cost 300, stock 10, category: Shirts` |
 | Price for a customer group (blank = regular price) | `Polo Shirt - 500, price B 450` (also `price A` and `price C`) |
-| Change / remove | `edit product: Kurti - 1900` · `delete product: Kurti` |
-| Stock | `stock` (or `low stock` · `short stock` · `kam stock` · `out of stock` · `khatam maal` · `stock check` · `show stock` · `current stock` · `stock report` · `restock list` · `maal kitna hai`) · `stock Kurti 20` (`+10` · `off`) |
+| Change / remove | `edit product: Shirt - 1900` · `delete product: Shirt` |
+| Stock | `stock` (or `low stock` · `short stock` · `kam stock` · `out of stock` · `khatam maal` · `stock check` · `show stock` · `current stock` · `stock report` · `restock list` · `maal kitna hai`) · `stock Shirt 20` (`+10` · `off`) |
 | Filter | `products category Shirts` · `products vendor Ali` |
-| Barcode | `barcode Kurti 8961234567890` · `scan cart` · `scan done` · `scan clear` |
+| Barcode | `barcode Shirt 8961234567890` · `scan cart` · `scan done` · `scan clear` |
 
 ## Money
 
@@ -79,16 +79,16 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 | One product's sales, this month against last | `Polo Shirt ka report` |
 | Margin / how much discount a product can take | `margin` · `margin list` · `profit margin` · `discount room` |
 | Margin actually made in a period (sales that happened) | `margin last month` · `margin 7 days` · `profit margin this week` |
-| Buyer questions (the bot cannot see buyers' chats: write down what was asked) | `enquiry Kurti blue` · `buyer ne pucha Lawn Suit` · `enquiries` (asked vs sold per product) · `enquiries last month` |
+| Buyer questions (the bot cannot see buyers' chats: write down what was asked) | `enquiry Shirt blue` · `buyer ne pucha Lawn Suit` · `enquiries` (asked vs sold per product) · `enquiries last month` |
 | Wages said naturally (pay a worker; ask what was paid) | `Ali ki salary 20000 de di` · `Ali ko 20000 salary diya` · `mazdoor ko 1500 di` · `Bilal ko 800 dihari di` · `is mahine salary kitni gayi` (lists every worker; a name does not filter yet) |
 | Expense said naturally (an expense word, or a verb of spending; never "Ali ko 500 di") | `kiraya 15000 diya` · `bijli ka bill 8000` · `petrol 1000` · `aaj chai pe 200 lage` · `rent 30000 paid` · `packaging ke 500 lag gaye` · `800 ka kharcha tha rickshaw` (expense words: kiraya, rent, bijli, electricity, petrol, diesel, gas, internet, wifi, rickshaw, chai, pani, packaging, safai, mobile load) |
 | Expenses | `expense 500 packaging` · `kharcha 800 petrol` · `expenses` · `monthly net` · `expense edit 12 800 packaging` · `expense delete 12` (the number is the #12 that `expenses` shows) |
-| Supplier of a product | `supplier Lawn Suit Shah Alam` · `supplier Lawn Suit: Shah Alam` · `supplier Shah Alam: Lawn Suit, Kurti` (several at once) · `Lawn Suit ka supplier Shah Alam` · `supplier remove Lawn Suit` · `suppliers` (sale and profit per supplier) |
+| Supplier of a product | `supplier Lawn Suit Shah Alam` · `supplier Lawn Suit: Shah Alam` · `supplier Shah Alam: Lawn Suit, Shirt` (several at once) · `Lawn Suit ka supplier Shah Alam` · `supplier remove Lawn Suit` · `suppliers` (sale and profit per supplier) |
 | What the courier charged for a parcel | `courier fee 12 250` · `order 12 courier fee 250` · `courier fee report` (fees against the delivery charged to buyers) |
 | Payment link / methods | `payment link` · `add payment: jazzcash, 03001234567` |
 | Cash drawer | (`gala` · `galla` = `drawer`) `drawer open 5000` · `cash in 500 float` · `cash out 300 chai` · `drawer` · `drawer close 12000` |
 | Courier payouts | `payout pending` · `courier payout` · `payout 11700 TCS orders 1 2 3` · `payout list` |
-| Counter sale | `walkin Kurti 2` · `counter sale 1500` |
+| Counter sale | `walkin Shirt 2` · `counter sale 1500` |
 
 ## Ask a business question in your own words
 
@@ -126,7 +126,7 @@ Add a period if you want one (`pichle hafte`, `last month`, `is mahine`, `30 din
 | Top / slow sellers (also by season) | `sab se zyada kya bika` · `kaun sa maal nahi bik raha` · `pichle saal sardiyon mein kya bika` |
 | Net sale / revenue / net profit for a period | `pichle hafte ki net sale kitni thi` · `is mahine ka total revenue` · `aaj ka khalis munafa` |
 | Drawer short or over | `aaj galle mein kitna cash short ya zyada hai` |
-| Which products sell together / never alone / a bundle idea | `kurti ke saath kya bikta hai` · `kaun se products akele nahi bikte` · `bundle offer suggest karo` |
+| Which products sell together / never alone / a bundle idea | `shirt ke saath kya bikta hai` · `kaun se products akele nahi bikte` · `bundle offer suggest karo` |
 | Regular customers who went quiet / whose order size halved | `kaun se customers ne 60 din se order nahi diya lekin pehle har hafte kharidte the` · `kin customers ka order size aadha reh gaya` |
 | What a win-back discount costs | `agar 50 purane customers ko 200 rupay ka discount doon to` (arithmetic and past win-back rate, not a forecast) |
 | One customer's buying pattern | `Sara Khan ki kharidari ka pattern` |
@@ -221,4 +221,4 @@ Every phrase below is pinned in `StrategicInsightParserTests` (Urdu script and R
 
 ## Left out on purpose (more than one meaning)
 
-`udhaar` on its own (credit given — there is no credit ledger; "Bilal ka kitna udhaar hai" is read as the unpaid balance of his orders), `ledger`, `items`, `slip` · `courier slip`, `all orders` · `orders` · `recent orders` (all of today? all ever?), `aaj ki kamai` (sales or profit?), `minus 1000` (expense or cash out?), `mark delivered` / `mark paid` without an order number, `Sara ka balance`, `discount 100`, `loyalty`, `kurti ka rate` (a price lookup does not exist yet). These go to the assistant, which offers the possible actions as buttons.
+`udhaar` on its own (credit given — there is no credit ledger; "Bilal ka kitna udhaar hai" is read as the unpaid balance of his orders), `ledger`, `items`, `slip` · `courier slip`, `all orders` · `orders` · `recent orders` (all of today? all ever?), `aaj ki kamai` (sales or profit?), `minus 1000` (expense or cash out?), `mark delivered` / `mark paid` without an order number, `Sara ka balance`, `discount 100`, `loyalty`, `shirt ka rate` (a price lookup does not exist yet). These go to the assistant, which offers the possible actions as buttons.

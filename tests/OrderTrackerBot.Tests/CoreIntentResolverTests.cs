@@ -27,8 +27,8 @@ public class CoreIntentResolverTests
     public void CreateProduct_WithoutOptionalFields_LeavesNoGap()
     {
         var r = CoreIntentResolver.Resolve(new RouterOutput(CoreIntent.CATALOG_MANAGE, new Dictionary<string, string>
-        { ["action"] = "create", ["product"] = "Kurti", ["price"] = "1800", ["cost"] = "", ["stock"] = "", ["category"] = "" }));
-        Assert.Equal("Kurti - 1800", r.Command);
+        { ["action"] = "create", ["product"] = "Shirt", ["price"] = "1800", ["cost"] = "", ["stock"] = "", ["category"] = "" }));
+        Assert.Equal("Shirt - 1800", r.Command);
         Assert.Equal("AddProduct", CommandParser.TryParse(r.Command!)!.Kind.ToString());
     }
 
@@ -36,7 +36,7 @@ public class CoreIntentResolverTests
     public void CreateProduct_WithoutPrice_IsAGapWithAUserMessage()
     {
         var r = CoreIntentResolver.Resolve(new RouterOutput(CoreIntent.CATALOG_MANAGE, new Dictionary<string, string>
-        { ["action"] = "create", ["product"] = "Kurti" }));
+        { ["action"] = "create", ["product"] = "Shirt" }));
         Assert.Null(r.Command);
         Assert.False(string.IsNullOrWhiteSpace(r.Gap));
     }
@@ -58,8 +58,8 @@ public class CoreIntentResolverTests
 
     [Theory]
     [InlineData("show", "catalog", "Catalog")]
-    [InlineData("edit_price", "Kurti", "EditProduct")]
-    [InlineData("delete", "Kurti", "DeleteProduct")]
+    [InlineData("edit_price", "Shirt", "EditProduct")]
+    [InlineData("delete", "Shirt", "DeleteProduct")]
     public void CatalogManage_ResolvesToItsCommand(string action, string product, string kind)
     {
         var slots = new Dictionary<string, string> { ["action"] = action, ["product"] = product, ["price"] = "2000" };
@@ -99,10 +99,10 @@ public class CoreIntentResolverTests
     [Theory]
     [InlineData("show", "stock", "Stock")]
     [InlineData("low", "low stock", "Stock")]
-    [InlineData("untrack", "stock Kurti off", "Stock")]
+    [InlineData("untrack", "stock Shirt off", "Stock")]
     public void Stock_ResolvesToItsCommand(string action, string _, string kind)
     {
-        var r = CoreIntentResolver.Resolve("STOCK", new Dictionary<string, string> { ["action"] = action, ["product"] = "Kurti", ["qty"] = "20" });
+        var r = CoreIntentResolver.Resolve("STOCK", new Dictionary<string, string> { ["action"] = action, ["product"] = "Shirt", ["qty"] = "20" });
         Assert.Equal(kind, CommandParser.TryParse(r.Command!)!.Kind.ToString());
     }
 

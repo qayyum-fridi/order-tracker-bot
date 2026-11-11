@@ -61,7 +61,7 @@ public sealed class SellerContextBuilderTests : IDisposable
     [Fact]
     public async Task Products_AreRankedByTheWordsOfTheMessage_AndATypoStillMatches()
     {
-        AddProduct("Kurti");
+        AddProduct("Shirt");
         var polo = AddProduct("Polo Shirt", 500, 12);
         AddProduct("Dupatta");
 
@@ -88,14 +88,14 @@ public sealed class SellerContextBuilderTests : IDisposable
     {
         var sara = AddCustomer("Sara Khan", "Lahore");
         AddCustomer("Bilal");
-        AddOrder(sara, 200, OrderPaymentMethod.Cod, "Kurti", "Dupatta");
-        AddOrder(sara, 200, OrderPaymentMethod.Cod, "Kurti");
+        AddOrder(sara, 200, OrderPaymentMethod.Cod, "Shirt", "Dupatta");
+        AddOrder(sara, 200, OrderPaymentMethod.Cod, "Shirt");
 
-        var named = await _builder.BuildAsync(_seller, "Sara ko 2 Kurti bhej do", default);
+        var named = await _builder.BuildAsync(_seller, "Sara ko 2 Shirt bhej do", default);
         var hit = Assert.Single(named.Customers);
         Assert.Equal(sara.Id, hit.Id);
         Assert.Equal(2, hit.Orders);
-        Assert.Equal("Kurti", hit.UsualItems[0]);
+        Assert.Equal("Shirt", hit.UsualItems[0]);
 
         var none = await _builder.BuildAsync(_seller, "aaj ka hisaab", default);
         Assert.Empty(none.Customers);
@@ -137,11 +137,11 @@ public sealed class SellerContextBuilderTests : IDisposable
         var other = new Seller { WhatsAppPhoneNumber = "923009990000", BusinessName = "Other" };
         _db.Sellers.Add(other);
         await _db.SaveChangesAsync();
-        _db.Products.Add(new Product { SellerId = other.Id, Name = "Secret Kurti", Price = 1 });
+        _db.Products.Add(new Product { SellerId = other.Id, Name = "Secret Shirt", Price = 1 });
         _db.Customers.Add(new Customer { SellerId = other.Id, Name = "Secret Sara" });
         await _db.SaveChangesAsync();
 
-        var ctx = await _builder.BuildAsync(_seller, "secret sara kurti", default);
+        var ctx = await _builder.BuildAsync(_seller, "secret sara shirt", default);
         Assert.Empty(ctx.Products);
         Assert.Empty(ctx.Customers);
     }

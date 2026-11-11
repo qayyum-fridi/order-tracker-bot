@@ -76,7 +76,7 @@ public class NewOrderRequestTests
 
     [Theory]
     [InlineData("delete customer Sara")]
-    [InlineData("edit product: Kurti - 1900")]
+    [InlineData("edit product: Shirt - 1900")]
     [InlineData("expense delete 12")]
     [InlineData("customers kitne hain")]
     public void NounWithDetails_IsNotTheHelpRule(string text)
@@ -96,7 +96,7 @@ public class NewOrderRequestTests
     [Theory]
     [InlineData("expense 500 packaging")]
     [InlineData("wage Ali 5000")]
-    [InlineData("loss 2 Kurti damaged")]
+    [InlineData("loss 2 Shirt damaged")]
     [InlineData("expenses today")]
     [InlineData("losses")]
     public void NounWithoutCreateVerbOrWithDetails_IsNotHowTo(string text)
@@ -107,7 +107,7 @@ public class NewOrderRequestTests
 
     [Theory]
     [InlineData("order 12 bana do")]
-    [InlineData("naya order 2 kurti 1500")]
+    [InlineData("naya order 2 shirt 1500")]
     [InlineData("naya order ka report")]
     [InlineData("edit order bana do")]
     [InlineData("cancel naya order")]

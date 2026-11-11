@@ -12,7 +12,7 @@ public class IntentCatalogTests
     private static readonly Dictionary<string, string> SampleSlots = new()
     {
         ["order"] = "12", ["order_ids"] = "1 2 3", ["status"] = "shipped", ["amount"] = "500", ["note"] = "gift wrap", ["qty"] = "2",
-        ["product"] = "Kurti", ["reason"] = "damaged", ["method"] = "jazzcash", ["account"] = "03001234567", ["tracking_no"] = "TCS123",
+        ["product"] = "Shirt", ["reason"] = "damaged", ["method"] = "jazzcash", ["account"] = "03001234567", ["tracking_no"] = "TCS123",
         ["query"] = "1203", ["customer"] = "Sara", ["name"] = "Sara", ["price"] = "1500", ["cost"] = "300", ["stock"] = "10",
         ["category"] = "Shirts", ["supplier"] = "Shah Alam", ["code"] = "EID10", ["value"] = "10%", ["tier_price"] = "450", ["group"] = "B",
         ["size"] = "25", ["page"] = "2", ["phone"] = "03001234567", ["address"] = "Model Town", ["city"] = "Lahore",
@@ -110,7 +110,7 @@ public class IntentCatalogTests
     [Fact]
     public void MissingRequiredSlot_GivesNoCommand_AndNamesTheSlot()
     {
-        var built = IntentCatalog.Build(IntentCatalog.Find("product.create")!, new Dictionary<string, string> { ["name"] = "Kurti" });
+        var built = IntentCatalog.Build(IntentCatalog.Find("product.create")!, new Dictionary<string, string> { ["name"] = "Shirt" });
 
         Assert.Null(built.Command);
         Assert.Equal(new[] { "price" }, built.Missing);
@@ -124,7 +124,7 @@ public class IntentCatalogTests
     public void NumberSlot_MustBeAPlainNumber(string price)
     {
         var built = IntentCatalog.Build(IntentCatalog.Find("product.create")!,
-            new Dictionary<string, string> { ["name"] = "Kurti", ["price"] = price });
+            new Dictionary<string, string> { ["name"] = "Shirt", ["price"] = price });
 
         Assert.Null(built.Command);
         Assert.Contains("price", built.Missing);
@@ -134,9 +134,9 @@ public class IntentCatalogTests
     public void NumberSlot_AcceptsThousandsCommas()
     {
         var built = IntentCatalog.Build(IntentCatalog.Find("product.create")!,
-            new Dictionary<string, string> { ["name"] = "Kurti", ["price"] = "1,500" });
+            new Dictionary<string, string> { ["name"] = "Shirt", ["price"] = "1,500" });
 
-        Assert.Equal("Kurti - 1500", built.Command);
+        Assert.Equal("Shirt - 1500", built.Command);
     }
 
     [Theory]

@@ -49,7 +49,7 @@ public class WageExpensePhrasingTests
 
     [Theory]
     [InlineData("Sara ko 500 di")]          // a person, not a cost
-    [InlineData("Kurti 1800")]              // not an expense word
+    [InlineData("Shirt 1800")]              // not an expense word
     [InlineData("Ali ko 5000 diye")]
     [InlineData("bill 12")]                 // receipt of order 12
     public void PeopleAndProducts_AreNotExpenses(string text) =>

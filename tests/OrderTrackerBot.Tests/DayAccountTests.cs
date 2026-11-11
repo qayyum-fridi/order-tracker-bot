@@ -67,7 +67,7 @@ public class DayAccountTests : IDisposable
         var (engine, db) = await SetupAsync();
         using var db2 = db;
         await OrderAsync(db, OrderStatus.Delivered, ("Lawn Suit", 2, 3500m), ("Dupatta", 1, 600m));
-        await OrderAsync(db, OrderStatus.Pending, ("Kurti", 1, 1800m));
+        await OrderAsync(db, OrderStatus.Pending, ("Shirt", 1, 1800m));
         await OrderAsync(db, OrderStatus.Cancelled, ("Shawl", 9, 100m));      // cancelled: not counted
         db.Expenses.Add(new Expense { SellerId = _seller.Id, Amount = 1500, Category = "akram", Note = "akram petrol", CreatedAt = DateTime.UtcNow });
         db.CashDrawerSessions.Add(new CashDrawerSession { SellerId = _seller.Id, OpenedAt = DateTime.UtcNow.AddHours(-1), OpeningAmount = 5000 });
@@ -134,8 +134,8 @@ public class DayAccountTests : IDisposable
     {
         var (engine, db) = await SetupAsync();
         using var db2 = db;
-        await OrderAsync(db, OrderStatus.Delivered, ("Kurti", 1, 1800m), ("Dupatta", 2, 600m));
-        await OrderAsync(db, OrderStatus.Delivered, ("Kurti", 1, 1800m));
+        await OrderAsync(db, OrderStatus.Delivered, ("Shirt", 1, 1800m), ("Dupatta", 2, 600m));
+        await OrderAsync(db, OrderStatus.Delivered, ("Shirt", 1, 1800m));
 
         await engine.HandleIncomingMessageAsync(Phone, "aaj ka hisaab", default);
 

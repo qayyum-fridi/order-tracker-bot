@@ -1,7 +1,7 @@
 {
   "insights5.001": "👥 Customer ka munafa ({0}): is dauran koi order nahi.",
   "insights5.002": "{0} ka {1} koi order nahi.",
-  "insights5.003": "Kisi product ki cost save nahi, is liye customer ka munafa nahi nikal sakta. Cost ke saath likhein, jaise: \"Kurti - 1800, cost 1200\".",
+  "insights5.003": "Kisi product ki cost save nahi, is liye customer ka munafa nahi nikal sakta. Cost ke saath likhein, jaise: \"Shirt - 1800, cost 1200\".",
   "insights5.004": "👥 Bade customers ({0}): kam az kam 2 orders wale bade customers nahi mile.",
   "insights5.005": "👥 Bade customers jin se sab se kam fayda hai — {0}\n\n{1}\n\nFayda = product ka munafa (discount ke baad) minus wapas aaye parcels par likhi delivery charges. Sirf cost wale orders ginay; \"customer 1\" se detail dekhein.",
   "insights5.006": "🔁 Naye customers ki wapsi ({0}): is dauran kisi ka pehla order nahi.",

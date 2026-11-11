@@ -42,7 +42,7 @@ public class OpenAiOrderAssistantTests
                 customer_name = "Sara", phone = "03001234567", address = (string?)null, payment_method = (string?)null,
                 discount_code = (string?)null, order_source = (string?)null, delivery_charge = deliveryCharge,
                 missing_required_fields = Array.Empty<string>(),
-                items = new[] { new { product_name = "Kurti", matched_catalog_product_name = "Kurti", quantity = 1 } }
+                items = new[] { new { product_name = "Shirt", matched_catalog_product_name = "Shirt", quantity = 1 } }
             }
         }
     };
@@ -54,7 +54,7 @@ public class OpenAiOrderAssistantTests
     {
         var (assistant, handler) = Create(Analysis(250));
 
-        var result = await assistant.AnalyzeMessageAsync(Context, "Sara 1 kurti delivery 250");
+        var result = await assistant.AnalyzeMessageAsync(Context, "Sara 1 shirt delivery 250");
 
         Assert.Equal(250m, result.Order!.DeliveryCharge);
         Assert.Contains("\"delivery_charge\"", handler.RequestBody);
@@ -65,7 +65,7 @@ public class OpenAiOrderAssistantTests
     {
         var (assistant, _) = Create(Analysis(null));
 
-        var result = await assistant.AnalyzeMessageAsync(Context, "Sara 1 kurti");
+        var result = await assistant.AnalyzeMessageAsync(Context, "Sara 1 shirt");
 
         Assert.Null(result.Order!.DeliveryCharge);
     }

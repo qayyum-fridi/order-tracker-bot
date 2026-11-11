@@ -51,7 +51,7 @@ public class MockupFeatureTests : IDisposable
         var engine = Engine(db, billing);
         foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
-        foreach (var p in products.Length == 0 ? new[] { "Lawn Suit - 3500", "Kurti - 1800" } : products)
+        foreach (var p in products.Length == 0 ? new[] { "Lawn Suit - 3500", "Shirt - 1800" } : products)
             await engine.HandleIncomingMessageAsync(Phone, p, default);
         await engine.HandleIncomingMessageAsync(Phone, "done", default);
         _sent.Clear();
@@ -74,8 +74,8 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
-        AiReturns(Order("Sara", "Kurti", 1));
-        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
+        AiReturns(Order("Sara", "Shirt", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 shirt, 03001234567", default);
         _buttons.Clear();
 
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
@@ -139,7 +139,7 @@ public class MockupFeatureTests : IDisposable
     public async Task ExpiredTrial_ResetAccountConfirmation_IsNotSwallowedByBilling()
     {
         using var db = _dbFactory.CreateContext();
-        var engine = await OnboardAsync(db, new BillingOptions { PaymentNumber = "0300-0000000" }, "Kurti - 1800");
+        var engine = await OnboardAsync(db, new BillingOptions { PaymentNumber = "0300-0000000" }, "Shirt - 1800");
         var seller = await db.Sellers.FirstAsync();
         seller.TrialEndsAt = DateTime.UtcNow.AddDays(-1);
         await db.SaveChangesAsync();
@@ -218,8 +218,8 @@ public class MockupFeatureTests : IDisposable
         Assert.Equal(200m, (await db.Sellers.FirstAsync()).DefaultDeliveryCharge);
         Assert.Contains(_sent, m => m.Contains("Delivery charge Rs.200 set"));
 
-        AiReturns(Order("Sara", "Kurti", 1));
-        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
+        AiReturns(Order("Sara", "Shirt", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 shirt, 03001234567", default);
         Assert.Contains(_sent, m => m.Contains("Delivery: Rs.200") && m.Contains("Total: Rs.2,000"));
 
         // While confirming, "delivery 300" changes only this order and keeps the draft open.
@@ -245,9 +245,9 @@ public class MockupFeatureTests : IDisposable
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
         await engine.HandleIncomingMessageAsync(Phone, "delivery 200", default);
-        AiReturns(Order("Sara", "Kurti", 1)); // the model didn't pick it up
+        AiReturns(Order("Sara", "Shirt", 1)); // the model didn't pick it up
 
-        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567, delivery 350", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 shirt, 03001234567, delivery 350", default);
 
         Assert.Contains(_sent, m => m.Contains("Delivery: Rs.350") && m.Contains("Total: Rs.2,150"));
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
@@ -261,17 +261,17 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
-        var fromModel = Order("Sara", "Kurti", 1);
+        var fromModel = Order("Sara", "Shirt", 1);
         fromModel.Order!.DeliveryCharge = 150;
         AiReturns(fromModel);
-        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567 (screenshot jaisa)", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 shirt, 03001234567 (screenshot jaisa)", default);
         Assert.Contains(_sent, m => m.Contains("Delivery: Rs.150"));
         await engine.HandleIncomingMessageAsync(Phone, "edit", default);
 
-        var overridden = Order("Sara", "Kurti", 1);
+        var overridden = Order("Sara", "Shirt", 1);
         overridden.Order!.DeliveryCharge = 150;
         AiReturns(overridden);
-        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567, free delivery", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 shirt, 03001234567, free delivery", default);
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
         Assert.Equal(0m, (await db.Orders.FirstAsync()).DeliveryCharge);
     }
@@ -288,10 +288,10 @@ public class MockupFeatureTests : IDisposable
         {
             Intent = "new_order", IsOrderAttempt = true,
             Order = new AiOrderDraft { CustomerName = "Sara", Phone = "03001234567", DiscountCode = "HALF",
-                Items = { new AiOrderItemDraft { ProductName = "Kurti", MatchedCatalogProductName = "Kurti", Quantity = 1 } } }
+                Items = { new AiOrderItemDraft { ProductName = "Shirt", MatchedCatalogProductName = "Shirt", Quantity = 1 } } }
         });
 
-        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567, code HALF", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 shirt, 03001234567, code HALF", default);
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
 
         var order = await db.Orders.FirstAsync();
@@ -304,8 +304,8 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
-        AiReturns(Order("Sara", "Kurti", 1));
-        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
+        AiReturns(Order("Sara", "Shirt", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 shirt, 03001234567", default);
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
         var order = await db.Orders.FirstAsync();
 
@@ -332,8 +332,8 @@ public class MockupFeatureTests : IDisposable
 
     private async Task<OrderTrackerBot.Domain.Entities.Order> SaveSaraKurtiOrderAsync(ConversationEngine engine, AppDbContext db, string? text = null, AiMessageAnalysis? analysis = null)
     {
-        AiReturns(analysis ?? Order("Sara", "Kurti", 1));
-        await engine.HandleIncomingMessageAsync(Phone, text ?? "Sara, 1 kurti, 03001234567", default);
+        AiReturns(analysis ?? Order("Sara", "Shirt", 1));
+        await engine.HandleIncomingMessageAsync(Phone, text ?? "Sara, 1 shirt, 03001234567", default);
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
         return await db.Orders.Include(o => o.Items).Include(o => o.Customer).OrderBy(o => o.Id).LastAsync();
     }
@@ -362,7 +362,7 @@ public class MockupFeatureTests : IDisposable
 
         await engine.HandleIncomingMessageAsync(Phone, $"edit order {order.Id}", default);
         Assert.Equal(ConversationState.AwaitingOrderEdit, (await db.Sessions.FirstAsync()).State);
-        Assert.Contains(_sent, m => m.Contains("1. Kurti x1") && m.Contains("remove 2"));
+        Assert.Contains(_sent, m => m.Contains("1. Shirt x1") && m.Contains("remove 2"));
 
         await engine.HandleIncomingMessageAsync(Phone, "1 = 3", default);
         await engine.HandleIncomingMessageAsync(Phone, "add Lawn Suit 1", default);
@@ -390,7 +390,7 @@ public class MockupFeatureTests : IDisposable
         await db.Entry(order).ReloadAsync();
         await db.Entry(order.Customer).ReloadAsync();
         items = await db.OrderItems.Where(i => i.OrderId == order.Id).ToListAsync();
-        Assert.Equal("Kurti", Assert.Single(items).ProductNameSnapshot);
+        Assert.Equal("Shirt", Assert.Single(items).ProductNameSnapshot);
         Assert.Equal(1, items[0].Quantity);
         Assert.Equal(1800m, order.Total);
         Assert.Equal(0m, order.DeliveryCharge);
@@ -405,11 +405,11 @@ public class MockupFeatureTests : IDisposable
         var engine = await OnboardAsync(db);
         db.Discounts.Add(new OrderTrackerBot.Domain.Entities.Discount { SellerId = (await db.Sellers.FirstAsync()).Id, Code = "HALF", Type = DiscountType.Percent, Value = 50 });
         await db.SaveChangesAsync();
-        var order = await SaveSaraKurtiOrderAsync(engine, db, "Sara, 1 kurti, 03001234567, code HALF", new AiMessageAnalysis
+        var order = await SaveSaraKurtiOrderAsync(engine, db, "Sara, 1 shirt, 03001234567, code HALF", new AiMessageAnalysis
         {
             Intent = "new_order", IsOrderAttempt = true,
             Order = new AiOrderDraft { CustomerName = "Sara", Phone = "03001234567", DiscountCode = "HALF",
-                Items = { new AiOrderItemDraft { ProductName = "Kurti", MatchedCatalogProductName = "Kurti", Quantity = 1 } } }
+                Items = { new AiOrderItemDraft { ProductName = "Shirt", MatchedCatalogProductName = "Shirt", Quantity = 1 } } }
         });
         await engine.HandleIncomingMessageAsync(Phone, $"mark {order.Id} paid", default);
 
@@ -453,8 +453,8 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
-        AiReturns(Order("Sara", "Kurti", 1));
-        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567, advance 500 jazzcash", default);
+        AiReturns(Order("Sara", "Shirt", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 shirt, 03001234567, advance 500 jazzcash", default);
         Assert.Contains(_sent, m => m.Contains("Advance: Rs.500 · Baqi: Rs.1,300"));
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
         var order = await db.Orders.FirstAsync();
@@ -491,8 +491,8 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
-        AiReturns(Order("Sara", "Kurti", 1));
-        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
+        AiReturns(Order("Sara", "Shirt", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 shirt, 03001234567", default);
 
         await engine.HandleIncomingMessageAsync(Phone, "advance 1800", default);
         Assert.Equal(ConversationState.AwaitingOrderConfirmation, (await db.Sessions.FirstAsync()).State);
@@ -509,8 +509,8 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
-        AiReturns(Order("Sara", "Kurti", 1));
-        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567, advance 300", default);
+        AiReturns(Order("Sara", "Shirt", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 shirt, 03001234567, advance 300", default);
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
         var order = await db.Orders.FirstAsync();
 
@@ -530,15 +530,15 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
-        await engine.HandleIncomingMessageAsync(Phone, "stock Kurti 5", default);
-        Assert.Contains(_sent, m => m.Contains("Kurti — stock: 5"));
+        await engine.HandleIncomingMessageAsync(Phone, "stock Shirt 5", default);
+        Assert.Contains(_sent, m => m.Contains("Shirt — stock: 5"));
 
-        // Save: 2 kurtis held -> 3 left, which is "low".
-        AiReturns(Order("Sara", "Kurti", 2));
-        await engine.HandleIncomingMessageAsync(Phone, "Sara, 2 kurti, 03001234567", default);
+        // Save: 2 shirts held -> 3 left, which is "low".
+        AiReturns(Order("Sara", "Shirt", 2));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 2 shirt, 03001234567", default);
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
-        Assert.Equal(3, await StockOf(db, "Kurti"));
-        Assert.Contains(_sent, m => m.Contains("Stock alert") && m.Contains("Kurti: sirf 3 bache"));
+        Assert.Equal(3, await StockOf(db, "Shirt"));
+        Assert.Contains(_sent, m => m.Contains("Stock alert") && m.Contains("Shirt: sirf 3 bache"));
         Assert.Null(await StockOf(db, "Lawn Suit")); // untracked stays untracked
         var order = await db.Orders.FirstAsync();
 
@@ -546,28 +546,28 @@ public class MockupFeatureTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, $"edit order {order.Id}", default);
         await engine.HandleIncomingMessageAsync(Phone, "1 = 4", default);
         await engine.HandleIncomingMessageAsync(Phone, "done", default);
-        Assert.Equal(1, await StockOf(db, "Kurti"));
+        Assert.Equal(1, await StockOf(db, "Shirt"));
         await engine.HandleIncomingMessageAsync(Phone, "undo", default);
-        Assert.Equal(3, await StockOf(db, "Kurti"));
+        Assert.Equal(3, await StockOf(db, "Shirt"));
 
         // Shipped then returned: the goods come back. Undo of the return holds them again.
         await engine.HandleIncomingMessageAsync(Phone, $"mark {order.Id} shipped", default);
-        Assert.Equal(3, await StockOf(db, "Kurti"));
+        Assert.Equal(3, await StockOf(db, "Shirt"));
         await engine.HandleIncomingMessageAsync(Phone, $"mark {order.Id} returned", default);
-        Assert.Equal(5, await StockOf(db, "Kurti"));
+        Assert.Equal(5, await StockOf(db, "Shirt"));
         await engine.HandleIncomingMessageAsync(Phone, "undo", default);
-        Assert.Equal(3, await StockOf(db, "Kurti"));
+        Assert.Equal(3, await StockOf(db, "Shirt"));
 
         // Cancel releases the stock.
         await engine.HandleIncomingMessageAsync(Phone, $"cancel order {order.Id}", default);
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
-        Assert.Equal(5, await StockOf(db, "Kurti"));
+        Assert.Equal(5, await StockOf(db, "Shirt"));
 
         _sent.Clear();
         await engine.HandleIncomingMessageAsync(Phone, "stock", default);
-        Assert.Contains(_sent, m => m.Contains("Stock (1)") && m.Contains("Kurti: 5"));
+        Assert.Contains(_sent, m => m.Contains("Stock (1)") && m.Contains("Shirt: 5"));
         await engine.HandleIncomingMessageAsync(Phone, "catalog", default);
-        Assert.Contains(_sent, m => m.Contains("Kurti - Rs.1,800 (stock 5)"));
+        Assert.Contains(_sent, m => m.Contains("Shirt - Rs.1,800 (stock 5)"));
     }
 
     [Fact]
@@ -575,18 +575,18 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
-        await engine.HandleIncomingMessageAsync(Phone, "stock Kurti 1", default);
-        await engine.HandleIncomingMessageAsync(Phone, "stock Kurti +1", default);
-        Assert.Equal(2, await StockOf(db, "Kurti"));
+        await engine.HandleIncomingMessageAsync(Phone, "stock Shirt 1", default);
+        await engine.HandleIncomingMessageAsync(Phone, "stock Shirt +1", default);
+        Assert.Equal(2, await StockOf(db, "Shirt"));
 
-        AiReturns(Order("Sara", "Kurti", 3));
-        await engine.HandleIncomingMessageAsync(Phone, "Sara, 3 kurti, 03001234567", default);
+        AiReturns(Order("Sara", "Shirt", 3));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 3 shirt, 03001234567", default);
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
-        Assert.Equal(-1, await StockOf(db, "Kurti"));
-        Assert.Contains(_sent, m => m.Contains("Kurti: stock khatam (-1)"));
+        Assert.Equal(-1, await StockOf(db, "Shirt"));
+        Assert.Contains(_sent, m => m.Contains("Shirt: stock khatam (-1)"));
 
-        await engine.HandleIncomingMessageAsync(Phone, "stock kurti off", default);
-        Assert.Null(await StockOf(db, "Kurti"));
+        await engine.HandleIncomingMessageAsync(Phone, "stock shirt off", default);
+        Assert.Null(await StockOf(db, "Shirt"));
         await engine.HandleIncomingMessageAsync(Phone, "stock Shalwar 5", default);
         Assert.Contains(_sent, m => m.Contains("\"Shalwar\" catalog mein nahi mila"));
     }
@@ -1297,7 +1297,7 @@ public class MockupFeatureTests : IDisposable
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
         var order = await SaveSaraKurtiOrderAsync(engine, db);
-        var voice = VoiceEngine(db, "sara ke kurti ki price pandrah sau lagao");
+        var voice = VoiceEngine(db, "sara ke shirt ki price pandrah sau lagao");
         _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiVoiceInterpretation
             {
@@ -1420,7 +1420,7 @@ public class MockupFeatureTests : IDisposable
     [Theory]
     [InlineData("catalog")]
     [InlineData("products")]
-    [InlineData("Kurti - 1800")]
+    [InlineData("Shirt - 1800")]
     public void CatalogFilter_DoesNotHijackPlainCatalogOrProductLines(string text) =>
         Assert.NotEqual(CommandKind.CatalogFilter, CommandParser.TryParse(text)?.Kind);
 
@@ -1680,8 +1680,8 @@ public class MockupFeatureTests : IDisposable
     {
         await OnboardAsync(db);
         var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, features: new FeatureOptions { DynamicAnswers = dynamicAnswers });
-        AiReturns(Order("Ali", "Kurti", 1));
-        await engine.HandleIncomingMessageAsync(Phone, "Ali ka order kurti 1 03001234567", default);
+        AiReturns(Order("Ali", "Shirt", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Ali ka order shirt 1 03001234567", default);
         Assert.Equal(0, await db.Orders.CountAsync());   // a draft is waiting for the answer
         return engine;
     }
@@ -1921,7 +1921,7 @@ public class MockupFeatureTests : IDisposable
         await OnboardAsync(db);
         var logger = new Mock<Microsoft.Extensions.Logging.ILogger<ConversationEngine>>();
         logger.Setup(l => l.IsEnabled(It.IsAny<Microsoft.Extensions.Logging.LogLevel>())).Returns(true);
-        var voice = VoiceEngine(db, "kurti ki qeemat badal do", logger.Object);
+        var voice = VoiceEngine(db, "shirt ki qeemat badal do", logger.Object);
         _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiVoiceInterpretation { Steps = { "order 1 advance 777777" }, Actions = { "command" } });
         AiReturns(new AiMessageAnalysis { Intent = "unclear" });
@@ -2097,7 +2097,7 @@ public class MockupFeatureTests : IDisposable
 
         await voice.HandleAudioMessageAsync(Phone, "voice-ctx", "wamid.touch");
 
-        Assert.Contains(_sent, m => m.Contains("Order #1 —") && m.Contains("Kurti"));
+        Assert.Contains(_sent, m => m.Contains("Order #1 —") && m.Contains("Shirt"));
         Assert.Equal(warns, _sent.Any(m => m.Contains("yeh naam nahi suna gaya")));
     }
 
@@ -2147,7 +2147,7 @@ public class MockupFeatureTests : IDisposable
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
         var order = await SaveSaraKurtiOrderAsync(engine, db);
-        var voice = VoiceEngine(db, "sara ke kurti ki price pandrah sau lagao");
+        var voice = VoiceEngine(db, "sara ke shirt ki price pandrah sau lagao");
         AiVoiceContext? seen = null;
         _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .Callback<AiVoiceContext, string, CancellationToken>((c, _, _) => seen = c)
@@ -2161,10 +2161,10 @@ public class MockupFeatureTests : IDisposable
         Assert.Equal(1800m, (await db.OrderItems.AsNoTracking().FirstAsync(i => i.OrderId == order.Id)).UnitPrice);
         await voice.HandleIncomingMessageAsync(Phone, "yes", default);
 
-        Assert.Contains(seen!.RecentOrders, o => o.Contains($"Order #{order.Id}") && o.Contains("Sara") && o.Contains("1) Kurti x1"));
+        Assert.Contains(seen!.RecentOrders, o => o.Contains($"Order #{order.Id}") && o.Contains("Sara") && o.Contains("1) Shirt x1"));
         Assert.Contains(seen.KnownCustomers, c => c.StartsWith("Sara,") && c.Contains("1 order") && c.Contains($"last Order #{order.Id}"));
         Assert.Equal(1500m, (await db.OrderItems.AsNoTracking().FirstAsync(i => i.OrderId == order.Id)).UnitPrice);
-        Assert.Equal(1800m, (await db.Products.AsNoTracking().FirstAsync(p => p.Name == "Kurti")).Price); // the catalog price is only a default
+        Assert.Equal(1800m, (await db.Products.AsNoTracking().FirstAsync(p => p.Name == "Shirt")).Price); // the catalog price is only a default
         Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
         Assert.Contains(_sent, m => m.Contains("Samjha:") && m.Contains("price 1 = 1500"));
     }
@@ -2175,7 +2175,7 @@ public class MockupFeatureTests : IDisposable
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
         var order = await SaveSaraKurtiOrderAsync(engine, db);
-        var voice = VoiceEngine(db, "sara ke kurti ki price pandrah sau lagao");
+        var voice = VoiceEngine(db, "sara ke shirt ki price pandrah sau lagao");
         _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiVoiceInterpretation { Steps = { $"edit order {order.Id}", "price 1 = 1500", "done" } });
 
@@ -2193,7 +2193,7 @@ public class MockupFeatureTests : IDisposable
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
         var order = await SaveSaraKurtiOrderAsync(engine, db);
-        var voice = VoiceEngine(db, "sara ke kurti ki price pandrah sau lagao");
+        var voice = VoiceEngine(db, "sara ke shirt ki price pandrah sau lagao");
         _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiVoiceInterpretation { Steps = { $"edit order {order.Id}", "price 1 = 1500", "done" } });
 
@@ -2214,7 +2214,7 @@ public class MockupFeatureTests : IDisposable
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
         var order = await SaveSaraKurtiOrderAsync(engine, db);
-        var voice = VoiceEngine(db, "sara ke kurti ki price pandrah sau lagao");
+        var voice = VoiceEngine(db, "sara ke shirt ki price pandrah sau lagao");
         _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiVoiceInterpretation { Steps = { $"edit order {order.Id}", "price 1 = 1500", "done" } });
 
@@ -2253,8 +2253,8 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
-        AiReturns(Order("Sara", "Kurti", 1));
-        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
+        AiReturns(Order("Sara", "Shirt", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 shirt, 03001234567", default);
         Assert.Equal(ConversationState.AwaitingOrderConfirmation, (await db.Sessions.FirstAsync()).State);
         _sent.Clear();
 
@@ -2298,8 +2298,8 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
-        AiReturns(Order("Sara", "Kurti", 1));
-        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
+        AiReturns(Order("Sara", "Shirt", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 shirt, 03001234567", default);
         var voice = VoiceEngine(db, "mujhe samajh nahi aa raha kya bolun");
         _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiVoiceInterpretation { Steps = { "kya karun" } });
@@ -2316,8 +2316,8 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
-        AiReturns(Order("Sara", "Kurti", 1));
-        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
+        AiReturns(Order("Sara", "Shirt", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 shirt, 03001234567", default);
         // No yes word at all ("oye pakka kar de yaar"): only the meaning says it is a yes.
         var voice = VoiceEngine(db, "oye pakka kar de yaar");
         _ai.Setup(a => a.ClassifyYesNoAsync(It.IsAny<string>(), "oye pakka kar de yaar", It.IsAny<CancellationToken>())).ReturnsAsync("yes");
@@ -2334,8 +2334,8 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
-        AiReturns(Order("Sara", "Kurti", 1));
-        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
+        AiReturns(Order("Sara", "Shirt", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 shirt, 03001234567", default);
         var voice = VoiceEngine(db, "pehle yeh batao ke delivery kab hogi");
         _ai.Setup(a => a.ClassifyYesNoAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync("other");
         _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -2421,7 +2421,7 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         await OnboardAsync(db);
-        var voice = VoiceEngine(db, "Ayesha ke liye do Kurti", features: IntentFirst());
+        var voice = VoiceEngine(db, "Ayesha ke liye do Shirt", features: IntentFirst());
         _ai.Setup(a => a.ClassifyVoiceKindAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(kind);
         _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiVoiceInterpretation { Steps = { "catalog" } });
@@ -2468,12 +2468,12 @@ public class MockupFeatureTests : IDisposable
         var order = await SaveSaraKurtiOrderAsync(engine, db);
         var voice = VoiceEngine(db, "sara ke order mein jo price lagayi woh theek nahi");
         _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AiVoiceInterpretation { Question = "Sara ke order mein Kurti ki price kitni rakhni hai?" });
+            .ReturnsAsync(new AiVoiceInterpretation { Question = "Sara ke order mein Shirt ki price kitni rakhni hai?" });
         var priceBefore = (await db.OrderItems.AsNoTracking().FirstAsync(i => i.OrderId == order.Id)).UnitPrice;
 
         await voice.HandleAudioMessageAsync(Phone, "voice-ctx");
 
-        Assert.Contains(_sent, m => m.Contains("❓ Sara ke order mein Kurti ki price kitni rakhni hai?"));
+        Assert.Contains(_sent, m => m.Contains("❓ Sara ke order mein Shirt ki price kitni rakhni hai?"));
         Assert.Equal(priceBefore, (await db.OrderItems.AsNoTracking().FirstAsync(i => i.OrderId == order.Id)).UnitPrice);
         Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
     }
@@ -2519,14 +2519,14 @@ public class MockupFeatureTests : IDisposable
     public async Task VoiceNote_RewriteThatDropsANumber_AsksAgainAndRunsNothing()
     {
         using var db = _dbFactory.CreateContext();
-        const string spoken = "kurti 1800";
+        const string spoken = "shirt 1800";
         var engine = await VoiceEngineAtAddProductAsync(db, spoken);
-        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), spoken, It.IsAny<CancellationToken>())).ReturnsAsync(new AiVoiceInterpretation { Steps = { "Kurti" } });
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), spoken, It.IsAny<CancellationToken>())).ReturnsAsync(new AiVoiceInterpretation { Steps = { "Shirt" } });
 
         await engine.HandleAudioMessageAsync(Phone, "voice-ctx");
 
         Assert.DoesNotContain(_sent, m => m.Contains("Samjha"));
-        Assert.False(await db.Products.AnyAsync(p => p.Name == "Kurti"));
+        Assert.False(await db.Products.AnyAsync(p => p.Name == "Shirt"));
         Assert.Contains(_sent, m => m.Contains($"Maine suna: \"{spoken}\"") && m.Contains("alag alag"));
     }
 
@@ -2583,13 +2583,13 @@ public class MockupFeatureTests : IDisposable
     public async Task VoiceNote_AiUnavailable_TheDeterministicEngineStillReadsTheTranscript()
     {
         using var db = _dbFactory.CreateContext();
-        var engine = await VoiceEngineAtAddProductAsync(db, "Kurti 1800");
-        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), "Kurti 1800", It.IsAny<CancellationToken>()))
+        var engine = await VoiceEngineAtAddProductAsync(db, "Shirt 1800");
+        _ai.Setup(a => a.InterpretVoiceAsync(It.IsAny<AiVoiceContext>(), "Shirt 1800", It.IsAny<CancellationToken>()))
             .ReturnsAsync((AiVoiceInterpretation?)null);
 
         await engine.HandleAudioMessageAsync(Phone, "voice-ctx");
 
-        Assert.Equal(1800m, (await db.Products.SingleAsync(p => p.Name == "Kurti")).Price);
+        Assert.Equal(1800m, (await db.Products.SingleAsync(p => p.Name == "Shirt")).Price);
     }
 
     [Fact]
@@ -2625,8 +2625,8 @@ public class MockupFeatureTests : IDisposable
     [InlineData("Hello bhai, kya hogaya?", true)]
     [InlineData("salam", true)]
     [InlineData("Ayesha ka order", false)]
-    [InlineData("kya 2 kurti hain", false)]
-    [InlineData("Kurti 2 Ayesha", false)]
+    [InlineData("kya 2 shirt hain", false)]
+    [InlineData("Shirt 2 Ayesha", false)]
     [InlineData("order ho gaya?", false)]
     public void IsSmallTalkOnly_OnlyGreetingWords(string transcript, bool expected) =>
         Assert.Equal(expected, ConversationEngine.IsSmallTalkOnly(transcript));
@@ -2701,9 +2701,9 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
-        AiReturns(Order("Sara", "Kurti", 1));
+        AiReturns(Order("Sara", "Shirt", 1));
 
-        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 shirt, 03001234567", default);
         Assert.Contains(_sent, m => m.Contains("Payment: COD (delivery par cash)"));
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
 
@@ -2719,11 +2719,11 @@ public class MockupFeatureTests : IDisposable
         analysis.AdditionalOrders.Add(new AiOrderDraft
         {
             CustomerName = "Bilal", Phone = "03009876543",
-            Items = { new AiOrderItemDraft { ProductName = "Kurti", MatchedCatalogProductName = "Kurti", Quantity = 1 } }
+            Items = { new AiOrderItemDraft { ProductName = "Shirt", MatchedCatalogProductName = "Shirt", Quantity = 1 } }
         });
         AiReturns(analysis);
 
-        await engine.HandleIncomingMessageAsync(Phone, "Ayesha 2 suit, Bilal 1 kurti, 03001234567 aur 03009876543", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Ayesha 2 suit, Bilal 1 shirt, 03001234567 aur 03009876543", default);
         Assert.Contains(_sent, m => m.Contains("Mujhe 2 alag orders mile"));
 
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
@@ -2738,7 +2738,7 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
-        db.Products.Add(new Product { SellerId = db.Sellers.First().Id, Name = "Test Kurti", Price = 3600, CostPrice = 2500, StockQty = 4, IsActive = true });
+        db.Products.Add(new Product { SellerId = db.Sellers.First().Id, Name = "Test Shirt", Price = 3600, CostPrice = 2500, StockQty = 4, IsActive = true });
         await db.SaveChangesAsync();
         _sent.Clear();
 
@@ -2811,8 +2811,8 @@ public class MockupFeatureTests : IDisposable
         Assert.Contains(_sent, m => m.Contains("Rest karein!") && m.Contains("menu"));
         Assert.Equal(ConversationState.Idle, (await db.Sessions.FirstAsync()).State);
 
-        AiReturns(Order("Ayesha", "Kurti", 1));
-        await engine.HandleIncomingMessageAsync(Phone, "Ayesha, 1 kurti, 03001234567", default);
+        AiReturns(Order("Ayesha", "Shirt", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Ayesha, 1 shirt, 03001234567", default);
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
 
         AiReturns(new AiMessageAnalysis
@@ -2832,8 +2832,8 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
-        AiReturns(Order("Sara", "Kurti", 1));
-        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
+        AiReturns(Order("Sara", "Shirt", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 shirt, 03001234567", default);
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
         var order = await db.Orders.FirstAsync();
 
@@ -2871,8 +2871,8 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
-        AiReturns(Order("Bilal", "Kurti", 1));
-        await engine.HandleIncomingMessageAsync(Phone, "Bilal, 1 kurti, 03001234567", default);
+        AiReturns(Order("Bilal", "Shirt", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Bilal, 1 shirt, 03001234567", default);
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
 
         await engine.HandleIncomingMessageAsync(Phone, "delete customer bilal", default);
@@ -2899,8 +2899,8 @@ public class MockupFeatureTests : IDisposable
 
         await engine.HandleIncomingMessageAsync(Phone, "Ayesha, 2 suit, 03001234567", default);
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
-        AiReturns(Order("Ayesha", "Kurti", 1));
-        await engine.HandleIncomingMessageAsync(Phone, "Ayesha, 1 kurti, 03001234567", default);
+        AiReturns(Order("Ayesha", "Shirt", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Ayesha, 1 shirt, 03001234567", default);
         await engine.HandleIncomingMessageAsync(Phone, "1", default); // not a duplicate (different product), but answer defensively
         if ((await db.Sessions.FirstAsync()).State == ConversationState.AwaitingOrderConfirmation)
             await engine.HandleIncomingMessageAsync(Phone, "yes", default);
@@ -2918,8 +2918,8 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
-        AiReturns(Order("Sara", "Kurti", 1));
-        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
+        AiReturns(Order("Sara", "Shirt", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 shirt, 03001234567", default);
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
 
         await engine.HandleIncomingMessageAsync(Phone, "undo", default);
@@ -2932,8 +2932,8 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
-        AiReturns(Order("Sara", "Kurti", 1));
-        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 kurti, 03001234567", default);
+        AiReturns(Order("Sara", "Shirt", 1));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 shirt, 03001234567", default);
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
         _sender.Setup(s => s.SendTemplateMessageAsync("923001234567", It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
 

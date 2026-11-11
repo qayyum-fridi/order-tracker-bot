@@ -43,7 +43,7 @@ public class BackReferenceOrderTests : IDisposable
     private async Task<ConversationEngine> OnboardAsync(AppDbContext db)
     {
         var engine = Engine(db);
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "Lawn Suit - 3500", "Kurti - 1800", "done" })
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "Lawn Suit - 3500", "Shirt - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         _sent.Clear();
         return engine;
@@ -57,9 +57,9 @@ public class BackReferenceOrderTests : IDisposable
             {
                 Intent = "new_order",
                 IsOrderAttempt = true,
-                Order = new AiOrderDraft { CustomerName = name, Phone = phone, Items = { new AiOrderItemDraft { ProductName = "Kurti", MatchedCatalogProductName = "Kurti", Quantity = 1 } } }
+                Order = new AiOrderDraft { CustomerName = name, Phone = phone, Items = { new AiOrderItemDraft { ProductName = "Shirt", MatchedCatalogProductName = "Shirt", Quantity = 1 } } }
             });
-        await engine.HandleIncomingMessageAsync(Phone, $"{name}, 1 kurti, {phone}", default);
+        await engine.HandleIncomingMessageAsync(Phone, $"{name}, 1 shirt, {phone}", default);
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
         return (await db.Orders.OrderByDescending(o => o.Id).FirstAsync()).Id;
     }

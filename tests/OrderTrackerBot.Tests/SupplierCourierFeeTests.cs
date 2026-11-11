@@ -14,7 +14,7 @@ public class SupplierCourierFeeParserTests
     [Theory]
     [InlineData("supplier Lawn Suit Shah Alam", "set")]
     [InlineData("supplier Lawn Suit: Shah Alam", "set")]
-    [InlineData("supplier Shah Alam: Lawn Suit, Kurti", "set")]
+    [InlineData("supplier Shah Alam: Lawn Suit, Shirt", "set")]
     [InlineData("Lawn Suit ka supplier Shah Alam", "of")]
     [InlineData("supplier remove Lawn Suit", "remove")]
     [InlineData("supplier hatao Lawn Suit", "remove")]
@@ -161,15 +161,15 @@ public class SupplierCourierFeeEngineTests : IDisposable
     {
         await SetupAsync();
         await ProductAsync("Lawn Suit", 3500);
-        await ProductAsync("Kurti", 1800);
+        await ProductAsync("Shirt", 1800);
 
         var none = await AskAsync("supplier Shah Alam: Lawn Suit, Mystery");
         Assert.Contains("\"Mystery\" catalog mein nahi mila — kuch save nahi kiya", none);
         Assert.All(_db.Products.ToList(), p => Assert.Null(p.AttributesJson));
 
-        var reply = await AskAsync("supplier Shah Alam: Lawn Suit, Kurti");
+        var reply = await AskAsync("supplier Shah Alam: Lawn Suit, Shirt");
         Assert.Contains("• Lawn Suit", reply);
-        Assert.Contains("• Kurti", reply);
+        Assert.Contains("• Shirt", reply);
         Assert.All(_db.Products.ToList(), p => Assert.Contains("Shah Alam", p.AttributesJson!));
     }
 
@@ -178,13 +178,13 @@ public class SupplierCourierFeeEngineTests : IDisposable
     {
         await SetupAsync();
         await ProductAsync("Lawn Suit", 3500);
-        await ProductAsync("Kurti", 1800);
+        await ProductAsync("Shirt", 1800);
 
         await AskAsync("supplier Lawn Suit: Shah Alam");
-        await AskAsync("supplier Metro Cash Kurti");
+        await AskAsync("supplier Metro Cash Shirt");
 
         Assert.Contains("Shah Alam", _db.Products.Single(p => p.Name == "Lawn Suit").AttributesJson!);
-        Assert.Contains("Metro Cash", _db.Products.Single(p => p.Name == "Kurti").AttributesJson!);
+        Assert.Contains("Metro Cash", _db.Products.Single(p => p.Name == "Shirt").AttributesJson!);
     }
 
     [Fact]

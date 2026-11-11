@@ -8,7 +8,7 @@ using Xunit;
 
 namespace OrderTrackerBot.Tests;
 
-/// <summary>"Ayesha 2 suit, Bilal 1 kurti": the model returns one draft per buyer (AdditionalOrders). Each buyer keeps only their own items.</summary>
+/// <summary>"Ayesha 2 suit, Bilal 1 shirt": the model returns one draft per buyer (AdditionalOrders). Each buyer keeps only their own items.</summary>
 public class MultiBuyerOrderTests : IDisposable
 {
     private const string Phone = "923001234567";
@@ -30,7 +30,7 @@ public class MultiBuyerOrderTests : IDisposable
     private async Task<ConversationEngine> OnboardAsync(AppDbContext db)
     {
         var engine = CreateEngine(db);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800", "Lawn Suit - 2500", "done" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Shirt - 1800", "Lawn Suit - 2500", "done" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
         _sent.Clear();
         return engine;
@@ -51,7 +51,7 @@ public class MultiBuyerOrderTests : IDisposable
                     new AiOrderDraft
                     {
                         CustomerName = "Bilal", Phone = secondPhone,
-                        Items = { new AiOrderItemDraft { ProductName = "Kurti", Quantity = 1 } }
+                        Items = { new AiOrderItemDraft { ProductName = "Shirt", Quantity = 1 } }
                     }
                 }
             });
@@ -63,15 +63,15 @@ public class MultiBuyerOrderTests : IDisposable
         var engine = await OnboardAsync(db);
         TwoBuyers("Lawn Suit");
 
-        await engine.HandleIncomingMessageAsync(Phone, "Ayesha 2 lawn suit, Bilal 1 kurti", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Ayesha 2 lawn suit, Bilal 1 shirt", default);
 
         // One line per buyer: each line names only that buyer's items.
         var listing = _sent.Single(m => m.Contains("alag orders")).Split('\n');
         var ayeshaLine = listing.Single(l => l.Contains("Ayesha"));
         var bilalLine = listing.Single(l => l.Contains("Bilal"));
         Assert.Contains("2x Lawn Suit", ayeshaLine);
-        Assert.DoesNotContain("Kurti", ayeshaLine);
-        Assert.Contains("1x Kurti", bilalLine);
+        Assert.DoesNotContain("Shirt", ayeshaLine);
+        Assert.Contains("1x Shirt", bilalLine);
         Assert.DoesNotContain("Lawn Suit", bilalLine);
         _sent.Clear();
 
@@ -83,7 +83,7 @@ public class MultiBuyerOrderTests : IDisposable
         Assert.Equal(new[] { "Lawn Suit" }, orders[0].Items.Select(i => i.ProductNameSnapshot));
         Assert.Equal(2, orders[0].Items.Single().Quantity);
         Assert.Equal("Bilal", orders[1].Customer!.Name);
-        Assert.Equal(new[] { "Kurti" }, orders[1].Items.Select(i => i.ProductNameSnapshot));
+        Assert.Equal(new[] { "Shirt" }, orders[1].Items.Select(i => i.ProductNameSnapshot));
         Assert.Equal(1, orders[1].Items.Single().Quantity);
     }
 
@@ -94,18 +94,18 @@ public class MultiBuyerOrderTests : IDisposable
         var engine = await OnboardAsync(db);
         TwoBuyers("Shawl");                                     // unknown product on the FIRST buyer's draft
 
-        await engine.HandleIncomingMessageAsync(Phone, "Ayesha 2 shawl, Bilal 1 kurti", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Ayesha 2 shawl, Bilal 1 shirt", default);
         Assert.Contains(_sent, m => m.Contains("Shawl") && m.Contains("aapke catalog mein nahi mila"));
         _sent.Clear();
 
         await engine.HandleIncomingMessageAsync(Phone, "1", default);
         await engine.HandleIncomingMessageAsync(Phone, "1200", default);
 
-        // Ayesha's draft is confirmed first; Bilal's draft follows with only his Kurti.
-        Assert.Contains(_sent, m => m.Contains("Confirm order") && m.Contains("Ayesha") && m.Contains("Shawl") && !m.Contains("Kurti"));
+        // Ayesha's draft is confirmed first; Bilal's draft follows with only his Shirt.
+        Assert.Contains(_sent, m => m.Contains("Confirm order") && m.Contains("Ayesha") && m.Contains("Shawl") && !m.Contains("Shirt"));
         _sent.Clear();
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
-        Assert.Contains(_sent, m => m.Contains("Confirm order") && m.Contains("Bilal") && m.Contains("Kurti") && !m.Contains("Shawl"));
+        Assert.Contains(_sent, m => m.Contains("Confirm order") && m.Contains("Bilal") && m.Contains("Shirt") && !m.Contains("Shawl"));
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
 
         var orders = await db.Orders.Include(o => o.Customer).Include(o => o.Items).OrderBy(o => o.Id).ToListAsync();
@@ -113,7 +113,7 @@ public class MultiBuyerOrderTests : IDisposable
         Assert.Equal("Ayesha", orders[0].Customer!.Name);
         Assert.Equal(new[] { "Shawl" }, orders[0].Items.Select(i => i.ProductNameSnapshot));
         Assert.Equal("Bilal", orders[1].Customer!.Name);
-        Assert.Equal(new[] { "Kurti" }, orders[1].Items.Select(i => i.ProductNameSnapshot));
+        Assert.Equal(new[] { "Shirt" }, orders[1].Items.Select(i => i.ProductNameSnapshot));
     }
 
     public void Dispose() => _dbFactory.Dispose();

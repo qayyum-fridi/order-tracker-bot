@@ -42,14 +42,14 @@ public class SellerIsolationTests : IDisposable
     [Fact]
     public async Task SellerB_NeverSeesSellerAsCatalogOrdersOrShop()
     {
-        await OnboardAsync(PhoneA, "Ayesha Collections", "Kurti - 1800");
+        await OnboardAsync(PhoneA, "Ayesha Collections", "Shirt - 1800");
         await OnboardAsync(PhoneB, "Bilal Traders", "Zebra Mug - 500");
-        await _engine.HandleIncomingMessageAsync(PhoneA, "walkin Kurti 1 then yes (cash)", default);
+        await _engine.HandleIncomingMessageAsync(PhoneA, "walkin Shirt 1 then yes (cash)", default);
 
         var a = await _db.Sellers.SingleAsync(s => s.WhatsAppPhoneNumber == PhoneA);
         var b = await _db.Sellers.SingleAsync(s => s.WhatsAppPhoneNumber == PhoneB);
         Assert.NotEqual(a.Id, b.Id);
-        Assert.Equal("Kurti", Assert.Single(await _db.Products.Where(p => p.SellerId == a.Id).ToListAsync()).Name);
+        Assert.Equal("Shirt", Assert.Single(await _db.Products.Where(p => p.SellerId == a.Id).ToListAsync()).Name);
         Assert.Equal("Zebra Mug", Assert.Single(await _db.Products.Where(p => p.SellerId == b.Id).ToListAsync()).Name);
         Assert.NotEmpty(await _db.Orders.Where(o => o.SellerId == a.Id).ToListAsync());
         Assert.Empty(await _db.Orders.Where(o => o.SellerId == b.Id).ToListAsync());
@@ -61,7 +61,7 @@ public class SellerIsolationTests : IDisposable
 
         var toB = _sent.Where(m => m.To == PhoneB).Select(m => m.Text).ToList();
         Assert.NotEmpty(toB);
-        Assert.DoesNotContain(toB, t => t.Contains("Kurti", StringComparison.OrdinalIgnoreCase) || t.Contains("Ayesha", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(toB, t => t.Contains("Shirt", StringComparison.OrdinalIgnoreCase) || t.Contains("Ayesha", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(_sent, m => m.To == PhoneA);
         Assert.Empty(await _db.Orders.Where(o => o.SellerId == b.Id).ToListAsync());
     }
@@ -69,13 +69,13 @@ public class SellerIsolationTests : IDisposable
     [Fact]
     public async Task SellerB_CannotChangeOrDeleteSellerAsData()
     {
-        await OnboardAsync(PhoneA, "Ayesha Collections", "Kurti - 1800");
+        await OnboardAsync(PhoneA, "Ayesha Collections", "Shirt - 1800");
         await OnboardAsync(PhoneB, "Bilal Traders", "Zebra Mug - 500");
-        await _engine.HandleIncomingMessageAsync(PhoneA, "walkin Kurti 1 then yes (cash)", default);
+        await _engine.HandleIncomingMessageAsync(PhoneA, "walkin Shirt 1 then yes (cash)", default);
         var a = await _db.Sellers.SingleAsync(s => s.WhatsAppPhoneNumber == PhoneA);
         var ordersBefore = await _db.Orders.Where(o => o.SellerId == a.Id).CountAsync();
 
-        foreach (var message in new[] { "cancel 1", "mark 1 shipped", "order 1 advance 500", "stock Kurti 5", "edit product: Kurti - 1", "reset account", "yes" })
+        foreach (var message in new[] { "cancel 1", "mark 1 shipped", "order 1 advance 500", "stock Shirt 5", "edit product: Shirt - 1", "reset account", "yes" })
             await _engine.HandleIncomingMessageAsync(PhoneB, message, default);
 
         var products = await _db.Products.Where(p => p.SellerId == a.Id).ToListAsync();

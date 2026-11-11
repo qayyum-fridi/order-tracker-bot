@@ -87,18 +87,18 @@ public class CategorySalesAndMonthTests : IDisposable
     {
         var (engine, db) = await SetupAsync();
         using var db2 = db;
-        var kurti = await ProductAsync(db, "Kurti", 1800, "Kapron");
+        var shirt = await ProductAsync(db, "Shirt", 1800, "Kapron");
         var polo = await ProductAsync(db, "Polo Shirt", 500, "kapron");      // same category, other spelling
         var kaju = await ProductAsync(db, "Kaju 1kg", 320, "Grocery");
         var misc = await ProductAsync(db, "Misc", 100, null);
         var now = DateTime.UtcNow.AddHours(-1);
-        await SoldAsync(db, kurti, "Kurti", 1800, 2, now);                  // 3600
+        await SoldAsync(db, shirt, "Shirt", 1800, 2, now);                  // 3600
         await SoldAsync(db, polo, "Polo Shirt", 500, 2, now);               // 1000
         await SoldAsync(db, kaju, "Kaju 1kg", 320, 5, now);                 // 1600
         await SoldAsync(db, misc, "Misc", 100, 3, now);                     // 300
         await SoldAsync(db, null, "Old item", 700, 1, now);                 // no product at all: 700 uncategorised
-        await SoldAsync(db, kurti, "Kurti", 1800, 9, now, OrderStatus.Cancelled);
-        await SoldAsync(db, kurti, "Kurti", 1800, 9, now.AddDays(-60));     // outside the window
+        await SoldAsync(db, shirt, "Shirt", 1800, 9, now, OrderStatus.Cancelled);
+        await SoldAsync(db, shirt, "Shirt", 1800, 9, now.AddDays(-60));     // outside the window
 
         await engine.HandleIncomingMessageAsync(Phone, "sales by category", default);
 
@@ -126,9 +126,9 @@ public class CategorySalesAndMonthTests : IDisposable
     {
         var (engine, db) = await SetupAsync();
         using var db2 = db;
-        var kurti = await ProductAsync(db, "Kurti", 1800, "Kapron");
-        await SoldAsync(db, kurti, "Kurti", 1800, 1, DateTime.UtcNow.AddHours(-1));
-        await SoldAsync(db, kurti, "Kurti", 1800, 5, DateTime.UtcNow.AddDays(-20));
+        var shirt = await ProductAsync(db, "Shirt", 1800, "Kapron");
+        await SoldAsync(db, shirt, "Shirt", 1800, 1, DateTime.UtcNow.AddHours(-1));
+        await SoldAsync(db, shirt, "Shirt", 1800, 5, DateTime.UtcNow.AddDays(-20));
 
         await engine.HandleIncomingMessageAsync(Phone, "sales by category this week", default);
 

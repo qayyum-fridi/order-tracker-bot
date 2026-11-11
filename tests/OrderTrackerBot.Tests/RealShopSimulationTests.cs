@@ -163,7 +163,7 @@ public class RealShopSimulationTests : IDisposable
         var products = new List<(string Say, string Name, bool Mistake)>
         {
             ("Lawn Suit - 3500", "Lawn Suit", false),
-            ("Kurti - 1800", "Kurti", false),
+            ("Shirt - 1800", "Shirt", false),
             ("Dupatta 800", "Dupatta", true),                              // no dash
             ("Chadar - Rs. 2,200", "Chadar", true),                        // Rs and a thousands comma
             ("Khussa - 2500 add kar dein", "Khussa", true),                // trailing instruction
@@ -228,7 +228,7 @@ public class RealShopSimulationTests : IDisposable
 
         // ---- 4. questions and reports, one phrased badly ---------------------------------------------------------------------------------------------
         foreach (var q in new[] { "orders today", "pending orders", "today's summary", "catalog", "Ali ka order", "Ali ka order khol do", "Ali koi customer hai",
-                     "expense 500 packaging", "monthly net", "profit", "stock Kurti 20", "stock", "undo", "kuch bhi bakwas likh diya" })
+                     "expense 500 packaging", "monthly net", "profit", "stock Shirt 20", "stock", "undo", "kuch bhi bakwas likh diya" })
             await SayAsync(engine, q.Contains("bakwas") || q.Contains("khol") || q.Contains("koi customer") ? "question (loose phrasing)" : "question", q);
 
         // ---- 5. what the database ended up with --------------------------------------------------------------------------------------------------------

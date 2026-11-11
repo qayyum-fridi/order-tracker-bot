@@ -224,7 +224,7 @@ public class DataImportTests : IDisposable
             },
             new[]
             {
-                Row("Kurti", "1800", "1200", "piece", "10", "Ali Traders", "fabric: cotton; season: summer"),
+                Row("Shirt", "1800", "1200", "piece", "10", "Ali Traders", "fabric: cotton; season: summer"),
                 Row("Lawn Suit", "3500", null, null, null, null, null),   // exists from onboarding
                 Row("Sugar", "Rs. 1,250", null, "kg", null, null, null),
                 Row("Broken", "abc", null, null, null, null, null),
@@ -252,12 +252,12 @@ public class DataImportTests : IDisposable
         Assert.Equal("03001234567", customers[1].Phone);
         Assert.Equal("03217654321", customers[2].Phone);
         Assert.Equal("Lahore", customers[1].City);
-        var kurti = await db.Products.SingleAsync(p => p.Name == "Kurti");
-        Assert.Equal(1800m, kurti.Price);
-        Assert.Equal(1200m, kurti.CostPrice);
-        Assert.Equal(10, kurti.StockQty);
-        Assert.Contains("Ali Traders", kurti.AttributesJson);
-        Assert.Contains("cotton", kurti.AttributesJson);
+        var shirt = await db.Products.SingleAsync(p => p.Name == "Shirt");
+        Assert.Equal(1800m, shirt.Price);
+        Assert.Equal(1200m, shirt.CostPrice);
+        Assert.Equal(10, shirt.StockQty);
+        Assert.Contains("Ali Traders", shirt.AttributesJson);
+        Assert.Contains("cotton", shirt.AttributesJson);
         var sugar = await db.Products.SingleAsync(p => p.Name == "Sugar");
         Assert.Equal(1250m, sugar.Price);
         Assert.Equal("kg", sugar.UnitType);
@@ -365,7 +365,7 @@ public class DataImportTests : IDisposable
         Assert.Equal("Import-Catalog-Template.xlsx", Assert.Single(_files).File);
         Assert.Equal(ConversationState.OnboardingStartChoice, (await db.Sessions.FirstAsync()).State);
 
-        ServeFile("m1", Workbook(new[] { Row("Bilal", "03217654321", null, null) }, new[] { Row("Kurti", "1800", null, null, null, null, null) }));
+        ServeFile("m1", Workbook(new[] { Row("Bilal", "03217654321", null, null) }, new[] { Row("Shirt", "1800", null, null, null, null, null) }));
         _buttonBodies.Clear();
         await engine.HandleDocumentMessageAsync(Phone, "m1", "old.xlsx", XlsxMime);
         Assert.Single(_buttonBodies);

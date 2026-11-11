@@ -37,7 +37,7 @@ public class TurnLiveEngineTests
         var seller = new Seller { WhatsAppPhoneNumber = Phone, BusinessName = "Ayesha Collection", OnboardingComplete = true, Session = new ConversationSession { State = ConversationState.Idle } };
         db.Sellers.Add(seller);
         await db.SaveChangesAsync();
-        db.Products.Add(new Product { SellerId = seller.Id, Name = "Kurti", Price = 1800 });
+        db.Products.Add(new Product { SellerId = seller.Id, Name = "Shirt", Price = 1800 });
         await db.SaveChangesAsync();
 
         var sent = new List<string>();
@@ -73,8 +73,8 @@ public class TurnLiveEngineTests
         Assert.Equal("03001234567", bilal!.Phone);
 
         // an order for that customer, confirmed
-        var draft = await SayAsync("do kurti bhejni hain Bilal ko");
-        Assert.Contains("Kurti", draft);
+        var draft = await SayAsync("do shirt bhejni hain Bilal ko");
+        Assert.Contains("Shirt", draft);
         await SayAsync("yes");
         var order = await db.Orders.Include(o => o.Items).SingleOrDefaultAsync();
         Assert.NotNull(order);

@@ -41,7 +41,7 @@ public sealed class ClientBulkOrderTests : IDisposable
 
     private async Task<Product> ProductAsync(int sellerId, int? stock)
     {
-        var product = new Product { SellerId = sellerId, Name = "Kurti", Price = 1000, StockQty = stock };
+        var product = new Product { SellerId = sellerId, Name = "Shirt", Price = 1000, StockQty = stock };
         _db.Products.Add(product);
         await _db.SaveChangesAsync();
         return product;

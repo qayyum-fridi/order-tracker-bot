@@ -1,7 +1,7 @@
 # Manual test plan — UX round (limits, rozana, tap-to-confirm, picture tips, price-list photo, voice best guess)
 
 Covers the last 8 commits (`692d809` … `e31c406`). Send from the **seller's WhatsApp**, in order. Tick each row.
-🔑 = needs `OpenAi:ApiKey`. 🎤 = voice note. 📷 = picture. Setup: fresh number or `reset account` + `yes`; finish onboarding with `Kurti - 1800` and `done`.
+🔑 = needs `OpenAi:ApiKey`. 🎤 = voice note. 📷 = picture. Setup: fresh number or `reset account` + `yes`; finish onboarding with `Shirt - 1800` and `done`.
 Defaults assumed: text 150/h, voice 30/h, picture 15/h, voice max 5 min, 5 pictures at once, 10 min to label a picture.
 
 ## 1. `limits`
@@ -14,7 +14,7 @@ Defaults assumed: text 150/h, voice 30/h, picture 15/h, voice max 5 min, 5 pictu
 | 1.5 | `limit` (singular) | Same as 1.1 |
 | 1.6 | `limits kya hain aaj` | NOT the limits reply (not an exact command; falls to AI / clarification) |
 | 1.7 | Set `MediaLimits:ImagePerHour=0`, restart, `limits` | Pictures line says "koi hadd nahi" |
-| 1.8 | During an order draft (`Sara: Kurti 1, 03001112222`), send `limits` | Limits reply; draft still waiting afterwards (send `cancel` to clean up) |
+| 1.8 | During an order draft (`Sara: Shirt 1, 03001112222`), send `limits` | Limits reply; draft still waiting afterwards (send `cancel` to clean up) |
 
 ## 2. `rozana`
 | # | Send | Expect |
@@ -42,7 +42,7 @@ Defaults assumed: text 150/h, voice 30/h, picture 15/h, voice max 5 min, 5 pictu
 ## 4. End of setup tip
 | # | Send | Expect |
 |---|---|---|
-| 4.1 | New number: `start` → Roman Urdu → Setup → shop name → `Kurti - 1800` → `done` | "Setup mukammal" message now also mentions `rozana`, `limits` and help |
+| 4.1 | New number: `start` → Roman Urdu → Setup → shop name → `Shirt - 1800` → `done` | "Setup mukammal" message now also mentions `rozana`, `limits` and help |
 
 ## 5. Tap-to-confirm buttons (voice / picture steps)
 Needs 🔑 + 🎤/📷. The "yes" button names the fact being approved.
@@ -118,7 +118,7 @@ Threshold = 16 identical "yes" answers in a row, none corrected.
 |---|---|---|
 | 10.1 | `help` / `menu` | Unchanged lists |
 | 10.2 | `yes` with nothing waiting | Normal "kuch intezar mein nahi" style reply, no crash |
-| 10.3 | Order draft `Sara: Kurti 1, 03001112222` → Save/Edit/Cancel buttons → tap Save | Order saved |
+| 10.3 | Order draft `Sara: Shirt 1, 03001112222` → Save/Edit/Cancel buttons → tap Save | Order saved |
 | 10.4 | `version` | Build info |
 | 10.5 | `kya karun` | Guidance for current step (unchanged) |
 

@@ -107,7 +107,7 @@ public class WebhookAdversarialTests : IDisposable
     [Fact]
     public async Task Missing_or_wrong_signature_is_rejected_and_nothing_is_stored()
     {
-        var body = TextPayload("Kurti 2");
+        var body = TextPayload("Shirt 2");
         Assert.IsType<UnauthorizedResult>(await PostAsync(WhatsApp(), body, null));
         Assert.IsType<UnauthorizedResult>(await PostAsync(WhatsApp(), body, "sha256=00"));
         Assert.IsType<UnauthorizedResult>(await PostAsync(WhatsApp(), body, Sign("another-secret", body)));
@@ -137,7 +137,7 @@ public class WebhookAdversarialTests : IDisposable
     [Fact]
     public async Task Odd_unicode_text_is_queued_as_is()
     {
-        var body = TextPayload("‮Kurti​ ۱۲۳ 😀 ک");
+        var body = TextPayload("‮Shirt​ ۱۲۳ 😀 ک");
         Assert.IsType<OkResult>(await PostAsync(WhatsApp(), body, Sign(Secret, body)));
         Assert.Equal(new[] { "wamid.1" }, await PendingIdsAsync());
     }
@@ -146,7 +146,7 @@ public class WebhookAdversarialTests : IDisposable
     public async Task Missing_app_secret_refuses_unsigned_posts_outside_development()
     {
         // With no AppSecret configured, production must not accept unsigned posts (it would take fake orders for any phone).
-        var body = TextPayload("Kurti 2");
+        var body = TextPayload("Shirt 2");
         Assert.IsType<UnauthorizedResult>(await PostAsync(WhatsApp(secret: ""), body, null));
         Assert.Empty(await PendingIdsAsync());
     }
@@ -155,7 +155,7 @@ public class WebhookAdversarialTests : IDisposable
     public async Task Missing_app_secret_still_accepts_unsigned_posts_in_development()
     {
         // The local curl loop in CLAUDE.md posts without a signature; that stays open in Development only.
-        var body = TextPayload("Kurti 2");
+        var body = TextPayload("Shirt 2");
         Assert.IsType<OkResult>(await PostAsync(WhatsApp(secret: "", development: true), body, null));
     }
 
