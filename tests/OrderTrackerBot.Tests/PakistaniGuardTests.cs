@@ -14,7 +14,7 @@ public class PakistaniGuardTests
     [InlineData("pehle wala ka quantity teen kar do", "1 = 3")]      // the index "1" is not a count
     // Negations keep their scope
     [InlineData("Nahi bhai, cancel karo", "cancel")]                  // a refusal followed by an instruction to cancel
-    [InlineData("Kurti nahi, Lawn chahiye", "Lawn")]
+    [InlineData("Shirt nahi, Lawn chahiye", "Lawn")]
     [InlineData("Cancel nahi karna, sirf address change karna hai", "address change")]
     [InlineData("cancel mat karna... sorry order id 105 cancel kar do", "cancel order 105")]
     // Comparators and modifiers survive
@@ -42,7 +42,7 @@ public class PakistaniGuardTests
     [InlineData("Maine teen nahi do bole thay", "quantity 3")]        // taken back, Roman Urdu word order
     // Negated amounts and items
     [InlineData("Paanch hazaar mat karna", "price 5000")]             // refused amount
-    [InlineData("Kurti nahi, Lawn chahiye", "Kurti - 1800")]          // refused item comes back
+    [InlineData("Shirt nahi, Lawn chahiye", "Shirt - 1800")]          // refused item comes back
     [InlineData("cancel mat karna, sirf address change", "cancel")]    // refused action set as the rewrite
     // Unconditional approval
     [InlineData("Haan lekin quantity do kar do", "yes")]              // 86

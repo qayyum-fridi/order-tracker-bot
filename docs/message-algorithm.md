@@ -51,7 +51,7 @@ Checked **in this order**; the first rule that handles the message ends the turn
 ### Idle (`HandleIdleCoreAsync`)
 1. `TurnGate.DecideTyped`: a "taken back" command ("order 12 cancel nahi") is refused.
 2. `TryHandleOrderForCustomerItemsAsync`: after "order for Sara", items become Sara's draft.
-3. `TryHandleItemsOnlyAsync` (plain code, no AI): `negative quantity` ("Kurti -2") refused; `2 pack, 1 dozen` units checked against the product's unit; `2x Kurti, 1 x Dupatta` made into a draft.
+3. `TryHandleItemsOnlyAsync` (plain code, no AI): `negative quantity` ("Shirt -2") refused; `2 pack, 1 dozen` units checked against the product's unit; `2x Shirt, 1 x Dupatta` made into a draft.
 4. A bare amount while one new product waits for its price.
 5. A scanned barcode.
 6. **`CommandParser.TryParse`** → the rules (about 150 commands: orders today, mark 3 shipped, receipt 12, stock, expense, profit, insights …). No AI. If the rules find nothing:
@@ -91,7 +91,7 @@ InterpretVoiceAsync  (one AI call: gpt-4o, or gpt-4o-mini when the transcript ha
         "phone not available now" -> ends with ", phone baad mein"
     (8) bot asked about an unknown product and the seller talks about it -> ONE product line "Chadar - 10000, cost 8500, stock 50"
     (9) several customers -> one line per customer, never merged
-    (10) several separate wishes -> separate steps in order; self-correction ("pehla nahi, dusra", "Kurti nahi, Lawn Suit") keeps only the corrected version
+    (10) several separate wishes -> separate steps in order; self-correction ("pehla nahi, dusra", "Shirt nahi, Lawn Suit") keeps only the corrected version
          (last chat messages tell what "pehla/wahi" means); "cancel the old order and write a new one" = cancel step + new order
   ▼
 guards (plain code)
@@ -156,7 +156,7 @@ docker logs order-tracker-api 2>&1 | grep -E "NotUnderstood|Voice rewrite refuse
 ## 9. What changed since the first version of this file (PR #86–#92)
 Latency: timing logs, prompt-cache friendly order prompt, 5 s translation budget, 30 s AI timeout, warm-up service, voice rewrite skipped for a bare phone, fast model for short transcripts, voice ack message.
 Stuck chats: draft expiry (20 min), cancel / new order / "skip" at the phone question, AI router with pause-and-resume, a re-ask shows the draft again.
-Orders: items-only text in code (`2x Kurti, 1 x Dupatta`), unit check (`2 pack` vs a per-piece product) typed and AI path, negative quantity refused, price guard unchanged, an unknown product given with details is added and the order carries on, order saved without a phone.
+Orders: items-only text in code (`2x Shirt, 1 x Dupatta`), unit check (`2 pack` vs a per-piece product) typed and AI path, negative quantity refused, price guard unchanged, an unknown product given with details is added and the order carries on, order saved without a phone.
 Voice: rules (6)–(10) above, numbers from recent chat count as heard, `Voice note … ms` log.
 Ops: `NotUnderstood` log, CI workflow, compose variables for a second environment.
 

@@ -31,7 +31,7 @@ public class EditModeTrapTests : IDisposable
 
     private async Task OnboardAsync(ConversationEngine engine)
     {
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800", "done" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Shirt - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
         _sent.Clear();
     }
@@ -43,7 +43,7 @@ public class EditModeTrapTests : IDisposable
         var customer = db.Customers.Add(new Customer { SellerId = seller.Id, Name = "Sara", Phone = "03001112222" }).Entity;
         await db.SaveChangesAsync();
         var order = new Order { SellerId = seller.Id, CustomerId = customer.Id, Status = OrderStatus.Pending };
-        foreach (var price in itemPrices) order.Items.Add(new OrderItem { ProductNameSnapshot = "Kurti", UnitPrice = price, Quantity = 1 });
+        foreach (var price in itemPrices) order.Items.Add(new OrderItem { ProductNameSnapshot = "Shirt", UnitPrice = price, Quantity = 1 });
         order.Subtotal = itemPrices.Sum();
         order.Total = itemPrices.Sum();
         db.Orders.Add(order);

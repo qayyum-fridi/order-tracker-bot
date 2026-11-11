@@ -67,8 +67,8 @@ public class MissChoiceTests
         var phrases = new[]
         {
             "naya customer Sara Lahore 03001234567", "Sara ka address kya hai", "Sara ke orders dikhao", "Sara ne kitna kharid liya",
-            "Kurti 1800 add karo", "Kurti ka stock 10 hai", "Kurti kitne bachi hain", "naya item Dupatta 600", "Kurti ki price badal do 1900",
-            "12 number deliver ho gaya", "Sara ka order kahan hai", "12 ka address badlo", "order 12 mein ek Kurti aur",
+            "Shirt 1800 add karo", "Shirt ka stock 10 hai", "Shirt kitne bachi hain", "naya item Dupatta 600", "Shirt ki price badal do 1900",
+            "12 number deliver ho gaya", "Sara ka order kahan hai", "12 ka address badlo", "order 12 mein ek Shirt aur",
             "is mahine kitna kamaya", "munafa kitna hua", "stock kam kya hai", "sab se zyada kya bika", "kal ki sale", "is hafte ki sale kitni",
             "aaj ka hisaab", "pending orders batao", "aaj ke orders", "catalog dikhao", "mere customers dikhao",
         };

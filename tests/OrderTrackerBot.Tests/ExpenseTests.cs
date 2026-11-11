@@ -82,7 +82,7 @@ public class ExpenseParserTests
     [Theory]
     [InlineData("expense")]
     [InlineData("expense packaging")]
-    [InlineData("expensive kurti 500")]
+    [InlineData("expensive shirt 500")]
     public void NotAnExpense(string message)
     {
         var kind = CommandParser.TryParse(message)?.Kind;
@@ -111,7 +111,7 @@ public class ExpenseEngineTests : IDisposable
     private async Task<Seller> OnboardAsync(AppDbContext db)
     {
         var engine = CreateEngine(db);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800", "done" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Shirt - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
         _sent.Clear();
         return await db.Sellers.FirstAsync();

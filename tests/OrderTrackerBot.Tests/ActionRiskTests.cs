@@ -20,7 +20,7 @@ public class ActionRiskTests
     [InlineData("mark 3 shipped")]
     [InlineData("mark 3 paid")]
     [InlineData("order 12 advance 500")]
-    [InlineData("walkin Kurti 2")]
+    [InlineData("walkin Shirt 2")]
     public void BasicOperationSteps_AreNotRisky(string step) => Assert.False(ActionRisk.IsRiskyStep(step));
 
     [Theory]

@@ -94,17 +94,17 @@ public class ProductProfitEngineTests : IDisposable
     {
         var (engine, db) = await SetupAsync();
         using var db2 = db;
-        var kurti = await ProductAsync(db, "Kurti", 1800, 1000);      // 3 x 1800 = 5400 sales, 3000 cost, 2400 profit
+        var shirt = await ProductAsync(db, "Shirt", 1800, 1000);      // 3 x 1800 = 5400 sales, 3000 cost, 2400 profit
         var lawn = await ProductAsync(db, "Lawn Suit", 3500, 3000);   // 1 x 3500 sales, 3000 cost, 500 profit
-        await SoldAsync(db, kurti, 3, DateTime.UtcNow.AddHours(-2), 1000m);
+        await SoldAsync(db, shirt, 3, DateTime.UtcNow.AddHours(-2), 1000m);
         await SoldAsync(db, lawn, 1, DateTime.UtcNow.AddHours(-1), 3000m);
 
         await engine.HandleIncomingMessageAsync(Phone, "profit per product", default);
 
         var reply = Assert.Single(_text);
-        Assert.Contains("1. Kurti — 3 piece · bikri Rs.5,400 · munafa Rs.2,400 · margin 44%", reply);
+        Assert.Contains("1. Shirt — 3 piece · bikri Rs.5,400 · munafa Rs.2,400 · margin 44%", reply);
         Assert.Contains("2. Lawn Suit — 1 piece · bikri Rs.3,500 · munafa Rs.500 · margin 14%", reply);
-        Assert.True(reply.IndexOf("1. Kurti", StringComparison.Ordinal) < reply.IndexOf("2. Lawn Suit", StringComparison.Ordinal));
+        Assert.True(reply.IndexOf("1. Shirt", StringComparison.Ordinal) < reply.IndexOf("2. Lawn Suit", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -112,8 +112,8 @@ public class ProductProfitEngineTests : IDisposable
     {
         var (engine, db) = await SetupAsync();
         using var db2 = db;
-        var kurti = await ProductAsync(db, "Kurti", 1800, null);
-        await SoldAsync(db, kurti, 2, DateTime.UtcNow.AddHours(-2), null);
+        var shirt = await ProductAsync(db, "Shirt", 1800, null);
+        await SoldAsync(db, shirt, 2, DateTime.UtcNow.AddHours(-2), null);
 
         await engine.HandleIncomingMessageAsync(Phone, "profit per product", default);
 
@@ -125,14 +125,14 @@ public class ProductProfitEngineTests : IDisposable
     {
         var (engine, db) = await SetupAsync();
         using var db2 = db;
-        var kurti = await ProductAsync(db, "Kurti", 1800, 1000);
+        var shirt = await ProductAsync(db, "Shirt", 1800, 1000);
         var lastMonth = SellerClock.PreviousMonthRangeUtc(null, DateTime.UtcNow).StartUtc.AddDays(2);
-        await SoldAsync(db, kurti, 2, lastMonth, 1000m);                    // 3600 sales, 2000 cost, 44% margin
-        await SoldAsync(db, kurti, 5, DateTime.UtcNow.AddHours(-2), 1000m); // this month: must not count
+        await SoldAsync(db, shirt, 2, lastMonth, 1000m);                    // 3600 sales, 2000 cost, 44% margin
+        await SoldAsync(db, shirt, 5, DateTime.UtcNow.AddHours(-2), 1000m); // this month: must not count
 
         await engine.HandleIncomingMessageAsync(Phone, "margin last month", default);
 
         var reply = Assert.Single(_text);
-        Assert.Contains("1. Kurti — 2 piece · bikri Rs.3,600 · munafa Rs.1,600 · margin 44%", reply);
+        Assert.Contains("1. Shirt — 2 piece · bikri Rs.3,600 · munafa Rs.1,600 · margin 44%", reply);
     }
 }

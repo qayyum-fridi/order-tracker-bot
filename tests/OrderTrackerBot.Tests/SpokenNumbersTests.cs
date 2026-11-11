@@ -99,8 +99,8 @@ public class SpokenNumbersTests
     [InlineData("Lawn Suit teen hazar paanch sau", "Lawn Suit - 3500", true)]                   // words -> digits
     [InlineData("Lawn Suit teen hazar paanch sau", "Lawn Suit - 3000", false)]                  // amount changed
     [InlineData("Lawn Suit teen hazar paanch sau", "Lawn Suit - 300", false)]                   // amount changed
-    [InlineData("kurti ki price teen sau kar do", "Kurti - 300", true)]
-    [InlineData("kurti ki price teen sau kar do", "Kurti - 3000", false)]
+    [InlineData("shirt ki price teen sau kar do", "Shirt - 300", true)]
+    [InlineData("shirt ki price teen sau kar do", "Shirt - 3000", false)]
     [InlineData("haan kar do", "yes", true)]
     [InlineData("haan kar do", "price 5000", false)]                                              // invented amount
     [InlineData("pehla wala", "1", true)]                                                         // small numbers may change
@@ -299,7 +299,7 @@ public class ParserOverlapTests
         Assert.Equal(expected, SpokenNumbers.ChoiceNumber(spoken));
 
     [Theory]
-    [InlineData("2 kurti")]
+    [InlineData("2 shirt")]
     [InlineData("Ayesha ka order")]
     [InlineData("number 5 aur 6")]
     [InlineData("ji kar do")]

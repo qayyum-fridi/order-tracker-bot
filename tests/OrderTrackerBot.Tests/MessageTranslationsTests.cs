@@ -116,7 +116,7 @@ public class MessageTranslationsTests
             + "\n\n" + MessageTemplates.Get("setup-check.007", 2, 5, "Lawn Suit - 3500, cost 2400")
             + "\n" + MessageTemplates.Get("setup-check.013")
             + "\n\n" + MessageTemplates.Get("setup-check.003")
-            + "\n" + MessageTemplates.Get("setup-check.018", 1, "Kurti");
+            + "\n" + MessageTemplates.Get("setup-check.018", 1, "Shirt");
 
         Assert.True(MessageTranslations.TryTranslate(roman, Lang.UrduScript, out var urdu));
         Assert.Contains("قیمتِ خرید نہیں: 2/5", urdu);

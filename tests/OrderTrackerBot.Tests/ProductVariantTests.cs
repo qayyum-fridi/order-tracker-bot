@@ -77,7 +77,7 @@ public class ProductVariantRulesTests
     [Fact]
     public void VariantsOf_SharedNameWithNoVariantNamed_ListsTheVariants()
     {
-        var products = new List<Product> { Listing("Polo Shirt", color: "white"), Listing("Polo Shirt", color: "black"), Listing("Kurti") };
+        var products = new List<Product> { Listing("Polo Shirt", color: "white"), Listing("Polo Shirt", color: "black"), Listing("Shirt") };
         Assert.Equal(new[] { "white", "black" }, ProductVariants.VariantsOf(products, "Polo Shirt").Select(p => p.Color));
     }
 
@@ -133,7 +133,7 @@ public class ProductVariantTests : IDisposable
     private async Task<ConversationEngine> OnboardAsync(AppDbContext db)
     {
         var engine = CreateEngine(db);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800", "done" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Shirt - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
         _sent.Clear();
         _lists.Clear();

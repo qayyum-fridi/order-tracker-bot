@@ -117,7 +117,7 @@ public class StrategicInsightParserTests
 
     [Theory]
     [InlineData("کس مخصوص پروڈکٹ کیٹیگری (مثلاً کُرتی یا دوپٹہ) پر ڈسکاؤنٹ دینے سے دکان کی مجموعی سیلز (Basket Size) میں سب سے زیادہ اضافہ ریکارڈ کیا گیا؟")]
-    [InlineData("kis category kurti ya dupatta par discount dene se basket size mein sab se zyada izafa hua")]
+    [InlineData("kis category shirt ya dupatta par discount dene se basket size mein sab se zyada izafa hua")]
     public void DiscountBasketLift(string text) => Topic(text, "discountbasket");
 
     [Theory]

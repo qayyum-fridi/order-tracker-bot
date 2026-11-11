@@ -19,8 +19,8 @@ Use the webhook curl from CLAUDE.md. Send each as its own message.
 | # | Send | Expect |
 |---|---|---|
 | 1.1 | `start` | onboarding begins |
-| 1.2 | shop name -> kind of shop -> `Kurti - 1800` | product saved |
-| 1.3 | `Ayesha 03001234567 Kurti 2 Lahore` | draft with Save / Edit / Cancel |
+| 1.2 | shop name -> kind of shop -> `Shirt - 1800` | product saved |
+| 1.3 | `Ayesha 03001234567 Shirt 2 Lahore` | draft with Save / Edit / Cancel |
 | 1.4 | `yes` | order saved, id shown |
 | 1.5 | `orders today` | the order listed |
 | 1.6 | `Ayesha ka order` | that order shown |

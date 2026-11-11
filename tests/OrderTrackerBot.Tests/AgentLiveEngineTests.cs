@@ -28,7 +28,7 @@ public class AgentLiveEngineTests(ITestOutputHelper output)
         db.Sellers.Add(seller);
         await db.SaveChangesAsync();
         db.Products.Add(new Product { SellerId = seller.Id, Name = "Polo Shirt", Price = 500 });
-        db.Products.Add(new Product { SellerId = seller.Id, Name = "Kurti", Price = 1800 });
+        db.Products.Add(new Product { SellerId = seller.Id, Name = "Shirt", Price = 1800 });
         db.Customers.Add(new Customer { SellerId = seller.Id, Name = "Bilal", Phone = "03005556666", City = "Multan" });
         await db.SaveChangesAsync();
         return seller;
@@ -121,7 +121,7 @@ public class AgentLiveEngineTests(ITestOutputHelper output)
             NullLogger<OpenAiOrderAssistant>.Instance, Mock.Of<IIssueReporter>());
         var engine = new ConversationEngine(db, ai, sender.Object, Mock.Of<IFounderAlertNotifier>(), features: new FeatureOptions { ShortcutButtons = false, Agent = true });
 
-        var reply = await SendAsync(engine, db, sender, said, "Bilal ko 2 Kurti, phone 03005556666, delivery 200, advance 500, address Model Town");
+        var reply = await SendAsync(engine, db, sender, said, "Bilal ko 2 Shirt, phone 03005556666, delivery 200, advance 500, address Model Town");
 
         Assert.DoesNotContain("phone number", reply);
         Assert.Contains("200", reply);
@@ -138,8 +138,8 @@ public class AgentLiveEngineTests(ITestOutputHelper output)
         var seller = await SeedAsync(db);
         db.Customers.Add(new Customer { SellerId = seller.Id, Name = "Sara Khan", Phone = "03001112222", City = "Lahore" });
         db.Customers.Add(new Customer { SellerId = seller.Id, Name = "Sara Ali", Phone = "03003334444", City = "Karachi" });
-        db.Products.Add(new Product { SellerId = seller.Id, Name = "Kurti white", Price = 1800 });
-        db.Products.Add(new Product { SellerId = seller.Id, Name = "Kurti black", Price = 1800 });
+        db.Products.Add(new Product { SellerId = seller.Id, Name = "Shirt white", Price = 1800 });
+        db.Products.Add(new Product { SellerId = seller.Id, Name = "Shirt black", Price = 1800 });
         await db.SaveChangesAsync();
         var said = new List<string>();
         var sender = new Mock<IWhatsAppSender>();
@@ -150,11 +150,11 @@ public class AgentLiveEngineTests(ITestOutputHelper output)
             NullLogger<OpenAiOrderAssistant>.Instance, Mock.Of<IIssueReporter>());
         var engine = new ConversationEngine(db, ai, sender.Object, Mock.Of<IFounderAlertNotifier>(), features: new FeatureOptions { ShortcutButtons = false, Agent = true });
 
-        await SendAsync(engine, db, sender, said, "Sara Ali ko 2 Kurti bhej do");
+        await SendAsync(engine, db, sender, said, "Sara Ali ko 2 Shirt bhej do");
         await SendAsync(engine, db, sender, said, "white wali");
 
         // Verified: the saved customer's phone is used (no question), and the order waits for confirmation.
-        // Not verified here: the order reader picks a product for "Kurti" without asking which one when the names differ only by a word (open issue).
+        // Not verified here: the order reader picks a product for "Shirt" without asking which one when the names differ only by a word (open issue).
         var session = (await db.Sellers.Include(s => s.Session).AsNoTracking().FirstAsync()).Session!;
         Assert.Equal(ConversationState.AwaitingOrderConfirmation, session.State);
         Assert.Contains("03003334444", string.Join("\n", said));

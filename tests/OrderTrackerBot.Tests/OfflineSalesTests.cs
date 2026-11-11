@@ -14,19 +14,19 @@ namespace OrderTrackerBot.Tests;
 public class WalkInParserTests
 {
     [Theory]
-    [InlineData("walkin Kurti 2")]
-    [InlineData("walk-in sale Kurti 2")]
+    [InlineData("walkin Shirt 2")]
+    [InlineData("walk-in sale Shirt 2")]
     [InlineData("counter sale 1500")]
     [InlineData("offline order Chai - 200")]
-    [InlineData("dukan par Kurti 1")]
+    [InlineData("dukan par Shirt 1")]
     [InlineData("walkin")]
     public void Recognised(string text) => Assert.Equal(CommandKind.WalkInSale, CommandParser.TryParse(text)?.Kind);
 
     [Fact]
     public void Items_Quantities_Prices_Payment_AndDay()
     {
-        var a = ConversationEngine.ParseWalkIn("Kurti 2, 3 Dupatta aur Chai - 200 bank kal");
-        Assert.Equal(new[] { ("Kurti", 2, (decimal?)null), ("Dupatta", 3, null), ("Chai", 1, 200m) }, a.Items.Select(i => (i.Name, i.Quantity, i.Price)));
+        var a = ConversationEngine.ParseWalkIn("Shirt 2, 3 Dupatta aur Chai - 200 bank kal");
+        Assert.Equal(new[] { ("Shirt", 2, (decimal?)null), ("Dupatta", 3, null), ("Chai", 1, 200m) }, a.Items.Select(i => (i.Name, i.Quantity, i.Price)));
         Assert.Equal("bank", a.Payment);
         Assert.Equal(1, a.DaysAgo);
 
@@ -34,7 +34,7 @@ public class WalkInParserTests
         var only = Assert.Single(b.Items);
         Assert.Equal(("Counter sale", 1, (decimal?)1500m), (only.Name, only.Quantity, only.Price));
         Assert.Null(b.Payment);
-        Assert.Equal(2, ConversationEngine.ParseWalkIn("Kurti parso").DaysAgo);
+        Assert.Equal(2, ConversationEngine.ParseWalkIn("Shirt parso").DaysAgo);
     }
 }
 
@@ -63,7 +63,7 @@ public class OfflineSalesEngineTests : IDisposable
         var seller = new Seller { WhatsAppPhoneNumber = Phone, BusinessName = "Ayesha Collections", OnboardingComplete = true, Session = new ConversationSession { State = ConversationState.Idle } };
         db.Sellers.Add(seller);
         await db.SaveChangesAsync();
-        db.Products.Add(new Product { SellerId = seller.Id, Name = "Kurti", Price = 1800 });
+        db.Products.Add(new Product { SellerId = seller.Id, Name = "Shirt", Price = 1800 });
         await db.SaveChangesAsync();
     }
 
@@ -74,7 +74,7 @@ public class OfflineSalesEngineTests : IDisposable
         await SeedAsync(db);
         var engine = Engine(db);
 
-        await engine.HandleIncomingMessageAsync(Phone, "walkin Kurti 2", default);
+        await engine.HandleIncomingMessageAsync(Phone, "walkin Shirt 2", default);
         Assert.Contains(_sent, m => m.Contains("Walk-in") && m.Contains("counter sale") && m.Contains("3,600"));
         Assert.DoesNotContain(_sent, m => m.Contains("phone number"));
 
@@ -100,7 +100,7 @@ public class OfflineSalesEngineTests : IDisposable
 
         for (var i = 0; i < 2; i++)
         {
-            await engine.HandleIncomingMessageAsync(Phone, "counter sale Kurti 1", default);
+            await engine.HandleIncomingMessageAsync(Phone, "counter sale Shirt 1", default);
             await engine.HandleIncomingMessageAsync(Phone, "yes", default);
         }
 
@@ -126,9 +126,9 @@ public class OfflineSalesEngineTests : IDisposable
     }
 
     [Theory]
-    [InlineData("walkin Kurti 1 then yes (cash)")]
-    [InlineData("walkin Kurti 1 yes")]
-    [InlineData("walkin Kurti 1, cash, haan")]
+    [InlineData("walkin Shirt 1 then yes (cash)")]
+    [InlineData("walkin Shirt 1 yes")]
+    [InlineData("walkin Shirt 1, cash, haan")]
     public async Task AConfirmationTypedInTheSameMessage_SavesTheSaleAtOnce(string text)
     {
         using var db = _dbFactory.CreateContext();
@@ -215,23 +215,23 @@ public class OfflineSalesEngineTests : IDisposable
 public class BadInputGuardTests
 {
     [Theory]
-    [InlineData("Kurti -2")]
-    [InlineData("Kurti 99999")]
+    [InlineData("Shirt -2")]
+    [InlineData("Shirt 99999")]
     [InlineData("counter sale 99999999999999")]
-    [InlineData("Kurti - 99999999")]
+    [InlineData("Shirt - 99999999")]
     [InlineData(",,,")]
-    public void WalkInTypos_BuildNoSaleLines(string text) => Assert.Empty(ConversationEngine.ParseWalkIn(text).Items.Where(i => i.Name is "Counter sale" || i.Name.StartsWith("Kurti -") || i.Quantity > 999 || i.Price > 10_000_000m));
+    public void WalkInTypos_BuildNoSaleLines(string text) => Assert.Empty(ConversationEngine.ParseWalkIn(text).Items.Where(i => i.Name is "Counter sale" || i.Name.StartsWith("Shirt -") || i.Quantity > 999 || i.Price > 10_000_000m));
 
     [Fact]
     public void WalkInDashedPrice_StillWorks()
     {
-        var sale = ConversationEngine.ParseWalkIn("Chai - 200, Kurti 2");
-        Assert.Equal(new[] { ("Chai", 1, (decimal?)200m), ("Kurti", 2, null) }, sale.Items.Select(i => (i.Name, i.Quantity, i.Price)));
+        var sale = ConversationEngine.ParseWalkIn("Chai - 200, Shirt 2");
+        Assert.Equal(new[] { ("Chai", 1, (decimal?)200m), ("Shirt", 2, null) }, sale.Items.Select(i => (i.Name, i.Quantity, i.Price)));
     }
 
     [Theory]
-    [InlineData("stock Kurti 99999999")]
-    [InlineData("Kurti stock 99999999")]
+    [InlineData("stock Shirt 99999999")]
+    [InlineData("Shirt stock 99999999")]
     public void ASevenDigitStock_IsNotSplitIntoANameEndingInDigits(string text)
     {
         var parsed = CommandParser.TryParse(text);
@@ -241,7 +241,7 @@ public class BadInputGuardTests
     [Fact]
     public void InvisibleMarks_AreStripped_ButUrduJoinersStay()
     {
-        Assert.Equal("Kurti - 1800", TextHygiene.StripInvisible("​Kurti‏ - 1800‬"));
+        Assert.Equal("Shirt - 1800", TextHygiene.StripInvisible("​Shirt‏ - 1800‬"));
         Assert.Equal("a‌b", TextHygiene.StripInvisible("a‌b"));
     }
 }
@@ -266,7 +266,7 @@ public class BadInputEngineTests : IDisposable
     {
         var db = _dbFactory.CreateContext();
         var engine = new ConversationEngine(db, _ai.Object, _sender.Object, Mock.Of<IFounderAlertNotifier>());
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800", "done" })
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Shirt - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         _sent.Clear();
         return (engine, db);
@@ -296,7 +296,7 @@ public class BadInputEngineTests : IDisposable
         var (engine, db) = await StartAsync();
         using (db)
         {
-            await engine.HandleIncomingMessageAsync(Phone, "​Kurti - 1800", default);
+            await engine.HandleIncomingMessageAsync(Phone, "​Shirt - 1800", default);
 
             Assert.Equal(1, await db.Products.CountAsync());
             Assert.Contains(_sent, m => m.Contains("pehle se catalog mein hai"));

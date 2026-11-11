@@ -17,7 +17,7 @@
   "commands.016": "The catalog is empty for now — add products first (e.g. {0}).",
   "commands.017": "📋 {0} — Catalog\n\n{1}\n\nCopy this and send it to the customer, or take a screenshot and forward it.",
   "commands.018": "✅ {0} products saved:\n\n{1}\n\nType \"catalog\" to see the full list.",
-  "commands.019": "⚠️ Products could not be loaded from the sheet. Check that the sheet is set to \"Anyone with the link can view\", or send the products one by one (e.g. 'Kurti - 1800').",
+  "commands.019": "⚠️ Products could not be loaded from the sheet. Check that the sheet is set to \"Anyone with the link can view\", or send the products one by one (e.g. 'Shirt - 1800').",
   "commands.020": "The sheet was read, but no valid product row was found — each row needs a name in the first column and a price in the second.",
   "commands.021": "✅ {0} products imported from the sheet:\n\n{1}\n\nType \"catalog\" to see the full list.",
   "commands.022": "\"{0}\" is not in the catalog. Type \"catalog\" to see the list.",

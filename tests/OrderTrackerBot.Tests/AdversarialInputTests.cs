@@ -33,14 +33,14 @@ public class AdversarialInputTests : IDisposable
 
     private static readonly string[] Hostile =
     {
-        "", " ", "\0", "​", "‮" + "Kurti", "﷽", "😀😀😀", "١٢٣٤٥", "۰۰۰", new string('9', 500),
+        "", " ", "\0", "​", "‮" + "Shirt", "﷽", "😀😀😀", "١٢٣٤٥", "۰۰۰", new string('9', 500),
         "order", "order -", "order - ", "- - -", "=====", "1 = ", "1 = =", "price 1 =", "remove", "remove 999999999999999999999",
-        "Kurti - 99999999999999999999999999", "Kurti - -", "Kurti - 1e9", "Kurti - NaN", "Kurti - Infinity",
+        "Shirt - 99999999999999999999999999", "Shirt - -", "Shirt - 1e9", "Shirt - NaN", "Shirt - Infinity",
         "Ayesha 2 suit, 03001234567, advance 500", "order 1 advance -500", "order 0 paid 0", "cancel -1", "mark 0 shipped",
-        "delivery -200", "free delivery free delivery", "stock -5", "stock Kurti -99999999999", "expense -100 food",
+        "delivery -200", "free delivery free delivery", "stock -5", "stock Shirt -99999999999", "expense -100 food",
         "create discount: %%% 150%", "create discount: ' OR 1=1 --", "<script>alert(1)</script>", "=SUM(A1)", "@cmd|' /C calc'!A0",
         "customer: ", "customer: Sara name ", "Sara ka phone 0300", "Sara ka phone " + new string('1', 300),
-        "payout 99999999999 TCS orders 1 2 3 fee -5", "courier fee 0 -1", "walkin Kurti -2, Dupatta - -4",
+        "payout 99999999999 TCS orders 1 2 3 fee -5", "courier fee 0 -1", "walkin Shirt -2, Dupatta - -4",
         "edit order 1", "edit order -1", "edit order 99999999999999", "done", "yes", "no", "cancel", "1", "0", "-1",
         "catalog page -3", "catalog size 99999", "search ", "find \u0000", "barcode ", "scan done", "drawer close -100",
         "receipt design color #zzzzzz", "label size 1x1", "industry ../../etc/passwd", "supplier: ",
@@ -87,7 +87,7 @@ public class AdversarialInputTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
-        var probes = new[] { "Kurti 2, Dupatta", "Ayesha 2 suit, 03001234567, advance 500", "walkin Kurti 1 then yes", "Kurti - 1800, cost 1000, stock 5", "payout 500 TCS orders 1" };
+        var probes = new[] { "Shirt 2, Dupatta", "Ayesha 2 suit, 03001234567, advance 500", "walkin Shirt 1 then yes", "Shirt - 1800, cost 1000, stock 5", "payout 500 TCS orders 1" };
 
         foreach (var first in probes)
         {
@@ -104,7 +104,7 @@ public class AdversarialInputTests : IDisposable
     private static IEnumerable<string> RandomStrings(int seed, int count)
     {
         var rnd = new Random(seed);
-        var pieces = new[] { "Kurti", "Lawn", "Ayesha", "order", "cancel", "-", ",", "=", "#", "0", "9", "1000000", "03001", "rs", " ", "\n", "‏", "ک", "سوٹ", "yes", "no", "done", ":", "|", ";", "(", ")", "'", "\"", "%", "𝓐" };
+        var pieces = new[] { "Shirt", "Lawn", "Ayesha", "order", "cancel", "-", ",", "=", "#", "0", "9", "1000000", "03001", "rs", " ", "\n", "‏", "ک", "سوٹ", "yes", "no", "done", ":", "|", ";", "(", ")", "'", "\"", "%", "𝓐" };
         for (var i = 0; i < count; i++)
         {
             var parts = rnd.Next(1, 14);
@@ -117,7 +117,7 @@ public class AdversarialInputTests : IDisposable
     private async Task<ConversationEngine> OnboardAsync(AppDbContext db)
     {
         var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, null, _media.Object);
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "Lawn Suit - 3500", "Kurti - 1800", "done" })
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "Lahore, Clothing, @ayesha.collections", "Lawn Suit - 3500", "Shirt - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         return engine;
     }

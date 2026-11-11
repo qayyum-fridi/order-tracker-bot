@@ -156,7 +156,7 @@ public sealed class ClientWriteRoutesTests : IDisposable
     {
         await SellerAsync();
         // The active order already holds its 2 units, so 8 left in stock; cancelling gives them back.
-        var product = await ProductAsync("Kurti", "Tops", stock: 8);
+        var product = await ProductAsync("Shirt", "Tops", stock: 8);
         var order = await OrderAsync(product, OrderStatus.Pending, quantity: 2);
         var changer = new ClientOrderStatus(_db, _queries);
 
@@ -175,7 +175,7 @@ public sealed class ClientWriteRoutesTests : IDisposable
     public async Task Returning_a_shipped_order_puts_its_units_back()
     {
         await SellerAsync();
-        var product = await ProductAsync("Kurti", "Tops", stock: 3);
+        var product = await ProductAsync("Shirt", "Tops", stock: 3);
         var order = await OrderAsync(product, OrderStatus.Pending, quantity: 2);
         var changer = new ClientOrderStatus(_db, _queries);
 
@@ -190,7 +190,7 @@ public sealed class ClientWriteRoutesTests : IDisposable
     {
         await SellerAsync();
         await ProductAsync("Shirt", "Tops");
-        await ProductAsync("Kurti", "Tops");
+        await ProductAsync("Shirt", "Tops");
         await ProductAsync("Shoe", "Footwear");
         var rename = new ClientCategoryRename(_db);
 
@@ -247,7 +247,7 @@ public sealed class ClientWriteRoutesTests : IDisposable
     public async Task Untracking_stock_removes_the_count_only_for_tracked_products()
     {
         await SellerAsync();
-        var tracked = await ProductAsync("Kurti", "Tops", stock: 4);
+        var tracked = await ProductAsync("Shirt", "Tops", stock: 4);
         var stock = new ClientStock(_db);
 
         var (problem, saved) = await stock.UntrackAsync(_sellerId, tracked.Id, default);

@@ -52,7 +52,7 @@ public class GuidanceRequestTests : IDisposable
         var media = new Mock<IWhatsAppMediaClient>();
         media.Setup(m => m.DownloadAsync("voice-1", It.IsAny<CancellationToken>())).ReturnsAsync((new byte[2500], "audio/ogg"));
         var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, media: media.Object, transcriber: transcriber?.Object);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Shirt - 1800" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
         _sent.Clear();
         return engine;

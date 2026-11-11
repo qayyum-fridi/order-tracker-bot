@@ -39,17 +39,17 @@ public class SimulationFindingsParserTests
 
     [Theory]
     [InlineData("mark 3 shop")]
-    [InlineData("mark 3 kurti")]
+    [InlineData("mark 3 shirt")]
     [InlineData("mark 3 ship it now")]
     public void MarkStatus_DoesNotGuessAtOtherWords(string text) =>
         Assert.NotEqual(CommandKind.MarkStatus, CommandParser.TryParse(text)?.Kind);
 
     [Theory]
     [InlineData("Chadar - Rs. 2,200", "Chadar", 2200)]
-    [InlineData("Kurti - Rs.1800", "Kurti", 1800)]
-    [InlineData("Kurti - 1,800", "Kurti", 1800)]
-    [InlineData("Kurti = PKR 1,800", "Kurti", 1800)]
-    [InlineData("Kurti - 1800", "Kurti", 1800)]
+    [InlineData("Shirt - Rs.1800", "Shirt", 1800)]
+    [InlineData("Shirt - 1,800", "Shirt", 1800)]
+    [InlineData("Shirt = PKR 1,800", "Shirt", 1800)]
+    [InlineData("Shirt - 1800", "Shirt", 1800)]
     public void ProductLine_ReadsCurrencyMarkersAndThousandsCommas(string line, string name, int price)
     {
         Assert.True(CommandParser.TryParseProductLine(line, out ProductLine? product));
@@ -106,7 +106,7 @@ public class SimulationFindingsParserTests
     [InlineData("Handbag - abc")]
     [InlineData("Scarf -")]
     [InlineData("Order - paanch sau ka kaam hai bhai")]
-    [InlineData("Kurti - bohat acha")]
+    [InlineData("Shirt - bohat acha")]
     public void OnboardingProductLine_DoesNotInventAProduct(string line) =>
         Assert.Null(ConversationEngine.ParseLooseProductLine(line));
 }
@@ -123,7 +123,7 @@ public class TextDistanceTests
     [Fact]
     public void Closest_FindsANearMiss_NotAnExactOrFarName()
     {
-        var names = new[] { "Polo Shirt", "Lawn Suit", "Kurti", "Silk Suit" };
+        var names = new[] { "Polo Shirt", "Lawn Suit", "Shirt", "Silk Suit" };
         Assert.Equal("Polo Shirt", TextDistance.Closest("Ploo Shirt", names));
         Assert.Equal("Silk Suit", TextDistance.Closest("Slik Suit", names));
         Assert.Null(TextDistance.Closest("Polo Shirt", names));     // exact: not a typo

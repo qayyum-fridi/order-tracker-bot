@@ -145,10 +145,10 @@ public class AgentExecutorTests : IDisposable
         var seller = await SeedAsync(db);
         db.Customers.Add(new Customer { SellerId = seller.Id, Name = "Sara Khan", City = "Lahore" });
         db.Customers.Add(new Customer { SellerId = seller.Id, Name = "Sara Ali", City = "Karachi" });
-        db.Products.Add(new Product { SellerId = seller.Id, Name = "Kurti", Price = 500 });
+        db.Products.Add(new Product { SellerId = seller.Id, Name = "Shirt", Price = 500 });
         await db.SaveChangesAsync();
-        const string msg = "Sara ko 2 Kurti bhej do";
-        Plans(msg, Steps(new PlanStep("draft_order", new Dictionary<string, string> { ["customer_name"] = "Sara" }, new[] { new PlanItem(null, "Kurti", 2) })));
+        const string msg = "Sara ko 2 Shirt bhej do";
+        Plans(msg, Steps(new PlanStep("draft_order", new Dictionary<string, string> { ["customer_name"] = "Sara" }, new[] { new PlanItem(null, "Shirt", 2) })));
 
         await Engine(db).HandleIncomingMessageAsync(Phone, msg, default);
 
@@ -164,10 +164,10 @@ public class AgentExecutorTests : IDisposable
         using var db = _dbFactory.CreateContext();
         var seller = await SeedAsync(db);
         db.Customers.Add(new Customer { SellerId = seller.Id, Name = "Sara Khan", Phone = "03001234567", City = "Lahore" });
-        db.Products.Add(new Product { SellerId = seller.Id, Name = "Kurti", Price = 500 });
+        db.Products.Add(new Product { SellerId = seller.Id, Name = "Shirt", Price = 500 });
         await db.SaveChangesAsync();
-        const string msg = "Sara ko 2 Kurti bhej do";
-        Plans(msg, Steps(new PlanStep("draft_order", new Dictionary<string, string> { ["customer_name"] = "Sara" }, new[] { new PlanItem(null, "Kurti", 2) })));
+        const string msg = "Sara ko 2 Shirt bhej do";
+        Plans(msg, Steps(new PlanStep("draft_order", new Dictionary<string, string> { ["customer_name"] = "Sara" }, new[] { new PlanItem(null, "Shirt", 2) })));
         var engine = Engine(db);
 
         await engine.HandleIncomingMessageAsync(Phone, msg, default);
@@ -197,7 +197,7 @@ public class AgentExecutorTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, msg, default);
         Assert.Contains("Pehla product likhein", Said);
 
-        await engine.HandleIncomingMessageAsync(Phone, "Kurti - 500", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Shirt - 500", default);
         await engine.HandleIncomingMessageAsync(Phone, "Dupatta - 300", default);
 
         Assert.Equal(2, await db.Products.CountAsync());
@@ -220,7 +220,7 @@ public class AgentExecutorTests : IDisposable
         var engine = Engine(db);
 
         await engine.HandleIncomingMessageAsync(Phone, msg, default);
-        await engine.HandleIncomingMessageAsync(Phone, "Kurti - 500", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Shirt - 500", default);
         await engine.HandleIncomingMessageAsync(Phone, "Dupatta - 300", default);
         await engine.HandleIncomingMessageAsync(Phone, "Shawl - 900", default);
         Assert.True(SessionContextData.FromJson((await db.Sellers.Include(s => s.Session).AsNoTracking().FirstAsync()).Session!.ContextJson).AgentAwaiting?.Done == 3, Said);
@@ -242,7 +242,7 @@ public class AgentExecutorTests : IDisposable
         var engine = Engine(db);
 
         await engine.HandleIncomingMessageAsync(Phone, msg, default);
-        await engine.HandleIncomingMessageAsync(Phone, "Kurti - 500", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Shirt - 500", default);
         await engine.HandleIncomingMessageAsync(Phone, "orders today", default);
 
         Assert.Null(SessionContextData.FromJson((await db.Sellers.Include(s => s.Session).AsNoTracking().FirstAsync()).Session!.ContextJson).AgentAwaiting);
@@ -324,12 +324,12 @@ public class AgentExecutorTests : IDisposable
         db.Customers.Add(new Customer { SellerId = seller.Id, Name = "Sara Khan", Phone = "03001112222", City = "Lahore" });
         var ali = new Customer { SellerId = seller.Id, Name = "Sara Ali", Phone = "03003334444", City = "Karachi" };
         db.Customers.Add(ali);
-        db.Products.Add(new Product { SellerId = seller.Id, Name = "Kurti", Price = 1800 });
+        db.Products.Add(new Product { SellerId = seller.Id, Name = "Shirt", Price = 1800 });
         await db.SaveChangesAsync();
-        const string msg = "Sara ko 2 Kurti bhej do";
-        Plans(msg, Steps(new PlanStep("draft_order", new Dictionary<string, string> { ["customer_name"] = "Sara" }, new[] { new PlanItem(null, "Kurti", 2) })));
+        const string msg = "Sara ko 2 Shirt bhej do";
+        Plans(msg, Steps(new PlanStep("draft_order", new Dictionary<string, string> { ["customer_name"] = "Sara" }, new[] { new PlanItem(null, "Shirt", 2) })));
         // the seller's answer is read with the request: the planner now sees the full name
-        Plans($"{msg}. Sara Ali", Steps(new PlanStep("draft_order", new Dictionary<string, string> { ["customer_id"] = ali.Id.ToString() }, new[] { new PlanItem(null, "Kurti", 2) })));
+        Plans($"{msg}. Sara Ali", Steps(new PlanStep("draft_order", new Dictionary<string, string> { ["customer_id"] = ali.Id.ToString() }, new[] { new PlanItem(null, "Shirt", 2) })));
         var engine = Engine(db);
 
         await engine.HandleIncomingMessageAsync(Phone, msg, default);
@@ -347,16 +347,16 @@ public class AgentExecutorTests : IDisposable
         using var db = _dbFactory.CreateContext();
         var seller = await SeedAsync(db);
         db.Customers.Add(new Customer { SellerId = seller.Id, Name = "Sara", Phone = "03001112222" });
-        db.Products.Add(new Product { SellerId = seller.Id, Name = "Kurti white", Price = 1800 });
-        db.Products.Add(new Product { SellerId = seller.Id, Name = "Kurti black", Price = 1800 });
+        db.Products.Add(new Product { SellerId = seller.Id, Name = "Shirt white", Price = 1800 });
+        db.Products.Add(new Product { SellerId = seller.Id, Name = "Shirt black", Price = 1800 });
         await db.SaveChangesAsync();
-        const string msg = "Sara ko Kurti dedo";
-        Plans(msg, Steps(new PlanStep("draft_order", new Dictionary<string, string> { ["customer_name"] = "Sara" }, new[] { new PlanItem(null, "Kurti", 1) })));
-        Plans($"{msg}. white", Steps(new PlanStep("draft_order", new Dictionary<string, string> { ["customer_name"] = "Sara" }, new[] { new PlanItem(null, "Kurti white", 1) })));
+        const string msg = "Sara ko Shirt dedo";
+        Plans(msg, Steps(new PlanStep("draft_order", new Dictionary<string, string> { ["customer_name"] = "Sara" }, new[] { new PlanItem(null, "Shirt", 1) })));
+        Plans($"{msg}. white", Steps(new PlanStep("draft_order", new Dictionary<string, string> { ["customer_name"] = "Sara" }, new[] { new PlanItem(null, "Shirt white", 1) })));
         var engine = Engine(db);
 
         await engine.HandleIncomingMessageAsync(Phone, msg, default);
-        Assert.Contains("Kurti white", Said);
+        Assert.Contains("Shirt white", Said);
         Assert.Equal(0, await db.Orders.CountAsync());
 
         await engine.HandleIncomingMessageAsync(Phone, "white", default);

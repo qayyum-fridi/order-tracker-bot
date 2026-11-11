@@ -161,7 +161,7 @@ public class StrategicInsightReportTests : IDisposable
         var c = await CustomerAsync("Sara");
         var now = DateTime.UtcNow;
         var idle = await ProductAsync("Lawn Suit", 3500, cost: 1000, stock: 10, createdDaysAgo: 200);
-        var moving = await ProductAsync("Kurti", 1800, cost: 1000, stock: 10, createdDaysAgo: 200);
+        var moving = await ProductAsync("Shirt", 1800, cost: 1000, stock: 10, createdDaysAgo: 200);
         await SaleAsync(c, now.AddDays(-5), moving);
         _db.Expenses.AddRange(new Expense { SellerId = _seller.Id, Amount = 30000, Category = "kiraya", CreatedAt = now.AddDays(-40) }, new Expense { SellerId = _seller.Id, Amount = 6000, Category = "bijli", CreatedAt = now.AddDays(-40) });
         await _db.SaveChangesAsync();
@@ -169,7 +169,7 @@ public class StrategicInsightReportTests : IDisposable
         var reply = await AskAsync("agar lawn suit 60 din se zyada stock mein pada rahe to uski holding cost mera margin kitna kam karti hai");
 
         Assert.Contains("1. Lawn Suit — 10 piece, holding cost Rs.12,000 (Rs.1,200 fi piece = qeemat ka 34.3%); margin 71.4% → 37.1%", reply);
-        Assert.DoesNotContain("Kurti —", reply);
+        Assert.DoesNotContain("Shirt —", reply);
     }
 
     [Fact]
@@ -207,9 +207,9 @@ public class StrategicInsightReportTests : IDisposable
         await SetupAsync();
         var c = await CustomerAsync("Sara");
         var lawn = await ProductAsync("Lawn Suit", 3500, cost: 2500, attributes: "{\"supplier\":\"Shah Alam\"}");
-        var kurti = await ProductAsync("Kurti", 1800, cost: 1200, attributes: "{\"supplier\":\"Khan\"}");
+        var shirt = await ProductAsync("Shirt", 1800, cost: 1200, attributes: "{\"supplier\":\"Khan\"}");
         var at = DateTime.UtcNow.AddDays(-10);
-        await SaleAsync(c, at, lawn, 2); await SaleAsync(c, at, kurti, 2);
+        await SaleAsync(c, at, lawn, 2); await SaleAsync(c, at, shirt, 2);
         await AskAsync("maal aane mein 5 din lagte hain");
 
         var reply = await AskAsync("supplier Khan aur Shah Alam ke maal par margin aur lead time kya hai");
@@ -225,11 +225,11 @@ public class StrategicInsightReportTests : IDisposable
         await SetupAsync();
         var c = await CustomerAsync("Sara");
         var lawn = await ProductAsync("Lawn Suit", 3500, cost: 2500, attributes: "{\"supplier\":\"Shah Alam\"}");
-        var kurti = await ProductAsync("Kurti", 1800, cost: 1200, attributes: "{\"supplier\":\"Khan\"}");
+        var shirt = await ProductAsync("Shirt", 1800, cost: 1200, attributes: "{\"supplier\":\"Khan\"}");
         var at = DateTime.UtcNow.AddDays(-20);
         await SaleAsync(c, at, lawn, 8); await SaleAsync(c, at, lawn, 2, status: OrderStatus.Returned);
-        await SaleAsync(c, at, kurti, 10);
-        _db.Losses.Add(new Loss { SellerId = _seller.Id, ProductId = kurti.Id, ProductName = "Kurti", Quantity = 1, UnitCost = 1200, CreatedAt = at });
+        await SaleAsync(c, at, shirt, 10);
+        _db.Losses.Add(new Loss { SellerId = _seller.Id, ProductId = shirt.Id, ProductName = "Shirt", Quantity = 1, UnitCost = 1200, CreatedAt = at });
         await _db.SaveChangesAsync();
 
         var reply = await AskAsync("pichle 6 mahine mein kis supplier ke maal mein sab se zyada kharabi nikli jis ki wajah se customers ne return kiya");
@@ -287,9 +287,9 @@ public class StrategicInsightReportTests : IDisposable
     {
         await SetupAsync();
         var c = await CustomerAsync("Sara");
-        var kurti = await ProductAsync("Kurti", 1800, cost: 1200);
+        var shirt = await ProductAsync("Shirt", 1800, cost: 1200);
         var at = DateTime.UtcNow.AddDays(-10);
-        await SaleAsync(c, at, kurti, 10);                                                                          // profit 6000
+        await SaleAsync(c, at, shirt, 10);                                                                          // profit 6000
         await SaleAsync(c, at, status: OrderStatus.Returned, shippedAt: at, courierFee: 250);
         await SaleAsync(c, at, status: OrderStatus.Returned, shippedAt: at, courierFee: 150);
 
@@ -325,14 +325,14 @@ public class StrategicInsightReportTests : IDisposable
     {
         await SetupAsync();
         var c = await CustomerAsync("Sara");
-        var kurti = await ProductAsync("Kurti", 2000, category: "Kapron");
+        var shirt = await ProductAsync("Shirt", 2000, category: "Kapron");
         var at = DateTime.UtcNow.AddDays(-10);
-        for (var i = 0; i < 3; i++) await SaleAsync(c, at, kurti, 1, price: 2000, discount: 0, code: "EID10");           // total 2000, discount flag via amount below
+        for (var i = 0; i < 3; i++) await SaleAsync(c, at, shirt, 1, price: 2000, discount: 0, code: "EID10");           // total 2000, discount flag via amount below
         _db.Orders.Where(o => o.DiscountCode == "EID10").ToList().ForEach(o => o.DiscountAmount = 200);                  // revenue 2000 - 200
         await _db.SaveChangesAsync();
-        for (var i = 0; i < 3; i++) await SaleAsync(c, at, kurti, 1, price: 1000);
+        for (var i = 0; i < 3; i++) await SaleAsync(c, at, shirt, 1, price: 1000);
 
-        var reply = await AskAsync("kis category kurti ya dupatta par discount dene se basket size mein sab se zyada izafa hua");
+        var reply = await AskAsync("kis category shirt ya dupatta par discount dene se basket size mein sab se zyada izafa hua");
 
         Assert.Contains("1. Kapron — discount wale order ki average Rs.2,000 (3) bamuqabla Rs.1,000 (3) → +100%", reply);
     }
@@ -417,7 +417,7 @@ public class StrategicInsightReportTests : IDisposable
         await SaleAsync(c, now, price: 500, status: OrderStatus.Cancelled);                                                              // before shipping: no cash loss
         await SaleAsync(c, now, price: 2000, delivery: 200, status: OrderStatus.Returned, shippedAt: now, courierFee: 260);              // fee written
         await SaleAsync(c, now, price: 700, delivery: 150, status: OrderStatus.Cancelled, shippedAt: now);                               // cancelled after shipping: delivery charge stands in
-        _db.Losses.Add(new Loss { SellerId = _seller.Id, ProductName = "Kurti", Quantity = 2, UnitCost = 500, CreatedAt = now });
+        _db.Losses.Add(new Loss { SellerId = _seller.Id, ProductName = "Shirt", Quantity = 2, UnitCost = 500, CreatedAt = now });
         await _db.SaveChangesAsync();
 
         var reply = await AskAsync("pichle 30 din mein cancellation return aur wastage ki wajah se dukaan ko kul kitna nuqsan hua");

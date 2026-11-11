@@ -36,7 +36,7 @@ public class OrderListPagingTests : IDisposable
     private async Task<ConversationEngine> OnboardAsync(AppDbContext db)
     {
         var engine = CreateEngine(db);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800", "done" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Shirt - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
         _sent.Clear();
         _buttons.Clear();
@@ -52,7 +52,7 @@ public class OrderListPagingTests : IDisposable
         for (var i = 0; i < 12; i++)
         {
             var order = new Order { SellerId = seller.Id, CustomerId = customer.Id, Status = OrderStatus.Pending, Subtotal = 1800, Total = 1800, CreatedAt = DateTime.UtcNow.AddSeconds(-i - 1) }; // seconds, not minutes: "today" starts at Pakistan midnight (19:00 UTC), and minutes ago crossed it just after that hour
-            order.Items.Add(new OrderItem { ProductNameSnapshot = "Kurti", UnitPrice = 1800, Quantity = 1 });
+            order.Items.Add(new OrderItem { ProductNameSnapshot = "Shirt", UnitPrice = 1800, Quantity = 1 });
             db.Orders.Add(order);
         }
         await db.SaveChangesAsync();

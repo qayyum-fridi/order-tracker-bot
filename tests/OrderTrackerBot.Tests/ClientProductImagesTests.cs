@@ -37,7 +37,7 @@ public sealed class ClientProductImagesTests : IDisposable
         var seller = new Seller { WhatsAppPhoneNumber = phone, BusinessName = "Shop " + phone };
         _db.Sellers.Add(seller);
         await _db.SaveChangesAsync();
-        var product = new Product { SellerId = seller.Id, Name = "Kurti", Price = 900 };
+        var product = new Product { SellerId = seller.Id, Name = "Shirt", Price = 900 };
         _db.Products.Add(product);
         await _db.SaveChangesAsync();
         return product;

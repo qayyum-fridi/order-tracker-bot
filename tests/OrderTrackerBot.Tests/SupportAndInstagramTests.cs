@@ -49,7 +49,7 @@ public class SupportAndInstagramTests : IDisposable
     private async Task<ConversationEngine> OnboardAsync(AppDbContext db)
     {
         var engine = Engine(db);
-        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Lawn Suit - 3500", "Kurti - 1800", "done" })
+        foreach (var m in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Lawn Suit - 3500", "Shirt - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, m, default);
         _sent.Clear();
         _buttons.Clear();
@@ -93,7 +93,7 @@ public class SupportAndInstagramTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
-        var order = await SaveOrderAsync(engine, db, "Bilal", "Kurti");
+        var order = await SaveOrderAsync(engine, db, "Bilal", "Shirt");
         order.Status = OrderStatus.Shipped;
         order.TrackingCourier = "Leopards";
         order.TrackingNumber = "LC998877";
@@ -102,7 +102,7 @@ public class SupportAndInstagramTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "mera order kab tak aayega? — Bilal ne poocha", default);
 
         var prompt = Assert.Single(_buttons);
-        Assert.Contains($"Bilal (Order #{order.Id}, Kurti, SHIPPED, tracking: Leopards LC998877)", prompt.Body);
+        Assert.Contains($"Bilal (Order #{order.Id}, Shirt, SHIPPED, tracking: Leopards LC998877)", prompt.Body);
         Assert.Contains("Tracking: Leopards LC998877", prompt.Body);
         Assert.Equal(new[] { "Yes", "Edit" }, prompt.Buttons);
 
@@ -251,8 +251,8 @@ public class SupportAndInstagramTests : IDisposable
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
         await ConnectInstagramAsync(db);
-        AiReturnsOrder("Bilal", "Kurti", "03001112222");
-        await engine.HandleIncomingMessageAsync(Phone, "Bilal, 1 kurti, 03001112222", default); // now awaiting YES
+        AiReturnsOrder("Bilal", "Shirt", "03001112222");
+        await engine.HandleIncomingMessageAsync(Phone, "Bilal, 1 shirt, 03001112222", default); // now awaiting YES
 
         await engine.HandleInstagramCommentAsync("ig-1", "c-300", "u-7", "zara.b", "delivery kitne din mein hoti hai?", "m-2");
         Assert.Contains("\"reply 1\" likh kar IG par bhej dein", _sent[^1]);
@@ -283,8 +283,8 @@ public class SupportAndInstagramTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
-        await SaveOrderAsync(engine, db, "Bilal", "Kurti");
-        await SaveOrderAsync(engine, db, "Sara", "Kurti");
+        await SaveOrderAsync(engine, db, "Bilal", "Shirt");
+        await SaveOrderAsync(engine, db, "Sara", "Shirt");
         var discounted = await db.Orders.OrderBy(o => o.Id).FirstAsync();
         discounted.DiscountCode = "EID20";
         discounted.DiscountAmount = 360;
@@ -292,7 +292,7 @@ public class SupportAndInstagramTests : IDisposable
         db.Discounts.Add(new Discount { SellerId = discounted.SellerId, Code = "EID20", Type = DiscountType.Percent, Value = 20 });
         await db.SaveChangesAsync();
 
-        await engine.HandleIncomingMessageAsync(Phone, "kurti ka report", default);
+        await engine.HandleIncomingMessageAsync(Phone, "shirt ka report", default);
         Assert.Contains("Last 30 din: 2 orders, 2 units, Rs.3,600", _sent[^1]);
         Assert.Contains("Customers: 2", _sent[^1]);
 
@@ -343,8 +343,8 @@ public class SupportAndInstagramTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "wo waala", default);
         Assert.Contains("mujhe aapki baat samajh nahi aayi", _sent[^1]);
 
-        AiReturnsOrder("Bilal", "Kurti", "03001112222");
-        await engine.HandleIncomingMessageAsync(Phone, "Bilal, 1 kurti, 03001112222", default);
+        AiReturnsOrder("Bilal", "Shirt", "03001112222");
+        await engine.HandleIncomingMessageAsync(Phone, "Bilal, 1 shirt, 03001112222", default);
 
         Assert.Contains("Confirm order", _sent[^1]);
     }

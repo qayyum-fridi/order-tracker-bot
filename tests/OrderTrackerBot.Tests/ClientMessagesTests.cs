@@ -32,13 +32,13 @@ public sealed class ClientMessagesTests : IDisposable
         _db.Sellers.Add(seller);
         _db.Sellers.Add(new Seller { WhatsAppPhoneNumber = "923002222222" });
         await _db.SaveChangesAsync();
-        await AddAsync("923001111111", "inbound", "Kurti ka price?");
+        await AddAsync("923001111111", "inbound", "Shirt ka price?");
         await AddAsync("923002222222", "inbound", "another shop");
         await AddAsync("923001111111", "outbound", "Rs 1800");
 
         var messages = await new ClientQueries(_db).MessagesAsync(seller.Id, 0, 50, default);
 
-        Assert.Equal(new[] { "Kurti ka price?", "Rs 1800" }, messages.Select(m => m.Text));
+        Assert.Equal(new[] { "Shirt ka price?", "Rs 1800" }, messages.Select(m => m.Text));
         Assert.Equal(new[] { "inbound", "outbound" }, messages.Select(m => m.Direction));
     }
 

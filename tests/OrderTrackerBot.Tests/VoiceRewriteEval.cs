@@ -31,13 +31,13 @@ public class VoiceRewriteEval
     private static readonly Case[] Cases =
     {
         // an order said aloud
-        new("order", Idle, "Ayesha ke liye teen Kurti aur do Dupatta, delivery do sau", new[] { "ayesha", "3", "kurti", "2", "dupatta", "200" }, None),
+        new("order", Idle, "Ayesha ke liye teen Shirt aur do Dupatta, delivery do sau", new[] { "ayesha", "3", "shirt", "2", "dupatta", "200" }, None),
         new("order", Idle, "ek naya order aaya hai Hamira ka, usne das lawn suit mangwaye, aath sau ka lagaya hai", new[] { "hamira", "10", "lawn suit", "800" }, None),
         new("order", Idle, "Sara ko ek Polo Shirt white chahiye, phone zero teen zero zero ek do teen chaar paanch chhe saat", new[] { "sara", "polo shirt", "03001234567" }, None),
         // commands
         new("command", Idle, "aaj kitna bika", new[] { "hisaab" }, None),
         new("command", Idle, "order paanch shipped kar do", new[] { "5", "shipped" }, None),
-        new("command", Idle, "Kurti ka stock bees kar do", new[] { "stock", "kurti", "20" }, None),
+        new("command", Idle, "Shirt ka stock bees kar do", new[] { "stock", "shirt", "20" }, None),
         new("command", Idle, "catalog dikhao", new[] { "catalog" }, None),
         new("command", Idle, "kharcha petrol paanch sau", new[] { "500", "petrol" }, None),
         new("command", Idle, "Ali ko paanch hazar tankhwah di", new[] { "ali", "5000" }, None),
@@ -46,10 +46,10 @@ public class VoiceRewriteEval
         new("command", Idle, "order teen cancel kar do", new[] { "cancel", "3" }, None),
         // numbers said in words
         new("numbers", Idle, "Lawn Suit teen hazar do sau ka hai", new[] { "lawn suit", "3200" }, None),
-        new("numbers", Idle, "Kurti ki price ek hazar paanch sau kar do", new[] { "kurti", "1500" }, None),
+        new("numbers", Idle, "Shirt ki price ek hazar paanch sau kar do", new[] { "shirt", "1500" }, None),
         // the seller corrects himself while speaking
-        new("self-correction", Idle, "Ayesha ko do Kurti nahi paanch Kurti bhejni hain", new[] { "ayesha", "5" }, new[] { "2 kurti" }),
-        new("self-correction", Idle, "Kurti ki price do hazar nahi ek hazar paanch sau kar do", new[] { "1500" }, new[] { "2000" }),
+        new("self-correction", Idle, "Ayesha ko do Shirt nahi paanch Shirt bhejni hain", new[] { "ayesha", "5" }, new[] { "2 shirt" }),
+        new("self-correction", Idle, "Shirt ki price do hazar nahi ek hazar paanch sau kar do", new[] { "1500" }, new[] { "2000" }),
         new("self-correction", Idle, "order teen shipped nahi delivered kar do", new[] { "3", "delivered" }, new[] { "shipped" }),
         // yes / no and a choice while the bot waits
         new("yes-no", Confirm, "او بھائی میں نے ہاں بولا تھا", new[] { "yes" }, new[] { "?" }),
@@ -89,8 +89,8 @@ public class VoiceRewriteEval
                 BusinessName = "Ayesha Collections",
                 Situation = ConversationEngine.DescribeVoiceSituation(seller, new SessionContextData()),
                 AllowedActions = ConversationEngine.AllowedVoiceActions(seller, c.State).ToList(),
-                CatalogNames = { "Kurti", "Dupatta", "Lawn Suit", "Polo Shirt (white)", "Polo Shirt (black)" },
-                RecentOrders = { "#12 Ayesha Khan, 2x Kurti, Rs.3600, Pending", "#11 Bilal, 1x Lawn Suit, Rs.3500, Shipped" },
+                CatalogNames = { "Shirt", "Dupatta", "Lawn Suit", "Polo Shirt (white)", "Polo Shirt (black)" },
+                RecentOrders = { "#12 Ayesha Khan, 2x Shirt, Rs.3600, Pending", "#11 Bilal, 1x Lawn Suit, Rs.3500, Shipped" },
                 KnownCustomers = { "Ayesha Khan | 03001112222 | 2 orders", "Ayesha Raza | 03003334444 | 1 order", "Bilal | 03005556666 | 1 order" },
                 RecentExchanges = c.LastBotMessage is null ? new List<string>() : new List<string> { "Bot: " + c.LastBotMessage }
             };

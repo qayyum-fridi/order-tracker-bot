@@ -30,8 +30,8 @@ public class ProductCodeTests
     [Fact]
     public void A_name_without_digits_has_no_name_code()
     {
-        var product = new Product { SellerId = 1, Name = "Kurti", Price = 1800 };
+        var product = new Product { SellerId = 1, Name = "Shirt", Price = 1800 };
 
-        Assert.False(ConversationEngine.HasProductCode(product, "kurti"));
+        Assert.False(ConversationEngine.HasProductCode(product, "shirt"));
     }
 }

@@ -29,7 +29,7 @@ public class ProductChoiceTests : IDisposable
     private async Task<ConversationEngine> OnboardAsync(AppDbContext db)
     {
         var engine = CreateEngine(db);
-        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Kurti - 1800", "done" })
+        foreach (var step in new[] { "start", "Roman Urdu", "Setup shuru karein", "Ayesha Collections", "skip", "Shirt - 1800", "done" })
             await engine.HandleIncomingMessageAsync(Phone, step, default);
         _sent.Clear();
         return engine;
@@ -53,7 +53,7 @@ public class ProductChoiceTests : IDisposable
         Assert.Contains(_sent, m => m.Contains("aapke catalog mein nahi mila"));
         _sent.Clear();
 
-        await engine.HandleIncomingMessageAsync(Phone, "2 Kurti", default);
+        await engine.HandleIncomingMessageAsync(Phone, "2 Shirt", default);
 
         Assert.DoesNotContain(_sent, m => m.Contains("Barae meherbani 1 ya 2"));
         Assert.DoesNotContain(_sent, m => m.Contains("Kaunsa existing product"));
@@ -124,21 +124,21 @@ public class ProductChoiceTests : IDisposable
     public async Task AddingAProductThatAlreadyExists_SaysSo_InsteadOfAnnouncingAPriceUpdate()
     {
         using var db = _dbFactory.CreateContext();
-        var engine = await OnboardAsync(db);               // onboarding saved "Kurti - 1800"
+        var engine = await OnboardAsync(db);               // onboarding saved "Shirt - 1800"
 
         _sent.Clear();
-        await engine.HandleIncomingMessageAsync(Phone, "Kurti - 1800", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Shirt - 1800", default);
         Assert.Contains(_sent, m => m.Contains("pehle se catalog mein hai") && m.Contains("koi tabdeeli nahi"));
         Assert.DoesNotContain(_sent, m => m.Contains("price updated"));
 
         _sent.Clear();
-        await engine.HandleIncomingMessageAsync(Phone, "Kurti - 1900", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Shirt - 1900", default);
         Assert.Contains(_sent, m => m.Contains("pehle se catalog mein hai") && m.Contains("Rs.1,800 → Rs.1,900"));
 
         _sent.Clear();
-        await engine.HandleIncomingMessageAsync(Phone, "Kurti - 1900, cost 1200", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Shirt - 1900, cost 1200", default);
         Assert.Contains(_sent, m => m.Contains("pehle se catalog mein hai") && m.Contains("details update") && m.Contains("1,200"));
-        Assert.Equal(1, await db.Products.CountAsync(p => p.Name == "Kurti"));
+        Assert.Equal(1, await db.Products.CountAsync(p => p.Name == "Shirt"));
     }
 
     [Fact]
@@ -146,11 +146,11 @@ public class ProductChoiceTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
-        (await db.Products.SingleAsync(p => p.Name == "Kurti")).IsActive = false;
+        (await db.Products.SingleAsync(p => p.Name == "Shirt")).IsActive = false;
         await db.SaveChangesAsync();
 
         _sent.Clear();
-        await engine.HandleIncomingMessageAsync(Phone, "Kurti - 1800", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Shirt - 1800", default);
 
         Assert.Contains(_sent, m => m.Contains("pehle catalog mein tha") && m.Contains("wapas chalu"));
     }
@@ -183,39 +183,39 @@ public class ProductChoiceTests : IDisposable
     public async Task NamingProducts_SaysWhichOnesAreAlreadyInTheCatalog_AndNeverCallsThemNotOrders()
     {
         using var db = _dbFactory.CreateContext();
-        var engine = await OnboardAsync(db);                // catalog has Kurti - 1800
+        var engine = await OnboardAsync(db);                // catalog has Shirt - 1800
         _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiMessageAnalysis
             {
                 Intent = "add_products",
-                NewProducts = { new AiNewProduct { Name = "Chadar" }, new AiNewProduct { Name = "Kurti" } }
+                NewProducts = { new AiNewProduct { Name = "Chadar" }, new AiNewProduct { Name = "Shirt" } }
             });
 
-        await engine.HandleIncomingMessageAsync(Phone, "teen chadar aur do kurti naye products hain", default);
+        await engine.HandleIncomingMessageAsync(Phone, "teen chadar aur do shirt naye products hain", default);
 
-        Assert.Contains(_sent, m => m.Contains("Pehle se catalog mein hain") && m.Contains("Kurti") && m.Contains("1,800"));
+        Assert.Contains(_sent, m => m.Contains("Pehle se catalog mein hain") && m.Contains("Shirt") && m.Contains("1,800"));
         Assert.Contains(_sent, m => m.Contains("naye products hain") && m.Contains("Chadar"));
         Assert.DoesNotContain(_sent, m => m.Contains("order nahi"));
-        Assert.Equal(1, await db.Products.CountAsync(p => p.Name == "Kurti"));
+        Assert.Equal(1, await db.Products.CountAsync(p => p.Name == "Shirt"));
     }
 
     [Fact]
     public async Task APriceTheAiReadsForAnExistingProduct_DoesNotOverwriteIt_AndShowsTheEditCommand()
     {
         using var db = _dbFactory.CreateContext();
-        var engine = await OnboardAsync(db);                // Kurti - 1800
+        var engine = await OnboardAsync(db);                // Shirt - 1800
         _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiMessageAnalysis
             {
                 Intent = "add_products",
-                NewProducts = { new AiNewProduct { Name = "Kurti", Price = 1500 }, new AiNewProduct { Name = "Shawl", Price = 900 } }
+                NewProducts = { new AiNewProduct { Name = "Shirt", Price = 1500 }, new AiNewProduct { Name = "Shawl", Price = 900 } }
             });
 
-        await engine.HandleIncomingMessageAsync(Phone, "price 1 = 1500 / add Kurti 1 / shawl 900", default);
+        await engine.HandleIncomingMessageAsync(Phone, "price 1 = 1500 / add Shirt 1 / shawl 900", default);
 
-        Assert.Equal(1800m, (await db.Products.SingleAsync(p => p.Name == "Kurti")).Price);
+        Assert.Equal(1800m, (await db.Products.SingleAsync(p => p.Name == "Shirt")).Price);
         Assert.Equal(900m, (await db.Products.SingleAsync(p => p.Name == "Shawl")).Price);
-        Assert.Contains(_sent, m => m.Contains("pehle se Rs.1,800 par hai") && m.Contains("edit product: Kurti - 1500"));
+        Assert.Contains(_sent, m => m.Contains("pehle se Rs.1,800 par hai") && m.Contains("edit product: Shirt - 1500"));
     }
 
     [Theory]
@@ -236,10 +236,10 @@ public class ProductChoiceTests : IDisposable
             .ReturnsAsync(new AiMessageAnalysis
             {
                 Intent = "new_order", IsOrderAttempt = true,
-                Order = new AiOrderDraft { CustomerName = "Sara", Phone = "030011122", Items = { new AiOrderItemDraft { ProductName = "Kurti", Quantity = 2 } } }
+                Order = new AiOrderDraft { CustomerName = "Sara", Phone = "030011122", Items = { new AiOrderItemDraft { ProductName = "Shirt", Quantity = 2 } } }
             });
 
-        await engine.HandleIncomingMessageAsync(Phone, "Sara: Kurti 2, 030011122", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Sara: Shirt 2, 030011122", default);
 
         Assert.Contains(_sent, m => m.Contains("poora nahi lagta") && m.Contains("9 digits"));
         Assert.DoesNotContain(_sent, m => m.Contains("Confirm order"));
@@ -302,16 +302,16 @@ public class ProductChoiceTests : IDisposable
             });
 
         await engine.HandleIncomingMessageAsync(Phone, "Yusrah 03457278990 2 lawn, 1 shawl order place karo", default);
-        await engine.HandleIncomingMessageAsync(Phone, "2 Kurti", default);            // "Lawn" is the catalog's Kurti
+        await engine.HandleIncomingMessageAsync(Phone, "2 Shirt", default);            // "Lawn" is the catalog's Shirt
         _sent.Clear();
         await engine.HandleIncomingMessageAsync(Phone, "1", default);                  // "Shawl" is a new product
         await engine.HandleIncomingMessageAsync(Phone, "900", default);
-        Assert.Contains(_sent, m => m.Contains("Confirm order") && m.Contains("Kurti") && m.Contains("Shawl"));
+        Assert.Contains(_sent, m => m.Contains("Confirm order") && m.Contains("Shirt") && m.Contains("Shawl"));
 
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
         var order = await db.Orders.Include(o => o.Items).SingleAsync();
-        var kurti = await db.Products.SingleAsync(p => p.Name == "Kurti");
-        Assert.Contains(order.Items, i => i.ProductId == kurti.Id && i.Quantity == 2 && i.UnitPrice == 1800m);
+        var shirt = await db.Products.SingleAsync(p => p.Name == "Shirt");
+        Assert.Contains(order.Items, i => i.ProductId == shirt.Id && i.Quantity == 2 && i.UnitPrice == 1800m);
         Assert.Contains(order.Items, i => i.ProductNameSnapshot == "Shawl" && i.Quantity == 1 && i.UnitPrice == 900m);
     }
 

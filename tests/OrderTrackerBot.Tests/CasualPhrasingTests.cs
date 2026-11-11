@@ -32,10 +32,10 @@ public class CasualPhrasingTests
     [Fact]
     public void StockAdd_IsAnAddOfTheGivenQuantity()
     {
-        var parsed = CommandParser.TryParse("Kurti mein 5 aur aaye");
+        var parsed = CommandParser.TryParse("Shirt mein 5 aur aaye");
         Assert.NotNull(parsed);
         Assert.Equal(CommandKind.Stock, parsed!.Kind);
-        Assert.Equal("Kurti", parsed.Text);
+        Assert.Equal("Shirt", parsed.Text);
         Assert.Equal("add", parsed.Text2);
         Assert.Equal(5m, parsed.Amount);
     }
@@ -43,10 +43,10 @@ public class CasualPhrasingTests
     [Fact]
     public void PriceChange_IsAnEditOfTheProductPrice()
     {
-        var parsed = CommandParser.TryParse("Kurti ka rate 2100 kar do");
+        var parsed = CommandParser.TryParse("Shirt ka rate 2100 kar do");
         Assert.NotNull(parsed);
         Assert.Equal(CommandKind.EditProduct, parsed!.Kind);
-        Assert.Equal("Kurti", parsed.Text);
+        Assert.Equal("Shirt", parsed.Text);
         Assert.Equal(2100m, parsed.Amount);
     }
 

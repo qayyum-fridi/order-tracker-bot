@@ -25,7 +25,7 @@ Status: draft. No code yet. `dotnet` is not installed in the current session, so
 
 | Kind | Examples | Notes |
 |---|---|---|
-| `Loss` | `loss 2 Kurti damaged`, `nuqsan 2 Kurti`, `damage 1 Lawn Suit` | Product matched by catalog (fuzzy match via the existing path). Unmatched name: save as free text with `UnitCost` 0 and flag it. |
+| `Loss` | `loss 2 Shirt damaged`, `nuqsan 2 Shirt`, `damage 1 Lawn Suit` | Product matched by catalog (fuzzy match via the existing path). Unmatched name: save as free text with `UnitCost` 0 and flag it. |
 | `Wage` | `Ali ki 5000 dihari`, `wage Ali 5000`, `salary Ali 5000`, `Ali ko 3 din 1500` | Daily rate × days when `dihari`/`din` is given, otherwise a flat amount. |
 | `LossList` / `WageList` | `losses [today\|last month]`, `wages [...]` | Same period handling as `ExpensePeriod`. |
 

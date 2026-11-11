@@ -4,11 +4,11 @@
   "title": "Food / Bakery",
   "aliases": "food\\w*|bak\\w*|cake\\w*|kitchen|restaurant|sweet\\w*|mithai|catering|homemade|biryani|حلوائی|کھانا|بیکری",
   "productLines": [
-    "Chocolate Cake 2 lb - 3200, cost 1500, category cakes",
-    "Chicken Biryani Tray - 4500",
-    "Brownies Box - 1200"
+    "Chicken Biryani Plate - 350, cost 220, category biryani",
+    "Naan - 40",
+    "Chocolate Cake 2 lb - 3200, cost 1500, category cakes"
   ],
-  "orderExample": "Maryam, 1 chocolate cake 2 lb, 03001234567, Clifton Karachi",
+  "orderExample": "Maryam, 4 chicken biryani plate, 2 naan, 03001234567, Clifton Karachi",
   "tips": [
     "Pehle se order lene wale kaam mein advance likhein: \"order 12 advance 1000\" ya order mein \"…, advance 1000\".",
     "Delivery charge order mein likhein (\"…, delivery 300\"), warna default \"delivery 300\" set kar lein.",
@@ -16,5 +16,15 @@
   ],
   "dataFocus": "advance payment, delivery charge aur cost price",
   "menuTip": "Advance \"order 12 advance 1000\" se likhein, aur delivery charge order ke saath likhein.",
-  "units": ["piece", "kg", "gram", "dozen", "pack", "tray", "plate", "liter", "ml"]
+  "units": [
+    "piece",
+    "kg",
+    "gram",
+    "dozen",
+    "pack",
+    "tray",
+    "plate",
+    "liter",
+    "ml"
+  ]
 }

@@ -16,7 +16,7 @@ namespace OrderTrackerBot.Tests;
 public class VoiceYesNoEval
 {
     private const string ResetQ = "⚠️ Yeh aapka poora data (orders, products, customers) delete kar dega aur setup dobara shuru hoga. Pakka? YES ya NO likhein.";
-    private const string DraftQ = "📝 Confirm order: Customer: Sara Khan | 2x Kurti - Rs.4,200 | Total: Rs.4,200. Save ya Cancel?";
+    private const string DraftQ = "📝 Confirm order: Customer: Sara Khan | 2x Shirt - Rs.4,200 | Total: Rs.4,200. Save ya Cancel?";
 
     // (question, spoken answer, expected). "other" = a different request, a question, both, or unclear.
     private static readonly (string Q, string A, string Expected)[] Cases =

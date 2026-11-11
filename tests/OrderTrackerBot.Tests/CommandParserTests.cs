@@ -19,7 +19,7 @@ public class CommandParserTests
     }
 
     [Theory]
-    [InlineData("Ayesha 2 lawn suit aur 1 kurti")]
+    [InlineData("Ayesha 2 lawn suit aur 1 shirt")]
     [InlineData("Ayesha 200 and Bilal, 0300-1234567")]
     [InlineData("Ayesha, 2 suit, 0300-1234567")]
     [InlineData("wo 20 aur 30")]
@@ -87,7 +87,7 @@ public class CommandParserTests
 
     [Theory]
     [InlineData("Lawn Suit 3pc - 3500, cost 2400, stock 20, category lawn")]
-    [InlineData("Kurti - 1800, cost 1100, stock 15, category stitched")]
+    [InlineData("Shirt - 1800, cost 1100, stock 15, category stitched")]
     [InlineData("Dupatta - 600")]
     public void OnboardingExampleLines_AreProductLines(string line) => Assert.Equal(CommandKind.AddProduct, CommandParser.TryParse(line)!.Kind);
 
@@ -394,7 +394,7 @@ public class CommandParserTests
     [Fact]
     public void FreeformOrderText_DoesNotMatchAnyDeterministicCommand()
     {
-        var parsed = CommandParser.TryParse("Sara, 1 kurti, 03009876543, Gulberg Lahore");
+        var parsed = CommandParser.TryParse("Sara, 1 shirt, 03009876543, Gulberg Lahore");
         Assert.Null(parsed);
     }
 
@@ -451,7 +451,7 @@ public class CommandParserTests
     [Fact]
     public void MarkStatus_WithUnknownVerb_FallsThrough()
     {
-        Assert.NotEqual(CommandKind.MarkStatus, CommandParser.TryParse("order 3 kurti 2500")?.Kind);
+        Assert.NotEqual(CommandKind.MarkStatus, CommandParser.TryParse("order 3 shirt 2500")?.Kind);
     }
 
     [Theory]
@@ -719,11 +719,11 @@ public class CommandParserTests
     }
 
     [Theory]
-    [InlineData("Sara, 1 kurti, 03001234567, delivery 300", 300)]
+    [InlineData("Sara, 1 shirt, 03001234567, delivery 300", 300)]
     [InlineData("Sara 2 suit 0300-1234567 Gulberg, delivery charges 250", 250)]
     [InlineData("Ayesha 1 lawn suit +200 delivery", 200)]
-    [InlineData("Bilal, 1 kurti, 03001234567, free delivery", 0)]
-    [InlineData("Bilal 1 kurti delivery Rs 40", 40)]
+    [InlineData("Bilal, 1 shirt, 03001234567, free delivery", 0)]
+    [InlineData("Bilal 1 shirt delivery Rs 40", 40)]
     [InlineData("Sana, 1 suit, 03001234567, ڈیلیوری 180", 180)]
     [InlineData("Sana 1 suit delivery: ۲۵۰", 250)]
     public void FindsDeliveryChargeInsideOrderText(string message, int expected)
@@ -750,10 +750,10 @@ public class CommandParserTests
     }
 
     [Theory]
-    [InlineData("Sara, 1 kurti, 03001234567")]
-    [InlineData("Sara 1 kurti, delivery 15 tareekh ko, 03001234567")]
-    [InlineData("Sara 1 kurti, delivery date 20 oct")]
-    [InlineData("Sara 1 kurti 03001234567 delivery jaldi chahiye")]
+    [InlineData("Sara, 1 shirt, 03001234567")]
+    [InlineData("Sara 1 shirt, delivery 15 tareekh ko, 03001234567")]
+    [InlineData("Sara 1 shirt, delivery date 20 oct")]
+    [InlineData("Sara 1 shirt 03001234567 delivery jaldi chahiye")]
     [InlineData("Sara, 2 suit deliver kar dena, 03001234567")]
     public void IgnoresDatesPhonesAndPlainMentionsOfDelivery(string message)
     {
@@ -784,8 +784,8 @@ public class CommandParserTests
     [InlineData("rate 2 1200", "price", 2, null, 1200, null)]
     [InlineData("remove 2", "remove", 2, null, null, null)]
     [InlineData("2 hatao", "remove", 2, null, null, null)]
-    [InlineData("add Kurti 2", "add", null, 2, null, "Kurti")]
-    [InlineData("add 2 Kurti", "add", null, 2, null, "Kurti")]
+    [InlineData("add Shirt 2", "add", null, 2, null, "Shirt")]
+    [InlineData("add 2 Shirt", "add", null, 2, null, "Shirt")]
     [InlineData("add Sugar 5 kg", "add", null, 1, null, "Sugar 5 kg")]
     [InlineData("phone 0300-111 2222", "phone", null, null, null, "03001112222")]
     [InlineData("address House 5, Gulberg", "address", null, null, null, "House 5, Gulberg")]
@@ -851,9 +851,9 @@ public class CommandParserTests
     }
 
     [Theory]
-    [InlineData("Sara, 1 kurti, 03001234567, advance 500 jazzcash", 500)]
+    [InlineData("Sara, 1 shirt, 03001234567, advance 500 jazzcash", 500)]
     [InlineData("Sara 2 suit 0300-1234567, 1000 advance diya", 1000)]
-    [InlineData("Sara 1 kurti advance paid Rs 300", 300)]
+    [InlineData("Sara 1 shirt advance paid Rs 300", 300)]
     [InlineData("Sana 1 suit ایڈوانس 400", 400)]
     public void FindsAdvanceInsideOrderText(string message, int expected)
     {
@@ -862,9 +862,9 @@ public class CommandParserTests
     }
 
     [Theory]
-    [InlineData("Sara, 1 kurti, 03001234567, advance jazzcash se karegi")]
-    [InlineData("Sara 1 kurti advance 03001234567")]
-    [InlineData("Sara 1 kurti, 0300-1234567")]
+    [InlineData("Sara, 1 shirt, 03001234567, advance jazzcash se karegi")]
+    [InlineData("Sara 1 shirt advance 03001234567")]
+    [InlineData("Sara 1 shirt, 0300-1234567")]
     public void NoAdvance_WhenNoAmountIsStated(string message)
     {
         Assert.False(CommandParser.TryFindAdvanceInOrderText(message, out _));
@@ -873,12 +873,12 @@ public class CommandParserTests
     [Theory]
     [InlineData("stock", null, null, null)]
     [InlineData("inventory", null, null, null)]
-    [InlineData("stock Kurti 20", "Kurti", "set", 20)]
+    [InlineData("stock Shirt 20", "Shirt", "set", 20)]
     [InlineData("stock: Lawn Suit = 5", "Lawn Suit", "set", 5)]
-    [InlineData("Kurti stock 20", "Kurti", "set", 20)]
-    [InlineData("Kurti ka stock 15", "Kurti", "set", 15)]
-    [InlineData("stock Kurti +10", "Kurti", "add", 10)]
-    [InlineData("stock Kurti off", "Kurti", "off", null)]
+    [InlineData("Shirt stock 20", "Shirt", "set", 20)]
+    [InlineData("Shirt ka stock 15", "Shirt", "set", 15)]
+    [InlineData("stock Shirt +10", "Shirt", "add", 10)]
+    [InlineData("stock Shirt off", "Shirt", "off", null)]
     public void ParsesStockCommands(string message, string? product, string? mode, int? amount)
     {
         var parsed = CommandParser.TryParse(message);
@@ -891,7 +891,7 @@ public class CommandParserTests
     [Fact]
     public void Stock_DoesNotStealProductLines()
     {
-        Assert.Equal(CommandKind.AddProduct, CommandParser.TryParse("Kurti - 1800")!.Kind);
+        Assert.Equal(CommandKind.AddProduct, CommandParser.TryParse("Shirt - 1800")!.Kind);
         Assert.Equal(CommandKind.AddProduct, CommandParser.TryParse("Sugar 5 kg - 500")!.Kind);
     }
 
@@ -934,7 +934,7 @@ public class CommandParserTests
 public class NewProductPrefixTests
 {
     [Theory]
-    [InlineData("naya product: Kurti - 1800", "Kurti", 1800)]
+    [InlineData("naya product: Shirt - 1800", "Shirt", 1800)]
     [InlineData("new product: Dupatta - 600, cost 300,", "Dupatta", 600)]
     [InlineData("Naya Product : Shawl - 2,200", "Shawl", 2200)]
     public void TheMenuWording_AddsAProduct(string text, string name, int price)
@@ -946,8 +946,8 @@ public class NewProductPrefixTests
     }
 
     [Theory]
-    [InlineData("naya product hai Kurti")]
-    [InlineData("naya product: Kurti")]
+    [InlineData("naya product hai Shirt")]
+    [InlineData("naya product: Shirt")]
     public void SentencesWithoutAPrice_AreNotProductLines(string text) =>
         Assert.NotEqual(CommandKind.AddProduct, CommandParser.TryParse(text)?.Kind);
 }
@@ -956,7 +956,7 @@ public class ProductLineEndingInStockTests
 {
     [Theory]
     [InlineData("Dupatta - 600, cost 300, stock 50", "Dupatta", 600)]
-    [InlineData("Kurti - 1800, stock 10", "Kurti", 1800)]
+    [InlineData("Shirt - 1800, stock 10", "Shirt", 1800)]
     [InlineData("Dupatta - 600, cost 300,", "Dupatta", 600)]
     public void AProductLineWithTrailingStock_IsAProduct_NotAStockCommand(string text, string name, int price)
     {
@@ -967,10 +967,10 @@ public class ProductLineEndingInStockTests
     }
 
     [Theory]
-    [InlineData("Kurti stock 20")]
-    [InlineData("stock Kurti 20")]
-    [InlineData("Kurti ka stock 20")]
-    [InlineData("stock Kurti +10")]
+    [InlineData("Shirt stock 20")]
+    [InlineData("stock Shirt 20")]
+    [InlineData("Shirt ka stock 20")]
+    [InlineData("stock Shirt +10")]
     public void PlainStockCommands_AreUnchanged(string text) => Assert.Equal(CommandKind.Stock, CommandParser.TryParse(text)!.Kind);
 }
 
@@ -978,9 +978,9 @@ public class ProductLineEndingInStockTests
 public class ProductLineSanityTests
 {
     [Theory]
-    [InlineData("Kurti - -5")]
-    [InlineData("Kurti -- 5")]
-    [InlineData("Kurti = ")]
+    [InlineData("Shirt - -5")]
+    [InlineData("Shirt -- 5")]
+    [InlineData("Shirt = ")]
     [InlineData("- 500")]
     public void TyposThatWouldSaveAJunkProduct_AreNotProductLines(string text)
     {
@@ -989,7 +989,7 @@ public class ProductLineSanityTests
     }
 
     [Theory]
-    [InlineData("Kurti - 1")]
+    [InlineData("Shirt - 1")]
     [InlineData("Polo Shirt - 500, cost 300, stock 10")]
     [InlineData("Sugar 5 kg - 500")]
     public void RealProductLines_StillParse(string text) => Assert.True(CommandParser.TryParseProductLine(text, out ProductLine? _));
