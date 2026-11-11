@@ -108,7 +108,8 @@ public sealed class ClientProductWriterTests : IDisposable
         Assert.Equal(200, updated.Status);
         var saved = await _db.Products.SingleAsync(p => p.Id == created.Id);
         Assert.Equal("Lawn Suit 2", saved.Name);
-        Assert.Equal("KEEP-1", saved.Sku);
+        Assert.Equal("KEEP-1", saved.Barcode);
+        Assert.StartsWith("SKU-", saved.Sku);
         Assert.Null(saved.Category);
     }
 

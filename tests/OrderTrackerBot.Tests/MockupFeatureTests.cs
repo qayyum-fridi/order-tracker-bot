@@ -1429,6 +1429,12 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
+        // A category must exist before a product line may use it: the seller creates it first.
+        var sellerId = (await db.Sellers.SingleAsync()).Id;
+        db.Categories.AddRange(
+            new OrderTrackerBot.Domain.Entities.Category { SellerId = sellerId, Name = "Shirts" },
+            new OrderTrackerBot.Domain.Entities.Category { SellerId = sellerId, Name = "Suits" });
+        await db.SaveChangesAsync();
 
         await engine.HandleIncomingMessageAsync(Phone, "Polo Shirt - 500, category: Shirts, supplier: Ali Traders, department: Men", default);
         await engine.HandleIncomingMessageAsync(Phone, "Check Shirt - 700, category: Shirts, vendor: ali traders", default);

@@ -492,7 +492,7 @@ public class DataImportTests : IDisposable
         Assert.Equal(50m, vital.Price);
         Assert.Equal(44.5m, vital.CostPrice);
         Assert.Equal(17, vital.StockQty);
-        Assert.Equal("8964000008430", vital.Sku);
+        Assert.Equal("8964000008430", vital.Barcode);
         Assert.Equal("Tea", vital.Category);
         Assert.Equal("M", vital.Size);
         Assert.Equal("Yellow", vital.Color);
@@ -618,7 +618,7 @@ public class DataImportTests : IDisposable
         var bread = await db.Products.SingleAsync(p => p.Name == "Bread");
         Assert.Equal(120m, bread.Price);
         Assert.Equal(10, bread.StockQty);
-        Assert.Equal("0123456789012", bread.Sku);
+        Assert.Equal("0123456789012", bread.Barcode);
         Assert.Equal(new[] { "03001234567", "03217654321" }, (await db.Customers.OrderBy(c => c.Id).Select(c => c.Phone).ToListAsync()).ToArray());
     }
 
@@ -652,7 +652,7 @@ public class DataImportTests : IDisposable
             Row("Biscuit", 50, "222"),
             Row("Cake", 700, "222")       // same barcode twice in the file
         })));
-        db.Products.Add(new OrderTrackerBot.Domain.Entities.Product { SellerId = seller.Id, Name = "Old Tea", Price = 10, Sku = "111" });
+        db.Products.Add(new OrderTrackerBot.Domain.Entities.Product { SellerId = seller.Id, Name = "Old Tea", Price = 10, Barcode = "111" });
         await db.SaveChangesAsync();
 
         await engine.HandleDocumentMessageAsync(Phone, "m1", "items.xlsx", XlsxMime);

@@ -305,7 +305,7 @@ public class LabelScanDrawerEngineTests : IDisposable
 
         await engine.HandleIncomingMessageAsync(Phone, "barcode Lawn Suit 8961234567890", default);
         await engine.HandleIncomingMessageAsync(Phone, "barcode Shirt KRT-001", default);
-        Assert.Equal("8961234567890", (await db.Products.AsNoTracking().FirstAsync(p => p.Name == "Lawn Suit")).Sku);
+        Assert.Equal("8961234567890", (await db.Products.AsNoTracking().FirstAsync(p => p.Name == "Lawn Suit")).Barcode);
 
         _sent.Clear();
         await engine.HandleIncomingMessageAsync(Phone, "8961234567890", default);
