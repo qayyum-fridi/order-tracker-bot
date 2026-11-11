@@ -924,6 +924,11 @@ public partial class ConversationEngine
     private async Task HandleAddProductAsync(Seller seller, ParsedCommand cmd, CancellationToken ct, SessionContextData? ctx = null)
     {
         var line = cmd.Product ?? new ProductLine(cmd.Text!, cmd.Amount!.Value, "piece", 1);
+        if (line.Extras?.Category is { } wantedCategory && !await CategoryKnownAsync(seller, wantedCategory, ct))
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("category.004", wantedCategory), ct);
+            return;
+        }
         _upsertBefore = null;
         var (saved, updated, variants) = await UpsertProductAsync(seller, line, ct);
         if (saved is null)

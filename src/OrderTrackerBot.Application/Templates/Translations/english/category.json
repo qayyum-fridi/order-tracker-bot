@@ -1,4 +1,7 @@
 {
-  "category.001": "📂 A \"{0}\" category is saved with its products. When you add a product, write \"category {0}\", e.g.: \"Charger Type-C 20W - 1800, category {0}\".\n\nCategories so far: {1}",
-  "category.002": "none yet"
+  "category.001": "✅ Category \"{0}\" created.\nCategories so far: {1}",
+  "category.002": "none yet",
+  "category.003": "ℹ️ Category \"{0}\" already exists.",
+  "category.004": "❌ Category \"{0}\" is not in your list yet. First type \"{0} category banao\", then send the product again.",
+  "category.005": "❌ Could not understand the category name. Type one name, or \"Parent > Child\" for a sub-category."
 }
