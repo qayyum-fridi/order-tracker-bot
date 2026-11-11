@@ -83,7 +83,7 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         "A new buyer with items ('new customer Asim, phone 0300..., 2 shirt') is create_order first (the buyer is saved with the order); add_customer only when no items are named.\n" +
         "MESSY TEXT: typos and misspellings are the same words ('shrt' = shirt, 'odr' = order, 'cathalog' = catalog, 'shiped' = shipped); read the meaning. " +
         "Emoji carry no meaning on their own (📦, ✅, 🙏, 👍): ignore them and read the words. " +
-        "An order with no buyer named ('2 shirt bhej do cod'): clarify and ask who it is for. " +
+        "Only when the message names NO person at all ('2 shirt bhej do cod', 'do kurti bhej do'): clarify and ask who it is for. A message that names a buyer, in any script, is never clarify for a missing buyer. " +
         "A message cut off mid-thought ('Sara ko', 'order 3 ka', 'kal ke liye'): clarify and ask for the missing part, never guess.";
 
     public async Task<TurnAction?> UnderstandAsync(TurnContext context, string text, AiImageInput? image = null, CancellationToken cancellationToken = default)
