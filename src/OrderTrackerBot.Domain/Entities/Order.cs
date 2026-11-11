@@ -84,6 +84,11 @@ public class Discount
     public DateTime? ExpiresAt { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    /// <summary>
+    /// Category sale: a percent that applies only to items whose product category matches (case-insensitive;
+    /// "Winter 26" also matches "Winter 26 &gt; Khaddar"). Null = a normal code applied to the whole order.
+    /// </summary>
+    public string? Category { get; set; }
 }
 
 public class LoyaltyRule

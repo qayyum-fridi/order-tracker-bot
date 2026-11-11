@@ -1,0 +1,5 @@
+{
+  "discount-sale.001": "❌ A category sale can only be a percent, e.g. \"WINTER20, 20 percent, category Winter 26\".",
+  "discount-sale.002": "✅ Category sale {0} created:\n{1} off items in the \"{2}\" category. It applies to new orders automatically.",
+  "discount-sale.003": "✅ Category sale {0} created:\n{1} off items in the \"{2}\" category, ends in {3} days ({4}). It applies to new orders automatically."
+}
