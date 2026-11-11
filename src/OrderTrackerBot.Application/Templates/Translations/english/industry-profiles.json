@@ -54,8 +54,8 @@
     "menuTip": "Write the pack weight in the name, and keep stock: the bot warns you when it runs low.",
     "dataFocus": "stock, pack size and cost price",
     "tips": [
-      "Write the weight or pack with the name: \"Sugar 5 kg - 500\": a 5 kg pack is one product.",
-      "Always write the stock (\"stock Sugar 5 kg 40\"): the bot tells you when it is low.",
+      "Write the weight or pack with the name: \"Chini 5 kg - 950\": a 5 kg pack is one product.",
+      "Always write the stock (\"stock Chini 5 kg 40\"): the bot tells you when it is low.",
       "When stock is 3 or less, the bot sends a warning on its own."
     ]
   },
