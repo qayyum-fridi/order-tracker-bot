@@ -266,7 +266,7 @@ public class MockupFeatureTests : IDisposable
         AiReturns(fromModel);
         await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 shirt, 03001234567 (screenshot jaisa)", default);
         Assert.Contains(_sent, m => m.Contains("Delivery: Rs.150"));
-        await engine.HandleIncomingMessageAsync(Phone, "edit", default);
+        await engine.HandleIncomingMessageAsync(Phone, "cancel", default);
 
         var overridden = Order("Sara", "Shirt", 1);
         overridden.Order!.DeliveryCharge = 150;

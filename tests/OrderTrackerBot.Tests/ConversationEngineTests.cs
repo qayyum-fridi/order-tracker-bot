@@ -2750,7 +2750,8 @@ public class ConversationEngineTests : IDisposable
         CollectSentBodies();
         await PlaceCatalogAnsweredOrdersAsync(engine, AnswersUntilAuto);
         await PlaceOrderAsync(engine, AnswersUntilAuto + 1, null);
-        await engine.HandleIncomingMessageAsync(Phone, "edit", default);
+        // A draft that is thrown away (cancel) is a correction of the auto price; Edit now keeps the draft.
+        await engine.HandleIncomingMessageAsync(Phone, "cancel", default);
 
         _sentMessages.Clear();
         await PlaceOrderAsync(engine, AnswersUntilAuto + 2, null);
