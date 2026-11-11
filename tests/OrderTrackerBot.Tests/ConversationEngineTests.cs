@@ -1365,13 +1365,14 @@ public class ConversationEngineTests : IDisposable
         Assert.Contains("1. Kurti - Rs.1,800", body);
 
         await engine.HandleIncomingMessageAsync(Phone, "✅ Done", default);
-        // The shop-or-delivery question comes after setup; answering it keeps the after-setup list as the last list.
+        // The after-setup list is captured now; the shop-or-delivery question that follows replaces listBody.
+        var afterSetupList = listBody;
         await engine.HandleIncomingMessageAsync(Phone, "🏪 Sirf dukan par", default);
 
         var seller = await db.Sellers.FirstAsync();
         Assert.True(seller.OnboardingComplete);
         Assert.Equal(1, await db.Products.CountAsync());
-        Assert.Contains("Aage kya karna hai?", listBody);
+        Assert.Contains("Aage kya karna hai?", afterSetupList);
     }
 
     [Fact]
