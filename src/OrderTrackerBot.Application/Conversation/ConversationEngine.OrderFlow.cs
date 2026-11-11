@@ -572,7 +572,7 @@ public partial class ConversationEngine
         pending.Subtotal = pending.Items.Where(i => i.UnitPrice >= 0).Sum(i => i.UnitPrice * i.Quantity);
         pending.DiscountAmount = 0;
 
-        var lines = pending.Items.Where(i => i.UnitPrice >= 0).Select(i => ((int?)i.ProductId, i.UnitPrice * i.Quantity)).ToList();
+        var lines = pending.Items.Where(i => i.UnitPrice >= 0).Select(i => (ProductId: (int?)i.ProductId, Amount: i.UnitPrice * i.Quantity)).ToList();
         Discount? discount = null;
         if (!string.IsNullOrWhiteSpace(pending.DiscountCode))
         {
