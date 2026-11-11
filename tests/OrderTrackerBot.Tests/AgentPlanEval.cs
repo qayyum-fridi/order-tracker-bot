@@ -25,7 +25,7 @@ public class AgentPlanEval
 {
     /// <summary>
     /// What a good answer looks like. <c>Tools</c> = the expected tool sequence; <c>Args[i]</c> = texts that must appear in step i
-    /// (<c>name=Hat</c>, <c>price=100</c>, <c>customer_name=Bilal</c>, <c>a/b</c> = either text, an order line as <c>Jacket x2</c>, <c>id:Polo Shirt</c> = that product's id as <c>product_id</c>);
+    /// (<c>name=Hat</c>, <c>price=100</c>, <c>customer_name=Bilal</c>, <c>a/b</c> = either text, an order line as <c>Kurti x2</c>, <c>id:Polo Shirt</c> = that product's id as <c>product_id</c>);
     /// <c>Not</c> = texts that must appear in no step. <c>Awaiting</c> = the tool and count of a "one by one" promise.
     /// <c>NoPlan</c> = the message is not for the planner at all. <c>NoSteps</c> = it may ask a question or return nothing, but no step may be planned
     /// (<c>OrAsk</c>: or a first step the verifier turns into a question).
@@ -50,29 +50,32 @@ public class AgentPlanEval
         // changing an existing product (always needs YES)
         new("edit", "Polo Shirt ka price 600 kar do", new[] { Edit }, new[] { new[] { "id:Polo Shirt", "price=600" } }, Verdicts: Confirm1),
         new("edit", "Dupatta ka stock 40 kar do", new[] { Edit }, new[] { new[] { "id:Dupatta", "stock=40" } }, Verdicts: Confirm1),
-        new("edit", "Jacket ki cost 900 hai", new[] { Edit }, new[] { new[] { "id:Jacket", "cost=900" } }, Verdicts: Confirm1),
-        new("edit", "Jacket ka price 1800 se 2100 kar do", new[] { Edit }, new[] { new[] { "id:Jacket", "price=2100" } }, Not: new[] { "price=1800" }, Verdicts: Confirm1),
+        new("edit", "Kurti ki cost 900 hai", new[] { Edit }, new[] { new[] { "id:Kurti", "cost=900" } }, Verdicts: Confirm1),
+        new("edit", "Kurti ka price 1800 se 2100 kar do", new[] { Edit }, new[] { new[] { "id:Kurti", "price=2100" } }, Not: new[] { "price=1800" }, Verdicts: Confirm1),
         new("self-correction", "Polo Shirt 500 nahi 650 kar do", new[] { Edit }, new[] { new[] { "id:Polo Shirt", "price=650" } }, Not: new[] { "price=500" }),
         // orders
-        new("order", "Bilal ko 2 Jacket bhej do", new[] { Order }, new[] { new[] { "Bilal/customer_id=3", "Jacket x2" } }, Verdicts: Run1),
+        new("order", "Bilal ko 2 Kurti bhej do", new[] { Order }, new[] { new[] { "Bilal/customer_id=3", "Kurti x2" } }, Verdicts: Run1),
         new("order", "Zainab ko 1 Lawn Suit aur 2 Dupatta", new[] { Order }, new[] { new[] { "Zainab", "Lawn Suit x1", "Dupatta x2" } }, Verdicts: Run1),
         new("order", "Ayesha Raza ko 2 polo shirt bhej do", new[] { Order }, new[] { new[] { "Ayesha Raza/customer_id=4", "x2" } }, Verdicts: Run1),
         new("order", "Bilal ko Shawl bhej do", new[] { Order }, new[] { new[] { "Bilal/customer_id=3", "Shawl" } }, Verdicts: Run1),
         // found by the stress set: a name in another script, a question the planner must not answer, an expense it has no tool for, a self-correction in an add
-        new("script", "بلال کو دو کرتی بھیج دیں", new[] { Order }, new[] { new[] { "Bilal/customer_id=3", "Jacket x2" } }, Not: new[] { "customer_name=بلال" }, Verdicts: Run1),
-        new("not-a-plan", "Jacket ka price kya hai", NoTools, NoPlan: true),
-        new("not-a-plan", "kal Sara ne 500 ka kharcha kiya packaging pe", NoTools, NoPlan: true),
+        new("script", "بلال کو دو کرتی بھیج دیں", new[] { Order }, new[] { new[] { "Bilal/customer_id=3", "Kurti x2" } }, Not: new[] { "customer_name=بلال" }, Verdicts: Run1),
+        new("not-a-plan", "Kurti ka price kya hai", NoTools, NoPlan: true),
+        new("not-a-plan", "Ali ne paisay bhej diye", NoTools, NoPlan: true),
         new("self-correction", "Hat 100 nahi 120 ka add karo", new[] { Add }, new[] { new[] { "name=Hat", "price=120" } }, Not: new[] { "price=100" }),
+        // the three tools added after the first eval
+        new("expense", "petrol 500 ka kharcha hua", new[] { "add_expense" }, new[] { new[] { "amount=500", "note=petrol" } }, Verdicts: Run1),
+        new("customer", "Zainab ko save karo, Model Town, 03001234567", new[] { "add_customer" }, new[] { new[] { "name=Zainab", "phone=03001234567" } }, Verdicts: Run1),
         // two customers called Sara: the plan may name her or ask, but must not pick one
-        new("ambiguous", "Sara ko 2 Jacket bhej do", NoTools, NoSteps: true, OrAsk: true),
+        new("ambiguous", "Sara ko 2 Kurti bhej do", NoTools, NoSteps: true, OrAsk: true),
         // several tasks in one message, in order
         new("multi", "Hat 100 ka add karo, Polo Shirt ka price 600 kar do, phir Bilal ko 2 Hat bhej do", new[] { Add, Edit, Order },
             new[] { new[] { "name=Hat", "price=100" }, new[] { "id:Polo Shirt", "price=600" }, new[] { "Bilal/customer_id=3", "Hat x2" } },
             Verdicts: new[] { StepVerdict.Run, StepVerdict.Confirm, StepVerdict.Run }),
         new("multi", "Cap 250 add karo aur Bilal ko 1 Cap bhej do", new[] { Add, Order },
             new[] { new[] { "name=Cap", "price=250" }, new[] { "Bilal/customer_id=3", "Cap x1" } }, Verdicts: new[] { StepVerdict.Run, StepVerdict.Run }),
-        new("multi", "Jacket ka price 2000 kar do aur Dupatta ka stock 10 kar do", new[] { Edit, Edit },
-            new[] { new[] { "id:Jacket", "price=2000" }, new[] { "id:Dupatta", "stock=10" } }, Verdicts: new[] { StepVerdict.Confirm, StepVerdict.Confirm }),
+        new("multi", "Kurti ka price 2000 kar do aur Dupatta ka stock 10 kar do", new[] { Edit, Edit },
+            new[] { new[] { "id:Kurti", "price=2000" }, new[] { "id:Dupatta", "stock=10" } }, Verdicts: new[] { StepVerdict.Confirm, StepVerdict.Confirm }),
         // "I will send them one by one"
         new("one-by-one", "mere 3 product add karne hain ek ek karke dunga", NoTools, Awaiting: (Add, 3)),
         new("one-by-one", "kuch products add karne hain, ek ek karke bhejta hun, jab khatam ho to done likhunga", NoTools, Awaiting: (Add, 0)),
@@ -140,7 +143,7 @@ public class AgentPlanEval
         return c.Not is null || c.Not.All(n => texts.All(t => !t.Contains(n, StringComparison.OrdinalIgnoreCase)));
     }
 
-    /// <summary>A step as searchable text: <c>name=Hat|price=100|Jacket x2</c>.</summary>
+    /// <summary>A step as searchable text: <c>name=Hat|price=100|Kurti x2</c>.</summary>
     internal static string StepText(PlanStep step) =>
         string.Join("|", step.Args.Select(kv => $"{kv.Key}={kv.Value}").Concat(step.Items.Select(i => $"{i.Name} x{i.Quantity}")));
 
@@ -161,7 +164,7 @@ public class AgentPlanEval
         var seller = new Seller { WhatsAppPhoneNumber = "923001234567", BusinessName = "Ayesha Collections", BusinessType = "Clothing", OnboardingComplete = true, Session = new ConversationSession { State = ConversationState.Idle } };
         db.Sellers.Add(seller);
         await db.SaveChangesAsync();
-        var products = new[] { ("Polo Shirt", 500m), ("Jacket", 1800m), ("Dupatta", 600m), ("Lawn Suit", 3200m) };
+        var products = new[] { ("Polo Shirt", 500m), ("Kurti", 1800m), ("Dupatta", 600m), ("Lawn Suit", 3200m) };
         foreach (var (name, price) in products) db.Products.Add(new Product { SellerId = seller.Id, Name = name, Price = price });
         db.Customers.Add(new Customer { SellerId = seller.Id, Name = "Sara Khan", Phone = "03001112222", City = "Lahore" });
         db.Customers.Add(new Customer { SellerId = seller.Id, Name = "Sara Ali", Phone = "03003334444", City = "Karachi" });
@@ -279,7 +282,7 @@ public class AgentPlanEval
 
     // ---- the scoring itself is checked offline, so the eval cannot rot between runs ----
 
-    private static readonly Dictionary<string, int> Ids = new() { ["Polo Shirt"] = 7, ["Jacket"] = 8 };
+    private static readonly Dictionary<string, int> Ids = new() { ["Polo Shirt"] = 7, ["Kurti"] = 8 };
 
     private static PlanStep S(string tool, Dictionary<string, string> args, params PlanItem[] items) => new(tool, args, items);
 
@@ -337,8 +340,8 @@ public class AgentPlanEval
     [Fact]
     public void Score_AmbiguousCustomer_PassesOnlyWhenTheVerifierAsks_OrNothingIsPlanned()
     {
-        var c = Find("Sara ko 2 Jacket bhej do");
-        var step = S(Order, new() { ["customer_name"] = "Sara" }, new PlanItem(null, "Jacket", 2));
+        var c = Find("Sara ko 2 Kurti bhej do");
+        var step = S(Order, new() { ["customer_name"] = "Sara" }, new PlanItem(null, "Kurti", 2));
         var plan = P(0.9, step);
         var asks = new VerifiedPlan(new[] { new VerifiedStep(step, StepVerdict.Ask, "ambiguous_customer") });
         var runs = new VerifiedPlan(new[] { new VerifiedStep(step, StepVerdict.Run) });
@@ -380,9 +383,9 @@ public class AgentPlanEval
             ["Shawl teen hazar ka add kar do"] = new[] { S(Add, new() { ["name"] = "Shawl", ["price"] = "3000" }) },
             ["Polo Shirt ka price 600 kar do"] = new[] { S(Edit, new() { ["product_id"] = Id("Polo Shirt"), ["price"] = "600" }) },
             ["Dupatta ka stock 40 kar do"] = new[] { S(Edit, new() { ["product_id"] = Id("Dupatta"), ["stock"] = "40" }) },
-            ["Jacket ki cost 900 hai"] = new[] { S(Edit, new() { ["product_id"] = Id("Jacket"), ["cost"] = "900" }) },
-            ["Jacket ka price 1800 se 2100 kar do"] = new[] { S(Edit, new() { ["product_id"] = Id("Jacket"), ["price"] = "2100" }) },
-            ["Bilal ko 2 Jacket bhej do"] = new[] { S(Order, new() { ["customer_name"] = "Bilal" }, new PlanItem(null, "Jacket", 2)) },
+            ["Kurti ki cost 900 hai"] = new[] { S(Edit, new() { ["product_id"] = Id("Kurti"), ["cost"] = "900" }) },
+            ["Kurti ka price 1800 se 2100 kar do"] = new[] { S(Edit, new() { ["product_id"] = Id("Kurti"), ["price"] = "2100" }) },
+            ["Bilal ko 2 Kurti bhej do"] = new[] { S(Order, new() { ["customer_name"] = "Bilal" }, new PlanItem(null, "Kurti", 2)) },
             ["Zainab ko 1 Lawn Suit aur 2 Dupatta"] = new[] { S(Order, new() { ["customer_name"] = "Zainab" }, new PlanItem(null, "Lawn Suit", 1), new PlanItem(null, "Dupatta", 2)) },
             ["Ayesha Raza ko 2 polo shirt bhej do"] = new[] { S(Order, new() { ["customer_name"] = "Ayesha Raza" }, new PlanItem(null, "polo shirt", 2)) },
             ["Bilal ko Shawl bhej do"] = new[] { S(Order, new() { ["customer_name"] = "Bilal" }, new PlanItem(null, "Shawl", 1)) },
@@ -397,9 +400,9 @@ public class AgentPlanEval
                 S(Add, new() { ["name"] = "Cap", ["price"] = "250" }),
                 S(Order, new() { ["customer_name"] = "Bilal" }, new PlanItem(null, "Cap", 1)),
             },
-            ["Jacket ka price 2000 kar do aur Dupatta ka stock 10 kar do"] = new[]
+            ["Kurti ka price 2000 kar do aur Dupatta ka stock 10 kar do"] = new[]
             {
-                S(Edit, new() { ["product_id"] = Id("Jacket"), ["price"] = "2000" }),
+                S(Edit, new() { ["product_id"] = Id("Kurti"), ["price"] = "2000" }),
                 S(Edit, new() { ["product_id"] = Id("Dupatta"), ["stock"] = "10" }),
             },
         };
@@ -417,8 +420,8 @@ public class AgentPlanEval
         }
 
         // two Saras: the plan names her and the verifier turns it into a question
-        var sara = Find("Sara ko 2 Jacket bhej do");
-        var saraPlan = P(0.9, S(Order, new() { ["customer_name"] = "Sara" }, new PlanItem(null, "Jacket", 2)));
+        var sara = Find("Sara ko 2 Kurti bhej do");
+        var saraPlan = P(0.9, S(Order, new() { ["customer_name"] = "Sara" }, new PlanItem(null, "Kurti", 2)));
         var saraVerified = await new PlanVerifier(db).VerifyAsync(seller, saraPlan,
             await new SellerContextBuilder(db).BuildAsync(seller, sara.Message, default), sara.Message, default);
         Assert.True(Score(sara, saraPlan, saraVerified, ids).PlanOk);

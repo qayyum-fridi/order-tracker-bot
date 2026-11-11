@@ -34,6 +34,8 @@ public sealed class AgentStepCompiler
                 "add_product" => new() { AddProductLine(verified.Step) },
                 "edit_product" => await EditProductLinesAsync(seller, verified, ct),
                 "draft_order" => await DraftOrderLinesAsync(seller, verified, ct),
+                "add_expense" => new() { $"expense {Num(verified.Step.Args["amount"])} {verified.Step.Args["note"].Trim()}" },
+                "add_customer" => new() { CustomerAddLine(verified.Step) },
                 _ => null,
             };
             // Something the data no longer supports (a product with variants, a product gone since the check): stop here, nothing guessed.
@@ -41,6 +43,15 @@ public sealed class AgentStepCompiler
             steps.AddRange(texts.Select(t => new CompiledStep(t, confirm)));
         }
         return new CompiledPlan(steps, null);
+    }
+
+    /// <summary>"customer add Sara, Model Town, 03001234567" (name, address, phone), the form the parser reads.</summary>
+    private static string CustomerAddLine(PlanStep step)
+    {
+        var parts = new List<string> { step.Args["name"].Trim() };
+        if (step.Args.TryGetValue("address", out var address) && address.Length > 0) parts.Add(address);
+        if (step.Args.TryGetValue("phone", out var phone)) parts.Add(phone);
+        return "customer add " + string.Join(", ", parts);
     }
 
     private static string Num(string raw) => decimal.Parse(raw, NumberStyles.Number, CultureInfo.InvariantCulture).ToString("0.##", CultureInfo.InvariantCulture);
