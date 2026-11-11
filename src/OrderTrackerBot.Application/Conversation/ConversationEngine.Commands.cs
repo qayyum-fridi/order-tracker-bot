@@ -1311,7 +1311,7 @@ public partial class ConversationEngine
         if (extras.PriceA is { } priceA) product.PriceA = priceA;
         if (extras.PriceB is { } priceB) product.PriceB = priceB;
         if (extras.PriceC is { } priceC) product.PriceC = priceC;
-        if (extras.Sku is not null) product.Sku = extras.Sku;
+        if (extras.Sku is not null) product.Barcode = extras.Sku;   // "sku ..." typed by the seller is the barcode they use
         if (extras.Attributes is { Count: > 0 } added)
         {
             // Typed details (expiry, batch, model, ...) go to their own columns; the rest stay as details.

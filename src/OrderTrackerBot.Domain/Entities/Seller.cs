@@ -80,6 +80,8 @@ public class Product
 {
     public int Id { get; set; }
     public int SellerId { get; set; }
+    /// <summary>The code printed on the item and read by a scanner. Separate from Sku; the seller can change it.</summary>
+    public string? Barcode { get; set; }
     public Seller? Seller { get; set; }
     public required string Name { get; set; }
     public decimal Price { get; set; }

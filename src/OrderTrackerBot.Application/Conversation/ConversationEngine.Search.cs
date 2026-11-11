@@ -20,6 +20,7 @@ public partial class ConversationEngine
     {
         var codes = new List<string>();
         if (!string.IsNullOrWhiteSpace(product.Sku)) codes.Add(product.Sku.Trim().ToLowerInvariant());
+        if (!string.IsNullOrWhiteSpace(product.Barcode)) codes.Add(product.Barcode.Trim().ToLowerInvariant());
         foreach (var part in NameParts.Split(product.Name))
             if (part.Length >= 3 && part.Any(char.IsDigit)) codes.Add(part.ToLowerInvariant());
         var attributes = ProductAttributes(product);
