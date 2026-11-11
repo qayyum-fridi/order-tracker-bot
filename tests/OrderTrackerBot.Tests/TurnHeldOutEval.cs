@@ -8,7 +8,7 @@ using Xunit.Abstractions;
 namespace OrderTrackerBot.Tests;
 
 /// <summary>
-/// A held-out check of 500 sentences written AFTER the prompt was tuned, never used to tune it (TurnMixEval was). Generated from fixed
+/// A held-out check of 5000 sentences written AFTER the prompt was tuned, never used to tune it (TurnMixEval was). Generated from fixed
 /// templates with a fixed seed, so the same set comes out every run. Half are voice transcripts; Roman Urdu, Urdu script and English.
 /// Skipped unless OTB_TURN_EVAL=1 and OPENAI_API_KEY are set:
 /// <c>OTB_TURN_EVAL=1 OPENAI_API_KEY=... dotnet test --filter TurnHeldOutEval --logger "console;verbosity=detailed"</c>
@@ -67,7 +67,7 @@ public class TurnHeldOutEval
 
     private static T Pick<T>(Random r, T[] items) => items[r.Next(items.Length)];
 
-    /// <summary>500 sentences: 200 orders, 100 status and payment, 100 questions, 50 catalog, 50 chat or unclear. Every other one is a voice transcript.</summary>
+    /// <summary>5000 sentences: 2000 orders, 1000 status and payment, 1000 questions, 500 catalog, 500 chat or unclear. Every other one is a voice transcript.</summary>
     internal static readonly Row[] Set = Build();
 
     private static Row[] Build()
@@ -76,7 +76,7 @@ public class TurnHeldOutEval
         var rows = new List<Row>();
         void Add(string message, params string[] actions) => rows.Add(new Row(message, actions, rows.Count % 2 == 1));
 
-        for (var i = 0; i < 200; i++)
+        for (var i = 0; i < 2000; i++)
         {
             var c = rnd.Next(Names.Length);
             var p = rnd.Next(Products.Length);
@@ -87,7 +87,7 @@ public class TurnHeldOutEval
                 Add(Pick(rnd, RomanOrder).Replace("{C}", Names[c]).Replace("{N}", n.ToString()).Replace("{P}", Products[p]), Order);
         }
 
-        for (var i = 0; i < 100; i++)
+        for (var i = 0; i < 1000; i++)
         {
             var c = rnd.Next(Names.Length);
             var n = rnd.Next(1, 20);
@@ -102,7 +102,7 @@ public class TurnHeldOutEval
             }
         }
 
-        for (var i = 0; i < 100; i++)
+        for (var i = 0; i < 1000; i++)
         {
             var c = rnd.Next(Names.Length);
             switch (i % 6)
@@ -116,7 +116,7 @@ public class TurnHeldOutEval
             }
         }
 
-        for (var i = 0; i < 50; i++)
+        for (var i = 0; i < 500; i++)
         {
             var p = rnd.Next(Products.Length);
             var m = Pick(rnd, Amounts);
@@ -130,7 +130,7 @@ public class TurnHeldOutEval
             }
         }
 
-        for (var i = 0; i < 50; i++)
+        for (var i = 0; i < 500; i++)
         {
             switch (i % 4)
             {
@@ -186,12 +186,12 @@ public class TurnHeldOutEval
         Assert.True(right >= results.Length * PassRate, $"{right}/{results.Length} right, below {PassRate:P0}");
     }
 
-    // Offline: 500 sentences, every expected answer is a real action, and half are voice transcripts.
+    // Offline: 5000 sentences, every expected answer is a real action, and half are voice transcripts.
     [Fact]
-    public void Held_out_set_has_500_sentences_naming_real_actions_and_is_half_voice()
+    public void Held_out_set_has_5000_sentences_naming_real_actions_and_is_half_voice()
     {
-        Assert.Equal(500, Set.Length);
+        Assert.Equal(5000, Set.Length);
         Assert.All(Set, r => Assert.All(r.Actions, a => Assert.Contains(a, TurnAction.All)));
-        Assert.Equal(250, Set.Count(r => r.Voice));
+        Assert.Equal(2500, Set.Count(r => r.Voice));
     }
 }
