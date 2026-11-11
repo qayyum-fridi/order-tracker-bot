@@ -70,7 +70,7 @@ public class MockupFeatureTests : IDisposable
     };
 
     [Fact]
-    public async Task SavedOrder_OffersReceiptShippedAndUndoAsTaps_WhoseLabelsAreRealCommands()
+    public async Task SavedOrder_OffersReceiptAndShippedAsTaps_UndoIsTyped_WhoseLabelsAreRealCommands()
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
@@ -81,12 +81,12 @@ public class MockupFeatureTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
 
         var id = (await db.Orders.AsNoTracking().SingleAsync()).Id;
-        var labels = Assert.Single(_buttons, b => b.Buttons.Contains("Undo")).Buttons;
-        Assert.Equal(new[] { $"Receipt {id}", $"Mark {id} shipped", "Undo" }, labels);
+        var labels = Assert.Single(_buttons, b => b.Buttons.Contains($"Receipt {id}")).Buttons;
+        Assert.Equal(new[] { $"Receipt {id}", $"Mark {id} shipped" }, labels);
         Assert.All(labels, l => Assert.True(l.Length <= 20));
         Assert.Equal(CommandKind.Receipt, CommandParser.TryParse(labels[0])?.Kind);
         Assert.Equal(CommandKind.MarkStatus, CommandParser.TryParse(labels[1])?.Kind);
-        Assert.Equal(CommandKind.Undo, CommandParser.TryParse(labels[2])?.Kind);
+        Assert.Equal(CommandKind.Undo, CommandParser.TryParse("undo")?.Kind);
     }
 
     [Fact]
