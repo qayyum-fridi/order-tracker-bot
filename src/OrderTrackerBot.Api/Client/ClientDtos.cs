@@ -21,7 +21,7 @@ public sealed record ChatMessageDto(int Id, DateTime At, string Direction, strin
 
 public sealed record ProductDto(
     int Id, string Name, decimal Price, decimal? CostPrice, string UnitType, decimal UnitQty, string? Category,
-    string? Subcategory, string? Size, string? Color, string? Sku, int? StockQty, bool IsActive, DateTime CreatedAt,
+    string? Subcategory, string? Size, string? Color, string? Sku, string? Barcode, int? StockQty, bool IsActive, DateTime CreatedAt,
     string? DefaultPriceGroup, string? ItemKind);
 
 public sealed record OrderSummaryDto(

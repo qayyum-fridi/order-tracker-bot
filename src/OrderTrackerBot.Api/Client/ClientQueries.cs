@@ -195,7 +195,7 @@ public sealed class ClientQueries(AppDbContext db)
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();
-            query = query.Where(p => EF.Functions.Like(p.Name, $"%{term}%") || (p.Sku != null && EF.Functions.Like(p.Sku, $"%{term}%")) || (p.Category != null && EF.Functions.Like(p.Category, $"%{term}%")));
+            query = query.Where(p => EF.Functions.Like(p.Name, $"%{term}%") || (p.Sku != null && EF.Functions.Like(p.Sku, $"%{term}%")) || (p.Barcode != null && EF.Functions.Like(p.Barcode, $"%{term}%")) || (p.Category != null && EF.Functions.Like(p.Category, $"%{term}%")));
         }
 
         var total = await query.CountAsync(ct);
@@ -809,7 +809,7 @@ public sealed class ClientQueries(AppDbContext db)
 
     private static ProductDto ToProduct(Product p) => new(
         p.Id, p.Name, p.Price, p.CostPrice, p.UnitType, p.UnitQty, p.Category, SubcategoryOf(p.AttributesJson),
-        p.Size, p.Color, p.Sku, p.StockQty, p.IsActive, Utc(p.CreatedAt), p.DefaultPriceGroup, p.ItemKind);
+        p.Size, p.Color, p.Sku, p.Barcode, p.StockQty, p.IsActive, Utc(p.CreatedAt), p.DefaultPriceGroup, p.ItemKind);
 
     /// <summary>Subcategory lives in AttributesJson until the bot gets a column for it (see docs/API_CONTRACT.md).</summary>
     public static string? SubcategoryOf(string? attributesJson)

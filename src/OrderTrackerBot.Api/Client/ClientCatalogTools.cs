@@ -116,10 +116,10 @@ public sealed class ClientExport(AppDbContext db)
     private async Task<List<string[]>> CatalogAsync(int sellerId, CancellationToken ct)
     {
         var products = await db.Products.AsNoTracking().Where(p => p.SellerId == sellerId).OrderBy(p => p.Id).ToListAsync(ct);
-        var rows = new List<string[]> { new[] { "Product", "Name", "Category", "Subcategory", "SKU", "Price", "Cost price", "Unit", "Stock", "Active" } };
+        var rows = new List<string[]> { new[] { "Product", "Name", "Category", "Subcategory", "SKU", "Barcode", "Price", "Cost price", "Unit", "Stock", "Active" } };
         rows.AddRange(products.Select(p => new[]
         {
-            p.Id.ToString(CultureInfo.InvariantCulture), p.Name, p.Category ?? "", ClientQueries.SubcategoryOf(p.AttributesJson) ?? "", p.Sku ?? "",
+            p.Id.ToString(CultureInfo.InvariantCulture), p.Name, p.Category ?? "", ClientQueries.SubcategoryOf(p.AttributesJson) ?? "", p.Sku ?? "", p.Barcode ?? "",
             Money(p.Price), p.CostPrice.HasValue ? Money(p.CostPrice.Value) : "", p.UnitType, p.StockQty?.ToString(CultureInfo.InvariantCulture) ?? "",
             p.IsActive ? "Yes" : "No",
         }));
