@@ -69,7 +69,8 @@ public class NextActionEngineTests : IDisposable
         await Engine(db).HandleIncomingMessageAsync(Phone, "Shawl - 2500", default);
 
         var bar = Assert.Single(_bars);
-        Assert.Equal(new[] { "catalog", "menu", "📋 Menu" }, bar);
+        // "menu" is not repeated as a follow-up: the bar's own Menu button is the only one.
+        Assert.Equal(new[] { "catalog", "📋 Menu" }, bar);
         Assert.All(bar, l => Assert.NotNull(CommandParser.TryParse(l)));
     }
 

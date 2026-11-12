@@ -59,5 +59,6 @@ public partial class ConversationEngine
     /// command is dropped rather than cut (a cut command would not run); an empty result keeps the generic bar.
     /// </summary>
     private void SuggestNext(params string[] commands) =>
-        _nextActions = commands.Where(c => c.Length <= 20 && CommandParser.TryParse(c) is not null).Distinct().Take(2).ToList();
+        // "menu" is left out: the bar appends its own Menu button, so it would show twice.
+        _nextActions = commands.Where(c => c.Length <= 20 && !string.Equals(c, "menu", StringComparison.OrdinalIgnoreCase) && CommandParser.TryParse(c) is not null).Distinct().Take(2).ToList();
 }

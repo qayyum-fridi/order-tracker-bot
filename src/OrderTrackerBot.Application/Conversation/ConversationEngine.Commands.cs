@@ -1299,10 +1299,15 @@ public partial class ConversationEngine
 
     private async Task<List<Product>> SameNameListingsAsync(Seller seller, string name, string unitType, decimal unitQty, CancellationToken ct)
     {
-        var lower = name.ToLower();
-        return (await _db.Products.Where(p => p.SellerId == seller.Id && p.Name.ToLower() == lower).ToListAsync(ct))
-            .Where(p => p.UnitType == unitType && p.UnitQty == unitQty).ToList();
+        // Compared on ListingNameKey, not the raw text: "2 PIECE - PRINTED SUIT" and "2 Piece Printed Suit" are the same listing.
+        var key = ListingNameKey(name);
+        return (await _db.Products.Where(p => p.SellerId == seller.Id).ToListAsync(ct))
+            .Where(p => ListingNameKey(p.Name) == key && p.UnitType == unitType && p.UnitQty == unitQty).ToList();
     }
+
+    /// <summary>Lower case, dashes and extra spaces ignored, so a dash typed in one message does not make a second product.</summary>
+    internal static string ListingNameKey(string name) =>
+        string.Join(' ', name.ToLowerInvariant().Replace('-', ' ').Split(' ', StringSplitOptions.RemoveEmptyEntries));
 
     /// <summary>Asked when a name has several variants and the line says which one it means by neither colour nor size.</summary>
     private Task ReplyVariantChoiceAsync(Seller seller, string name, List<Product> variants, CancellationToken ct) =>
