@@ -572,19 +572,32 @@ public partial class ConversationEngine
         pending.Subtotal = pending.Items.Where(i => i.UnitPrice >= 0).Sum(i => i.UnitPrice * i.Quantity);
         pending.DiscountAmount = 0;
 
+        var lines = pending.Items.Where(i => i.UnitPrice >= 0).Select(i => (ProductId: (int?)i.ProductId, Amount: i.UnitPrice * i.Quantity)).ToList();
+        Discount? discount = null;
         if (!string.IsNullOrWhiteSpace(pending.DiscountCode))
         {
             var code = pending.DiscountCode.ToUpperInvariant();
             var now = DateTime.UtcNow;
-            var discount = await _db.Discounts.FirstOrDefaultAsync(d =>
+            discount = await _db.Discounts.FirstOrDefaultAsync(d =>
                 d.SellerId == seller.Id && d.IsActive && d.Code == code && (d.ExpiresAt == null || d.ExpiresAt > now), ct);
+        }
 
-            if (discount is not null)
-            {
-                pending.DiscountAmount = discount.Type == DiscountType.Percent
-                    ? Math.Round(pending.Subtotal * discount.Value / 100m, 2)
-                    : discount.Value;
-            }
+        if (discount is null)
+        {
+            // No (valid) code typed: a running category sale that matches these items applies by itself.
+            (discount, pending.DiscountAmount) = await BestCategorySaleAsync(seller, lines, ct);
+            if (discount is not null) pending.DiscountCode = discount.Code;
+        }
+        else if (discount.Category is not null)
+        {
+            var categories = await ProductCategoriesAsync(seller, lines.Select(l => l.ProductId), ct);
+            pending.DiscountAmount = Math.Round(CategoryBase(lines, categories, discount.Category) * discount.Value / 100m, 2);
+        }
+        else
+        {
+            pending.DiscountAmount = discount.Type == DiscountType.Percent
+                ? Math.Round(pending.Subtotal * discount.Value / 100m, 2)
+                : discount.Value;
         }
 
         pending.DeliveryCharge ??= seller.DefaultDeliveryCharge;

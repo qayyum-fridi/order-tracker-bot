@@ -31,6 +31,7 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 | Change status | `mark 12 shipped` | `delivered` · `returned` · `paid` · `bhej diya` · `mukammal` |
 | Cancel an order | `cancel 12` | |
 | Edit a saved order | `edit order 12` | `edit order` (the latest) — inside: `1 = 3` · `price 1 = 1500` · `remove 2` · `add Shirt 2` · `phone ...` · `address ...` · `delivery 250` · `done` |
+| Change size or colour of one order item (same product, other variant; stock moves, undo works) | `exchange 12 1 to L` · `size exchange 12 2 to color white` |
 | A customer's orders | `Ayesha ka order` | |
 | Order for a saved customer | `order for Sara` | her usual items appear as buttons |
 | Advance / part payment | `order 12 advance 500` | |
@@ -62,6 +63,7 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 | Catalog pages and order (10 a page, grouped by category > sub-category) | `catalog next` · `catalog prev` · `catalog page 2` · `catalog a-z` · `catalog latest` · `catalog reset` |
 | Catalog search, jump, last page, page size (remembered) | `catalog search chini` · `search chini` · `find lawn suit` · `catalog page 8` · `page 8` · `catalog last` · `catalog size 25` (5-50) · `catalog reset` |
 | Add a product | `Shirt - 1800` · `naya product: Shirt - 1800` · `Polo Shirt - 500, cost 300, stock 10, category: Shirts` |
+| Find a product by its SKU or design code (exact match, else search) | `sku 1203` · `code 1203` · `design 1203` |
 | Price for a customer group (blank = regular price) | `Polo Shirt - 500, price B 450` (also `price A` and `price C`) |
 | Change / remove | `edit product: Shirt - 1900` · `delete product: Shirt` |
 | Stock | `stock` (or `low stock` · `short stock` · `kam stock` · `out of stock` · `khatam maal` · `stock check` · `show stock` · `current stock` · `stock report` · `restock list` · `maal kitna hai`) · `stock Shirt 20` (`+10` · `off`) |
@@ -193,6 +195,7 @@ Every phrase below is pinned in `StrategicInsightParserTests` (Urdu script and R
 | Support / Instagram | `support queries` · `comment leads` · `connect instagram` |
 | Message all customers | `sab customers ko batao: naya stock aaya` |
 | Discount codes | `create discount: EID10, 10 percent` · `discount list` · `discount performance` |
+| Category sale: percent off every product in a category (automatic on new orders) | `create discount: WINTER20, 20 percent, category Winter 26` |
 | Loyalty | `create loyalty` · `loyal customers` · `campaign status` |
 | Reports | `trending products` · `slow movers` · `customer feedback` |
 

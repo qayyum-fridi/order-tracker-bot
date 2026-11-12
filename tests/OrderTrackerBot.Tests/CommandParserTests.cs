@@ -851,6 +851,18 @@ public class CommandParserTests
     }
 
     [Theory]
+    [InlineData("exchange 12 1 to L", 12, "1", "L")]
+    [InlineData("size exchange 12 #2 to color white", 12, "2", "color white")]
+    public void SizeExchange_ParsesOrderItemAndVariant(string text, int order, string item, string variant)
+    {
+        var parsed = CommandParser.TryParse(text);
+        Assert.Equal(CommandKind.SizeExchange, parsed!.Kind);
+        Assert.Equal(order, parsed.Number);
+        Assert.Equal(item, parsed.Text);
+        Assert.Equal(variant, parsed.Text2);
+    }
+
+    [Theory]
     [InlineData("Sara, 1 shirt, 03001234567, advance 500 jazzcash", 500)]
     [InlineData("Sara 2 suit 0300-1234567, 1000 advance diya", 1000)]
     [InlineData("Sara 1 shirt advance paid Rs 300", 300)]
