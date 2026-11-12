@@ -92,6 +92,17 @@ public static class DataExchangeGuide
         C("Courier fee", typeof(decimal), GuideLevel.Info, "Courier ne is parcel ka jo bill diya (sirf aap ko dikhta hai). / What the courier charged for this parcel (seller only).", "250")
     });
 
+    private static readonly GuideSheetSpec CounterReturns = new(
+        "Counter Returns", false,
+        "Dukan par wapas aaye saamaan (order ke baghair). Refund order ki sale se nikalta hai. / Goods brought back at the counter with no order; the refund is taken off sales. Not importable.", new[]
+    {
+        C("Date", typeof(DateTime), GuideLevel.Info, "Wapsi kab hui.", "2026-10-02 11:30"),
+        C("Product", typeof(string), GuideLevel.Info, "Product ka naam.", "Lawn Suit"),
+        C("Quantity", typeof(int), GuideLevel.Info, "Kitne wapas aaye.", "1"),
+        C("Refund", typeof(decimal), GuideLevel.Info, "Refund ki rakam (catalog price x quantity).", "3500"),
+        C("Refund method", typeof(string), GuideLevel.Info, "Cash, Transfer ya None.", "Cash")
+    });
+
     private static readonly GuideSheetSpec Expenses = new(
         "Expenses", false,
         "Aap ke kharche (\"expense ...\" se likhe gaye). Abhi import nahi hote. / Your business expenses; not importable yet.", new[]
@@ -136,7 +147,7 @@ public static class DataExchangeGuide
     });
 
     private static readonly Dictionary<string, GuideSheetSpec> BySheet =
-        new[] { Customers, Catalog, Orders, OrderItems, Discounts, LoyaltyRules, Expenses }.ToDictionary(s => s.Sheet, StringComparer.OrdinalIgnoreCase);
+        new[] { Customers, Catalog, Orders, OrderItems, Discounts, LoyaltyRules, Expenses, CounterReturns }.ToDictionary(s => s.Sheet, StringComparer.OrdinalIgnoreCase);
 
     public static GuideSheetSpec? SpecFor(string sheetName) => BySheet.GetValueOrDefault(sheetName);
 

@@ -141,7 +141,12 @@ public partial class ConversationEngine
             .Select(g => new { Name = g.Key, Orders = g.Select(i => i.OrderId).Distinct().Count() })
             .OrderByDescending(g => g.Orders).FirstOrDefault();
 
-        var text = MessageTemplates.Get("scheduled.002", seller.BusinessName, orders.Count, orders.Count(o => o.Status == OrderStatus.Delivered), orders.Count(o => o.Status == OrderStatus.Pending), orders.Count(o => o.Status == OrderStatus.Cancelled), orders.Count(o => o.Status == OrderStatus.Returned), (top is null ? "" : $"Top product: {top.Name} ({top.Orders} orders)\n"), Formatters.Money(active.Sum(o => o.Total)), (active.Sum(o => o.TaxWithheld) is > 0 and var withheld ? $"Tax withheld by courier/gateway: {Formatters.Money(withheld)}\n" : ""));
+        // Counter returns in the same week come off the sales total (they are not in the orders above).
+        var counterReturns = await CounterReturnsInRangeAsync(seller, since, weekEndUtc, ct);
+        var netSales = active.Sum(o => o.Total) - counterReturns.Amount;
+        var returnsLine = counterReturns.Count > 0 ? MessageTemplates.Get("counter-return.007", counterReturns.Count, Formatters.Money(counterReturns.Amount)) : "";
+
+        var text = MessageTemplates.Get("scheduled.002", seller.BusinessName, orders.Count, orders.Count(o => o.Status == OrderStatus.Delivered), orders.Count(o => o.Status == OrderStatus.Pending), orders.Count(o => o.Status == OrderStatus.Cancelled), orders.Count(o => o.Status == OrderStatus.Returned), (top is null ? "" : $"Top product: {top.Name} ({top.Orders} orders)\n"), Formatters.Money(netSales), (active.Sum(o => o.TaxWithheld) is > 0 and var withheld ? $"Tax withheld by courier/gateway: {Formatters.Money(withheld)}\n" : "") + returnsLine);
 
         if (await WithinServiceWindowAsync(seller, ct))
         {
@@ -150,7 +155,7 @@ public partial class ConversationEngine
         }
 
         // Outside the 24-hour window only the approved weekly_summary template reaches the seller. Its body already says "Rs.", so the total is sent as a bare number.
-        var total = active.Sum(o => o.Total).ToString("#,0.##", CultureInfo.InvariantCulture);
+        var total = netSales.ToString("#,0.##", CultureInfo.InvariantCulture);
         var sent = await _sender.SendTemplateMessageAsync(seller.WhatsAppPhoneNumber,
             new[] { active.Count.ToString(CultureInfo.InvariantCulture), total }, WhatsAppTemplateKeys.Weekly, ct);
         if (!sent) QueueProactiveNotice(seller, text);
