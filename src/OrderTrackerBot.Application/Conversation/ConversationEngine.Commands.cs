@@ -766,6 +766,12 @@ public partial class ConversationEngine
         var prepaid = orders.Where(o => o.PaymentMethod != OrderPaymentMethod.Cod).Sum(OrderMoney.Received);
         var counterReturns = await CounterReturnsInRangeAsync(seller, start, end, ct);
         var totalSales = orders.Sum(o => o.Total) - counterReturns.Amount;
+        // Refunds leave the till: a cash refund comes off the COD (cash) total, a bank refund off the prepaid total. "none" moves no money.
+        var refunds = await _db.CounterReturns.AsNoTracking()
+            .Where(r => r.SellerId == seller.Id && r.CreatedAt >= start && r.CreatedAt < end)
+            .Select(r => new { r.Amount, r.RefundMethod }).ToListAsync(ct);
+        cod -= refunds.Where(r => r.RefundMethod == "cash").Sum(r => r.Amount);
+        prepaid -= refunds.Where(r => r.RefundMethod == "bank").Sum(r => r.Amount);
         var salesTax = orders.Sum(o => SalesTax.Amount(o));
         var withheld = orders.Sum(o => o.TaxWithheld);
         var returned = await _db.Orders.CountAsync(o => o.SellerId == seller.Id && o.Status == OrderStatus.Returned
