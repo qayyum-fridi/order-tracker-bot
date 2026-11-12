@@ -9,6 +9,8 @@ public class Seller
     public required string WhatsAppPhoneNumber { get; set; }
     public string? BusinessName { get; set; }
     public bool OnboardingComplete { get; set; }
+    /// <summary>"counter" = sells only at the shop (no phone or address asked for an order); "delivery" = ships too; null = not asked yet.</summary>
+    public string? SalesMode { get; set; }
     public string PreferredLanguage { get; set; } = "roman_urdu";
     public string? City { get; set; }
     /// <summary>IANA zone used for "today" boundaries; all stored timestamps stay UTC.</summary>
@@ -80,6 +82,8 @@ public class Product
 {
     public int Id { get; set; }
     public int SellerId { get; set; }
+    /// <summary>The code printed on the item and read by a scanner. Separate from Sku; the seller can change it.</summary>
+    public string? Barcode { get; set; }
     public Seller? Seller { get; set; }
     public required string Name { get; set; }
     public decimal Price { get; set; }

@@ -39,6 +39,7 @@ public class TurnUnderstandingEval
         new("میں نے نئی پراڈکٹ ایڈ کرنی ہے وہ کیسے کر سکتا ہوں؟", new[] { HowTo }, a => a.Topic == TurnAction.AddProduct, Voice: true),
         new("میں پراڈکٹ میں کیسے ایڈ کر سکتا؟", new[] { HowTo }, a => a.Topic == TurnAction.AddProduct, Voice: true),
         new("product kaise add karun", new[] { HowTo }, a => a.Topic == TurnAction.AddProduct),
+        new("ye catalog ki type hai, ready to wear category bana do", new[] { TurnAction.CreateCategory }, a => !string.IsNullOrWhiteSpace(a.Value)),
         new("order 12 ka pehla item L size mein kar do", new[] { TurnAction.ExchangeSize }, a => a.OrderId == 12 && a.Value == "L" && a.ItemName is not null),
         new("Sara ke order mein shirt ka size M se L kar dein", new[] { TurnAction.ExchangeSize }, a => a.CustomerName == "Sara" && a.Value == "L" && a.ItemName is not null),
         new("customer kaise add karte hain", new[] { HowTo }, a => a.Topic == TurnAction.AddCustomer),

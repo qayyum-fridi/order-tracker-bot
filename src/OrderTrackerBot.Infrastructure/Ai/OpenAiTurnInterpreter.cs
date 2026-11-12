@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OrderTrackerBot.Application.Ai;
+using OrderTrackerBot.Application.Conversation;
 
 namespace OrderTrackerBot.Infrastructure.Ai;
 
@@ -66,6 +67,8 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         "'Sara ke order mein lawn suit ka rate 3000'). Give order_id (or customer_name) and edit_lines: one line per change, op set_quantity (item, quantity), " +
         "set_price (item, price), remove (item), or add (item = product name, quantity). A new order is create_order, never edit_order.\n" +
         "- exchange_size: a saved order's item changes size or colour ('exchange 12 1 to L', 'order 12 ka pehla item L size mein kar do', 'Sara ke order mein shirt ka size M se L'). Give order_id (or customer_name), item_name (the product name as said) and value (the new size or colour, e.g. 'L', 'color white'). Never create_order, never edit_order.\n" +
+        "- create_category: the seller wants a catalog category made ('category Ready to Wear banao', 'ye catalog ki type hai, ready to wear'). value = the category name only. It is not a product: never add_product for it.\n" +
+        "- add_product from a picture or pasted page: price = the CURRENT selling price; old_price = the crossed-out price when one is shown, else null. Never a promo or voucher discount amount. attributes = every other detail the page shows as key/value (fabric, material, pieces, dupatta, size chart, length, season, brand, fit). Never copy the site SKU or product ID; leave them out.\n" +
         "- undo: reverse the bot's last action.\n" +
         "- clarify: the message is about customers, orders or products but a needed detail is missing or it could mean two things. Put ONE short question in " +
         "question, in simple Roman Urdu (e.g. 'Kis customer ka number chahiye?').\n" +
@@ -210,6 +213,11 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
                     PackCost = Dec(p, "pack_cost"),
                     PackPrice = Dec(p, "pack_price"),
                     StockPacks = Int(p, "stock_packs"),
+                    OldPrice = Dec(p, "old_price"),
+                    Attributes = ProductAttributes(p),
+                    Sizes = StandardSizes.NormalizeAll(p.TryGetProperty("sizes", out var sizesEl) && sizesEl.ValueKind == JsonValueKind.Array
+                        ? sizesEl.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()!).ToList()
+                        : new List<string>()),
                 });
             }
 
@@ -271,6 +279,20 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
     private static int? Int(JsonElement e, string name) =>
         e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var n) && n >= 0 ? n : null;
 
+    /// <summary>The page's details as key/value pairs ("fabric" -> "Premium Khaddar", "size chart" -> "Length 80"). Empty pairs are dropped.</summary>
+    private static Dictionary<string, string> ProductAttributes(JsonElement p)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (!p.TryGetProperty("attributes", out var list) || list.ValueKind != JsonValueKind.Array) return result;
+        foreach (var item in list.EnumerateArray())
+        {
+            var key = Str(item, "key")?.Trim();
+            var value = Str(item, "value")?.Trim();
+            if (!string.IsNullOrEmpty(key) && !string.IsNullOrEmpty(value)) result[key] = value;
+        }
+        return result;
+    }
+
     private static JsonObject NullableString() => new() { ["type"] = new JsonArray { "string", "null" } };
     private static JsonObject NullableNumber() => new() { ["type"] = new JsonArray { "number", "null" } };
 
@@ -309,6 +331,13 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
             ["pack_cost"] = NullableNumber(),
             ["pack_price"] = NullableNumber(),
             ["stock_packs"] = NullableNumber(),
+            ["sizes"] = new JsonObject { ["type"] = "array", ["items"] = new JsonObject { ["type"] = "string" } },
+            ["old_price"] = NullableNumber(),
+            ["attributes"] = new JsonObject
+            {
+                ["type"] = "array",
+                ["items"] = Obj(new JsonObject { ["key"] = NullableString(), ["value"] = NullableString() }),
+            },
         });
         var editLine = Obj(new JsonObject
         {

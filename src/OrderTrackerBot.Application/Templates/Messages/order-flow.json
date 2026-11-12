@@ -62,5 +62,13 @@
   "order-flow.052": "🌟 {0} ka {1} order hai — {2}% loyalty discount apply karna chahenge?",
   "order-flow.053": "📝 آرڈر کی تصدیق کریں:",
   "order-flow.054": "📝 Screenshot se order parh liya:",
-  "order-flow.055": "📝 Confirm order:"
+  "order-flow.055": "📝 Confirm order:",
+  "order-flow.edit.001": "✏️ Theek hai, draft wahi hai. Jo badalna ho wo ek line mein bhejein:\nphone 03001234567\naddress Model Town Lahore\nname Ayesha Khan\npayment cod\nitem 1 qty 3\nitem 2 remove\nPhir draft dobara dikhega, aur YES se save hoga.\nPoora order badalna ho to \"cancel\" likh kar naya bhejein.",
+  "order-flow.edit.002": "❓ Ye phone number sahi nahi lag raha. 10 se 13 ankon ka number likhein, jaise: phone 03001234567",
+  "order-flow.edit.003": "❓ Ye payment samajh nahi aayi. Ye likhein: cod, bank, jazzcash, easypaisa, card",
+  "order-flow.edit.004": "❓ Order mein item {0} nahi hai. Is order mein {1} item hain.",
+  "order-flow.edit.005": "ℹ️ Aakhri item hata nahi sakte. Poora order \"cancel\" karke naya bhejein.",
+  "order-flow.edit.006": "❓ Quantity 1 se {0} ke beech honi chahiye.",
+  "order-flow.suggest.list": "Ye milte julte products hain:\n{0}",
+  "order-flow.undo.hint": "↩️ Wapas karna ho to \"undo\" likhein."
 }

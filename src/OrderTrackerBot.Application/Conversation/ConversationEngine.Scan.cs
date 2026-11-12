@@ -34,10 +34,12 @@ public partial class ConversationEngine
         return true;
     }
 
-    private Task<Product?> FindProductByBarcodeAsync(Seller seller, string code, CancellationToken ct)
+    private async Task<Product?> FindProductByBarcodeAsync(Seller seller, string code, CancellationToken ct)
     {
         var lower = code.ToLower();
-        return _db.Products.FirstOrDefaultAsync(p => p.SellerId == seller.Id && p.IsActive && p.Sku != null && p.Sku.ToLower() == lower, ct);
+        // Barcode first; a product saved before the Barcode field keeps its old Sku as the barcode until it is set again.
+        return (await _db.Products.Where(p => p.SellerId == seller.Id && p.IsActive).ToListAsync(ct))
+            .FirstOrDefault(p => (p.Barcode ?? (p.Sku == null || p.Sku.StartsWith(AutoSkuPrefix) ? null : p.Sku))?.ToLower() == lower);
     }
 
     private async Task AddScannedProductAsync(Seller seller, SessionContextData ctx, Product product, CancellationToken ct)
@@ -154,7 +156,8 @@ public partial class ConversationEngine
         var product = matches[0];
         if (code is null)
         {
-            product.Sku = null;
+            product.Barcode = null;
+            if (product.Sku is not null && !product.Sku.StartsWith(AutoSkuPrefix)) product.Sku = null;
             await ReplyAsync(seller, MessageTemplates.Get("scan.010", product.Name), ct);
             return;
         }
@@ -164,14 +167,15 @@ public partial class ConversationEngine
             return;
         }
         var lower = code.ToLower();
-        var other = await _db.Products.FirstOrDefaultAsync(p => p.SellerId == seller.Id && p.Id != product.Id && p.Sku != null && p.Sku.ToLower() == lower, ct);
+        var other = (await _db.Products.Where(p => p.SellerId == seller.Id && p.Id != product.Id && p.IsActive).ToListAsync(ct))
+            .FirstOrDefault(p => (p.Barcode ?? (p.Sku == null || p.Sku.StartsWith(AutoSkuPrefix) ? null : p.Sku))?.ToLower() == lower);
         if (other is not null)
         {
             await ReplyAsync(seller, MessageTemplates.Get("scan.012", other.Name, other.Name), ct);
             return;
         }
 
-        product.Sku = code;
+        product.Barcode = code;
         await ReplyAsync(seller, MessageTemplates.Get("scan.013", product.Name, code), ct);
     }
 }

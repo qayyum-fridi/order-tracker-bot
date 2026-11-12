@@ -57,6 +57,49 @@ public partial class ConversationEngine
         await ReplyAsync(seller, MessageTemplates.Get("commands2.003", order.Id), ct);
     }
 
+    /// <summary>"sab aaj wale delivered": the shipped orders of today (seller's day), listed for YES before anything changes.</summary>
+    private async Task HandleMarkAllTodayDeliveredAsync(Seller seller, ConversationSession session, SessionContextData ctx, CancellationToken ct)
+    {
+        var dayStart = SellerClock.StartOfLocalDayUtc(seller.TimeZoneId, DateTime.UtcNow);
+        var ids = await _db.Orders.Where(o => o.SellerId == seller.Id && o.Status == OrderStatus.Shipped && o.ShippedAt >= dayStart)
+            .OrderBy(o => o.Id).Select(o => o.Id).ToListAsync(ct);
+        if (ids.Count == 0)
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("bulk.delivered.002"), ct);
+            return;
+        }
+        ctx.BulkStatusOrderIds = ids;
+        ctx.BulkStatusTarget = "delivered";
+        SetState(session, ConversationState.AwaitingBulkStatusConfirmation);
+        await AskYesNoAsync(seller, MessageTemplates.Get("bulk.delivered.001", ids.Count, string.Join(", #", ids)), ct);
+    }
+
+    /// <summary>On YES: each of today\'s shipped orders becomes delivered. One log entry lets a single "undo" put them all back.</summary>
+    private async Task MarkTodayShippedDeliveredAsync(Seller seller, List<int> ids, CancellationToken ct)
+    {
+        var orders = await _db.Orders.Where(o => ids.Contains(o.Id) && o.SellerId == seller.Id && o.Status == OrderStatus.Shipped).ToListAsync(ct);
+        if (orders.Count == 0)
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("bulk.delivered.002"), ct);
+            return;
+        }
+        _db.ActionLogs.Add(new ActionLog
+        {
+            SellerId = seller.Id,
+            ActionType = ActionType.OrderStatusChanged,
+            OrderId = null,
+            PayloadJson = JsonSerializer.Serialize(new { BulkPrevious = orders.Select(o => new { o.Id, Status = o.Status.ToString() }) })
+        });
+        var now = DateTime.UtcNow;
+        foreach (var order in orders)
+        {
+            order.Status = OrderStatus.Delivered;
+            order.DeliveredAt = now;
+        }
+        await _db.SaveChangesAsync(ct);
+        await ReplyAsync(seller, MessageTemplates.Get("bulk.delivered.003", orders.Count), ct);
+    }
+
     private async Task HandleMarkAllPendingShippedAsync(Seller seller, ConversationSession session, SessionContextData ctx, CancellationToken ct)
     {
         var ids = await _db.Orders.Where(o => o.SellerId == seller.Id && o.Status == OrderStatus.Pending)
@@ -79,10 +122,18 @@ public partial class ConversationEngine
         SetState(session, ConversationState.Idle);
         var ids = ctx.BulkStatusOrderIds ?? new List<int>();
         ctx.BulkStatusOrderIds = null;
+        var target = ctx.BulkStatusTarget;
+        ctx.BulkStatusTarget = null;
 
         if (!CommandParser.IsAffirmative(message))
         {
             await ReplyAsync(seller, MessageTemplates.Get("commands2.005"), ct);
+            return;
+        }
+
+        if (target == "delivered")
+        {
+            await MarkTodayShippedDeliveredAsync(seller, ids, ct);
             return;
         }
 
@@ -187,6 +238,22 @@ public partial class ConversationEngine
                     if (doc.RootElement.TryGetProperty("PreviousAmountPaid", out var prevAmountEl)) order.AmountPaid = prevAmountEl.GetDecimal();
                     await ReplyAsync(seller, MessageTemplates.Get("commands2.010", order.Id, order.PaymentStatus), ct);
                 }
+                return;
+            }
+            case ActionType.OrderStatusChanged when last.OrderId is null:
+            {
+                // A bulk "delivered" of today: every order goes back to the status it had.
+                using var bulk = JsonDocument.Parse(last.PayloadJson);
+                if (!bulk.RootElement.TryGetProperty("BulkPrevious", out var previous)) return;
+                foreach (var item in previous.EnumerateArray())
+                {
+                    var order = await _db.Orders.FirstOrDefaultAsync(o => o.Id == item.GetProperty("Id").GetInt32() && o.SellerId == seller.Id, ct);
+                    if (order is null) continue;
+                    order.Status = Enum.Parse<OrderStatus>(item.GetProperty("Status").GetString()!);
+                    order.DeliveredAt = null;
+                }
+                await _db.SaveChangesAsync(ct);
+                await ReplyAsync(seller, MessageTemplates.Get("bulk.delivered.004"), ct);
                 return;
             }
             case ActionType.OrderEdited:

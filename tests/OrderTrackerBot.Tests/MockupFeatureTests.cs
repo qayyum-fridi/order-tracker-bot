@@ -70,7 +70,7 @@ public class MockupFeatureTests : IDisposable
     };
 
     [Fact]
-    public async Task SavedOrder_OffersReceiptShippedAndUndoAsTaps_WhoseLabelsAreRealCommands()
+    public async Task SavedOrder_OffersReceiptAndShippedAsTaps_UndoIsTyped_WhoseLabelsAreRealCommands()
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
@@ -81,12 +81,12 @@ public class MockupFeatureTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
 
         var id = (await db.Orders.AsNoTracking().SingleAsync()).Id;
-        var labels = Assert.Single(_buttons, b => b.Buttons.Contains("Undo")).Buttons;
-        Assert.Equal(new[] { $"Receipt {id}", $"Mark {id} shipped", "Undo" }, labels);
+        var labels = Assert.Single(_buttons, b => b.Buttons.Contains($"Receipt {id}")).Buttons;
+        Assert.Equal(new[] { $"Receipt {id}", $"Mark {id} shipped" }, labels);
         Assert.All(labels, l => Assert.True(l.Length <= 20));
         Assert.Equal(CommandKind.Receipt, CommandParser.TryParse(labels[0])?.Kind);
         Assert.Equal(CommandKind.MarkStatus, CommandParser.TryParse(labels[1])?.Kind);
-        Assert.Equal(CommandKind.Undo, CommandParser.TryParse(labels[2])?.Kind);
+        Assert.Equal(CommandKind.Undo, CommandParser.TryParse("undo")?.Kind);
     }
 
     [Fact]
@@ -266,7 +266,7 @@ public class MockupFeatureTests : IDisposable
         AiReturns(fromModel);
         await engine.HandleIncomingMessageAsync(Phone, "Sara, 1 shirt, 03001234567 (screenshot jaisa)", default);
         Assert.Contains(_sent, m => m.Contains("Delivery: Rs.150"));
-        await engine.HandleIncomingMessageAsync(Phone, "edit", default);
+        await engine.HandleIncomingMessageAsync(Phone, "cancel", default);
 
         var overridden = Order("Sara", "Shirt", 1);
         overridden.Order!.DeliveryCharge = 150;
@@ -1429,6 +1429,12 @@ public class MockupFeatureTests : IDisposable
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
+        // A category must exist before a product line may use it: the seller creates it first.
+        var sellerId = (await db.Sellers.SingleAsync()).Id;
+        db.Categories.AddRange(
+            new OrderTrackerBot.Domain.Entities.Category { SellerId = sellerId, Name = "Shirts" },
+            new OrderTrackerBot.Domain.Entities.Category { SellerId = sellerId, Name = "Suits" });
+        await db.SaveChangesAsync();
 
         await engine.HandleIncomingMessageAsync(Phone, "Polo Shirt - 500, category: Shirts, supplier: Ali Traders, department: Men", default);
         await engine.HandleIncomingMessageAsync(Phone, "Check Shirt - 700, category: Shirts, vendor: ali traders", default);

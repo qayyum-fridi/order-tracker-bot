@@ -1,0 +1,6 @@
+{
+  "bulk.delivered.001": "📦 Mark {0} of today's shipped orders ({1}) as delivered? Reply YES.",
+  "bulk.delivered.002": "ℹ️ There are no shipped orders from today to mark as delivered.",
+  "bulk.delivered.003": "✅ {0} orders marked as delivered.\n↩️ To reverse it, type \"undo\".",
+  "bulk.delivered.004": "↩️ Today's delivered orders are back to shipped."
+}

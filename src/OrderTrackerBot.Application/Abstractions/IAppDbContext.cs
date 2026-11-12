@@ -14,6 +14,7 @@ public interface IAppDbContext
     DbSet<Order> Orders { get; }
     DbSet<OrderItem> OrderItems { get; }
     DbSet<Discount> Discounts { get; }
+    DbSet<Category> Categories { get; }
     DbSet<LoyaltyRule> LoyaltyRules { get; }
     DbSet<SellerPaymentMethod> PaymentMethods { get; }
     DbSet<ActionLog> ActionLogs { get; }

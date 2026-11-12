@@ -407,7 +407,7 @@ public partial class ConversationEngine
     private async Task PlanProductsAsync(Seller seller, IReadOnlyList<ImportSheet> sheets, ImportPlan plan, CancellationToken ct)
     {
         var catalog = await _db.Products.AsNoTracking().Where(p => p.SellerId == seller.Id)
-            .Select(p => new { p.Name, p.UnitType, p.UnitQty, p.Sku }).ToListAsync(ct);
+            .Select(p => new { p.Name, p.UnitType, p.UnitQty, Sku = p.Barcode }).ToListAsync(ct);
         var existing = catalog.Select(p => ProductImportKey(p.Name, p.UnitType, p.UnitQty)).ToHashSet();
         var usedBarcodes = catalog.Where(p => !string.IsNullOrWhiteSpace(p.Sku)).Select(p => p.Sku!.Trim().ToLowerInvariant()).ToHashSet();
 
@@ -478,7 +478,7 @@ public partial class ConversationEngine
             {
                 SellerId = seller.Id, Name = item.Name, Price = item.Price, CostPrice = item.Cost, UnitType = item.Unit, UnitQty = item.PackSize,
                 Category = NullIfEmpty(Cell(row, "Category")), Size = NullIfEmpty(Cell(row, "Size")), Color = NullIfEmpty(Cell(row, "Color")),
-                Sku = barcode, StockQty = item.Stock, IsActive = item.Active,
+                Barcode = barcode, StockQty = item.Stock, IsActive = item.Active,
                 AttributesJson = attributes.Count == 0 ? null : JsonSerializer.Serialize(attributes)
             });
         }

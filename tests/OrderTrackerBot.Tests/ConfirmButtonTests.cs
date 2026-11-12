@@ -131,8 +131,18 @@ public class ConfirmButtonTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, tap, default);
 
         Assert.Equal(0, await OrdersAsync(db));
-        Assert.Contains(_text, t => t.Contains("order cancel kar diya"));
-        Assert.Equal(ConversationState.Idle, (await db.Sellers.AsNoTracking().Include(s => s.Session).FirstAsync()).Session!.State);
+        var state = (await db.Sellers.AsNoTracking().Include(s => s.Session).FirstAsync()).Session!.State;
+        if (tap.Contains("Edit", StringComparison.OrdinalIgnoreCase))
+        {
+            // Edit keeps the draft: the seller is asked for the line to change, and the state stays on confirmation.
+            Assert.Contains(_text, t => t.Contains("draft wahi hai"));
+            Assert.Equal(ConversationState.AwaitingOrderConfirmation, state);
+        }
+        else
+        {
+            Assert.Contains(_text, t => t.Contains("order cancel kar diya"));
+            Assert.Equal(ConversationState.Idle, state);
+        }
     }
 
     [Fact]

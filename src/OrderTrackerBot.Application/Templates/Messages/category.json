@@ -1,0 +1,7 @@
+{
+  "category.001": "✅ Category \"{0}\" bani.\nAb tak ki categories: {1}",
+  "category.002": "abhi koi category nahi",
+  "category.003": "ℹ️ Category \"{0}\" pehle se hai.",
+  "category.004": "❌ Category \"{0}\" abhi list mein nahi hai. Pehle \"{0} category banao\" likhein, phir product dobara bhejein.",
+  "category.005": "❌ Category ka naam samajh nahi aaya. Ek naam likhein, ya sub-category ke liye \"Parent > Child\" likhein."
+}

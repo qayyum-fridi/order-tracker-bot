@@ -17,6 +17,7 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
     public DbSet<Discount> Discounts => Set<Discount>();
+    public DbSet<Category> Categories => Set<Category>();
     public DbSet<LoyaltyRule> LoyaltyRules => Set<LoyaltyRule>();
     public DbSet<SellerPaymentMethod> PaymentMethods => Set<SellerPaymentMethod>();
     public DbSet<ActionLog> ActionLogs => Set<ActionLog>();
@@ -167,6 +168,13 @@ public class AppDbContext : DbContext, IAppDbContext
         {
             e.Property(d => d.Value).HasColumnType("decimal(18,2)");
             e.HasOne(d => d.Seller).WithMany(s => s.Discounts).HasForeignKey(d => d.SellerId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Category>(e =>
+        {
+            e.HasIndex(c => new { c.SellerId, c.ParentId, c.Name }).IsUnique();
+            e.HasOne(c => c.Seller).WithMany().HasForeignKey(c => c.SellerId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(c => c.Parent).WithMany().HasForeignKey(c => c.ParentId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<LoyaltyRule>(e =>

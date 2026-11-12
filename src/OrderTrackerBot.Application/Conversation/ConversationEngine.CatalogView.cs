@@ -21,7 +21,7 @@ public sealed partial class ConversationEngine
 
     private static bool CatalogMatches(Product p, string[] words)
     {
-        var haystack = string.Join(" ", new[] { p.Name, p.Category, p.Sku, p.Color, p.Size, p.AttributesJson }.Where(v => !string.IsNullOrWhiteSpace(v))).ToLowerInvariant();
+        var haystack = string.Join(" ", new[] { p.Name, p.Category, p.Sku, p.Barcode, p.Color, p.Size, p.AttributesJson }.Where(v => !string.IsNullOrWhiteSpace(v))).ToLowerInvariant();
         return words.All(w => haystack.Contains(w, StringComparison.Ordinal));
     }
 

@@ -33,6 +33,7 @@ public enum CommandKind
     EditProduct,
     MarkStatus,
     MarkAllPendingShipped,
+    MarkAllTodayDelivered,
     CancelOrder,
     Undo,
     UndoNote,
@@ -1013,6 +1014,25 @@ public static class CommandParser
     private static readonly Regex AddProduct = new(@"^add\s+product:\s*(.+?)\s*-\s*(\d+(?:\.\d+)?)$", Opts);
     private static readonly Regex EditProduct = new(@"^edit\s+product:\s*(.+?)\s*-\s*(\d+(?:\.\d+)?)$", Opts);
     private static readonly Regex MarkAllPendingShipped = new(@"^mark\s+all\s+pending\s+as\s+shipped$", Opts);
+    // "sab aaj wale delivered", "inka status delivered kar do", "sara delivered karo": the shipped orders of today, after YES.
+    // Token rule: a delivered word, a plural word (sab, sara, in ...), and no number, so "order 12 delivered" stays a single order.
+    private static readonly HashSet<string> DeliveredWords = new(StringComparer.OrdinalIgnoreCase) { "deliver", "delivered", "delever", "delivar" };
+    // Only words that mean "all of them" or "today": common words such as "in" or "status" would pull other commands in.
+    private static readonly HashSet<string> AllWords = new(StringComparer.OrdinalIgnoreCase) { "sab", "sabhi", "sare", "saare", "inka", "inke", "inhe", "inhein", "aaj" };  // "sara" is left out: it is also a customer name (Sara).
+
+    internal static bool IsBulkTodayDelivered(string message)
+    {
+        var text = message.Trim();
+        if (text.Length == 0 || text.Length > 80 || text.Any(char.IsDigit)) return false;
+        var words = text.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).Select(w => w.Trim('.', '!', '?', ',')).ToList();
+        var hasDelivered = words.Any(DeliveredWords.Contains);
+        var hasAll = words.Any(AllWords.Contains);
+        var mark = words.Any(w => w.Equals("mark", StringComparison.OrdinalIgnoreCase) || w.Equals("all", StringComparison.OrdinalIgnoreCase));
+        // A question or a request to see the list is not an order to change.
+        var asksToSee = words.Any(w => w.Equals("dikhao", StringComparison.OrdinalIgnoreCase) || w.Equals("dikha", StringComparison.OrdinalIgnoreCase) || w.Equals("show", StringComparison.OrdinalIgnoreCase) || w.Equals("list", StringComparison.OrdinalIgnoreCase) || w.Equals("kitne", StringComparison.OrdinalIgnoreCase) || w.Equals("kitna", StringComparison.OrdinalIgnoreCase) || w.Equals("kab", StringComparison.OrdinalIgnoreCase) || w.Equals("kaun", StringComparison.OrdinalIgnoreCase) || w.Equals("report", StringComparison.OrdinalIgnoreCase));
+        var today = words.Any(w => w.Equals("today", StringComparison.OrdinalIgnoreCase) || w.Equals("aaj", StringComparison.OrdinalIgnoreCase));
+        return hasDelivered && (hasAll || (mark && today)) && words.Count <= 10 && !asksToSee;
+    }
     // "mark 3 shipped" / "mark 3 bhej diya" / "آرڈر 3 شپ ہو گیا": the verb phrase is mapped by StatusFromPhrase.
     private static readonly Regex MarkStatus = new(@"^(?:mark|order|آرڈر)\s+(\d+)\s+(.+)$", Opts);
     private const string DoneWords = @"(?:\s+(?:ho\s*(?:gaya|gya|gaye|gai|gayi)|kar\s+(?:diya|dia|do|dein|den)|ہو\s+گیا(?:\s+ہے)?|کر\s+(?:دیا|دو|دیں)))?";
@@ -1173,6 +1193,7 @@ public static class CommandParser
     {
         ["kg"] = "kg", ["kgs"] = "kg", ["kilo"] = "kg", ["g"] = "gram", ["gm"] = "gram", ["gms"] = "gram", ["gram"] = "gram", ["grams"] = "gram",
         ["dozen"] = "dozen", ["darjan"] = "dozen", ["l"] = "liter", ["ltr"] = "liter", ["liter"] = "liter", ["litre"] = "liter", ["liters"] = "liter",
+        ["thaan"] = "thaan", ["thaans"] = "thaan", ["taan"] = "thaan", ["taans"] = "thaan",
         ["m"] = "meter", ["meter"] = "meter", ["metre"] = "meter", ["meters"] = "meter", ["yard"] = "yard", ["yards"] = "yard", ["gaz"] = "gaz", ["gaz."] = "gaz",
         ["pack"] = "pack", ["packs"] = "pack", ["packet"] = "pack", ["pc"] = "piece", ["pcs"] = "piece", ["piece"] = "piece", ["pieces"] = "piece",
         ["set"] = "set", ["sets"] = "set", ["pair"] = "pair", ["pairs"] = "pair", ["ml"] = "ml", ["box"] = "box", ["boxes"] = "box",
@@ -1307,7 +1328,7 @@ public static class CommandParser
     public static bool TryParseProductLine(string line, out ProductLine? product)
     {
         if (!ParseProductLineCore(line, out product)) return false;
-        product = SplitColourWord(product!);
+        product = ApplyUnitAttribute(SplitColourWord(product!));
         // "Kurti - -5" (name "Kurti -", price 5) is a typo, not a product: never saved. (A price of 0 stays allowed: free sample products.)
         var name = product!.Name.Trim();
         if (!name.Any(char.IsLetter) || name.EndsWith('-') || name.EndsWith('–') || name.EndsWith('='))
@@ -1316,6 +1337,20 @@ public static class CommandParser
             return false;
         }
         return true;
+    }
+
+    /// <summary>
+    /// "Lawn - 3500, unit: thaan": the unit the seller names. A known unit word is mapped; any other short word (letters only, 2 to 15) is kept as typed.
+    /// Without "unit:" the line keeps its unit (piece). The unit attribute is taken out of the other attributes.
+    /// </summary>
+    private static ProductLine ApplyUnitAttribute(ProductLine product)
+    {
+        var attributes = product.Extras?.Attributes;
+        if (attributes is null || !attributes.TryGetValue("unit", out var word)) return product;
+        var unit = NormalizeUnit(word) ?? (word.Trim() is { Length: >= 2 and <= 15 } typed && typed.All(c => char.IsLetter(c) || c == ' ') ? typed.ToLowerInvariant() : null);
+        if (unit is null) return product;
+        var rest = attributes.Where(kv => !kv.Key.Equals("unit", StringComparison.OrdinalIgnoreCase)).ToDictionary(kv => kv.Key, kv => kv.Value);
+        return product with { UnitType = unit, Extras = product.Extras! with { Attributes = rest.Count == 0 ? null : rest } };
     }
 
     private static bool ParseProductLineCore(string line, out ProductLine? product)
@@ -1932,6 +1967,7 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.EditProduct, Text = m.Groups[1].Value.Trim(), Amount = decimal.Parse(m.Groups[2].Value) };
 
         if (MarkAllPendingShipped.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.MarkAllPendingShipped };
+        if (IsBulkTodayDelivered(message)) return new ParsedCommand { Kind = CommandKind.MarkAllTodayDelivered };
 
         if ((m = StatusPicker.Match(message)).Success && !OrderDetail.IsMatch(message))
             return new ParsedCommand { Kind = CommandKind.StatusPicker, Number = m.Groups["n"].Success ? int.Parse(m.Groups["n"].Value) : null };

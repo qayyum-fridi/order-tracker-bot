@@ -35,9 +35,10 @@ public sealed class ClientProductWriter(AppDbContext db)
         var error = Validate(input);
         if (error is not null) return new ProductWriteResult(null, 400, error);
 
-        var sku = Clean(input.Sku);
-        if (sku is null) sku = await NewSkuAsync(sellerId, ct);
-        else if (await SkuTakenAsync(sellerId, sku, null, ct)) return new ProductWriteResult(null, 409, "Another product already uses this SKU.");
+        // The seller's input is the barcode (what a scanner reads); the SKU is always the shop's own code.
+        var barcode = Clean(input.Sku);
+        if (barcode is not null && await BarcodeTakenAsync(sellerId, barcode, null, ct)) return new ProductWriteResult(null, 409, "Another product already uses this barcode.");
+        var sku = await NewSkuAsync(sellerId, ct);
 
         var product = new Product
         {
@@ -46,7 +47,7 @@ public sealed class ClientProductWriter(AppDbContext db)
             IsActive = input.IsActive ?? true,
             CreatedAt = DateTime.UtcNow,
         };
-        Apply(product, input, sku);
+        Apply(product, input, sku, barcode);
         db.Products.Add(product);
         await db.SaveChangesAsync(ct);
         return new ProductWriteResult(product.Id, 200, null);
@@ -60,13 +61,13 @@ public sealed class ClientProductWriter(AppDbContext db)
         var error = Validate(input);
         if (error is not null) return new ProductWriteResult(null, 400, error);
 
-        var sku = Clean(input.Sku);
-        if (sku is null) sku = product.Sku ?? await NewSkuAsync(sellerId, ct);
-        else if (await SkuTakenAsync(sellerId, sku, id, ct)) return new ProductWriteResult(null, 409, "Another product already uses this SKU.");
+        var barcode = Clean(input.Sku) ?? product.Barcode;
+        if (Clean(input.Sku) is { } typed && await BarcodeTakenAsync(sellerId, typed, id, ct)) return new ProductWriteResult(null, 409, "Another product already uses this barcode.");
+        var sku = product.Sku ?? await NewSkuAsync(sellerId, ct);
 
         product.Name = input.Name!.Trim();
         product.IsActive = input.IsActive ?? product.IsActive;
-        Apply(product, input, sku);
+        Apply(product, input, sku, barcode);
         await db.SaveChangesAsync(ct);
         return new ProductWriteResult(product.Id, 200, null);
     }
@@ -81,7 +82,7 @@ public sealed class ClientProductWriter(AppDbContext db)
         return new ProductWriteResult(id, 200, null);
     }
 
-    private static void Apply(Product product, ClientProductInput input, string? sku)
+    private static void Apply(Product product, ClientProductInput input, string sku, string? barcode)
     {
         product.Price = Math.Round(input.Price!.Value, 2);
         product.PriceA = input.PriceA is { } a ? Math.Round(a, 2) : null;
@@ -93,6 +94,7 @@ public sealed class ClientProductWriter(AppDbContext db)
         product.Size = Clean(input.Size);
         product.Color = Clean(input.Color);
         product.Sku = sku;
+        product.Barcode = barcode;
         product.StockQty = input.StockQty;
         product.CostPrice = input.CostPrice is { } cost ? Math.Round(cost, 2) : null;
         product.DefaultPriceGroup = Clean(input.DefaultPriceGroup)?.ToUpperInvariant();
@@ -120,6 +122,12 @@ public sealed class ClientProductWriter(AppDbContext db)
         foreach (var text in new[] { input.Category, input.Size, input.Color })
             if (Clean(text) is { Length: > MaxText }) return $"Keep each text field to {MaxText} characters or fewer.";
         return null;
+    }
+
+    private async Task<bool> BarcodeTakenAsync(int sellerId, string barcode, int? exceptId, CancellationToken ct)
+    {
+        var lower = barcode.ToLowerInvariant();
+        return await db.Products.AnyAsync(p => p.SellerId == sellerId && p.Barcode != null && p.Barcode.ToLower() == lower && p.Id != exceptId, ct);
     }
 
     private async Task<bool> SkuTakenAsync(int sellerId, string sku, int? exceptId, CancellationToken ct)

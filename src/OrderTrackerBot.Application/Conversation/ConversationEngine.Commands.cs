@@ -578,6 +578,9 @@ public partial class ConversationEngine
             case CommandKind.MarkAllPendingShipped:
                 await HandleMarkAllPendingShippedAsync(seller, session, ctx, ct);
                 return;
+            case CommandKind.MarkAllTodayDelivered:
+                await HandleMarkAllTodayDeliveredAsync(seller, session, ctx, ct);
+                return;
             case CommandKind.CancelOrder:
                 await HandleCancelOrderRequestAsync(seller, session, ctx, cmd, ct);
                 return;
@@ -928,6 +931,11 @@ public partial class ConversationEngine
     private async Task HandleAddProductAsync(Seller seller, ParsedCommand cmd, CancellationToken ct, SessionContextData? ctx = null)
     {
         var line = cmd.Product ?? new ProductLine(cmd.Text!, cmd.Amount!.Value, "piece", 1);
+        if (line.Extras?.Category is { } wantedCategory && !await CategoryKnownAsync(seller, wantedCategory, ct))
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("category.004", wantedCategory), ct);
+            return;
+        }
         _upsertBefore = null;
         var (saved, updated, variants) = await UpsertProductAsync(seller, line, ct);
         if (saved is null)
@@ -955,6 +963,9 @@ public partial class ConversationEngine
             : updated ? MessageTemplates.Get("commands.033", label, Formatters.Money(product.Price), ProductDetailsText(product))
             : showHowTo ? MessageTemplates.Get("commands.035", label, Formatters.Money(product.Price), ProductDetailsText(product), Industry(seller).FullProduct)
             : MessageTemplates.Get("commands.034", label, Formatters.Money(product.Price), ProductDetailsText(product)), ct);
+        // A shop that sells only at the counter: a new product is saved to the catalog, and a sale is written with "walkin" (no product question on the way).
+        if (!updated && existingReply is null && seller.SalesMode == "counter")
+            await ReplyAsync(seller, MessageTemplates.Get("counter-tip.001", product.Name), ct);
         // A new variant of a product the catalog already has: name its siblings, so the seller sees the listings were kept apart.
         if (!updated && variants.Count > 0)
             await ReplyAsync(seller, MessageTemplates.Get("variants.004", string.Join(", ", variants.Select(Formatters.ProductMatchLabel))), ct);
@@ -1262,6 +1273,7 @@ public partial class ConversationEngine
 
         var product = new Product { SellerId = seller.Id, Name = line.Name, Price = line.Price, UnitType = line.UnitType, UnitQty = line.UnitQty };
         ApplyProductExtras(product, line.Extras);
+        product.Sku ??= await NextAutoSkuAsync(seller, ct);   // the seller's own code when typed; otherwise ours
         _db.Products.Add(product);
         await _db.SaveChangesAsync(ct);
         SuggestNext("catalog", "menu");
@@ -1309,7 +1321,7 @@ public partial class ConversationEngine
         if (extras.PriceA is { } priceA) product.PriceA = priceA;
         if (extras.PriceB is { } priceB) product.PriceB = priceB;
         if (extras.PriceC is { } priceC) product.PriceC = priceC;
-        if (extras.Sku is not null) product.Sku = extras.Sku;
+        if (extras.Sku is not null) product.Barcode = extras.Sku;   // "sku ..." typed by the seller is the barcode they use
         if (extras.Attributes is { Count: > 0 } added)
         {
             // Typed details (expiry, batch, model, ...) go to their own columns; the rest stay as details.

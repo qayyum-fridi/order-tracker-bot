@@ -1,0 +1,8 @@
+{
+  "order-flow.edit.001": "✏️ OK, the draft is kept. Send one line to change:\nphone 03001234567\naddress Model Town Lahore\nname Ayesha Khan\npayment cod\nitem 1 qty 3\nitem 2 remove\nThe draft is shown again, and YES saves it.\nTo change the whole order, type \"cancel\" and send it again.",
+  "order-flow.edit.002": "❓ That phone number does not look right. Send 10 to 13 digits, e.g.: phone 03001234567",
+  "order-flow.edit.003": "❓ That payment was not understood. Use one of: cod, bank, jazzcash, easypaisa, card",
+  "order-flow.edit.004": "❓ The order has no item {0}. It has {1} items.",
+  "order-flow.edit.005": "ℹ️ The last item cannot be removed. Type \"cancel\" and send the whole order again.",
+  "order-flow.edit.006": "❓ The quantity must be between 1 and {0}."
+}

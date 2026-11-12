@@ -212,7 +212,7 @@ public partial class ConversationEngine
             Col("Size", typeof(string)), Col("Color", typeof(string)), Col("SKU", typeof(string)), Col("Other details", typeof(string)),
             Col("Stock", typeof(int)), Col("Active", typeof(string)), Col("Added on", typeof(DateTime))
         }, products.Select(p => new object?[] { p.Name, p.Price, p.CostPrice, p.UnitType, p.UnitQty, p.Category,
-            ProductDetail(p, "vendor"), ProductDetail(p, "manufacturer"), ProductDetail(p, "department"), p.Size, p.Color, p.Sku, OtherProductDetails(p),
+            ProductDetail(p, "vendor"), ProductDetail(p, "manufacturer"), ProductDetail(p, "department"), p.Size, p.Color, p.Barcode, OtherProductDetails(p),
             p.StockQty, p.IsActive ? "Yes" : "No", local(p.CreatedAt) }).ToList());
         return ("Catalog", new List<ExportSheet> { sheet });
     }

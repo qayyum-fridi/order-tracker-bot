@@ -262,6 +262,17 @@ public partial class ConversationEngine
         return MessageTemplates.Get("onboarding.037", name);
     }
 
+    /// <summary>The answer to the setup question: "counter" (shop only) or "delivery"; null when the text is not an answer.</summary>
+    internal static string? ReadSalesMode(string message)
+    {
+        var text = message.Trim();
+        if (text.Equals("sales-counter", StringComparison.OrdinalIgnoreCase) || text.Contains("Sirf dukan", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("dukan par", StringComparison.OrdinalIgnoreCase) || text.Contains("صرف دکان")) return "counter";
+        if (text.Equals("sales-delivery", StringComparison.OrdinalIgnoreCase) || text.Contains("Delivery bhi", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("ڈیلیوری بھی")) return "delivery";
+        return null;
+    }
+
     /// <summary>Ends setup: the free trial starts, the seller is idle and gets the menu and the guide offer. "done" / "skip", or a real command once a product is saved.</summary>
     private async Task CompleteSetupAsync(Seller seller, ConversationSession session, bool skipped, CancellationToken ct, string? shopType = null)
     {
@@ -276,6 +287,13 @@ public partial class ConversationEngine
             "Options dekhein", AfterSetupSections, ct);
         await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
             MessageTemplates.Get("onboarding.014"), GuideOfferButtons, ct);
+        // One question after setup: do they ship too? The answer decides whether orders ask for a phone and address.
+        if (seller.SalesMode is null && _turnCtx is not null)
+        {
+            _turnCtx.AwaitingSalesMode = true;
+            await SendChoicesAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("sales-mode.001"),
+                new[] { new ChoiceOption(MessageTemplates.Get("sales-mode.counter.label"), "sales-counter"), new ChoiceOption(MessageTemplates.Get("sales-mode.delivery.label"), "sales-delivery") }, ct);
+        }
     }
 
     private static readonly string BusinessInfoPrompt =

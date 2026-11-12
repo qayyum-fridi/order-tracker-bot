@@ -446,6 +446,9 @@ public partial class ConversationEngine
             var intro = MessageTemplates.Get("order-flow.049", unresolved.ProductName);
             if (suggestions.Count > 0)
             {
+                // The buttons cut long names: the full names and prices are written out here.
+                var listed = suggestions.Select(sg => $"• {sg.Label} - {Formatters.Money(catalog.FirstOrDefault(c => c.Label == sg.Label)?.Product.Price ?? 0)}");
+                intro += "\n\n" + MessageTemplates.Get("order-flow.suggest.list", string.Join("\n", listed));
                 var titles = suggestions.Select(s => s.Title).ToList();
                 if (titles.Count < 3) titles.Add(NewProductButtonTitle);
                 await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("order-flow.004", intro), titles, ct);
@@ -526,7 +529,8 @@ public partial class ConversationEngine
             pending.Phone = null;
         }
 
-        if (string.IsNullOrWhiteSpace(pending.Phone) && !pending.PaidInFull && !pending.PhoneLater)
+        // A shop that sells only at the counter is not asked for a phone on every order.
+        if (string.IsNullOrWhiteSpace(pending.Phone) && !pending.PaidInFull && !pending.PhoneLater && seller.SalesMode != "counter")
         {
             ctx.PendingMissingField = "Phone";
             SetState(session, ConversationState.AwaitingOrderMissingFields);
@@ -817,6 +821,12 @@ public partial class ConversationEngine
         return true;
     }
 
+    private static readonly string[] DraftPaymentWords = { "cod", "cash", "bank", "jazzcash", "easypaisa", "card", "transfer" };
+
+    private static readonly System.Text.RegularExpressions.Regex DraftItemEdit = new(@"^item\s+(?<n>\d{1,3})\s+(?:qty\s+(?<q>\d{1,4})|(?<rm>remove))$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static readonly System.Text.RegularExpressions.Regex DraftFieldEdit = new(@"^(?<field>phone|address|name|payment)\s+(?<value>.{2,200})$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
     private async Task HandleOrderConfirmationAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         // "Reply YES to save": an explicit yes, or "ok" / "theek hai" as agreement to exactly this question.
@@ -861,12 +871,76 @@ public partial class ConversationEngine
             return;
         }
 
+        // "Edit" keeps the draft: the seller sends only the line to change ("phone ...", "address ...", "name ..."), then the draft is shown again.
         if (message.Trim().Equals("edit", StringComparison.OrdinalIgnoreCase))
         {
-            await RetractAutoPricesAsync(seller, ctx.PendingOrder, ct);
-            ctx.PendingOrder = null;
-            SetState(session, ConversationState.Idle);
-            await ReplyAsync(seller, MessageTemplates.Get("order-flow.012"), ct);
+            await ReplyAsync(seller, MessageTemplates.Get("order-flow.edit.001"), ct);
+            return;
+        }
+
+        if (ctx.PendingOrder is { } editing && DraftFieldEdit.Match(message.Trim()) is { Success: true } fieldEdit)
+        {
+            var value = fieldEdit.Groups["value"].Value.Trim();
+            switch (fieldEdit.Groups["field"].Value.ToLowerInvariant())
+            {
+                case "phone":
+                    if (!IsPlausiblePhone(value))
+                    {
+                        await ReplyAsync(seller, MessageTemplates.Get("order-flow.edit.002"), ct);
+                        return;
+                    }
+                    editing.Phone = value;
+                    break;
+                case "address":
+                    editing.Address = value;
+                    break;
+                case "name":
+                    editing.CustomerName = value;
+                    break;
+                case "payment":
+                    if (!DraftPaymentWords.Contains(value))
+                    {
+                        await ReplyAsync(seller, MessageTemplates.Get("order-flow.edit.003"), ct);
+                        return;
+                    }
+                    editing.PaymentMethodText = value.ToLowerInvariant();
+                    break;
+            }
+            await SendDraftConfirmationAsync(seller, BuildConfirmationText(seller.PreferredLanguage, editing), ct);
+            return;
+        }
+
+        // "item 1 qty 3" / "item 2 remove": one item of the draft, totals are worked out again; nothing is saved until YES.
+        if (ctx.PendingOrder is { } editingItems && DraftItemEdit.Match(message.Trim()) is { Success: true } itemEdit)
+        {
+            var number = int.Parse(itemEdit.Groups["n"].Value);
+            if (number < 1 || number > editingItems.Items.Count)
+            {
+                await ReplyAsync(seller, MessageTemplates.Get("order-flow.edit.004", number, editingItems.Items.Count), ct);
+                return;
+            }
+            var line = editingItems.Items[number - 1];
+            if (itemEdit.Groups["rm"].Success)
+            {
+                if (editingItems.Items.Count == 1)
+                {
+                    await ReplyAsync(seller, MessageTemplates.Get("order-flow.edit.005"), ct);
+                    return;
+                }
+                editingItems.Items.RemoveAt(number - 1);
+            }
+            else
+            {
+                var quantity = int.Parse(itemEdit.Groups["q"].Value);
+                if (quantity < 1 || quantity > MaxEditQuantity)
+                {
+                    await ReplyAsync(seller, MessageTemplates.Get("order-flow.edit.006", MaxEditQuantity), ct);
+                    return;
+                }
+                line.Quantity = quantity;
+            }
+            await ApplyDiscountAsync(seller, editingItems, ct);
+            await SendDraftConfirmationAsync(seller, BuildConfirmationText(seller.PreferredLanguage, editingItems), ct);
             return;
         }
 
@@ -885,18 +959,19 @@ public partial class ConversationEngine
     /// </summary>
     private Task SendOrderActionButtonsAsync(Seller seller, Order order, CancellationToken ct) =>
         _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("order-flow.013"),
-            new[] { $"Receipt {order.Id}", $"Mark {order.Id} shipped", "Undo" }, ct);
+            new[] { $"Receipt {order.Id}", $"Mark {order.Id} shipped" }, ct);   // Undo is typed ("undo"), not a button: it reverses the save.
 
     private static string SavedText(Seller seller, Order order, PendingOrderData pending) =>
         SavedText(seller, order) + (pending.CommentLeadNumber is { } leadNumber ? $"\nLead #{leadNumber} marked CONVERTED." : "");
 
     private static string SavedText(Seller seller, Order order) =>
-        Lang.Normalize(seller.PreferredLanguage) == Lang.UrduScript
+        (Lang.Normalize(seller.PreferredLanguage) == Lang.UrduScript
             ? $"✅ آرڈر محفوظ ہو گیا (#{order.Id})\nتبدیلی کے لیے: edit order {order.Id}"
             : (order.PaymentMethod == OrderPaymentMethod.Cod
                 ? $"✅ Order saved as {Formatters.Status(order.Status)} (#{order.Id}) — COD."
                 : $"✅ Order saved as {Formatters.Status(order.Status)} (#{order.Id}).") +
-              $"\n✏️ Kuch badalna ho to: \"edit order {order.Id}\"";
+              $"\n✏️ Kuch badalna ho to: \"edit order {order.Id}\"") +
+        "\n" + MessageTemplates.Get("order-flow.undo.hint");
 
     private async Task HandleMultiOrderConfirmationAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {

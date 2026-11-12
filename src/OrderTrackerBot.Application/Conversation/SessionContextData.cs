@@ -104,6 +104,8 @@ public sealed class ProductSuggestion
 /// <summary>Everything an in-flight multi-turn flow needs, serialized to ConversationSession.ContextJson.</summary>
 public sealed class SessionContextData
 {
+    /// <summary>Setup just ended: the next tap or word answers "shop only or delivery too" (see SalesMode).</summary>
+    public bool AwaitingSalesMode { get; set; }
     /// <summary>When the seller last asked to reach support (UTC); a repeat inside a few hours is told the first request is already with the team, and the founder is not alerted again.</summary>
     public DateTime? SupportRequestedAt { get; set; }
 
@@ -166,6 +168,8 @@ public sealed class SessionContextData
     /// <summary>A product line waiting for the seller's YES (JSON of the ProductLine); null when nothing waits.</summary>
     public string? PendingProductJson { get; set; }
     public List<int>? BulkStatusOrderIds { get; set; }
+    /// <summary>What the pending bulk YES does: null = shipped (the "pending as shipped" bulk); "delivered" = today's shipped orders.</summary>
+    public string? BulkStatusTarget { get; set; }
     public int? CancelOrderId { get; set; }
     /// <summary>A status change Features:ModelFirst picked, waiting for YES/NO (AwaitingModelStatusConfirmation).</summary>
     public int? ModelStatusOrderId { get; set; }
