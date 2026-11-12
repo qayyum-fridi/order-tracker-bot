@@ -7,5 +7,6 @@
   "counter-return.006": "📦 Stock ab {0} hai.",
   "counter-return.refund.cash": "cash",
   "counter-return.refund.bank": "bank",
-  "counter-return.refund.none": "koi refund nahi"
+  "counter-return.refund.none": "koi refund nahi",
+  "counter-return.007": "📦 Counter returns: {0} (wapas: {1})\n"
 }

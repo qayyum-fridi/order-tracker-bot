@@ -7,5 +7,6 @@
   "counter-return.006": "📦 Stock is now {0}.",
   "counter-return.refund.cash": "cash",
   "counter-return.refund.bank": "bank",
-  "counter-return.refund.none": "no refund"
+  "counter-return.refund.none": "no refund",
+  "counter-return.007": "📦 Counter returns: {0} (returned: {1})\n"
 }

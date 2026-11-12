@@ -194,7 +194,8 @@ public partial class ConversationEngine
         var wages = await LoadWagesAsync(seller, start, end, ct);
         var losses = await LoadLossesAsync(seller, start, end, ct);
 
-        var sales = orders.Sum(o => o.Total);
+        var counterReturns = await CounterReturnsInRangeAsync(seller, start, end, ct);
+        var sales = orders.Sum(o => o.Total) - counterReturns.Amount;
         var spent = expenses.Sum(x => x.Amount);
         var wageTotal = wages.Sum(x => x.Amount);
         var net = sales - spent - wageTotal;

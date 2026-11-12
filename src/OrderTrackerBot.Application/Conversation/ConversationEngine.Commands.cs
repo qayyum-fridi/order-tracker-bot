@@ -761,7 +761,8 @@ public partial class ConversationEngine
         var pending = orders.Count(o => o.Status == OrderStatus.Pending);
         var cod = orders.Where(o => o.PaymentMethod == OrderPaymentMethod.Cod).Sum(OrderMoney.Received);
         var prepaid = orders.Where(o => o.PaymentMethod != OrderPaymentMethod.Cod).Sum(OrderMoney.Received);
-        var totalSales = orders.Sum(o => o.Total);
+        var counterReturns = await CounterReturnsInRangeAsync(seller, start, end, ct);
+        var totalSales = orders.Sum(o => o.Total) - counterReturns.Amount;
         var salesTax = orders.Sum(o => SalesTax.Amount(o));
         var withheld = orders.Sum(o => o.TaxWithheld);
         var returned = await _db.Orders.CountAsync(o => o.SellerId == seller.Id && o.Status == OrderStatus.Returned
@@ -771,7 +772,7 @@ public partial class ConversationEngine
         var today = period is null or "today";
         var (dayExtra, drawerOpen) = today ? await DayAccountLinesAsync(seller, orders, start, end, ct) : ("", false);
 
-        var text = MessageTemplates.Get("commands.010", label, seller.BusinessName, orders.Count, delivered, shipped, pending, (returned > 0 ? $"Returned: {returned}\n" : ""), Formatters.Money(cod), Formatters.Money(prepaid), (period is null ? "today" : label.Replace("'s", "").ToLowerInvariant()), Formatters.Money(totalSales), (salesTax > 0 ? $"Sales tax included: {Formatters.Money(salesTax)}\n" : ""), (withheld > 0 ? $"Tax withheld by courier/gateway: {Formatters.Money(withheld)} → net after withholding {Formatters.Money(totalSales - withheld)}\n" : ""), dayExtra);
+        var text = MessageTemplates.Get("commands.010", label, seller.BusinessName, orders.Count, delivered, shipped, pending, ((returned > 0 ? $"Returned: {returned}\n" : "") + (counterReturns.Count > 0 ? MessageTemplates.Get("counter-return.007", counterReturns.Count, Formatters.Money(counterReturns.Amount)) : "")), Formatters.Money(cod), Formatters.Money(prepaid), (period is null ? "today" : label.Replace("'s", "").ToLowerInvariant()), Formatters.Money(totalSales), (salesTax > 0 ? $"Sales tax included: {Formatters.Money(salesTax)}\n" : ""), (withheld > 0 ? $"Tax withheld by courier/gateway: {Formatters.Money(withheld)} → net after withholding {Formatters.Money(totalSales - withheld)}\n" : ""), dayExtra);
         return (text, drawerOpen);
     }
 

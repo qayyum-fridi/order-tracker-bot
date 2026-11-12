@@ -82,6 +82,9 @@ public partial class ConversationEngine
             counted++;
         }
 
+        var returns = await CounterReturnsInRangeAsync(seller, start, end, ct);
+        revenue -= returns.Amount;
+        cost -= returns.Cost;
         return (orders.Count, counted, revenue, cost);
     }
 }

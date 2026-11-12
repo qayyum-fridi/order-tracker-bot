@@ -7,5 +7,6 @@
   "counter-return.006": "📦 اسٹاک اب {0} ہے۔",
   "counter-return.refund.cash": "کیش",
   "counter-return.refund.bank": "بینک",
-  "counter-return.refund.none": "کوئی ریفنڈ نہیں"
+  "counter-return.refund.none": "کوئی ریفنڈ نہیں",
+  "counter-return.007": "📦 کاؤنٹر واپسیاں: {0} (واپس: {1})\n"
 }

@@ -70,6 +70,27 @@ public partial class ConversationEngine
             MessageTemplates.Get("counter-return.002", product.Name, qty, Formatters.Money(amount), MessageTemplates.Get("counter-return.refund." + refund), stockLine + drawerLine), ct);
     }
 
+    /// <summary>
+    /// Counter returns made in [start, end): the refund total, how many, and the cost of the goods that came back (cost known only). Sales, profit and net
+    /// subtract these, so a return is not counted as sold. A return of an item with no saved cost takes its refund off the profit but no cost back (profit stays low).
+    /// </summary>
+    private async Task<(decimal Amount, int Count, decimal Cost)> CounterReturnsInRangeAsync(Seller seller, DateTime start, DateTime end, CancellationToken ct)
+    {
+        var returns = await _db.CounterReturns.AsNoTracking()
+            .Where(r => r.SellerId == seller.Id && r.CreatedAt >= start && r.CreatedAt < end).ToListAsync(ct);
+        if (returns.Count == 0) return (0, 0, 0);
+
+        var productIds = returns.Where(r => r.ProductId is not null).Select(r => r.ProductId!.Value).Distinct().ToList();
+        var costById = productIds.Count == 0 ? new Dictionary<int, decimal?>()
+            : (await _db.Products.AsNoTracking().Where(p => p.SellerId == seller.Id && productIds.Contains(p.Id))
+                .Select(p => new { p.Id, p.CostPrice }).ToListAsync(ct)).ToDictionary(p => p.Id, p => p.CostPrice);
+
+        decimal cost = 0;
+        foreach (var r in returns)
+            if (r.ProductId is { } id && costById.TryGetValue(id, out var unitCost) && unitCost is { } known) cost += known * r.Quantity;
+        return (returns.Sum(r => r.Amount), returns.Count, cost);
+    }
+
     /// <summary>Undo of a counter return: the record goes, stock is taken back out and the cash-out movement is removed.</summary>
     private async Task UndoCounterReturnAsync(Seller seller, ActionLog log, CancellationToken ct)
     {
