@@ -16,7 +16,7 @@ public static class ActionRisk
         CommandKind.MarkAllPendingShipped, CommandKind.FuzzyStatusUpdate, CommandKind.CancelOrder,
         CommandKind.DeleteProduct, CommandKind.DeleteCustomer, CommandKind.EditProduct, CommandKind.PriceTiers,
         CommandKind.OrderDeliveryCharge, CommandKind.OrderCourierFee, CommandKind.SupplierSet, CommandKind.Broadcast,
-        CommandKind.CashDrawer, CommandKind.CashMovement, CommandKind.Payout, CommandKind.ExpenseEdit, CommandKind.ExpenseDelete,
+        CommandKind.CashDrawer, CommandKind.CashMovement, CommandKind.Payout, CommandKind.ExpenseEdit, CommandKind.ExpenseDelete, CommandKind.CounterReturn,
         CommandKind.StaffRemove, CommandKind.OrderTaxWithheld
     };
 

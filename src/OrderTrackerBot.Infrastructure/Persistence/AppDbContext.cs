@@ -34,6 +34,7 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<SupportQuery> SupportQueries => Set<SupportQuery>();
     public DbSet<SellerBranding> SellerBrandings => Set<SellerBranding>();
     public DbSet<Expense> Expenses => Set<Expense>();
+    public DbSet<CounterReturn> CounterReturns => Set<CounterReturn>();
     public DbSet<BuyerEnquiry> BuyerEnquiries => Set<BuyerEnquiry>();
     public DbSet<StrategyStat> StrategyStats => Set<StrategyStat>();
     public DbSet<Loss> Losses => Set<Loss>();

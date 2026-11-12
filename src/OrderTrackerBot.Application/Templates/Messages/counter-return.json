@@ -1,0 +1,11 @@
+{
+  "counter-return.001": "⚠️ \"{0}\" catalog mein nahi mila. Pehle product ka naam sahi likhein, phir \"return <naam> <qty>\".",
+  "counter-return.002": "✅ Return darj ho gaya: {0} x{1} = {2}. Refund: {3}.\n{4}",
+  "counter-return.003": "ℹ️ Drawer band hai, is liye cash refund drawer mein darj nahi hua. Drawer kholne ke baad \"cash out\" likhein.",
+  "counter-return.004": "⚠️ Maaf kijiye, return ke liye product ka naam aur quantity likhein, jaise \"return Shirt 1\".",
+  "counter-return.005": "↩️ Return wapas hua: {0} x{1}. Stock aur cash pehle jaisa kar diya.",
+  "counter-return.006": "📦 Stock ab {0} hai.",
+  "counter-return.refund.cash": "cash",
+  "counter-return.refund.bank": "bank",
+  "counter-return.refund.none": "koi refund nahi"
+}

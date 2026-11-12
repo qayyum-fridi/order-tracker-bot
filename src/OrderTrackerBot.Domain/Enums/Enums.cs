@@ -100,7 +100,8 @@ public enum ActionType
     WageLogged,
     // Appended last: stored values of the others must not change.
     SupplierChanged,
-    ExpenseChanged
+    ExpenseChanged,
+    CounterReturned
 }
 
 /// <summary>Admin-set account state. Disabled and Cancelled sellers get a fixed reply and nothing else is processed.

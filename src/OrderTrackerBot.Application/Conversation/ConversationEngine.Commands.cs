@@ -225,6 +225,9 @@ public partial class ConversationEngine
             case CommandKind.Expense:
                 await HandleExpenseAsync(seller, cmd, ct);
                 return;
+            case CommandKind.CounterReturn:
+                await HandleCounterReturnAsync(seller, cmd, ct);
+                return;
             case CommandKind.ExpenseList:
                 await HandleExpenseListAsync(seller, cmd.Text, ct);
                 return;

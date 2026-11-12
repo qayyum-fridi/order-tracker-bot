@@ -1,0 +1,11 @@
+{
+  "counter-return.001": "⚠️ \"{0}\" is not in the catalog. Check the product name, then type \"return <name> <qty>\".",
+  "counter-return.002": "✅ Return saved: {0} x{1} = {2}. Refund: {3}.\n{4}",
+  "counter-return.003": "ℹ️ The drawer is closed, so the cash refund was not written to it. Type \"cash out\" after you open the drawer.",
+  "counter-return.004": "⚠️ Please type the product name and quantity, for example \"return Shirt 1\".",
+  "counter-return.005": "↩️ Return undone: {0} x{1}. Stock and cash are back as they were.",
+  "counter-return.006": "📦 Stock is now {0}.",
+  "counter-return.refund.cash": "cash",
+  "counter-return.refund.bank": "bank",
+  "counter-return.refund.none": "no refund"
+}

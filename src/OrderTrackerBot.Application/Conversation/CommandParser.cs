@@ -156,7 +156,9 @@ public enum CommandKind
     WalkInSale,
     OrderForCustomer,
     /// <summary>A short reply chosen by the parser: Text is the message template key to send (buyer messages, undo, invalid phone).</summary>
-    Notice
+    Notice,
+    /// <summary>"return Shirt 1 [cash|bank|none]" at the counter: a buyer brings goods back with no order (ConversationEngine.CounterReturn.cs).</summary>
+    CounterReturn
 }
 
 /// <summary>What to export: any of "orders", "customers", "catalog", "discounts" (empty = ask), and an optional orders period (today/yesterday/7d/30d/lastmonth).</summary>
@@ -840,6 +842,16 @@ public static class CommandParser
         decimal? amount = m.Groups["a"].Success && TryParseMoney(m.Groups["a"].Value, out var value) ? value : null;
         var note = m.Groups["note"].Success ? m.Groups["note"].Value.Trim() : "";
         return new ParsedCommand { Kind = CommandKind.ExpenseEdit, Number = editId, Amount = amount, Text = note };
+    }
+
+    // "return Shirt 1" / "counter return Lawn Suit 2 cash" / "wapas Shirt 1 none": goods back at the counter. Text = product, Number = quantity, Text2 = refund (cash|bank|none).
+    private static readonly Regex CounterReturnCmd = new(@"^(?:counter\s+)?(?:return|wapas)\s+(?<n>.*[^\W\d_].*?)\s+(?<q>\d{1,3})(?:\s+(?<r>cash|bank|none))?$", Opts);
+
+    private static ParsedCommand? TryParseCounterReturn(string message)
+    {
+        var m = CounterReturnCmd.Match(message);
+        if (!m.Success || !int.TryParse(m.Groups["q"].Value, out var qty)) return null;
+        return new ParsedCommand { Kind = CommandKind.CounterReturn, Text = m.Groups["n"].Value.Trim(), Number = qty, Text2 = m.Groups["r"].Success ? m.Groups["r"].Value : "none" };
     }
 
     private static ParsedCommand? TryParseExpense(string message)
@@ -1782,6 +1794,7 @@ public static class CommandParser
         // Before TryParseExpense: "expense edit 12 800" would otherwise read as an expense note "edit 12" of Rs.800.
         if (TryParseExpenseChange(message) is { } expenseChange) return expenseChange;
         if (TryParseExpense(message) is { } expense) return expense;
+        if (TryParseCounterReturn(message) is { } counterReturn) return counterReturn;
         if (ListWithPeriod.Match(message) is { Success: true } listed && (!listed.Groups["p"].Success || ReportPeriods.TryParseKey(listed.Groups["p"].Value, DateTime.UtcNow, out _)))
         {
             var word = listed.Groups["w"].Value.ToLowerInvariant();
