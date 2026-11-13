@@ -523,6 +523,9 @@ public partial class ConversationEngine
             case CommandKind.CategorySales:
                 await HandleCategorySalesAsync(seller, cmd.Text, ct);
                 return;
+            case CommandKind.CategoryCreate:
+                await HandleCreateCategoryAsync(seller, cmd.Text!, ct);
+                return;
             case CommandKind.Margin:
                 if (cmd.Text2 is { } marginPeriod)
                     await HandleMarginForPeriodAsync(seller, marginPeriod, lowestFirst: cmd.Text == "low", ct);

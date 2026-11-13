@@ -16,6 +16,8 @@ public enum CommandKind
     Profit,
     Margin,
     CategorySales,
+    // "Shirts category banao" / "category banao Winter 26 > Sukoon": creates the category (see HandleCreateCategoryAsync). Text = the name as typed.
+    CategoryCreate,
     Insight,
     Catalog,
     CatalogFilter,
@@ -223,6 +225,9 @@ public static class CommandParser
     private static readonly Regex EnquiryLogCmd = new(@"^(?:(?:buyer|customer|gahak|گاہک)\s+(?:ne\s+)?)?(?:enquiry|inquiry|pooch(?:a|ha|hi)?|puchh?a|پوچھا)\s*[:\-]?\s+(?<t>.{2,200})$", Opts);
 
     private static readonly Regex MarginCmd = new(@"^(?:margins?|margin\s+(?:list|report)|profit\s+margins?|discount\s+(?:room|limit)|munafa\s+per\s+product)$", Opts);
+    // "Shirts category banao", "Winter 26 > Sukoon category banao", "category banao Shirts", "category add Winter 26 > Sukoon".
+    // The name is kept as typed; the engine splits "Parent > Child" (or "Parent / Child") and refuses an empty or too long name.
+    private static readonly Regex CategoryCreateCmd = new(@"^(?:(?<c>.+?)\s+(?:categor(?:y|ies)|qism|kism)\s+(?:banao|bana\s+do|banaen|banayein|create|add|karo|kar\s+do)|(?:categor(?:y|ies)|qism|kism)\s+(?:banao|bana\s+do|create|add)\s+(?<c2>.+?))$", Opts);
     private static readonly Regex CategorySalesCmd = new(@"^(?:category[\s-]*wise\s+(?:sales?|report)|sales?\s+by\s+category|category\s+(?:sales?|report)|category\s+ki\s+sale|categories\s+sales?)(?:\s+(?<p>.+))?$", Opts);
     // "language urdu", "change language to english", "urdu mein karo", "اردو ma tabdeel karo": the seller names the language, so the bot switches without the picker.
     private const string LanguageWord = @"urdu|اردو|english|انگریزی|roman\s*urdu|roman";
@@ -1726,6 +1731,11 @@ public static class CommandParser
         if (PaymentMethodPrompt.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.PaymentMethodPrompt };
         if (ReportMenuCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ReportMenu };
         if (Guide.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Guide, Text = message.Contains("dekh", StringComparison.OrdinalIgnoreCase) || message.StartsWith("poora", StringComparison.OrdinalIgnoreCase) ? "full" : null };
+        if (CategoryCreateCmd.Match(message) is { Success: true } catCreate)
+        {
+            var catName = (catCreate.Groups["c"].Success ? catCreate.Groups["c"].Value : catCreate.Groups["c2"].Value).Trim();
+            if (catName.Length > 0) return new ParsedCommand { Kind = CommandKind.CategoryCreate, Text = catName };
+        }
         if (CategorySalesCmd.Match(message) is { Success: true } catSales)
         {
             var periodText = catSales.Groups["p"].Success ? catSales.Groups["p"].Value.Trim() : null;
