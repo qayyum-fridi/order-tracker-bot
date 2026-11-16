@@ -1697,6 +1697,25 @@
       "template": "margin {period}"
     },
     {
+      "id": "catalog.category_create",
+      "entity": "catalog",
+      "action": "category_create",
+      "kind": "CategoryCreate",
+      "description": "Create a product category.",
+      "examples": [
+        "Kapray category banao",
+        "category banao Shoes",
+        "create category Bags"
+      ],
+      "slots": {
+        "name": {
+          "required": true,
+          "sample": "Shoes"
+        }
+      },
+      "template": "category banao {name}"
+    },
+    {
       "id": "money.category_sales",
       "entity": "money",
       "action": "category_sales",

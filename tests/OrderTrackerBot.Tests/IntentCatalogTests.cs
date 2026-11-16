@@ -34,7 +34,8 @@ public class IntentCatalogTests
         "ForwardedQuery",                              // the whole message is the buyer's question and who asked it, no typed line to template
         "CounterReturn",                               // a counter return changes stock and cash: typed only (the risky list), never routed by the AI
         "SizeExchange",                                // changes stock and the order: typed only, never routed by the AI
-        "Notice",                                      // a template answer the parser picks for phrases it must not act on
+        "MarkAllTodayDelivered",                       // bulk status change for every order of the day: typed only, never routed by the AI
+        "Notice",                                    // a template answer the parser picks for phrases it must not act on
     };
 
     [Fact]
