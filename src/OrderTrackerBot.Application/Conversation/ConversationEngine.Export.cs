@@ -152,7 +152,21 @@ public partial class ConversationEngine
             Col("Quantity", typeof(int)), Col("Unit price", typeof(decimal)), Col("Line total", typeof(decimal))
         }, orders.SelectMany(o => o.Items.Select(i => new object?[] { o.Id, o.Customer?.Name, i.ProductNameSnapshot, i.Quantity, i.UnitPrice, i.LineTotal })).ToList());
 
-        return (label, new List<ExportSheet> { orderSheet, itemSheet });
+        // Counter returns (goods back with no order) are not orders, so they get their own sheet: the file's sales can be netted by hand.
+        var returns = await _db.CounterReturns.AsNoTracking()
+            .Where(r => r.SellerId == seller.Id && r.CreatedAt >= start && r.CreatedAt < end)
+            .OrderBy(r => r.CreatedAt).ToListAsync(ct);
+        var returnSheet = new ExportSheet("Counter Returns", new[]
+        {
+            Col("Date", typeof(DateTime)), Col("Product", typeof(string)), Col("Quantity", typeof(int)),
+            Col("Refund", typeof(decimal)), Col("Refund method", typeof(string))
+        }, returns.Select(r => new object?[]
+        {
+            local(r.CreatedAt), r.ProductName, r.Quantity, r.Amount,
+            r.RefundMethod switch { "cash" => "Cash", "bank" => "Transfer", _ => "None" }
+        }).ToList());
+
+        return (label, new List<ExportSheet> { orderSheet, itemSheet, returnSheet });
     }
 
     /// <summary>Expenses in the export's period (same period words as the orders sheet; default = all time). Courier fees are on the Orders sheet.</summary>
