@@ -443,6 +443,9 @@ public partial class ConversationEngine
             case CommandKind.Version:
                 await ReplyAsync(seller, _build.Describe(), ct);
                 break;
+            case CommandKind.CommandList:
+                await HandleCommandListAsync(seller, ct);
+                return;
             case CommandKind.SetupStatus:
                 await HandleSetupStatusAsync(seller, ct);
                 break;

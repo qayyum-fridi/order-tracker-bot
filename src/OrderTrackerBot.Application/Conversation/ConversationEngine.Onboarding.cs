@@ -585,7 +585,7 @@ public partial class ConversationEngine
                 {
                     if (parsed.Kind is CommandKind.Help or CommandKind.Menu or CommandKind.ConnectInstagram or CommandKind.ImportCatalogSheet
                         or CommandKind.BusinessSetup or CommandKind.NewOrderHelp or CommandKind.Guide or CommandKind.Stock
-                        or CommandKind.ImportHelp or CommandKind.ImportTemplate or CommandKind.HowTo
+                        or CommandKind.ImportHelp or CommandKind.ImportTemplate or CommandKind.HowTo or CommandKind.CommandList
                         or CommandKind.CustomerSearch or CommandKind.OrderSearch or CommandKind.CustomerOrderLookup
                         // Read-only lookups: they change nothing, so the seller can check orders or reports during setup.
                         or CommandKind.OrdersToday or CommandKind.OrderPage or CommandKind.PendingOrders or CommandKind.UnpaidOrders

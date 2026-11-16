@@ -13,6 +13,7 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 | Cancel / leave a question | `cancel` `stop` `back` `chhod do` `chhodo` `rehne do` `رہنے دو` (a tap on ❌ Cancel too) |
 | Finished (edit / design / product list) | `done` |
 | Help | `help` · `kya karun` · `kaise karun` · `?` |
+| Basic commands cheat sheet (examples of the seller's own kind of shop, in their language) | `commands` · `command list` · `basic commands` · `commands dikhao` · `show commands` · `cheat sheet` · `کمانڈز` |
 | Today / yesterday | `aaj` `آج` · `kal` |
 | Marked done | `ho gaya` `kar diya` `کر دیا` can follow a status word: `shipped kar diya` |
 

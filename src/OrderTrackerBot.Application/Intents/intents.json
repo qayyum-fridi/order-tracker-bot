@@ -2820,6 +2820,20 @@
       "template": "version"
     },
     {
+      "id": "account.commands",
+      "entity": "account",
+      "action": "commands",
+      "kind": "CommandList",
+      "description": "The list of basic typed commands, with examples for the seller's kind of shop.",
+      "examples": [
+        "commands",
+        "basic commands dikhao",
+        "kaun si commands hain"
+      ],
+      "slots": {},
+      "template": "commands"
+    },
+    {
       "id": "account.login",
       "entity": "account",
       "action": "login",

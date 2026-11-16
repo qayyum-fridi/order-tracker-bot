@@ -12,6 +12,19 @@ public sealed partial class ConversationEngine
     /// <summary>The wording profile of this seller's kind of shop (their business type); the general one when not set.</summary>
     private static IndustryProfile Industry(Seller seller) => IndustryProfiles.Resolve(seller.BusinessType);
 
+    /// <summary>
+    /// "commands": the typed-command cheat sheet in four short messages. The wording is the Roman Urdu templates <c>cmdlist.001-004</c> (English / Urdu-script
+    /// sellers get the hand-written translations through the usual sender); the examples ({0} product line, {1} full line, {2} name, {3} category,
+    /// {4} order) come from the seller's kind of shop. Read-only: nothing is saved.
+    /// </summary>
+    private async Task HandleCommandListAsync(Seller seller, CancellationToken ct)
+    {
+        var shop = Industry(seller);
+        var args = new object[] { shop.MainLine, shop.FullProduct, shop.MainName, shop.Category, shop.OrderExample };
+        foreach (var key in new[] { "cmdlist.001", "cmdlist.002", "cmdlist.003", "cmdlist.004" })
+            await ReplyAsync(seller, MessageTemplates.Get(key, args), ct);
+    }
+
     /// <summary>The kind-of-shop question at setup: one tap list (row ids are the <c>industry &lt;key&gt;</c> commands). A typed answer that names no kind is asked again.</summary>
     private async Task AskIndustryAsync(Seller seller, string? notUnderstood, CancellationToken ct)
     {
