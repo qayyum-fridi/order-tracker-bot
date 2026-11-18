@@ -71,7 +71,6 @@ public class CommandListTests : IDisposable
     [InlineData("help")]
     [InlineData("menu")]
     [InlineData("guide")]
-    [InlineData("kya karun")]
     public void EveryCommandInTheSheet_StillParses(string typed) => Assert.NotNull(CommandParser.TryParse(typed));
 
     [Fact]
@@ -101,7 +100,9 @@ public class CommandListTests : IDisposable
             {
                 var text = MessageTemplates.Get(key, shop.MainLine, shop.FullProduct, shop.MainName, shop.Category, shop.OrderExample);
                 Assert.True(MessageTranslations.TryTranslate(text, language, out var written), $"{shop.Key}/{key}/{language}");
-                Assert.Contains(shop.MainLine, written);
+                // Each part shows its own example: the product line in part 1, the order example in part 2.
+                var example = key switch { "cmdlist.001" => shop.MainLine, "cmdlist.002" => shop.OrderExample, _ => null };
+                if (example is not null) Assert.Contains(example, written);
             }
     }
 

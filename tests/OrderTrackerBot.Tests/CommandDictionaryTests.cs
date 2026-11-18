@@ -225,7 +225,7 @@ public class CommandDictionaryTests
     [InlineData("payment due list", CommandKind.UnpaidOrders)]
     [InlineData("courier payout", CommandKind.Payout)]
     [InlineData("TCS payout", CommandKind.Payout)]
-    [InlineData("commands", CommandKind.Help)]
+    [InlineData("commands", CommandKind.CommandList)]
     [InlineData("what can I do", CommandKind.Help)]
     [InlineData("how to use", CommandKind.Help)]
     [InlineData("madad chahiye", CommandKind.Help)]
