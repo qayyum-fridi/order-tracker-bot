@@ -204,7 +204,7 @@ Every phrase below is pinned in `StrategicInsightParserTests` (Urdu script and R
 
 | Task | Write |
 |---|---|
-| Menu / guide / language | `help` (or `commands` · `how to use` · `madad chahiye`) · `menu` · `guide` · `change language` |
+| Menu / guide / language | `help` (or `how to use` · `madad chahiye`) · `menu` · `guide` · `change language` |
 | Business info / plan | `update business info` · `subscribe` |
 | Bottom buttons | `shortcut off` (`shortcut on`) |
 | Data | `export` · `export orders 30 days` · `export expenses` · `import` |

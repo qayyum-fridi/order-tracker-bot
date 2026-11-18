@@ -211,7 +211,7 @@ public static class CommandParser
     private static readonly Regex LimitsCmd = new(@"^(?:limits?|hadood|hadd|meri\s+limits?|kitni\s+limits?|حد|حدود)$", Opts);
     private static readonly Regex DailyJobsCmd = new(@"^(?:rozana|roz\s+ka\s+kaam|rozana\s+kaam|daily\s+(?:jobs?|work)|روزانہ|روز\s+کا\s+کام)$", Opts);
     /// <summary>"commands", "command list", "basic commands", "commands dikhao", "cheat sheet", "kya commands hain": the typed-command cheat sheet.</summary>
-    private static readonly Regex CommandListCmd = new(@"^(?:(?:basic|all|sab|saari|mere|bot)\s+)?commands?(?:\s+(?:list|dikhao|dikhayen|dikhaiye|batao|bataen|dekhein|dekhna|chahiye))?$|^(?:list\s+of|show)\s+commands?$|^cheat\s*sheet$|^(?:kya|kaun\s+se)\s+commands?(?:\s+hain)?$|^کمانڈز?(?:\s+(?:لسٹ|فہرست|دکھائیں))?$", Opts);
+    private static readonly Regex CommandListCmd = new(@"^(?:(?:basic|all|sab|saari|mere|bot)\s+)?commands?(?:\s+(?:list|dikhao|dikhayen|dikhaiye|batao|bataen|dekhein|dekhna|chahiye))?$|^(?:list\s+of|show)\s+commands?$|^cheat\s*sheet$|^(?:kya|kaun\s+(?:se|si))\s+commands?(?:\s+hain)?$|^کمانڈز?(?:\s+(?:لسٹ|فہرست|دکھائیں))?$", Opts);
     private static readonly Regex VersionCmd =new(@"^(?:bot\s+)?(?:version|build|ورژن)$", Opts);
     // The typed command only. Other ways of asking ("is setup complete") are placed by the intent catalog (DB keywords, then the AI router).
     private static readonly Regex SetupStatusCmd = new(@"^setup\s+complete$", Opts);
