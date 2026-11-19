@@ -8,5 +8,8 @@
   "media.005": "{0}\n\nKonsa order match karta hai?",
   "media.006": "Theek hai, kuch mark nahi kiya.",
   "media.007": "Order chunein (button dabayein ya order number likhein), ya \"cancel\".",
-  "media.008": "✅ Order #{0} marked PAID ({1}{2})."
+  "media.008": "✅ Order #{0} marked PAID ({1}{2}).",
+  "media.010": "⚠️ Maaf kijiye, tasveer download nahi ho saki. Barae meherbani dobara bhejein.",
+  "media.011": "⚠️ Maaf kijiye, abhi tasveer parhne mein masla aa raha hai. Barae meherbani thori der baad dobara bhejein, ya order likh kar bhej dein.",
+  "media.012": "💰 Payment receipt mila — {0}{1}"
 }

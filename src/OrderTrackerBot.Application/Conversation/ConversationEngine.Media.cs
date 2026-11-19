@@ -128,6 +128,7 @@ public partial class ConversationEngine
         if (media is { } audio && (audio.Bytes.Length < MinVoiceBytes || VoiceTooLong(audio.Bytes)))
         {
             VoiceStats.Record(audio.Bytes.Length < MinVoiceBytes ? "refused_too_short" : "refused_too_long");
+            RefundUsage(fromPhoneNumber, MediaKind.Voice);
             await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get(audio.Bytes.Length < MinVoiceBytes ? "voice-confirm.018" : "voice-confirm.019"), ct);
             await _db.SaveChangesAsync(ct);
             return;
@@ -136,6 +137,7 @@ public partial class ConversationEngine
         if (_lastAudioHash is not null && SessionContextData.FromJson(seller.Session!.ContextJson).ProcessedVoiceHashes?.Contains(_lastAudioHash) == true)
         {
             VoiceStats.Record("duplicate_note");
+            RefundUsage(fromPhoneNumber, MediaKind.Voice);
             await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("voice-undo.003"), ct);
             await _db.SaveChangesAsync(ct);
             return;
@@ -167,6 +169,8 @@ public partial class ConversationEngine
         VoiceStats.Record(text is null ? "transcription_failed" : "note_transcribed");
         if (text is null)
         {
+            // A download that failed made no paid call, so it is not the seller's use of the hourly cap (a failed transcription was attempted and still counts).
+            if (media is null) RefundUsage(fromPhoneNumber, MediaKind.Voice);
             if (_issues is not null)
                 await _issues.ReportAsync(Abstractions.IssueCodes.VoiceTranscriptionFailed, fromPhoneNumber,
                     media is null ? "media download failed" : "transcription returned nothing", null, ct);
@@ -217,6 +221,9 @@ public partial class ConversationEngine
                 ? DecideRewrite(text, new[] { routed.Command }, null)
                 : TurnDecision.Clarify(RoutedReply(routed));
         }
+        // A note that made no action is not remembered as handled: a reply to it is a fresh note, not a correction of an order that never existed.
+        if (messageId is not null && decision.Kind is DecisionKind.Clarify or DecisionKind.Reject)
+            await ForgetVoiceNoteAsync(seller, messageId, ct);
         VoiceStats.Record("decision_" + decision.Kind.ToString().ToLowerInvariant());
         if (decision.Kind != DecisionKind.Execute) LogNotUnderstood("voice-" + decision.Kind.ToString().ToLowerInvariant(), seller.Session!.State, text);
         if (decision.Kind != DecisionKind.Execute) await RecordUnplacedAsync(seller, "voice_" + decision.Kind.ToString().ToLowerInvariant(), text, null, null, ct);
@@ -352,6 +359,15 @@ public partial class ConversationEngine
         ids.Remove(messageId);
         ids.Add(messageId);
         ctx.ProcessedVoiceNoteIds = ids.TakeLast(20).ToList();
+        await PersistAsync(session, ctx, ct);
+    }
+
+    private async Task ForgetVoiceNoteAsync(Seller seller, string messageId, CancellationToken ct)
+    {
+        var session = seller.Session!;
+        var ctx = SessionContextData.FromJson(session.ContextJson);
+        if (ctx.ProcessedVoiceNoteIds is not { } ids || !ids.Remove(messageId)) return;
+        ctx.ProcessedVoiceNoteIds = ids;
         await PersistAsync(session, ctx, ct);
     }
 
@@ -1080,7 +1096,7 @@ public partial class ConversationEngine
         return null;
     }
 
-    private static readonly Regex HedgeWord = new(@"\b(?:agar|shayad|maybe|perhaps|if|soch\w*|dekh\w*|ruk\w*|wait|hmm+|pata\s+nahi|pata\s+nahin)\b|(?<!\p{L})(?:شاید|اگر|سوچ\p{L}*|رک(?:و|نا|یں|یے)?|ہمم+|پتا\s+نہیں|پتہ\s+نہیں)(?!\p{L})",RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex HedgeWord = new(@"\b(?:agar|shayad|maybe|perhaps|if|soch\w*|dekh(?:ta|ti|ungi|unga|lun|loon)|ruk\w*|wait|hmm+|pata\s+nahi|pata\s+nahin)\b|(?<!\p{L})(?:شاید|اگر|سوچ\p{L}*|رک(?:و|نا|یں|یے)?|ہمم+|پتا\s+نہیں|پتہ\s+نہیں)(?!\p{L})",RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     private static readonly Regex BareAffirmation = new(@"^(yes|y|ha|haan|han|hanji|ji|jee|ok|okay|theek hai|thik hai)[.!]*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
     private static readonly Regex ReversalWord = new(@"(?:\b(?:lekin|magar|par|but|however|nahi|nahin|nahee|mat|na|no|ruk|ruko|rukna|pehle|phir|cancel|agar|shayad|soch|sochta|sochna|sochun|dekhta|dekhti|dekhungi|hmm|hmmm|baad|abhi|wait|if|maybe)\b)|(?<!\p{L})(?:لیکن|مگر|پر|نہیں|مت|رک(?:و|نا|یں|یے)?|پہلے|پھر|منسوخ|کینسل|اگر|شاید|سوچ\p{L}*|ہمم+|بعد|ابھی)(?!\p{L})|\?|؟|\.\.\.|…", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
@@ -1224,7 +1240,16 @@ public partial class ConversationEngine
         var media = _media is null ? null : await _media.DownloadAsync(mediaId, ct);
         if (media is null)
         {
-            await HandleUnsupportedMediaAsync(fromPhoneNumber, "image", ct);
+            if (_media is null)
+                await HandleUnsupportedMediaAsync(fromPhoneNumber, "image", ct);
+            else
+            {
+                // Media is set up but the download failed (network, expired id): ask for a resend and tell the founder, as a failed voice note does.
+                RefundUsage(fromPhoneNumber, MediaKind.Image);
+                if (_issues is not null)
+                    await _issues.ReportAsync(Abstractions.IssueCodes.ScreenshotFailed, fromPhoneNumber, "image download failed", null, ct);
+                await ReplyAsync(seller, MessageTemplates.Get("media.010"), ct);
+            }
             await PersistAsync(session, ctx, ct);
             return;
         }
@@ -1240,6 +1265,7 @@ public partial class ConversationEngine
         // A picture sent with a QUESTION ("yeh color milega?", "kapra kaun sa hai?") is a question, not an order: no draft is made and any draft in progress stays.
         if (IsQuestionCaption(caption))
         {
+            RefundUsage(fromPhoneNumber, MediaKind.Image);
             await ReplyAsync(seller, MessageTemplates.Get("media.009"), ct);
             await PersistAsync(session, ctx, ct);
             return;
@@ -1266,7 +1292,9 @@ public partial class ConversationEngine
             await ReplyAsync(seller, MessageTemplates.Get("voice-confirm.036"), ct);
         }
 
-        // A screenshot starts fresh: any half-finished draft/prompt is dropped.
+        // A screenshot starts fresh: any half-finished draft/prompt is dropped. Kept aside so it can come back when the picture could not be read at all.
+        var priorContextJson = ctx.ToJson();
+        var priorState = session.State;
         ResetFlowContext(ctx);
         SetState(session, ConversationState.Idle);
         // Without a type word the picture is read as an order or a payment receipt as before, and remembered for a few minutes:
@@ -1287,7 +1315,16 @@ public partial class ConversationEngine
 
         if (analysis.Receipt is { Amount: > 0 } receipt)
             await StartReceiptMatchAsync(seller, session, ctx, receipt, ct);
-        else if (analysis.Order is null && (analysis.AiUnavailable || analysis.Intent is "unclear" or "off_topic"))
+        else if (analysis.Order is null && analysis.AiUnavailable)
+        {
+            // The reader was down or timed out: that is not an unclear picture. Say so, tell the founder, and give the seller's draft back.
+            if (_issues is not null)
+                await _issues.ReportAsync(Abstractions.IssueCodes.OpenAiAnalysisFailed, fromPhoneNumber, "screenshot analysis unavailable", null, ct);
+            ctx = SessionContextData.FromJson(priorContextJson);
+            SetState(session, priorState);
+            await ReplyAsync(seller, MessageTemplates.Get("media.011"), ct);
+        }
+        else if (analysis.Order is null && analysis.Intent is "unclear" or "off_topic")
         {
             // Not an order or a payment receipt: ask what the picture is, with taps, instead of a "samajh nahi aaya". A tap is the type word, and the picture
             // was remembered above, so it is read as that type.
@@ -1314,8 +1351,8 @@ public partial class ConversationEngine
         var exact = unpaid.Where(o => o.Total == receipt.Amount).ToList();
         var candidates = (exact.Count > 0 ? exact : unpaid).Take(3).ToList();
 
-        var header = $"💰 Payment receipt mila — {Formatters.Money(receipt.Amount!.Value)}" +
-                     (receipt.Provider is null ? "" : $" ({receipt.Provider}{(receipt.TransactionId is null ? "" : $" TID: {receipt.TransactionId}")})");
+        var header = MessageTemplates.Get("media.012", Formatters.Money(receipt.Amount!.Value),
+            receipt.Provider is null ? "" : $" ({receipt.Provider}{(receipt.TransactionId is null ? "" : $" TID: {receipt.TransactionId}")})");
         if (candidates.Count == 0)
         {
             await ReplyAsync(seller, MessageTemplates.Get("media.004", header), ct);

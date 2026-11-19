@@ -33,8 +33,18 @@ public class FreeSellerAndMediaLimitTests : IDisposable
 
     public void Dispose() => _dbFactory.Dispose();
 
-    private ConversationEngine Engine(AppDbContext db, BillingOptions? billing = null, MediaRateLimiter? limiter = null) =>
-        new(db, _ai.Object, _sender.Object, _founder.Object, billing, Mock.Of<IWhatsAppMediaClient>(), transcriber: _transcriber.Object, mediaLimiter: limiter);
+    /// <summary>A media client whose downloads succeed with a different file each time, so a failed or duplicate download is not what the test measures.</summary>
+    private static IWhatsAppMediaClient DownloadingMedia()
+    {
+        var calls = 0;
+        var media = new Mock<IWhatsAppMediaClient>();
+        media.Setup(m => m.DownloadAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => { var bytes = new byte[4096]; bytes[0] = (byte)(++calls); return ((byte[] Bytes, string MimeType)?)(bytes, "audio/ogg"); });
+        return media.Object;
+    }
+
+    private ConversationEngine Engine(AppDbContext db, BillingOptions? billing = null, MediaRateLimiter? limiter = null, IWhatsAppMediaClient? media = null) =>
+        new(db, _ai.Object, _sender.Object, _founder.Object, billing, media ?? Mock.Of<IWhatsAppMediaClient>(), transcriber: _transcriber.Object, mediaLimiter: limiter);
 
     private async Task OnboardAsync(ConversationEngine engine, string phone)
     {
@@ -93,7 +103,7 @@ public class FreeSellerAndMediaLimitTests : IDisposable
     public async Task Voice_notes_beyond_the_hourly_limit_are_refused_before_any_paid_call()
     {
         using var db = _dbFactory.CreateContext();
-        var engine = Engine(db, new BillingOptions { Enabled = false }, new MediaRateLimiter(new MediaLimitOptions { VoicePerHour = 2 }));
+        var engine = Engine(db, new BillingOptions { Enabled = false }, new MediaRateLimiter(new MediaLimitOptions { VoicePerHour = 2 }), DownloadingMedia());
         await OnboardAsync(engine, First);
         _sent.Clear();
 
@@ -101,14 +111,16 @@ public class FreeSellerAndMediaLimitTests : IDisposable
 
         Assert.Equal(2, _sent.Count(m => m.Contains("Voice message samajh nahi aaya")));
         Assert.Single(_sent, m => m.Contains("2 voice notes ki limit"));
-        _transcriber.Verify(t => t.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>()), Times.Never);
+        _transcriber.Verify(t => t.TranscribeAsync(It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<string>?>(), It.IsAny<CancellationToken>()), Times.Exactly(2));   // the third note was refused before any paid call
     }
 
     [Fact]
     public async Task Screenshots_beyond_the_hourly_limit_are_refused()
     {
         using var db = _dbFactory.CreateContext();
-        var engine = Engine(db, new BillingOptions { Enabled = false }, new MediaRateLimiter(new MediaLimitOptions { ImagePerHour = 1 }));
+        _ai.Setup(a => a.AnalyzeImageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<AiImageInput>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { AiUnavailable = true });
+        var engine = Engine(db, new BillingOptions { Enabled = false }, new MediaRateLimiter(new MediaLimitOptions { ImagePerHour = 1 }), DownloadingMedia());
         await OnboardAsync(engine, First);
         _sent.Clear();
 
@@ -116,7 +128,22 @@ public class FreeSellerAndMediaLimitTests : IDisposable
         await engine.HandleImageMessageAsync(First, "img-2", null);
 
         Assert.Single(_sent, m => m.Contains("1 screenshots ki limit"));
-        Assert.Single(_sent, m => m.Contains("screenshot abhi parh nahi saka"));
+        Assert.Single(_sent, m => m.Contains("tasveer parhne mein masla"));
+    }
+
+    [Fact]
+    public async Task A_failed_download_does_not_use_up_the_screenshot_cap()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = Engine(db, new BillingOptions { Enabled = false }, new MediaRateLimiter(new MediaLimitOptions { ImagePerHour = 1 }), media: Mock.Of<IWhatsAppMediaClient>());
+        await OnboardAsync(engine, First);
+        _sent.Clear();
+
+        await engine.HandleImageMessageAsync(First, "img-1", null);
+        await engine.HandleImageMessageAsync(First, "img-2", null);
+
+        Assert.DoesNotContain(_sent, m => m.Contains("screenshots ki limit"));
+        Assert.Equal(2, _sent.Count(m => m.Contains("download nahi ho saki")));
     }
 
     [Fact]

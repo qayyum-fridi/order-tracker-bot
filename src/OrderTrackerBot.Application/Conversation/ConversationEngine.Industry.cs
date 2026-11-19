@@ -14,16 +14,23 @@ public sealed partial class ConversationEngine
 
     /// <summary>
     /// "commands": the typed-command cheat sheet in four short messages. The wording is the Roman Urdu templates <c>cmdlist.001-004</c> (English / Urdu-script
-    /// sellers get the hand-written translations through the usual sender); the examples ({0} product line, {1} full line, {2} name, {3} category,
-    /// {4} order) come from the seller's kind of shop. Read-only: nothing is saved.
+    /// sellers get the hand-written translations through the usual sender); the examples come from the seller's kind of shop. Placeholders are numbered
+    /// from zero without gaps per key (a test enforces it): see <see cref="CommandListArgs"/>. Read-only: nothing is saved.
     /// </summary>
     private async Task HandleCommandListAsync(Seller seller, CancellationToken ct)
     {
         var shop = Industry(seller);
-        var args = new object[] { shop.MainLine, shop.FullProduct, shop.MainName, shop.Category, shop.OrderExample };
         foreach (var key in new[] { "cmdlist.001", "cmdlist.002", "cmdlist.003", "cmdlist.004" })
-            await ReplyAsync(seller, MessageTemplates.Get(key, args), ct);
+            await ReplyAsync(seller, MessageTemplates.Get(key, CommandListArgs(key, shop)), ct);
     }
+
+    /// <summary>Part 1: {0} product line, {1} full line, {2} name, {3} category. Part 2: {0} order example, {1} name. Parts 3 and 4 have no examples.</summary>
+    internal static object[] CommandListArgs(string key, IndustryProfile shop) => key switch
+    {
+        "cmdlist.001" => new object[] { shop.MainLine, shop.FullProduct, shop.MainName, shop.Category },
+        "cmdlist.002" => new object[] { shop.OrderExample, shop.MainName },
+        _ => Array.Empty<object>()
+    };
 
     /// <summary>The kind-of-shop question at setup: one tap list (row ids are the <c>industry &lt;key&gt;</c> commands). A typed answer that names no kind is asked again.</summary>
     private async Task AskIndustryAsync(Seller seller, string? notUnderstood, CancellationToken ct)
