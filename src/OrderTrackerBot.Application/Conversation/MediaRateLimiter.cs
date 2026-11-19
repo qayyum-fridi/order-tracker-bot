@@ -79,8 +79,9 @@ public sealed class MediaRateLimiter
             var cost = CostFor(kind);
             if (budgetUsd > 0 && queue.Sum(h => h.Usd) + cost > budgetUsd)
             {
-                // Approximate: the oldest hit leaving the window is when the budget starts to free up.
-                retryAfter = queue.Peek().At + Window - now;
+                // Approximate: the oldest hit leaving the window is when the budget starts to free up. With no hits at all, one use costs more
+                // than the whole budget (a mis-set limit): it never fits, so a full window is the honest wait.
+                retryAfter = queue.Count > 0 ? queue.Peek().At + Window - now : Window;
                 return UsageDecision.BudgetLimit;
             }
 
