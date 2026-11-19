@@ -98,7 +98,7 @@ public class CommandListTests : IDisposable
         foreach (var shop in IndustryProfiles.All.Append(IndustryProfiles.General))
             foreach (var key in new[] { "cmdlist.001", "cmdlist.002", "cmdlist.003", "cmdlist.004" })
             {
-                var text = MessageTemplates.Get(key, shop.MainLine, shop.FullProduct, shop.MainName, shop.Category, shop.OrderExample);
+                var text = MessageTemplates.Get(key, ConversationEngine.CommandListArgs(key, shop));
                 Assert.True(MessageTranslations.TryTranslate(text, language, out var written), $"{shop.Key}/{key}/{language}");
                 // Each part shows its own example: the product line in part 1, the order example in part 2.
                 var example = key switch { "cmdlist.001" => shop.MainLine, "cmdlist.002" => shop.OrderExample, _ => null };

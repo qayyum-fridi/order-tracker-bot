@@ -45,6 +45,9 @@ public partial class ConversationEngine
         return decision == UsageDecision.Allowed;
     }
 
+    /// <summary>Gives back a use taken by <see cref="TryTakeUsage"/> when the message ended without a paid call (too short, duplicate, failed download).</summary>
+    private void RefundUsage(string phone, MediaKind kind) => _mediaLimiter?.Refund(phone, kind);
+
     private string UsageLimitText(Seller seller, MediaKind kind, UsageDecision decision, TimeSpan wait)
     {
         var limiter = _mediaLimiter!;

@@ -89,6 +89,21 @@ public sealed class MediaRateLimiter
         }
     }
 
+    /// <summary>Gives back the newest use of this kind: the message was refused or failed before any paid call was made.</summary>
+    public void Refund(string phone, MediaKind kind)
+    {
+        if (!_hits.TryGetValue(phone, out var queue)) return;
+        lock (queue)
+        {
+            var kept = queue.ToList();
+            var index = kept.FindLastIndex(h => h.Kind == kind);
+            if (index < 0) return;
+            kept.RemoveAt(index);
+            queue.Clear();
+            foreach (var hit in kept) queue.Enqueue(hit);
+        }
+    }
+
     /// <summary>Count cap only (no USD budget). Returns false and how long until a slot frees when the hour is full.</summary>
     public bool TryConsume(string phone, MediaKind kind, out TimeSpan retryAfter) =>
         Consume(phone, kind, budgetUsd: 0, out retryAfter) == UsageDecision.Allowed;
