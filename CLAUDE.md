@@ -19,6 +19,9 @@ dotnet test
 # single test
 dotnet test --filter "FullyQualifiedName~CommandParserTests.Parses_MarkShipped"
 
+# several guard suites at once (alternation works in --filter)
+dotnet test --filter "FullyQualifiedName~CommandListTests|FullyQualifiedName~IntentCatalogTests|FullyQualifiedName~CommandDictionaryTests|FullyQualifiedName~MessageTranslationsTests|FullyQualifiedName~TemplateGuardTests"
+
 # large-account latency/accuracy benchmark (skipped unless OTB_PERF=1; OTB_PERF_ORDERS=30000 default)
 OTB_PERF=1 dotnet test --filter "FullyQualifiedName~LargeAccountPerfTests" --logger "console;verbosity=detailed"
 
@@ -113,6 +116,8 @@ entry's `template` and runs it through the normal parser, so the model never wri
 `IntentCatalogTests` fails when a template stops parsing, names the wrong kind, or uses a slot with no sample value.
 
 **Bot wording lives in templates.** Every seller-facing message is a keyed entry in `src/OrderTrackerBot.Application/Templates/Messages/*.json` (embedded; keys unique across files; the file name only groups them), written in Roman Urdu. English / Urdu-script sellers get hand-written text from `Templates/Translations/<language>/*.json` (`MessageTranslations`, same keys and placeholders; `MessageTranslationsTests` fails on a missing key, an extra key or changed placeholders); the AI translates only text no template matches. Code sends `MessageTemplates.Get("key", args...)` with `{0}`, `{1}` placeholders; the caller formats numbers and money. Add a new message as a key, never as a prose literal in a send call: `TemplateGuardTests` fails on the usual form. Button labels the engine matches on stay in code. Industry shop wording lives in `Templates/Industries/*.json`.
+Placeholder rule: a translation may use only slots the Roman Urdu source fills. Translated args are matched by slot; a translation that references an unfilled slot fails (`MessageTranslations.TryTranslate` returns false). Keep each key's slots the same in every language file.
+New `CommandKind`: add an `intents.json` entry or a `NotInCatalog` exclusion, a row in `docs/command-dictionary.md`, and a `CommandDictionaryTests` case.
 
 ## Deployment
 
@@ -123,7 +128,7 @@ via `Dockerfile` + `docker-compose.yml` (recently switched to Sqlite — README'
 a bundled SQL Server container may be stale). Pushing to or restarting the server is a
 shared-state action: confirm with the user and get SSH/host details first.
 
-## Known gaps (intentionally out of scope for this pass)
+## Feature notes and known gaps (per-feature detail; verify in code before relying on it)
 
 - Safepay payment gateway integration is a placeholder message only (the merchant ID is saved;
   "payment link" still shows manual numbers).
