@@ -139,7 +139,9 @@ public sealed class WebhookInbox
         {
             if (await WasStartedAsync(message.Id, ct))
             {
+                // A seller who could not be told must not stop the recovery of the messages after theirs: the row is closed and the loop goes on.
                 try { await interrupted(message); }
+                catch (Exception) when (!ct.IsCancellationRequested) { }
                 finally { await CompleteAsync(message.Id, CancellationToken.None); }
                 cutOff++;
             }
