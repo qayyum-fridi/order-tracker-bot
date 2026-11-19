@@ -1245,7 +1245,8 @@ public partial class ConversationEngine
             else
             {
                 // Media is set up but the download failed (network, expired id): ask for a resend and tell the founder, as a failed voice note does.
-                RefundUsage(fromPhoneNumber, MediaKind.Image);
+                // A logo / banner picture never took a use, so there is nothing to give back for it.
+                if (!CommandParser.TryParseBrandingCaption(caption, out _)) RefundUsage(fromPhoneNumber, MediaKind.Image);
                 if (_issues is not null)
                     await _issues.ReportAsync(Abstractions.IssueCodes.ScreenshotFailed, fromPhoneNumber, "image download failed", null, ct);
                 await ReplyAsync(seller, MessageTemplates.Get("media.010"), ct);
