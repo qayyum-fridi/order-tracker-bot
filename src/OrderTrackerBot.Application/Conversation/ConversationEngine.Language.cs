@@ -167,7 +167,7 @@ public partial class ConversationEngine
         await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
             MessageTemplates.Get("business.setup.summary",
                 seller.BusinessName, seller.City ?? "—", seller.BusinessType ?? "—", seller.InstagramHandle ?? "—", payment, languageName),
-            BusinessSetupButtons, ct);
+            BusinessSetupButtons.Where(b => !IsCutCommandText(b)).ToArray(), ct);
     }
 
     private async Task StartPaymentMethodInputAsync(Seller seller, ConversationSession session, CancellationToken ct)
@@ -182,6 +182,12 @@ public partial class ConversationEngine
         if (CommandParser.TryParse(message) is { } other && other.Kind != CommandKind.AddPaymentMethod)
         {
             await ExecuteCommandAsync(seller, session, ctx, other, ct);
+            return;
+        }
+        if (IsOutOfMvp(CommandKind.AddPaymentMethod))
+        {
+            // A state left from before the MVP cut: the method is not saved.
+            await ReplyAsync(seller, MessageTemplates.Get("mvp.001"), ct);
             return;
         }
 

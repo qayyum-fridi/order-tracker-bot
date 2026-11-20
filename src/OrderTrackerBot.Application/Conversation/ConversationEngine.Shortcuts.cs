@@ -60,5 +60,5 @@ public partial class ConversationEngine
     /// </summary>
     private void SuggestNext(params string[] commands) =>
         // "menu" is left out: the bar appends its own Menu button, so it would show twice.
-        _nextActions = commands.Where(c => c.Length <= 20 && !string.Equals(c, "menu", StringComparison.OrdinalIgnoreCase) && CommandParser.TryParse(c) is not null).Distinct().Take(2).ToList();
+        _nextActions = commands.Where(c => c.Length <= 20 && !string.Equals(c, "menu", StringComparison.OrdinalIgnoreCase) && CommandParser.TryParse(c) is { } parsed && !IsOutOfMvp(parsed)).Distinct().Take(2).ToList();
 }
