@@ -179,6 +179,87 @@ public class GuidedQuestionTests : IDisposable
         Assert.Equal(1800, (await db.Products.AsNoTracking().SingleAsync()).Price);
     }
 
+    private static async Task<bool> ShirtActive(AppDbContext db) => (await db.Products.AsNoTracking().SingleAsync()).IsActive;
+
+    [Fact]
+    public async Task DeletingAProductInOwnWords_AsksYesFirst_ThenTakesItOffTheList()
+    {
+        var (db, say) = await ShopAsync();
+        using var _ = db;
+        _model["Shirt ab nahi bechti, list se hata do"] = new TurnAction { Action = TurnAction.DeleteProduct, Products = { new AiNewProduct { Name = "Shirt" } } };
+
+        await say("Shirt ab nahi bechti, list se hata do");
+        Assert.Contains(MessageTemplates.Get("model-delete.001", "Shirt"), _sent);
+        Assert.True(await ShirtActive(db));
+
+        await say("yes");
+        Assert.False(await ShirtActive(db));
+        Assert.Single(await db.Orders.AsNoTracking().Where(o => o.Items.Any(i => i.ProductNameSnapshot == "Shirt")).Select(o => o.Id).Take(1).ToListAsync());
+    }
+
+    [Fact]
+    public async Task DeletingAProduct_AndSayingNo_KeepsIt()
+    {
+        var (db, say) = await ShopAsync();
+        using var _ = db;
+        _model["shirt band kar do"] = new TurnAction { Action = TurnAction.DeleteProduct, Products = { new AiNewProduct { Name = "Shirt" } } };
+
+        await say("shirt band kar do");
+        await say("no");
+
+        Assert.True(await ShirtActive(db));
+    }
+
+    [Fact]
+    public async Task DeletingAProductWithNoName_ListsProductsToTap()
+    {
+        var (db, say) = await ShopAsync();
+        using var _ = db;
+        _model["ek product hatana hai"] = new TurnAction { Action = TurnAction.DeleteProduct };
+        var shirtId = (await db.Products.AsNoTracking().SingleAsync()).Id;
+
+        await say("ek product hatana hai");
+        Assert.Contains(_sent, m => m.StartsWith(MessageTemplates.Get("guided.product.delete")));
+        Assert.Contains($"%{shirtId}", _rowIds);
+
+        await say($"%{shirtId}");
+        Assert.True(await ShirtActive(db));
+        await say("yes");
+        Assert.False(await ShirtActive(db));
+    }
+
+    [Fact]
+    public async Task DeletingACustomerInOwnWords_AsksYes_ThenRemovesOnlyThem()
+    {
+        var (db, say) = await ShopAsync();
+        using var _ = db;
+        _model["Bilal ab nahi aata, usko list se nikal do"] = new TurnAction { Action = TurnAction.DeleteCustomer, CustomerName = "Bilal" };
+
+        await say("Bilal ab nahi aata, usko list se nikal do");
+        Assert.Null((await db.Customers.AsNoTracking().SingleAsync(c => c.Id == _bilalId)).DeletedAt);
+        await say("yes");
+
+        Assert.NotNull((await db.Customers.AsNoTracking().SingleAsync(c => c.Id == _bilalId)).DeletedAt);
+        Assert.Null((await db.Customers.AsNoTracking().SingleAsync(c => c.Id == _saraId)).DeletedAt);
+    }
+
+    [Fact]
+    public async Task DeletingACustomerNamedAmbiguously_AsksWhichOne_AndOnlyThatOneGoes()
+    {
+        var (db, say) = await ShopAsync();
+        using var _ = db;
+        _model["Ali ko list se hata do"] = new TurnAction { Action = TurnAction.DeleteCustomer, CustomerName = "Ali" };
+
+        await say("Ali ko list se hata do");
+        Assert.Contains(_sent, m => m.Contains("naam ke 2 customer hain"));
+
+        await say($"@{_aliRazaId}");
+        await say("yes");
+
+        Assert.NotNull((await db.Customers.AsNoTracking().SingleAsync(c => c.Id == _aliRazaId)).DeletedAt);
+        Assert.Null((await db.Customers.AsNoTracking().SingleAsync(c => c.Id == _aliHassanId)).DeletedAt);
+    }
+
     [Fact]
     public async Task AnotherMessage_InsteadOfATap_IsHandledOnItsOwn_AndChangesNothing()
     {

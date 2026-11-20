@@ -8,5 +8,8 @@
   "guided.customer.which": "❓ \"{0}\" naam ke {1} customer hain. Kaun sa? Neeche se chunein 👇",
   "guided.customer.value": "❓ {0} ka naya {1} kya hai? Barae meherbani bata dein, jaise: \"{0} ka {1} {2}\"",
   "guided.customer.what": "❓ {0} ki kaun si cheez badalni hai? Barae meherbani bata dein, jaise: \"{0} ka phone 03001234567\" ya \"{0} ka pata Model Town\"",
-  "guided.product.price": "❓ {0} ki nayi qeemat kya hai? Barae meherbani bata dein, jaise: \"{0} ka rate 2000\""
+  "guided.product.price": "❓ {0} ki nayi qeemat kya hai? Barae meherbani bata dein, jaise: \"{0} ka rate 2000\"",
+  "guided.product.delete": "❓ Kaun sa product list se hatana hai? Neeche se chunein 👇",
+  "guided.customer.delete": "❓ Kis customer ko list se hatana hai? Barae meherbani naam bata dein, jaise: \"Sara ko list se hata do\"",
+  "model-delete.001": "❓ {0} ko catalog se hata dein? Purane orders mein yeh rahega. Haan ke liye YES likhein, nahi ke liye NO."
 }

@@ -168,6 +168,8 @@ public partial class ConversationEngine
         TurnAction.ExchangeSize => action.ItemName is not null && !string.IsNullOrWhiteSpace(action.Value) && (SaidOrderId(action, message) is not null
                                 || (SaidName(action.CustomerName, message) && await FindLatestOrderByCustomerNameAsync(seller, action.CustomerName!, ct) is not null)),
         TurnAction.CreateCategory => !string.IsNullOrWhiteSpace(action.Value),
+        TurnAction.DeleteProduct => action.Products.Count > 0 && !string.IsNullOrWhiteSpace(action.Products[0].Name),
+        TurnAction.DeleteCustomer => !string.IsNullOrWhiteSpace(action.CustomerName),
         _ => false,
     };
 
@@ -360,6 +362,24 @@ public partial class ConversationEngine
                 await HandleCreateCategoryAsync(seller, action.Value!, ct);
                 return true;
 
+            case TurnAction.DeleteProduct when action.Products.Count > 0:
+                // The product is found first (a variant name lists its sizes / colours); it is taken off the list only after YES.
+                var (doomed, variants) = await FindProductMatchAsync(seller, action.Products[0].Name, ct);
+                if (doomed is null && variants.Count > 1) { await ReplyVariantChoiceAsync(seller, action.Products[0].Name, variants, ct); return true; }
+                if (doomed is null) { await ReplyAsync(seller, MessageTemplates.Get("commands.022", action.Products[0].Name), ct); return true; }
+                ctx.ModelEdit = new ModelEditData { Kind = TurnAction.DeleteProduct, Name = Formatters.ProductLabel(doomed) };
+                SetState(session, ConversationState.AwaitingModelStatusConfirmation);
+                await AskYesNoAsync(seller, MessageTemplates.Get("model-delete.001", Formatters.ProductLabel(doomed)), ct);
+                return true;
+
+            case TurnAction.DeleteCustomer when !string.IsNullOrWhiteSpace(action.CustomerName):
+                // The typed "delete customer" flow: it finds the customer, asks YES, and keeps them restorable for a while.
+                await HandleDeleteCustomerRequestAsync(seller, session, ctx, new ParsedCommand
+                {
+                    Kind = CommandKind.DeleteCustomer, Text = (await ModelCustomerAsync(seller, action.CustomerName, ct))?.Name ?? action.CustomerName!.Trim(),
+                }, ct);
+                return true;
+
             case TurnAction.HowTo:
                 var profile = Industry(seller);
                 var topic = action.Topic is not null && action.Topic != "other" ? action.Topic : "other";
@@ -520,6 +540,8 @@ public partial class ConversationEngine
         {
             if (edit.Kind == TurnAction.EditProduct)
                 await HandleEditProductAsync(seller, new ParsedCommand { Kind = CommandKind.EditProduct, Text = edit.Name, Amount = edit.Amount }, ct);
+            else if (edit.Kind == TurnAction.DeleteProduct)
+                await HandleDeleteProductAsync(seller, edit.Name, ct);
             else if (edit.Kind == TurnAction.EditOrder)
                 await ApplyModelOrderEditAsync(seller, session, ctx, edit, ct);
             else if (edit.Kind == PictureProductKind)
