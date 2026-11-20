@@ -3,42 +3,34 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using OrderTrackerBot.Application.Ai;
-using OrderTrackerBot.Application.Conversation;
 using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Infrastructure.Ai;
 using Xunit;
 using Xunit.Abstractions;
+using Case = OrderTrackerBot.Tests.UnderstandingFixture.Case;
 
 namespace OrderTrackerBot.Tests;
 
 /// <summary>
-/// Phase 0 of docs/mvp-model-first-plan.md: scores today's understanding pipeline on the labelled MVP messages in
-/// Fixtures/understanding-cases.json. The pipeline mirrors the engine's order: exact rules first (CommandParser), then the AI order reader.
+/// Phase 0 of docs/mvp-model-first-plan.md: scores the OLD understanding pipeline on the labelled MVP messages in
+/// Fixtures/understanding-cases.json. The pipeline is exact rules first (CommandParser), then the AI order reader.
 /// Rules-only numbers are always printed. The AI part runs only when OPENAI_API_KEY is set (OTB_UNDERSTANDING_EVAL=1 also required).
-/// The test never fails on a score; it is the baseline that later phases must beat.
+/// The test never fails on a score; it is the baseline. The production path (model-first) is scored by <see cref="TurnFixtureEval"/>.
 /// </summary>
 public class UnderstandingEval
 {
-    private sealed record Case(string Id, string Job, string Text, string Action, string? MustContain, string Source);
-
-    private static readonly HashSet<string> MvpActions = new()
-    {
-        "create_order", "update_status", "cancel_order", "record_payment", "show_orders", "show_order", "show_summary",
-        "add_product", "show_catalog", "undo", "help_or_chat", "out_of_scope"
-    };
-
     private readonly ITestOutputHelper _output;
     public UnderstandingEval(ITestOutputHelper output) => _output = output;
 
     [Fact]
     public async Task MeasureTodaysPipelineOnLabelledMessages()
     {
-        // Payment is dropped from the MVP jobs (user decision, 2026-11-10): its rows stay in the fixture but are not scored.
-        var all = LoadCases();
+        // Payment is dropped from the MVP jobs (user decision, 2026-11-10): its rows stay in the fixture but are not scored here.
+        var all = UnderstandingFixture.Load();
         var cases = all.Where(c => c.Job != "payment").ToList();
         _output.WriteLine($"Scored {cases.Count} rows; excluded {all.Count - cases.Count} payment rows (out of MVP scope).");
         Assert.NotEmpty(cases);
-        Assert.All(cases, c => Assert.Contains(c.Action, MvpActions));
+        Assert.All(cases, c => Assert.Contains(c.Action, UnderstandingFixture.Labels));
 
         // Pass 1: exact rules only (no key needed; runs in CI).
         var ruleHits = 0;
@@ -46,7 +38,7 @@ public class UnderstandingEval
         var perJob = new Dictionary<string, (int Right, int Total)>();
         foreach (var c in cases)
         {
-            var action = RuleAction(c.Text);
+            var action = UnderstandingFixture.RuleAction(c.Text);
             var ok = ActionOk(c.Action, action);
             if (ok) ruleHits++;
             else if (action is null) unresolved.Add(c);
@@ -70,11 +62,7 @@ public class UnderstandingEval
             BusinessName = "Ayesha Collections",
             // OTB_AI_CANCEL_UNDO=1 measures the reader with Features:AiCancelUndo on (cancel/undo intents and number words).
             CancelUndoIntents = Environment.GetEnvironmentVariable("OTB_AI_CANCEL_UNDO") == "1",
-            Catalog = new List<AiCatalogItem>
-            {
-                new() { Name = "Shirt", Price = 1800 }, new() { Name = "Dupatta", Price = 600 }, new() { Name = "Lawn Suit", Price = 3500 },
-                new() { Name = "Sharara Set", Price = 4200 }, new() { Name = "Shawl", Price = 2500 }, new() { Name = "Polo Shirt", Price = 500 },
-            },
+            Catalog = TurnFixtureEval.Catalog.ToList(),
         };
 
         var finalRight = ruleHits;
@@ -90,28 +78,6 @@ public class UnderstandingEval
         }
         _output.WriteLine($"AI on unplaced rows: right {aiRight}/{unresolved.Count}");
         _output.WriteLine($"PIPELINE (rules then AI) right {finalRight}/{cases.Count} ({Pct(finalRight, cases.Count)})");
-    }
-
-    /// <summary>The action the exact rules give for a message, or null when the rules do not place it.</summary>
-    private static string? RuleAction(string text)
-    {
-        var parsed = CommandParser.TryParse(text);
-        if (parsed is null) return null;
-        return parsed.Kind switch
-        {
-            CommandKind.OrderPage or CommandKind.OrderDetail or CommandKind.CustomerDetail => "show_order",
-            CommandKind.OrdersToday or CommandKind.PendingOrders or CommandKind.UnpaidOrders or CommandKind.CodPending => "show_orders",
-            CommandKind.TodaysSummary => "show_summary",
-            CommandKind.MarkStatus or CommandKind.MarkAllPendingShipped => "update_status",
-            CommandKind.CancelOrder => "cancel_order",
-            CommandKind.OrderPayment => "record_payment",
-            CommandKind.Catalog => "show_catalog",
-            CommandKind.AddProduct or CommandKind.AddProductsBulk => "add_product",
-            CommandKind.Undo => "undo",
-            CommandKind.Help or CommandKind.Menu or CommandKind.Greeting => "help_or_chat",
-            // Any other command the rules place is a feature the MVP cuts; answering it counts as out_of_scope.
-            _ => "out_of_scope",
-        };
     }
 
     /// <summary>The MVP action the AI order reader's intent maps to.</summary>
@@ -130,31 +96,9 @@ public class UnderstandingEval
     private static bool ActionOk(string expected, string? got) =>
         got == expected || (expected == "out_of_scope" && got == "help_or_chat");
 
-    /// <summary>Field check only where the analysis carries fields (orders and products). Phones match with or without the +92 / 92 form.</summary>
-    private static bool FieldsOk(Case c, string? action, AiMessageAnalysis analysis)
-    {
-        if (c.MustContain is null || action is not ("create_order" or "add_product")) return true;
-        var json = JsonSerializer.Serialize(analysis).ToLowerInvariant();
-        var compact = json.Replace(" ", "").Replace("-", "");
-        var want = c.MustContain.ToLowerInvariant();
-        if (compact.Contains(want)) return true;
-        if (want.StartsWith("0") && want.Length == 11)
-            return compact.Contains("+92" + want[1..]) || compact.Contains("92" + want[1..]);
-        return json.Contains(want);
-    }
-
-    private static List<Case> LoadCases()
-    {
-        var path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "understanding-cases.json");
-        using var doc = JsonDocument.Parse(File.ReadAllText(path));
-        return doc.RootElement.EnumerateArray().Select(e => new Case(
-            e.GetProperty("id").GetString()!,
-            e.GetProperty("job").GetString()!,
-            e.GetProperty("text").GetString()!,
-            e.GetProperty("action").GetString()!,
-            e.TryGetProperty("mustContain", out var m) ? m.GetString() : null,
-            e.GetProperty("source").GetString()!)).ToList();
-    }
+    /// <summary>Field check only where the analysis carries fields (orders and products).</summary>
+    private static bool FieldsOk(Case c, string? action, AiMessageAnalysis analysis) =>
+        c.MustContain is null || action is not ("create_order" or "add_product") || UnderstandingFixture.Carries(JsonSerializer.Serialize(analysis), c.MustContain);
 
     private static void Add(Dictionary<string, (int Right, int Total)> map, string job, bool ok)
     {
