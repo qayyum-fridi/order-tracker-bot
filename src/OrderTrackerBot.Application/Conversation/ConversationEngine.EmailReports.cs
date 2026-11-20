@@ -38,7 +38,7 @@ public partial class ConversationEngine
         var to = await ReportAddressAsync(seller, typedAddress, ct);
         if (to is null) return;
 
-        var (text, _) = await BuildTodaysSummaryAsync(seller, null, ct);
+        var (text, _, _) = await BuildTodaysSummaryAsync(seller, null, ct);
         var business = seller.BusinessName ?? "Order Tracker";
         var sent = await _email!.SendAsync(to, MessageTemplates.Get("email.006", business),
             MessageTemplates.Get("email.007", text, seller.WhatsAppPhoneNumber), null, null, null, ct);

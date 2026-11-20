@@ -1,5 +1,10 @@
 {
   "park.001": "📝 I have noted your new request. I will do it as soon as you answer the earlier question.\n\n{0}",
   "spoken.more": "{0} The rest of the details are in the text.",
-  "spoken.list": "{0} There are {1} items. The full list is in the text."
+  "spoken.list": "{0} There are {1} items. The full list is in the text.",
+  "spoken.summary.today": "Today {0} orders came in, total sales {1}.",
+  "spoken.summary.yesterday": "Yesterday {0} orders came in, total sales {1}.",
+  "spoken.summary.period": "{0}: {1} orders, total sales {2}.",
+  "spoken.unpaid": "{0} orders are still unpaid, {1} in all. {2} owes the most, {3}.",
+  "spoken.payout": "Couriers are holding {0} of yours, for {1} orders. {2} holds the most, {3}."
 }

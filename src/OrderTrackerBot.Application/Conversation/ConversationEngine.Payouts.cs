@@ -110,6 +110,8 @@ public partial class ConversationEngine
         var first = groups[0];
         await ReplyAsync(seller,
             MessageTemplates.Get("payouts.002", Formatters.Money(orders.Sum(PayoutReceivable)), orders.Count, string.Join("\n", lines), (first.Key == NoCourier ? "TCS" : first.Key), string.Join(" ", first.Take(3).Select(o => o.Id))), ct);
+        // Heard after a voice note: what couriers owe in all, and which courier owes the most.
+        SpeakInstead(MessageTemplates.Get("spoken.payout", Formatters.Money(orders.Sum(PayoutReceivable)), orders.Count, first.Key, Formatters.Money(first.Sum(PayoutReceivable))));
     }
 
     private async Task ListPayoutsAsync(Seller seller, CancellationToken ct)

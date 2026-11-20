@@ -32,6 +32,7 @@ public partial class ConversationEngine
         _turnMissed = false;
         _turnTracked = false;
         _lastReply = null;
+        _spokenAnswer = null;
         await HandleAudioCoreAsync(fromPhoneNumber, mediaId, messageId, replyToId, ct);
         // A voice note that answered the open question lets a parked request (or the rest of a multi-request message) run now.
         await DrainModelQueueAsync(fromPhoneNumber, ct);

@@ -1,5 +1,10 @@
 {
   "park.001": "📝 Aap ki nayi baat yaad rakh li hai. Pehle wale sawal ka jawab dete hi woh bhi kar dunga.\n\n{0}",
   "spoken.more": "{0} Baaki tafseel text mein likhi hai.",
-  "spoken.list": "{0} Is mein {1} cheezein hain. Poori list text mein hai."
+  "spoken.list": "{0} Is mein {1} cheezein hain. Poori list text mein hai.",
+  "spoken.summary.today": "Aaj {0} order aaye, kul sale {1} ki hui.",
+  "spoken.summary.yesterday": "Kal {0} order aaye, kul sale {1} ki hui.",
+  "spoken.summary.period": "{0}: {1} order, kul sale {2}.",
+  "spoken.unpaid": "{0} orders ka paisa baqi hai, kul {1}. Sab se zyada {2} ka, {3}.",
+  "spoken.payout": "Courier walon ke paas aap ke {0} hain, {1} orders ke. Sab se zyada {2} ke paas, {3}."
 }
