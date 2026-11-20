@@ -59,6 +59,16 @@ public class CasualPhrasingTests
         Assert.Equal("Bag", parsed.Text);
     }
 
+    // "<name> hata do" is a product only when the name is short: a sentence is left for the model (a customer, an order, a reason).
+    [Theory]
+    [InlineData("Lawn Suit hata do", true)]
+    [InlineData("Ali ko list se hata do", false)]
+    [InlineData("Shirt ab nahi bechti, list se hata do", false)]
+    [InlineData("Bilal ko customer list se hata do", false)]
+    [InlineData("order 5 se kurti hata do", false)]
+    public void ProductRemoval_OnlyForAShortProductName(string text, bool isDeleteProduct) =>
+        Assert.Equal(isDeleteProduct, CommandParser.TryParse(text)?.Kind == CommandKind.DeleteProduct);
+
     [Fact]
     public void EmailChange_KeepsTheAddress()
     {

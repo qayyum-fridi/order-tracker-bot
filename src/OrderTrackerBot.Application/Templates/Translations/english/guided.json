@@ -8,5 +8,8 @@
   "guided.customer.which": "❓ There are {1} customers named \"{0}\". Which one? Pick below 👇",
   "guided.customer.value": "❓ What is {0}'s new {1}? Please tell me, like: \"{0} ka {1} {2}\"",
   "guided.customer.what": "❓ What should I change for {0}? Please tell me, like: \"{0} ka phone 03001234567\" or \"{0} ka pata Model Town\"",
-  "guided.product.price": "❓ What is the new price of {0}? Please tell me, like: \"{0} ka rate 2000\""
+  "guided.product.price": "❓ What is the new price of {0}? Please tell me, like: \"{0} ka rate 2000\"",
+  "guided.product.delete": "❓ Which product should I take off the list? Pick below 👇",
+  "guided.customer.delete": "❓ Which customer should I remove from the list? Please tell me the name, like: \"Sara ko list se hata do\"",
+  "model-delete.001": "❓ Take {0} off the catalog? Old orders will keep it. Type YES for yes, NO for no."
 }

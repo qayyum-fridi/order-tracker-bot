@@ -36,7 +36,7 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         "'teen number pohnch gaya'); give order_id or customer_name and status. Only when NO product or quantity is named. A message that names a PRODUCT is NEVER this: " +
         "'<customer> ko <number> <product> bhej do / bhej dein / bhejni hain / likh do / chahiye' and 'Ali ka order, do shawl ...' are NEW orders (create_order), even with the word bhej. " +
         "The number before the product is a quantity, never an order number.\n" +
-        "- cancel_order: cancel an order; give order_id or customer_name.\n" +
+        "- cancel_order: cancel an order; give order_id or customer_name. 'order delete kar do', 'order khatam kar do', 'order radd karo' are cancel_order.\n" +
         "- show_orders: list orders for a period, or pending ones. show_order: details of one order; give order_id.\n" +
         "- show_summary: sales / money summary (hisaab, kitni sale hui) for a period.\n" +
         "- add_product: they are saying what they sell (name, price, optional cost and stock; 'naya product', 'nayi chiz', 'catalog mein daal do', 'list mein shamil'). " +
@@ -53,6 +53,10 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         "- edit_product: an existing product's price changes; put its name and the NEW price in products. 'Dupatta ka rate 800', 'Bag ka daam 2200', 'shirt ki qeemat 1500 kar do' " +
         "are edit_product. add_product only when the product name is NEW to the shop.\n" +
         "- show_catalog: show their products.\n" +
+        "- delete_product: take an EXISTING product off their list ('Dupatta ab nahi bechti, list se hata do', 'kurti catalog se nikal do', 'shirt band kar do', " +
+        "'remove lawn suit', 'شرٹ کو لسٹ سے ہٹا دو'). Put only its name in products. Old orders keep it. Never for an order and never for stock running out.\n" +
+        "- delete_customer: remove a SAVED customer from their customer list ('Bilal ko list se hata do', 'Sara ko delete kar do', 'woh customer ab nahi aati, nikal do'); " +
+        "customer_name. Cancelling an ORDER is cancel_order, never this.\n" +
         "- add_customer: save a new buyer WITHOUT an order (customer.name, and phone / address / city when said). If the message also names items or a quantity, " +
         "it is create_order, never add_customer.\n" +
         "- edit_customer: one detail of a saved customer changes; customer_name, field (phone, address, city or name) and value (the new value).\n" +
@@ -242,7 +246,9 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         // The model fills fields that do not belong to its action (a customer block on a "show" action, an order on a status change).
         // Only the fields of the chosen action are kept, so nothing is run or checked from a stray one.
         if (action != TurnAction.CreateOrder) orders.Clear();
-        if (action is not (TurnAction.AddProduct or TurnAction.EditProduct or TurnAction.AddStock)) products.Clear();
+        if (action is not (TurnAction.AddProduct or TurnAction.EditProduct or TurnAction.AddStock or TurnAction.DeleteProduct)) products.Clear();
+        // A product to remove is its name only: a price or stock the model copied from the catalog is not part of it.
+        if (action == TurnAction.DeleteProduct) products = products.Select(p => new AiNewProduct { Name = p.Name }).ToList();
         if (action != TurnAction.AddCustomer) customer = null;
         if (action != TurnAction.EditOrder) orderEdits.Clear();
         var itemName = action == TurnAction.ExchangeSize ? Str(root, "item_name") : null;

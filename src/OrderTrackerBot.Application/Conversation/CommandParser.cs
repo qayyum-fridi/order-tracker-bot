@@ -1635,8 +1635,9 @@ public static class CommandParser
         (new Regex(@"^sab\s+se\s+(?:mehnga|mehngi|mehnge)(?:\s+(?:kya(?:\s+hai)?|product|item|kaun\s+sa))?$", CasualOpts), "mehnga product"),
         (new Regex(@"^(?<name>.{2,}?)\s+(?:dhoondo|dhundo|dhoondho|talash\s+karo)$", CasualOpts), "search customer: ${name}"),
         (new Regex(@"^kitna\s+bacha\s+hai(?:\s+dukan\s+(?:mein|me))?$", CasualOpts), "monthly net"),
-        // A product is switched off (soft delete: old orders keep it), so "Bag hata do" is the delete command.
-        (new Regex(@"^(?<name>.{2,}?)\s+(?:hata\s+do|hata\s+dein|hatao|hatado)$", CasualOpts), "delete product ${name}"),
+        // A product is switched off (soft delete: old orders keep it), so "Bag hata do" is the delete command. Only a short product name: a sentence
+        // ("Ali ko list se hata do", "Shirt ab nahi bechti, list se hata do") is left for the model, which knows a customer from a product.
+        (new Regex(@"^(?!.*(?<!\p{L})(?:ko|se|list|customer|client|orders?|ab|nahi|usko|isko|unko|catalog|aur)(?!\p{L}))(?<name>[^\s,،]{2,}(?:\s+[^\s,،]+){0,2})\s+(?:hata\s+do|hata\s+dein|hatao|hatado)$", CasualOpts), "delete product ${name}"),
         // "catalog bhejo", "aaj ka hisaab dikhao": the trailing verb is a request to show it; the command is the rest.
         (new Regex(@"^(?<rest>.+?)\s+(?:bhejo|bhej\s+do|dikhao|dikhayein|batao)$", CasualOpts), "${rest}"),
     };

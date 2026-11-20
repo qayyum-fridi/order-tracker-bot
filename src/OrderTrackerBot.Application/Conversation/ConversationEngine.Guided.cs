@@ -30,8 +30,16 @@ public partial class ConversationEngine
             case TurnAction.ShowOrder:
                 return await GuideOrderAsync(seller, session, ctx, action, message, beforeAsk, ct);
 
-            case TurnAction.EditCustomer when !string.IsNullOrWhiteSpace(action.CustomerName):
+            case TurnAction.EditCustomer or TurnAction.DeleteCustomer when !string.IsNullOrWhiteSpace(action.CustomerName):
                 return await GuideCustomerAsync(seller, session, ctx, action, message, beforeAsk, ct);
+
+            case TurnAction.DeleteCustomer:
+                if (beforeAsk is not null) await beforeAsk();
+                await ReplyAsync(seller, MessageTemplates.Get("guided.customer.delete"), ct);
+                return true;
+
+            case TurnAction.DeleteProduct:
+                return await GuideProductAsync(seller, session, ctx, action, message, beforeAsk, ct);
 
             case TurnAction.EditProduct when action.Products.Count > 0 && action.Products[0].Price is not > 0 && !string.IsNullOrWhiteSpace(action.Products[0].Name):
                 if (beforeAsk is not null) await beforeAsk();
@@ -45,7 +53,7 @@ public partial class ConversationEngine
 
     /// <summary>A runnable edit_customer whose name fits several saved customers ("Ali" = Ali Raza and Ali Hassan) must not guess one of them.</summary>
     private async Task<bool> NeedsCustomerChoiceAsync(Seller seller, TurnAction action, CancellationToken ct) =>
-        action.Action == TurnAction.EditCustomer && !string.IsNullOrWhiteSpace(action.CustomerName)
+        action.Action is TurnAction.EditCustomer or TurnAction.DeleteCustomer && !string.IsNullOrWhiteSpace(action.CustomerName)
         && !await _db.Customers.AnyAsync(c => c.SellerId == seller.Id && c.DeletedAt == null && c.Name.ToLower() == action.CustomerName!.Trim().ToLower(), ct)
         && (await CustomersNamedAsync(seller, action.CustomerName!, ct)).Count > 1;
 
@@ -111,6 +119,8 @@ public partial class ConversationEngine
             return true;
         }
 
+        // One customer: a delete runs as it is (it asks its own YES).
+        if (action.Action == TurnAction.DeleteCustomer) return false;
         // One customer, but the new value (or which detail) was not said: ask for exactly that, with the sentence to say.
         var name = matches[0].Name;
         await ReplyAsync(seller, action.Field is { } field
@@ -122,6 +132,20 @@ public partial class ConversationEngine
                 _ => "Model Town Lahore",
             })
             : MessageTemplates.Get("guided.customer.what", name), ct);
+        return true;
+    }
+
+    /// <summary>"Ek product hatana hai": the products to tap, newest first. A tap fills the name and the delete asks its YES.</summary>
+    private async Task<bool> GuideProductAsync(Seller seller, ConversationSession session, SessionContextData ctx, TurnAction action, string message,
+        Func<Task>? beforeAsk, CancellationToken ct)
+    {
+        var products = await _db.Products.Where(p => p.SellerId == seller.Id && p.IsActive)
+            .OrderByDescending(p => p.Id).Take(GuidedChoiceLimit).ToListAsync(ct);
+        if (products.Count == 0) return false;
+        if (beforeAsk is not null) await beforeAsk();
+        var options = products.Select(p => new ChoiceOption($"{Formatters.ProductLabel(p)} · {Formatters.Money(p.Price)}", "%" + p.Id)).ToList();
+        AwaitGuidedChoice(session, ctx, action, message, options);
+        await SendChoicesAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("guided.product.delete"), options, ct);
         return true;
     }
 
@@ -164,6 +188,9 @@ public partial class ConversationEngine
         else if (pick.StartsWith('@') && int.TryParse(pick[1..], out var customerId)
                  && await _db.Customers.FirstOrDefaultAsync(c => c.Id == customerId && c.SellerId == seller.Id && c.DeletedAt == null, ct) is { } customer)
             await RunGuidedAsync(seller, session, ctx, turn, null, customer.Name, ct);
+        else if (pick.StartsWith('%') && int.TryParse(pick[1..], out var productId)
+                 && await _db.Products.FirstOrDefaultAsync(p => p.Id == productId && p.SellerId == seller.Id && p.IsActive, ct) is { } product)
+            await RunGuidedAsync(seller, session, ctx, turn, null, null, ct, Formatters.ProductLabel(product));
         else
             await HandleIdleAsync(seller, session, ctx, message, ct);
         return true;
@@ -174,16 +201,18 @@ public partial class ConversationEngine
     /// spoken detail passes (the order number was said, the name was said) pass for a tapped one. Still missing a value (the new phone): ask for it.
     /// </summary>
     private async Task RunGuidedAsync(Seller seller, ConversationSession session, SessionContextData ctx, QueuedModelTurn turn, int? orderId, string? customerName,
-        CancellationToken ct)
+        CancellationToken ct, string? productName = null)
     {
         var a = turn.Action;
         var filled = new TurnAction
         {
-            Action = a.Action, Orders = a.Orders, Products = a.Products, OrderId = orderId ?? a.OrderId, CustomerName = customerName ?? a.CustomerName,
+            Action = a.Action, Orders = a.Orders,
+            Products = productName is null ? a.Products : new List<AiNewProduct> { new() { Name = productName } },
+            OrderId = orderId ?? a.OrderId, CustomerName = customerName ?? a.CustomerName,
             Status = a.Status, Period = a.Period, PendingOnly = a.PendingOnly, Customer = a.Customer, Field = a.Field, Value = a.Value, Topic = a.Topic,
             Question = a.Question, OrderEdits = a.OrderEdits, ItemName = a.ItemName,
         };
-        var said = turn.Message + (orderId is { } id ? $" order {id}" : "") + (customerName is { } chosen ? $" {chosen}" : "");
+        var said = turn.Message + (orderId is { } id ? $" order {id}" : "") + (customerName is { } chosen ? $" {chosen}" : "") + (productName is { } p ? $" {p}" : "");
         if (!await CanRunAsync(seller, filled, said, ct) && await TryGuideAsync(seller, session, ctx, filled, said, null, ct)) return;
         var catalog = await LoadCatalogAsync(seller, ct);
         if (!await RunTurnActionAsync(seller, session, ctx, filled, catalog, said, ct, false))
