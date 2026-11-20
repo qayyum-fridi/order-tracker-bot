@@ -653,7 +653,8 @@ public partial class ConversationEngine
     /// <summary>A loose-rule match on a message of at least this many words is checked by the AI first (was 5; 3 so short ambiguous phrases like "customer status bhejo" are covered).</summary>
     private const int LooseRuleMinWords = 3;
 
-    private static readonly HashSet<CommandKind> LooseRuleKinds = new()
+    // Internal so the understanding evals route a message exactly as the engine does (exact command first, the model for the rest).
+    internal static readonly HashSet<CommandKind> LooseRuleKinds = new()
     {
         CommandKind.Insight, CommandKind.FuzzyStatusUpdate, CommandKind.CustomerOrderLookup, CommandKind.ProductReport, CommandKind.CustomerSearch, CommandKind.OrderSearch, CommandKind.HowTo
     };
