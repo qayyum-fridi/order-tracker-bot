@@ -70,15 +70,9 @@ public partial class ConversationEngine
         foreach (var a in actions) ready.Add(await CanRunAsync(seller, a, message, ct));
         if (!ready.All(r => r) && !final) return false;
         if (beforeRun is not null) await beforeRun();
+        // Each request in its turn: one missing a detail asks its guided question when it comes up; the ones after it wait in the queue.
         for (var i = 0; i < actions.Count; i++)
-        {
-            if (!ready[i])
-            {
-                await ReplyNotRunAsync(seller, actions[i], ct);
-                continue;
-            }
-            await RunOrQueueAsync(seller, session, ctx, actions[i], catalog, message, ct, fromScreenshot);
-        }
+            await RunOrQueueAsync(seller, session, ctx, actions[i], catalog, message, ct, fromScreenshot, guide: final);
         return true;
     }
 
@@ -108,14 +102,27 @@ public partial class ConversationEngine
     /// <see cref="SessionContextData.ModelQueue"/> and runs once the seller's answer has been handled (<see cref="DrainModelQueueAsync"/>).
     /// </summary>
     private async Task RunOrQueueAsync(Seller seller, ConversationSession session, SessionContextData ctx, TurnAction action, List<CatalogEntry> catalog,
-        string message, CancellationToken ct, bool fromScreenshot)
+        string message, CancellationToken ct, bool fromScreenshot, bool guide = true)
     {
         if (session.State != ConversationState.Idle || ctx.ModelQueue.Count > 0)
         {
             ctx.ModelQueue.Add(new QueuedModelTurn(Plain(action), message));
             return;
         }
-        if (!await RunTurnActionAsync(seller, session, ctx, action, catalog, message, ct, fromScreenshot))
+        await RunOrGuideAsync(seller, session, ctx, action, catalog, message, ct, fromScreenshot, guide);
+    }
+
+    /// <summary>
+    /// Runs one action now. When <paramref name="guide"/> is on and a detail is missing or fits several records, the guided question is asked instead
+    /// (ConversationEngine.Guided.cs); it leaves a question open, so the actions after it wait in the queue until it is answered.
+    /// </summary>
+    private async Task RunOrGuideAsync(Seller seller, ConversationSession session, SessionContextData ctx, TurnAction action, List<CatalogEntry> catalog,
+        string message, CancellationToken ct, bool fromScreenshot, bool guide)
+    {
+        if (guide && (!await CanRunAsync(seller, action, message, ct) || await NeedsCustomerChoiceAsync(seller, action, ct))
+            && await TryGuideAsync(seller, session, ctx, action, message, null, ct))
+            return;
+        if (!await CanRunAsync(seller, action, message, ct) || !await RunTurnActionAsync(seller, session, ctx, action, catalog, message, ct, fromScreenshot))
             await ReplyNotRunAsync(seller, action, ct);
     }
 
@@ -143,8 +150,7 @@ public partial class ConversationEngine
             var next = ctx.ModelQueue[0];
             ctx.ModelQueue.RemoveAt(0);
             await PersistAsync(session, ctx, ct);
-            if (!await RunTurnActionAsync(seller, session, ctx, next.Action, catalog, next.Message, ct, false))
-                await ReplyNotRunAsync(seller, next.Action, ct);
+            await RunOrGuideAsync(seller, session, ctx, next.Action, catalog, next.Message, ct, false, guide: seller.OnboardingComplete);
             await PersistAsync(session, ctx, ct);
         }
     }

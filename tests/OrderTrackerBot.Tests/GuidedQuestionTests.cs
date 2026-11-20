@@ -260,6 +260,58 @@ public class GuidedQuestionTests : IDisposable
         Assert.Null((await db.Customers.AsNoTracking().SingleAsync(c => c.Id == _aliHassanId)).DeletedAt);
     }
 
+    // ----- Several requests in one message -----
+
+    [Fact]
+    public async Task TwoRequests_TheFirstMissingADetail_IsAskedFirst_AndTheSecondRunsAfter()
+    {
+        var (db, say) = await ShopAsync();
+        using var _ = db;
+        const string message = "ek order cancel karna hai aur Bilal ka number 03001112222 kar do";
+        _model[message] = new TurnAction
+        {
+            Action = TurnAction.CancelOrder,
+            Also = { new TurnAction { Action = TurnAction.EditCustomer, CustomerName = "Bilal", Field = "phone", Value = "03001112222" } },
+        };
+        var sara = await OrderOf(db, _saraId);
+
+        await say(message);
+        Assert.Contains(_sent, m => m.StartsWith(MessageTemplates.Get("guided.order.cancel")));   // the first request asks which order
+        Assert.Equal("03215557788", (await db.Customers.AsNoTracking().SingleAsync(c => c.Id == _bilalId)).Phone);   // the second waits
+
+        await say($"#{sara}");
+        await say("yes");   // the cancel
+        Assert.Equal(OrderStatus.Cancelled, await StatusOf(db, _saraId));
+
+        await say("yes");   // the phone change, asked once the cancel was answered
+        Assert.Equal("03001112222", (await db.Customers.AsNoTracking().SingleAsync(c => c.Id == _bilalId)).Phone);
+        Assert.Equal(OrderStatus.Pending, await StatusOf(db, _bilalId));
+    }
+
+    [Fact]
+    public async Task TwoRequests_TheSecondFitsTwoCustomers_IsAskedOnceTheFirstIsDone()
+    {
+        var (db, say) = await ShopAsync();
+        using var _ = db;
+        const string message = "Shirt ka rate 2000 karo aur Ali ko list se hata do";
+        _model[message] = new TurnAction
+        {
+            Action = TurnAction.EditProduct, Products = { new AiNewProduct { Name = "Shirt", Price = 2000 } },
+            Also = { new TurnAction { Action = TurnAction.DeleteCustomer, CustomerName = "Ali" } },
+        };
+
+        await say(message);
+        Assert.DoesNotContain(_sent, m => m.Contains("naam ke 2 customer hain"));   // not yet: the price change asks first
+        await say("yes");
+        Assert.Equal(2000, (await db.Products.AsNoTracking().SingleAsync()).Price);
+        Assert.Contains(_sent, m => m.Contains("naam ke 2 customer hain"));
+
+        await say($"@{_aliHassanId}");
+        await say("yes");
+        Assert.NotNull((await db.Customers.AsNoTracking().SingleAsync(c => c.Id == _aliHassanId)).DeletedAt);
+        Assert.Null((await db.Customers.AsNoTracking().SingleAsync(c => c.Id == _aliRazaId)).DeletedAt);
+    }
+
     [Fact]
     public async Task AnotherMessage_InsteadOfATap_IsHandledOnItsOwn_AndChangesNothing()
     {
