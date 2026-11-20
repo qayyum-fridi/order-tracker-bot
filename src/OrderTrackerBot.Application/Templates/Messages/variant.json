@@ -1,0 +1,5 @@
+{
+  "variant.match.one": "❓ Kya yeh aap ke \"{0}\" ka {1} wala hai? Haan ho to \"{0}\" chunein, warna \"Naya product\". Neeche se chunein 👇",
+  "variant.match.many": "❓ Yeh {0} wala kis product ka hai? Agar pehle wale mein se kisi ka hai to us ko chunein, warna \"Naya product\" 👇",
+  "variant.new": "➕ Naya product"
+}

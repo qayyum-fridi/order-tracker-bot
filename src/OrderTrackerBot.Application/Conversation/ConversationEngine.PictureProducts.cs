@@ -26,8 +26,15 @@ public partial class ConversationEngine
         return $"{AutoSkuPrefix}{highest + 1:D5}";
     }
 
-    private async Task ProposeScreenshotProductsAsync(Seller seller, ConversationSession session, SessionContextData ctx, TurnAction action, CancellationToken ct)
+    /// <param name="askVariant">False once the seller has answered the variant question, so it is not asked twice.</param>
+    private async Task ProposeScreenshotProductsAsync(Seller seller, ConversationSession session, SessionContextData ctx, TurnAction action, CancellationToken ct,
+        bool askVariant = true)
     {
+        // A colour / size of a product the catalog already has under a shorter name ("3 PIECE EMBROIDERED KHADDAR SUIT", green, next to the shop's
+        // "Khaddar Suit"): ask whether it is that product's variant, so it is not saved as an unrelated product.
+        if (askVariant && action.Products.Count == 1 && !string.IsNullOrWhiteSpace(action.Products[0].Name) && action.Products[0].Price is not null
+            && await TryAskVariantMatchAsync(seller, session, ctx, action, ct))
+            return;
         if (action.Products.Any(p => string.IsNullOrWhiteSpace(p.Name)))
         {
             await ReplyAsync(seller, MessageTemplates.Get("picture-product.005"), ct);

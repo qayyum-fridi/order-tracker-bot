@@ -191,6 +191,8 @@ public partial class ConversationEngine
         else if (pick.StartsWith('%') && int.TryParse(pick[1..], out var productId)
                  && await _db.Products.FirstOrDefaultAsync(p => p.Id == productId && p.SellerId == seller.Id && p.IsActive, ct) is { } product)
             await RunGuidedAsync(seller, session, ctx, turn, null, null, ct, Formatters.ProductLabel(product));
+        else if (pick.StartsWith('~'))
+            await RunVariantPickAsync(seller, session, ctx, turn, pick, ct);   // ConversationEngine.VariantMatch.cs
         else
             await HandleIdleAsync(seller, session, ctx, message, ct);
         return true;
