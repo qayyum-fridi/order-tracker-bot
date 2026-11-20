@@ -57,6 +57,9 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         "'remove lawn suit', 'شرٹ کو لسٹ سے ہٹا دو'). Put only its name in products. Old orders keep it. Never for an order and never for stock running out.\n" +
         "- delete_customer: remove a SAVED customer from their customer list ('Bilal ko list se hata do', 'Sara ko delete kar do', 'woh customer ab nahi aati, nikal do'); " +
         "customer_name. Cancelling an ORDER is cancel_order, never this.\n" +
+        "- restore_product: put a product they REMOVED earlier back on their list ('Dupatta wapas list mein daal do', 'kurti phir se chalu karo', " +
+        "'shirt wapas le aao'). Put only its name in products. A NEW product with a price is add_product.\n" +
+        "- restore_customer: bring back a customer they REMOVED earlier ('Bilal ko wapas le aao', 'Sara ko phir se list mein daal do'); customer_name.\n" +
         "- add_customer: save a new buyer WITHOUT an order (customer.name, and phone / address / city when said). If the message also names items or a quantity, " +
         "it is create_order, never add_customer.\n" +
         "- edit_customer: one detail of a saved customer changes; customer_name, field (phone, address, city or name) and value (the new value).\n" +
@@ -254,9 +257,10 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         // The model fills fields that do not belong to its action (a customer block on a "show" action, an order on a status change).
         // Only the fields of the chosen action are kept, so nothing is run or checked from a stray one.
         if (action != TurnAction.CreateOrder) orders.Clear();
-        if (action is not (TurnAction.AddProduct or TurnAction.EditProduct or TurnAction.AddStock or TurnAction.DeleteProduct)) products.Clear();
-        // A product to remove is its name only: a price or stock the model copied from the catalog is not part of it.
-        if (action == TurnAction.DeleteProduct) products = products.Select(p => new AiNewProduct { Name = p.Name }).ToList();
+        if (action is not (TurnAction.AddProduct or TurnAction.EditProduct or TurnAction.AddStock or TurnAction.DeleteProduct or TurnAction.RestoreProduct))
+            products.Clear();
+        // A product to remove or bring back is its name only: a price or stock the model copied from the catalog is not part of it.
+        if (action is TurnAction.DeleteProduct or TurnAction.RestoreProduct) products = products.Select(p => new AiNewProduct { Name = p.Name }).ToList();
         if (action != TurnAction.AddCustomer) customer = null;
         if (action != TurnAction.EditOrder) orderEdits.Clear();
         var itemName = action == TurnAction.ExchangeSize ? Str(root, "item_name") : null;

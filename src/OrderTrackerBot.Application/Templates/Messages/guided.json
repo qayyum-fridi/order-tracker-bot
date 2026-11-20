@@ -18,5 +18,9 @@
   "guided.order.tracking": "❓ Yeh tracking number kis order ka hai? Neeche se chunein 👇",
   "model-payout.001": "❓ {0} se {1} aaye likh dein? Haan ke liye YES likhein, nahi ke liye NO.",
   "model-tracking.001": "❓ Order #{0} ({1}) ka tracking {2} {3} likh dein? Haan ke liye YES likhein, nahi ke liye NO.",
-  "guided.pay.amount": "❓ {0} ne kitne paise diye? Baqi {2} hai. Barae meherbani bata dein, jaise: \"order {1} ke 2000 aa gaye\" ya \"order {1} ka poora paisa aa gaya\""
+  "guided.pay.amount": "❓ {0} ne kitne paise diye? Baqi {2} hai. Barae meherbani bata dein, jaise: \"order {1} ke 2000 aa gaye\" ya \"order {1} ka poora paisa aa gaya\"",
+  "model-restore.001": "❓ {0} ko wapas catalog mein daal dein? Haan ke liye YES likhein, nahi ke liye NO.",
+  "model-restore.002": "✅ {0} wapas catalog mein aa gaya.",
+  "model-restore.003": "Maaf kijiye, \"{0}\" naam ka hataya hua product nahi mila. \"catalog\" likh kar list dekhein.",
+  "model-restore.004": "ℹ️ {0} pehle se catalog mein hai. \"catalog\" likh kar list dekhein."
 }

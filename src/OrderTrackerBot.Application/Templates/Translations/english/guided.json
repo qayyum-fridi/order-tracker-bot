@@ -18,5 +18,9 @@
   "guided.order.tracking": "❓ Which order is this tracking number for? Pick below 👇",
   "model-payout.001": "❓ Record {1} received from {0}? Type YES for yes, NO for no.",
   "model-tracking.001": "❓ Save tracking {2} {3} on order #{0} ({1})? Type YES for yes, NO for no.",
-  "guided.pay.amount": "❓ How much did {0} pay? {2} is left. Please tell me, like: \"order {1} ke 2000 aa gaye\" or \"order {1} ka poora paisa aa gaya\""
+  "guided.pay.amount": "❓ How much did {0} pay? {2} is left. Please tell me, like: \"order {1} ke 2000 aa gaye\" or \"order {1} ka poora paisa aa gaya\"",
+  "model-restore.001": "❓ Put {0} back in the catalog? Type YES for yes, NO for no.",
+  "model-restore.002": "✅ {0} is back in the catalog.",
+  "model-restore.003": "Sorry, no removed product named \"{0}\" was found. Type \"catalog\" to see the list.",
+  "model-restore.004": "ℹ️ {0} is already in the catalog. Type \"catalog\" to see the list."
 }
