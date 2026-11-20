@@ -61,12 +61,25 @@ public partial class ConversationEngine
         && text.Count(c => c == '\n') < MaxSpokenReplyLines
         && !text.Contains("http", StringComparison.OrdinalIgnoreCase);
 
+    private string? _spokenAnswer, _spokenAnswerFor;
+
+    /// <summary>
+    /// The one sentence a report wants heard for the reply it just sent ("Aaj 12 order, Rs.45,000 ki sale."), instead of the generic summary of
+    /// its first line. Tied to that reply: if another reply follows in the same turn, the generic rule applies to the last one.
+    /// </summary>
+    private void SpeakInstead(string spoken)
+    {
+        _spokenAnswer = spoken;
+        _spokenAnswerFor = _lastReply;
+    }
+
     /// <summary>Sends the turn's last text reply as a voice note. Called once, after a voice note has been handled.</summary>
     private async Task SpeakReplyAsync(string fromPhoneNumber, CancellationToken ct)
     {
         if (!_features.SpokenReplies || _speech is not { IsConfigured: true } speech) return;
         if (_lastReply is not { } text) return;
-        var spoken = SpokenVersion(text);
+        // A report that wrote its own one-sentence answer is heard as that sentence, but only if it is still the last reply of the turn.
+        var spoken = _spokenAnswer is not null && string.Equals(_spokenAnswerFor, text, StringComparison.Ordinal) ? _spokenAnswer : SpokenVersion(text);
         if (string.IsNullOrWhiteSpace(spoken)) return;
         var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
         var audio = await speech.SynthesizeAsync(spoken, ct);

@@ -775,14 +775,15 @@ public partial class ConversationEngine
 
     private async Task HandleTodaysSummaryAsync(Seller seller, string? period, CancellationToken ct)
     {
-        var (text, drawerOpen) = await BuildTodaysSummaryAsync(seller, period, ct);
+        var (text, drawerOpen, spoken) = await BuildTodaysSummaryAsync(seller, period, ct);
         await ReplyAsync(seller, text, ct);
+        if (spoken is not null) SpeakInstead(spoken);
         var today = period is null or "today";
         if (today) SuggestNext("orders today", drawerOpen ? "drawer" : "expenses today");
     }
 
     /// <summary>The summary text (also used by "email summary"); <c>DrawerOpen</c> tells the caller which follow-up button fits.</summary>
-    private async Task<(string Text, bool DrawerOpen)> BuildTodaysSummaryAsync(Seller seller, string? period, CancellationToken ct)
+    private async Task<(string Text, bool DrawerOpen, string? Spoken)> BuildTodaysSummaryAsync(Seller seller, string? period, CancellationToken ct)
     {
         var (start, end) = ReportRange(seller, period);
         var label = period switch { null => "Today's", "yesterday" => "Yesterday's", "lastmonth" => MessageTemplates.Get("commands.038"), _ => PeriodLabel(seller, period) };
@@ -807,7 +808,15 @@ public partial class ConversationEngine
         var (dayExtra, drawerOpen) = today ? await DayAccountLinesAsync(seller, orders, start, end, ct) : ("", false);
 
         var text = MessageTemplates.Get("commands.010", label, seller.BusinessName, orders.Count, delivered, shipped, pending, ((returned > 0 ? $"Returned: {returned}\n" : "") + (counterReturns.Count > 0 ? MessageTemplates.Get("counter-return.007", counterReturns.Count, Formatters.Money(counterReturns.Amount)) : "")), Formatters.Money(cod), Formatters.Money(prepaid), (period is null ? "today" : label.Replace("'s", "").ToLowerInvariant()), Formatters.Money(totalSales), (salesTax > 0 ? $"Sales tax included: {Formatters.Money(salesTax)}\n" : ""), (withheld > 0 ? $"Tax withheld by courier/gateway: {Formatters.Money(withheld)} → net after withholding {Formatters.Money(totalSales - withheld)}\n" : ""), dayExtra);
-        return (text, drawerOpen);
+        // Heard after a voice note: just the period's two numbers (no orders: the generic spoken summary of the text is enough).
+        var sales = Formatters.Money(totalSales);
+        string? spoken = orders.Count == 0 ? null : period switch
+        {
+            null or "today" => MessageTemplates.Get("spoken.summary.today", orders.Count, sales),
+            "yesterday" => MessageTemplates.Get("spoken.summary.yesterday", orders.Count, sales),
+            _ => MessageTemplates.Get("spoken.summary.period", label.Replace("'s", ""), orders.Count, sales),
+        };
+        return (text, drawerOpen, spoken);
     }
 
     /// <summary>
@@ -1625,5 +1634,9 @@ public partial class ConversationEngine
             .Select((o, i) => Formatters.OrderLine(paging.Skip + i + 1, o) + (o.AmountPaid > 0 ? $", baqi {Formatters.Money(OrderMoney.Balance(o))}" : ", unpaid"));
         await ReplyOrderPageAsync(seller,
             MessageTemplates.Get("commands.032", orders.Count, string.Join("\n", lines), Formatters.Money(orders.Sum(OrderMoney.Balance))), paging, ct);
+        // Heard after a voice note: how much is owed in all, and who owes the most.
+        var topDebtor = orders.GroupBy(o => o.Customer?.Name ?? "Customer")
+            .Select(g => (Name: g.Key, Owed: g.Sum(OrderMoney.Balance))).OrderByDescending(x => x.Owed).First();
+        SpeakInstead(MessageTemplates.Get("spoken.unpaid", orders.Count, Formatters.Money(orders.Sum(OrderMoney.Balance)), topDebtor.Name, Formatters.Money(topDebtor.Owed)));
     }
 }
