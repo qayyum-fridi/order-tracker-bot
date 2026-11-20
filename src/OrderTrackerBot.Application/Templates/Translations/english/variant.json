@@ -1,0 +1,5 @@
+{
+  "variant.match.one": "❓ Is this the {1} one of your \"{0}\"? If yes pick \"{0}\", otherwise \"Naya product\". Pick below 👇",
+  "variant.match.many": "❓ Which of your products is this {0} one? Pick it if it is one of them, otherwise \"Naya product\" 👇",
+  "variant.new": "➕ New product"
+}
