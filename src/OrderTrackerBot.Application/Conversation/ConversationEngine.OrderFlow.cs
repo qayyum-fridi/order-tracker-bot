@@ -159,6 +159,11 @@ public partial class ConversationEngine
                     : MessageTemplates.Get("order-flow.033"), ct);
                 return;
             }
+            if (IsOutOfMvp(CommandKind.CreateDiscount))
+            {
+                await ReplyAsync(seller, MessageTemplates.Get("mvp.001"), ct);
+                return;
+            }
 
             SetState(session, ConversationState.AwaitingDiscountDetails);
             await ReplyAsync(seller, HowToText("discount"), ct);
@@ -1663,6 +1668,7 @@ public partial class ConversationEngine
     /// </summary>
     private async Task CheckLoyaltyThresholdAsync(Seller seller, ConversationSession? session, SessionContextData ctx, Order order, CancellationToken ct)
     {
+        if (IsOutOfMvp(CommandKind.CreateLoyalty)) return; // a rule saved before the MVP cut must not offer a discount the seller can no longer manage
         var rule = await _db.LoyaltyRules.FirstOrDefaultAsync(r => r.SellerId == seller.Id && r.IsActive, ct);
         if (rule is null || rule.OrderThreshold <= 0) return;
 

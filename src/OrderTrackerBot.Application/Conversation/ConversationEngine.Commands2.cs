@@ -442,7 +442,9 @@ public partial class ConversationEngine
         var trimmed = message.Trim();
         var command = CommandParser.TryParse(trimmed);
         var isCancel = CancelWords.Contains(trimmed);
-        if (isCancel || (command is not null && command.Kind is not (CommandKind.AddProduct or CommandKind.AddProductsBulk)))
+        // Under the MVP cut no discount is created here (a state left from before the cut): a command still runs, anything else gets the cut reply.
+        var cut = IsOutOfMvp(CommandKind.CreateDiscount);
+        if (isCancel || (command is not null && (cut || command.Kind is not (CommandKind.AddProduct or CommandKind.AddProductsBulk))))
         {
             ctx.PendingDiscountCode = null;
             SetState(session, ConversationState.Idle);
@@ -452,6 +454,13 @@ public partial class ConversationEngine
                 return;
             }
             await ExecuteCommandAsync(seller, session, ctx, command!, ct);
+            return;
+        }
+        if (cut)
+        {
+            ctx.PendingDiscountCode = null;
+            SetState(session, ConversationState.Idle);
+            await ReplyAsync(seller, MessageTemplates.Get("mvp.001"), ct);
             return;
         }
 

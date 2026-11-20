@@ -49,7 +49,8 @@ public partial class ConversationEngine
         || (!_features.Payments && PaymentMenuRowIds.Contains(id))
         || (!_features.Payouts && PayoutMenuRowIds.Contains(id))
         || (!_features.Drawer && DrawerMenuRowIds.Contains(id))
-        || (!_features.Labels && LabelMenuRowIds.Contains(id));
+        || (!_features.Labels && LabelMenuRowIds.Contains(id))
+        || IsCutCommandText(id);
 
     private IReadOnlyList<MenuRow> VisibleRows(IEnumerable<MenuRow> rows) => rows.Where(r => !MenuRowHidden(r.Id)).ToArray();
 
@@ -157,7 +158,19 @@ public partial class ConversationEngine
         or CommandKind.ImportHelp or CommandKind.ImportTemplate
         or CommandKind.WalkInSale
         or CommandKind.DetailedForm
-        or CommandKind.Scan or CommandKind.BarcodeSet;
+        or CommandKind.Scan or CommandKind.BarcodeSet
+        or CommandKind.PaymentMethodPrompt;
+
+    /// <summary>
+    /// The one MVP-cut check for a parsed command: its kind is off, or it is the how-to that opens an off feature's flow
+    /// ("add discount" -> discount details, "payment add karna hai" -> payment method, loyalty).
+    /// </summary>
+    private bool IsOutOfMvp(ParsedCommand cmd) =>
+        IsOutOfMvp(cmd.Kind) || (_features.MvpOnly && cmd.Kind == CommandKind.HowTo && cmd.Text is "discount" or "payment" or "loyalty");
+
+    /// <summary>True when this typed text (a menu row id, a quick-bar label, a button) would only answer the MVP-cut reply, so it is not offered.</summary>
+    private bool IsCutCommandText(string text) =>
+        _features.MvpOnly && CommandParser.TryParse(text) is { } cmd && IsOutOfMvp(cmd);
 
     private async Task ExecuteCommandAsync(Seller seller, ConversationSession session, SessionContextData ctx, ParsedCommand cmd, CancellationToken ct)
     {
@@ -166,7 +179,7 @@ public partial class ConversationEngine
             await SendProOnlyAsync(seller, ct);
             return;
         }
-        if (IsOutOfMvp(cmd.Kind))
+        if (IsOutOfMvp(cmd))
         {
             await ReplyAsync(seller, MessageTemplates.Get("mvp.001"), ct);
             return;
@@ -490,7 +503,7 @@ public partial class ConversationEngine
                 // A bare "hi" gets no reply: the stats greeting was sent unprompted. The kind stays so "hi" never reaches the AI path.
                 return;
             case CommandKind.Help:
-                await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, HelpTextFor(seller), "Commands dekhein", HelpSections, ct);
+                await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, HelpTextFor(seller), "Commands dekhein", VisibleSections(HelpSections), ct);
                 return;
             case CommandKind.Menu:
                 await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MenuTextFor(seller), "Menu kholein", VisibleSections(MainMenuSections), ct);
@@ -905,17 +918,10 @@ public partial class ConversationEngine
 
     private static string HowToText(string subject, Seller? seller = null) => subject switch
     {
-        "discount" =>
-            "🎟️ Discount code banane ke liye copy karke bhejein:\n\n" +
-            "create discount: EID10, 10 percent, expires 15 days\n\n" +
-            "Ya flat amount:\n" +
-            "create discount: WELCOME50, Rs.50 flat\n\n" +
-            "Ya seedha sirf code ka naam bhejein (e.g. EID10) — main value pooch loon ga. \"cancel\" likh kar ruk sakte hain.",
+        "discount" => MessageTemplates.Get("howto.discount"),
         "product" =>
             "🛍️ " + MessageTemplates.Get("product.formats", IndustryProfiles.Resolve(seller?.BusinessType).SimpleProduct),
-        "payment" =>
-            "💳 Payment method save karne ke liye likhein:\n\n" +
-            "add payment: jazzcash, 0300-1234567\nadd payment: easypaisa, 0300-1234567",
+        "payment" => MessageTemplates.Get("howto.payment"),
         "loyalty" =>
             MessageTemplates.Get("commands.039"),
         "expense" => MessageTemplates.Get("howto.expense"),
