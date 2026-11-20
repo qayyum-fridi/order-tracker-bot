@@ -1,0 +1,12 @@
+{
+  "guided.order.cancel": "❓ Which order should I cancel? Pick below 👇",
+  "guided.order.status": "❓ Which order should be {0}? Pick below 👇",
+  "guided.order.edit": "❓ Which order do you want to change? Pick below 👇",
+  "guided.order.exchange": "❓ In which order should the size or colour change? Pick below 👇",
+  "guided.order.show": "❓ Which order do you want to see? Pick below 👇",
+  "guided.nocustomer": "ℹ️ No customer named \"{0}\" was found, so here are the latest orders.",
+  "guided.customer.which": "❓ There are {1} customers named \"{0}\". Which one? Pick below 👇",
+  "guided.customer.value": "❓ What is {0}'s new {1}? Please tell me, like: \"{0} ka {1} {2}\"",
+  "guided.customer.what": "❓ What should I change for {0}? Please tell me, like: \"{0} ka phone 03001234567\" or \"{0} ka pata Model Town\"",
+  "guided.product.price": "❓ What is the new price of {0}? Please tell me, like: \"{0} ka rate 2000\""
+}

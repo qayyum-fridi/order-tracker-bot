@@ -1608,6 +1608,7 @@ public partial class ConversationEngine
     {
         options = UsableClarificationOptions(options);
         ctx.ClarificationOptions = options;
+        ctx.GuidedTurn = null; // these options are commands, not a guided question's picks
         SetState(session, ConversationState.AwaitingClarificationChoice);
         // A tap sends the command itself when the option is one ("create discount"), otherwise its number (handled by HandleClarificationChoiceAsync).
         var choices = options.Select((o, i) => new ChoiceOption(o, CommandParser.TryParse(o) is not null ? o : (i + 1).ToString())).ToList();
@@ -1621,6 +1622,8 @@ public partial class ConversationEngine
 
     private async Task HandleClarificationChoiceAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
+        // A guided question's taps ("#12", "@5") fill the stored action; they are not commands ("#12" alone would only show the order).
+        if (await TryHandleGuidedChoiceAsync(seller, session, ctx, message, ct)) return;
         var options = ctx.ClarificationOptions ?? DefaultClarificationOptions.ToList();
 
         if (CommandParser.TryParse(message) is { } command)
