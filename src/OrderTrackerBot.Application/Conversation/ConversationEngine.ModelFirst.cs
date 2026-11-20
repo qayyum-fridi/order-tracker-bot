@@ -51,6 +51,10 @@ public partial class ConversationEngine
         var final = image is null && seller.OnboardingComplete && session.State == ConversationState.Idle && CommandParser.TryParse(message) is null;
         var actions = MergeOrderActions(action);
 
+        // A new request while a YES / NO or a tap is open: keep it, ask the open question again, run it once that is answered (ConversationEngine.Parking.cs).
+        if (!final && image is null && session.State != ConversationState.Idle && await TryParkAsync(seller, session, ctx, actions, message, beforeRun, ct))
+            return true;
+
         if (actions.Count == 1)
         {
             var runnable = await CanRunAsync(seller, action, message, ct);

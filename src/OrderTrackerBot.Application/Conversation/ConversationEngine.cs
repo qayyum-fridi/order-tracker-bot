@@ -125,7 +125,12 @@ public partial class ConversationEngine
         var (answered, corrected) = await TakeWordFixAnswerAsync(fromPhoneNumber, rawMessage, ct);
         if (corrected is not null) rawMessage = corrected;
         else if (answered) return;
-        if (await TryHandleVoiceConfirmationAsync(fromPhoneNumber, rawMessage, ct)) return;
+        if (await TryHandleVoiceConfirmationAsync(fromPhoneNumber, rawMessage, ct))
+        {
+            // A request parked while that question was open runs now (ConversationEngine.Parking.cs).
+            await DrainModelQueueAsync(fromPhoneNumber, ct);
+            return;
+        }
         var answeredDraft = IsOrderDraftState((await LoadOrCreateSellerAsync(fromPhoneNumber, ct)).Session!.State);
         _draftPutOnHold = false;
         await HandleIncomingCoreAsync(fromPhoneNumber, rawMessage, ct);
