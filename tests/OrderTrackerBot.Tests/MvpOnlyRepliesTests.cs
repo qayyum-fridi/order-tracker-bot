@@ -37,7 +37,6 @@ public class MvpOnlyRepliesTests : IDisposable
     public static IEnumerable<object[]> CutFeatureMessages() => new[]
     {
         new object[] { "loyal customers" },
-        new object[] { "payout pending" },
         new object[] { "drawer open 5000" },
         new object[] { "label 1" },
         new object[] { "connect instagram" },

@@ -150,7 +150,7 @@ public partial class ConversationEngine
         CommandKind.CreateDiscount or CommandKind.DiscountList or CommandKind.DiscountPerformance
         or CommandKind.CreateLoyalty or CommandKind.LoyalCustomers
         or CommandKind.PaymentLink or CommandKind.AddPaymentMethod
-        or CommandKind.Payout
+        // Payout (courier COD settlements) is part of the MVP: online COD sellers lose money there.
         or CommandKind.CashDrawer or CommandKind.CashMovement
         or CommandKind.ShippingLabel or CommandKind.BusinessLabel or CommandKind.LabelSize
         or CommandKind.ConnectInstagram or CommandKind.DisconnectInstagram or CommandKind.CommentLeads or CommandKind.LeadAction

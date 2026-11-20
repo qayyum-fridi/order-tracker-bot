@@ -11,9 +11,16 @@
   "guided.product.price": "❓ What is the new price of {0}? Please tell me, like: \"{0} ka rate 2000\"",
   "guided.product.delete": "❓ Which product should I take off the list? Pick below 👇",
   "guided.customer.delete": "❓ Which customer should I remove from the list? Please tell me the name, like: \"Sara ko list se hata do\"",
+  "model-delete.001": "❓ Take {0} off the catalog? Old orders will keep it. Type YES for yes, NO for no.",
+  "model-pay.amount": "❓ Record {2} received for order #{0} ({1})? After this {3} will be left. Type YES for yes, NO for no.",
+  "model-pay.full": "❓ Mark order #{0} ({1}) fully paid? {2} was left. Type YES for yes, NO for no.",
+  "guided.order.pay": "❓ Which order is the money for? Pick below 👇",
+  "guided.order.tracking": "❓ Which order is this tracking number for? Pick below 👇",
+  "model-payout.001": "❓ Record {1} received from {0}? Type YES for yes, NO for no.",
+  "model-tracking.001": "❓ Save tracking {2} {3} on order #{0} ({1})? Type YES for yes, NO for no.",
+  "guided.pay.amount": "❓ How much did {0} pay? {2} is left. Please tell me, like: \"order {1} ke 2000 aa gaye\" or \"order {1} ka poora paisa aa gaya\"",
   "model-restore.001": "❓ Put {0} back in the catalog? Type YES for yes, NO for no.",
   "model-restore.002": "✅ {0} is back in the catalog.",
   "model-restore.003": "Sorry, no removed product named \"{0}\" was found. Type \"catalog\" to see the list.",
-  "model-restore.004": "ℹ️ {0} is already in the catalog. Type \"catalog\" to see the list.",
-  "model-delete.001": "❓ Take {0} off the catalog? Old orders will keep it. Type YES for yes, NO for no."
+  "model-restore.004": "ℹ️ {0} is already in the catalog. Type \"catalog\" to see the list."
 }

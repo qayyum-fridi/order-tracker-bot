@@ -14,6 +14,9 @@ public partial class ConversationEngine
 {
     private const int GuidedChoiceLimit = 8;
 
+    /// <summary>How deep a filled-in guided action has asked again (RunGuidedAsync): one follow-up question at most, so it can never loop.</summary>
+    private int _guidedDepth;
+
     /// <summary>
     /// True when a guided question was sent (or the only candidate was used). False = nothing to offer: the caller sends its usual reply.
     /// <paramref name="beforeAsk"/> runs before anything is sent (the voice echo).
@@ -28,6 +31,21 @@ public partial class ConversationEngine
             case TurnAction.EditOrder when action.OrderEdits.Count > 0:
             case TurnAction.ExchangeSize when action.ItemName is not null && !string.IsNullOrWhiteSpace(action.Value):
             case TurnAction.ShowOrder:
+                return await GuideOrderAsync(seller, session, ctx, action, message, beforeAsk, ct);
+
+            // A payment with no order the bot can find: the unpaid orders to tap. With the order known but no amount said: ask how much came.
+            case TurnAction.RecordPayment when await ModelPaymentOrderAsync(seller, action, message, ct) is null:
+                return await GuideOrderAsync(seller, session, ctx, action, message, beforeAsk, ct);
+
+            case TurnAction.RecordPayment:
+                if (beforeAsk is not null) await beforeAsk();
+                var payFor = (await ModelPaymentOrderAsync(seller, action, message, ct))!;
+                await ReplyAsync(seller, MessageTemplates.Get("guided.pay.amount", payFor.Customer?.Name ?? $"#{payFor.Id}", payFor.Id,
+                    Formatters.Money(OrderMoney.Balance(payFor))), ct);
+                return true;
+
+            // A tracking number with no order the bot can find: the orders to tap.
+            case TurnAction.SetTracking when !string.IsNullOrWhiteSpace(action.Value) && Compact(message).Contains(Compact(action.Value), StringComparison.OrdinalIgnoreCase):
                 return await GuideOrderAsync(seller, session, ctx, action, message, beforeAsk, ct);
 
             case TurnAction.EditCustomer or TurnAction.DeleteCustomer when !string.IsNullOrWhiteSpace(action.CustomerName):
@@ -75,6 +93,7 @@ public partial class ConversationEngine
         if (ids.Count > 0) query = query.Where(o => ids.Contains(o.CustomerId));
         // A cancelled or returned order cannot be cancelled, edited or moved on; only "show" may pick it.
         if (action.Action != TurnAction.ShowOrder) query = query.Where(o => o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned);
+        if (action.Action == TurnAction.RecordPayment) query = query.Where(o => o.PaymentStatus != PaymentStatus.Paid);
         var orders = await query.OrderByDescending(o => o.CreatedAt).ThenByDescending(o => o.Id).Take(GuidedChoiceLimit).ToListAsync(ct);
         if (orders.Count == 0) return false;
 
@@ -93,6 +112,8 @@ public partial class ConversationEngine
                 Enum.TryParse<OrderStatus>(action.Status, true, out var status) ? Formatters.Status(status) : action.Status),
             TurnAction.EditOrder => MessageTemplates.Get("guided.order.edit"),
             TurnAction.ExchangeSize => MessageTemplates.Get("guided.order.exchange"),
+            TurnAction.RecordPayment => MessageTemplates.Get("guided.order.pay"),
+            TurnAction.SetTracking => MessageTemplates.Get("guided.order.tracking"),
             _ => MessageTemplates.Get("guided.order.show"),
         };
         if (!string.IsNullOrWhiteSpace(action.CustomerName) && ids.Count == 0)
@@ -212,10 +233,21 @@ public partial class ConversationEngine
             Products = productName is null ? a.Products : new List<AiNewProduct> { new() { Name = productName } },
             OrderId = orderId ?? a.OrderId, CustomerName = customerName ?? a.CustomerName,
             Status = a.Status, Period = a.Period, PendingOnly = a.PendingOnly, Customer = a.Customer, Field = a.Field, Value = a.Value, Topic = a.Topic,
-            Question = a.Question, OrderEdits = a.OrderEdits, ItemName = a.ItemName,
+            Question = a.Question, OrderEdits = a.OrderEdits, ItemName = a.ItemName, Amount = a.Amount, PaidInFull = a.PaidInFull, Courier = a.Courier,
         };
         var said = turn.Message + (orderId is { } id ? $" order {id}" : "") + (customerName is { } chosen ? $" {chosen}" : "") + (productName is { } p ? $" {p}" : "");
-        if (!await CanRunAsync(seller, filled, said, ct) && await TryGuideAsync(seller, session, ctx, filled, said, null, ct)) return;
+        if (!await CanRunAsync(seller, filled, said, ct))
+        {
+            // One follow-up question at most (the amount after the order was tapped); never a loop back into the same order list.
+            if (_guidedDepth == 0)
+            {
+                _guidedDepth++;
+                try { if (await TryGuideAsync(seller, session, ctx, filled, said, null, ct)) return; }
+                finally { _guidedDepth--; }
+            }
+            await ReplyNotRunAsync(seller, filled, ct);
+            return;
+        }
         var catalog = await LoadCatalogAsync(seller, ct);
         if (!await RunTurnActionAsync(seller, session, ctx, filled, catalog, said, ct, false))
             await ReplyNotRunAsync(seller, filled, ct);
