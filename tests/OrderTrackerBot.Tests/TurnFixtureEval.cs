@@ -66,9 +66,7 @@ public class TurnFixtureEval
         ["U089"] = "walk-in sale: cut by Features:MvpOnly, the seller gets 'not available yet'",
         ["U090"] = "counter sale: cut by Features:MvpOnly",
         ["U091"] = "'dukan par ...' sale: cut by Features:MvpOnly",
-        ["U124"] = "'Sara ke sab orders delivered' is read as MarkAllTodayDelivered: every order of today, not Sara's",
         ["U132"] = "'order 2 undo' gets the notice that undo reverts only the last action",
-        ["U296"] = "'stock Shirt -5' is read as adding a product named 'stock Shirt'",
         ["U299"] = "'weekly summary email karo' shows the summary and ignores the email request",
     };
 

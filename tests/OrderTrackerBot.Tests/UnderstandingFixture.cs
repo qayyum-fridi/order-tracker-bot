@@ -49,8 +49,8 @@ internal static class UnderstandingFixture
         CommandKind.TodaysSummary or CommandKind.WeeklySummary or CommandKind.TrendingProducts => "show_summary",
         // "mark 12 paid" is how a typed payment is recorded.
         CommandKind.MarkStatus when parsed.Text == "paid" => "record_payment",
-        // MarkAllTodayDelivered is left out on purpose: it changes every order of today, and the only row that parses to it (U124) asks for
-        // one customer's orders, so scoring it as a status update would hide a wrong bulk change.
+        // MarkAllTodayDelivered is left out on purpose: it changes every order of today, so a row that asks for one customer's orders
+        // ("Sara ke sab orders delivered", U124) must not be scored as right if it is ever read that way again.
         CommandKind.MarkStatus or CommandKind.MarkAllPendingShipped => "update_status",
         CommandKind.CancelOrder => "cancel_order",
         CommandKind.OrderPayment => "record_payment",
