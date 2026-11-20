@@ -390,6 +390,11 @@ public static class CommandParser
     private static readonly Regex CustomerAddNameBlocked = new(@"^(?:order|orders|list|report|search|find|phone|number|address|city|summary|catalog|price|bana\p{L}*|create|make|naya|nayi)\b", Opts);
     private static readonly Regex CustomerAddFillerOnly = new(@"^(?:hai|hain|ہے|ہیں)$", Opts);
     private static readonly Regex CustomerAddNameWord = new(@"^[\p{L}\p{M}.'’-]+$", Opts);
+    // "naya customer add karna hai" asks to add one; the words left after the prefix are a verb, not a buyer's name.
+    private static readonly Regex CustomerAddVerbWord = new(@"^(?:add|karna|karni|karne|krna|karo|kar|save|delete|hatana|likhna)$", Opts);
+    // A comma-separated piece that is only spoken filler ("uska", "اس کا"): not an address.
+    private static readonly Regex CustomerAddFillerPiece = new(@"^(?:hai|hain|ہے|ہیں|uska|uski|iska|iski|اس\s+کا|اس\s+کی)$", Opts);
+    private static readonly char[] CustomerAddSeparators = { ',', '،', ';', '\n', '|' };
     // "Muhammad Ali hai", "ماڈل ٹاؤن لاہور ہے", "address ... uska": spoken filler around a value is not part of it.
     private static readonly Regex CustomerAddTrailingFiller = new(@"\s+(?:hai|hain|ہے|ہیں|uska|uski|iska|iski|اس\s+کا|اس\s+کی)$", Opts);
     private static readonly Regex CustomerAddLeadingFiller = new(@"^(?:hai|hain|ہے|ہیں)\s+", Opts);
@@ -408,8 +413,13 @@ public static class CommandParser
         // "naya client hai" leaves only "hai" as the name: a spoken filler word alone is not a buyer's name.
         if (name.Length is < 2 or > 40 || CustomerAddNameBlocked.IsMatch(name) || CustomerAddFillerOnly.IsMatch(name)) return false;
         var words = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return words.Length is >= 1 and <= 4 && words.All(w => CustomerAddNameWord.IsMatch(w));
+        return words.Length is >= 1 and <= 4 && words.All(w => CustomerAddNameWord.IsMatch(w)) && !words.Any(w => CustomerAddVerbWord.IsMatch(w));
     }
+
+    /// <summary>The comma-separated pieces of a value, cleaned, without empty or filler-only pieces.</summary>
+    private static List<string> CustomerParts(string text) =>
+        text.Split(CustomerAddSeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(CleanCustomerPart).Where(p => p.Length > 0 && !CustomerAddFillerPiece.IsMatch(p)).ToList();
 
     private static ParsedCommand? TryParseCustomerAdd(string message)
     {
@@ -420,6 +430,14 @@ public static class CommandParser
         string name;
         string? phone = null, address = null, city = null;
 
+        // A detail with no label: a phone-shaped piece is the phone, the first other piece the address, the next the city.
+        void Unlabelled(string part)
+        {
+            if (CustomerAddPhoneLike.IsMatch(part)) phone ??= part;
+            else if (address is null) address = part;
+            else city ??= part;
+        }
+
         var labels = CustomerAddLabel.Matches(rest);
         if (labels.Count > 0)
         {
@@ -427,27 +445,36 @@ public static class CommandParser
             for (var i = 0; i < labels.Count; i++)
             {
                 var end = i + 1 < labels.Count ? labels[i + 1].Index : rest.Length;
-                var value = CleanCustomerPart(rest[(labels[i].Index + labels[i].Length)..end]);
-                if (value.Length == 0) continue;
+                // A label's text runs to the next label, so "نمبر 03211234567، صدر کراچی" carries the address after a comma: split it.
+                var pieces = CustomerParts(rest[(labels[i].Index + labels[i].Length)..end]);
+                if (pieces.Count == 0) continue;
                 switch (labels[i].Groups["k"].Value.ToLowerInvariant())
                 {
-                    case "phone" or "fone" or "mobile" or "number" or "فون" or "نمبر": phone ??= CustomerAddPhoneLike.IsMatch(value) ? value : null; break; // "baad mein" = no phone yet
-                    case "city" or "shehar" or "شہر": city ??= value; break;
-                    default: address ??= value; break;
+                    case "phone" or "fone" or "mobile" or "number" or "فون" or "نمبر":
+                        // "phone baad mein ..." = no phone yet, and the words after it are not details.
+                        if (!CustomerAddPhoneLike.IsMatch(pieces[0])) break;
+                        phone ??= pieces[0];
+                        foreach (var extra in pieces.Skip(1)) Unlabelled(extra);
+                        break;
+                    case "city" or "shehar" or "شہر":
+                        city ??= pieces[0];
+                        foreach (var extra in pieces.Skip(1).Where(p => CustomerAddPhoneLike.IsMatch(p))) phone ??= extra;
+                        break;
+                    default:
+                        // An address may itself hold commas ("House 5, Street 2"): only a phone-shaped piece is taken out of it.
+                        foreach (var extra in pieces.Where(p => CustomerAddPhoneLike.IsMatch(p))) phone ??= extra;
+                        var place = string.Join(", ", pieces.Where(p => !CustomerAddPhoneLike.IsMatch(p)));
+                        if (place.Length > 0) address ??= place;
+                        break;
                 }
             }
         }
         else
         {
-            var parts = rest.Split(new[] { ',', '،', ';', '\n', '|' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var parts = rest.Split(CustomerAddSeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             if (parts.Length == 0) return null;
             name = CleanCustomerPart(parts[0]);
-            foreach (var part in parts.Skip(1).Select(CleanCustomerPart).Where(p => p.Length > 0))
-            {
-                if (CustomerAddPhoneLike.IsMatch(part)) phone ??= part;
-                else if (address is null) address = part;
-                else city ??= part;
-            }
+            foreach (var part in parts.Skip(1).Select(CleanCustomerPart).Where(p => p.Length > 0)) Unlabelled(part);
         }
 
         return ValidCustomerName(name)
