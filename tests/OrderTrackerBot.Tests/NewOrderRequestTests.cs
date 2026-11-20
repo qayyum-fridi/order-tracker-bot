@@ -111,6 +111,9 @@ public class NewOrderRequestTests
     [InlineData("naya order ka report")]
     [InlineData("edit order bana do")]
     [InlineData("cancel naya order")]
+    // "khatam karo" ends an order; with "karo" it looked like a request to start one.
+    [InlineData("Sara ka order zara khatam karo")]
+    [InlineData("order radd kar do")]
     [InlineData("naya order kitne aaye")]
     [InlineData("naya customer bana dein")]
     [InlineData("orders today")]

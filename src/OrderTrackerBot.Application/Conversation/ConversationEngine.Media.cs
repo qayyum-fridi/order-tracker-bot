@@ -243,6 +243,7 @@ public partial class ConversationEngine
                 var voiceSession = seller.Session!;
                 var voiceCtx = SessionContextData.FromJson(voiceSession.ContextJson);
                 voiceCtx.ClarificationOptions = options.ToList();
+                voiceCtx.GuidedTurn = null;
                 SetState(voiceSession, ConversationState.AwaitingClarificationChoice);
                 voiceSession.ContextJson = voiceCtx.ToJson();
                 await SendChoicesAsync(fromPhoneNumber, $"{heard}\n\n❓ {decision.Message}", options.Select(o => new ChoiceOption(o, o)).ToList(), ct);
@@ -1415,6 +1416,7 @@ public partial class ConversationEngine
 
     private static void ResetFlowContext(SessionContextData ctx)
     {
+        ctx.GuidedTurn = null;
         ctx.PendingOrder = null;
         ctx.PendingMissingField = null;
         ctx.PendingNewProductName = null;

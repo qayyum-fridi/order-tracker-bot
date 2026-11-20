@@ -54,6 +54,9 @@ public partial class ConversationEngine
         if (actions.Count == 1)
         {
             var runnable = await CanRunAsync(seller, action, message, ct);
+            // Understood, but a detail is missing or fits several records: ask with taps instead of the generic reply (ConversationEngine.Guided.cs).
+            if (final && (!runnable || await NeedsCustomerChoiceAsync(seller, action, ct)) && await TryGuideAsync(seller, session, ctx, action, message, beforeRun, ct))
+                return true;
             if (!runnable && !final) return false;
             if (beforeRun is not null) await beforeRun();
             if (runnable && await RunTurnActionAsync(seller, session, ctx, action, catalog, message, ct, fromScreenshot)) return true;
@@ -121,7 +124,7 @@ public partial class ConversationEngine
     {
         Action = action.Action, Orders = action.Orders, Products = action.Products, OrderId = action.OrderId, CustomerName = action.CustomerName,
         Status = action.Status, Period = action.Period, PendingOnly = action.PendingOnly, Customer = action.Customer, Field = action.Field,
-        Value = action.Value, Topic = action.Topic, Question = action.Question, OrderEdits = action.OrderEdits,
+        Value = action.Value, Topic = action.Topic, Question = action.Question, OrderEdits = action.OrderEdits, ItemName = action.ItemName,
     };
 
     /// <summary>

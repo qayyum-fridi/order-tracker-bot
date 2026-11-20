@@ -180,6 +180,9 @@ public sealed class SessionContextData
     /// <summary>Actions from one message that run once the open yes/no question is answered, in order.</summary>
     public List<QueuedModelTurn> ModelQueue { get; set; } = new();
 
+    /// <summary>A guided question is open (ConversationEngine.Guided.cs): the understood action waiting for the tapped order ("#12") or customer ("@5").</summary>
+    public QueuedModelTurn? GuidedTurn { get; set; }
+
     public int? CodCollectedOrderId { get; set; }
     public string? RuntimeFilterCommand { get; set; }
     public int? TrackingPromptOrderId { get; set; }

@@ -1,0 +1,12 @@
+{
+  "guided.order.cancel": "❓ Kaun sa order cancel karna hai? Neeche se chunein 👇",
+  "guided.order.status": "❓ Kis order ko {0} karna hai? Neeche se chunein 👇",
+  "guided.order.edit": "❓ Kis order mein tabdeeli karni hai? Neeche se chunein 👇",
+  "guided.order.exchange": "❓ Kis order mein size ya rang badalna hai? Neeche se chunein 👇",
+  "guided.order.show": "❓ Kaun sa order dekhna hai? Neeche se chunein 👇",
+  "guided.nocustomer": "ℹ️ \"{0}\" naam ka customer nahi mila, is liye aakhri order dikha raha hoon.",
+  "guided.customer.which": "❓ \"{0}\" naam ke {1} customer hain. Kaun sa? Neeche se chunein 👇",
+  "guided.customer.value": "❓ {0} ka naya {1} kya hai? Barae meherbani bata dein, jaise: \"{0} ka {1} {2}\"",
+  "guided.customer.what": "❓ {0} ki kaun si cheez badalni hai? Barae meherbani bata dein, jaise: \"{0} ka phone 03001234567\" ya \"{0} ka pata Model Town\"",
+  "guided.product.price": "❓ {0} ki nayi qeemat kya hai? Barae meherbani bata dein, jaise: \"{0} ka rate 2000\""
+}
