@@ -136,6 +136,7 @@ public partial class ConversationEngine
         Action = action.Action, Orders = action.Orders, Products = action.Products, OrderId = action.OrderId, CustomerName = action.CustomerName,
         Status = action.Status, Period = action.Period, PendingOnly = action.PendingOnly, Customer = action.Customer, Field = action.Field,
         Value = action.Value, Topic = action.Topic, Question = action.Question, OrderEdits = action.OrderEdits, ItemName = action.ItemName,
+        Amount = action.Amount, PaidInFull = action.PaidInFull, Courier = action.Courier,
     };
 
     /// <summary>
@@ -180,8 +181,44 @@ public partial class ConversationEngine
         TurnAction.CreateCategory => !string.IsNullOrWhiteSpace(action.Value),
         TurnAction.DeleteProduct => action.Products.Count > 0 && !string.IsNullOrWhiteSpace(action.Products[0].Name),
         TurnAction.DeleteCustomer => !string.IsNullOrWhiteSpace(action.CustomerName),
+        // Money: an amount the seller said (digits or words), or "poora / COD aa gaya"; and an order: its number said, or the named customer's unpaid one.
+        TurnAction.RecordPayment => (action.PaidInFull || action.Amount is > 0 && SaidNumbers(message).Contains((long)Math.Round(action.Amount.Value, MidpointRounding.AwayFromZero)))
+                                    && await ModelPaymentOrderAsync(seller, action, message, ct) is not null,
+        TurnAction.CodPending => true,
+        TurnAction.RecordPayout => action.Amount is > 0 && SaidNumbers(message).Contains((long)Math.Round(action.Amount.Value, MidpointRounding.AwayFromZero)),
+        // The tracking number must be in the seller's words (it is copied, never made up), and the order must be found.
+        TurnAction.SetTracking => !string.IsNullOrWhiteSpace(action.Value) && Compact(message).Contains(Compact(action.Value), StringComparison.OrdinalIgnoreCase)
+                                  && await ModelTrackingOrderAsync(seller, action, message, ct) is not null,
         _ => false,
     };
+
+    private static string Compact(string text) => new(text.Where(c => !char.IsWhiteSpace(c) && c != '-').ToArray());
+
+    /// <summary>The order a tracking number is for: its number said, or the named customer's latest order that is not cancelled or returned.</summary>
+    private async Task<Order?> ModelTrackingOrderAsync(Seller seller, TurnAction action, string message, CancellationToken ct)
+    {
+        if (SaidOrderId(action, message) is { } id)
+            return await _db.Orders.Include(o => o.Customer).FirstOrDefaultAsync(o => o.SellerId == seller.Id && o.Id == id, ct);
+        if (!SaidName(action.CustomerName, message) || await ModelCustomerAsync(seller, action.CustomerName, ct) is not { } customer) return null;
+        return await _db.Orders.Include(o => o.Customer)
+            .Where(o => o.SellerId == seller.Id && o.CustomerId == customer.Id && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
+            .OrderByDescending(o => o.CreatedAt).ThenByDescending(o => o.Id).FirstOrDefaultAsync(ct);
+    }
+
+    /// <summary>
+    /// The order a payment is for: the number the seller said, or the named customer's latest order that is not paid yet (and not cancelled or returned).
+    /// Null when neither points at one.
+    /// </summary>
+    private async Task<Order?> ModelPaymentOrderAsync(Seller seller, TurnAction action, string message, CancellationToken ct)
+    {
+        if (SaidOrderId(action, message) is { } id)
+            return await _db.Orders.Include(o => o.Customer).FirstOrDefaultAsync(o => o.SellerId == seller.Id && o.Id == id, ct);
+        if (!SaidName(action.CustomerName, message) || await ModelCustomerAsync(seller, action.CustomerName, ct) is not { } customer) return null;
+        return await _db.Orders.Include(o => o.Customer)
+            .Where(o => o.SellerId == seller.Id && o.CustomerId == customer.Id && o.PaymentStatus != PaymentStatus.Paid
+                        && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
+            .OrderByDescending(o => o.CreatedAt).ThenByDescending(o => o.Id).FirstOrDefaultAsync(ct);
+    }
 
     /// <summary>
     /// The order number the model returned, only when the seller said that number (digits or words: "order 3", "teen number", "تین نمبر").
@@ -390,6 +427,42 @@ public partial class ConversationEngine
                 }, ct);
                 return true;
 
+            case TurnAction.RecordPayment when await ModelPaymentOrderAsync(seller, action, message, ct) is { } payOrder:
+                if (payOrder.PaymentStatus == PaymentStatus.Paid)
+                {
+                    await ReplyAsync(seller, MessageTemplates.Get("order-payments.002", payOrder.Id, Formatters.Money(payOrder.Total)), ct);
+                    return true;
+                }
+                // Money changes only after YES; the question says what will be left to pay.
+                var owed = OrderMoney.Balance(payOrder);
+                var full = action.PaidInFull || action.Amount is not > 0;
+                ctx.ModelEdit = new ModelEditData { Kind = TurnAction.RecordPayment, OrderId = payOrder.Id, Amount = full ? null : action.Amount };
+                SetState(session, ConversationState.AwaitingModelStatusConfirmation);
+                await AskYesNoAsync(seller, full
+                    ? MessageTemplates.Get("model-pay.full", payOrder.Id, payOrder.Customer?.Name, Formatters.Money(owed))
+                    : MessageTemplates.Get("model-pay.amount", payOrder.Id, payOrder.Customer?.Name, Formatters.Money(action.Amount!.Value),
+                        Formatters.Money(Math.Max(0, owed - action.Amount.Value))), ct);
+                return true;
+
+            case TurnAction.CodPending:
+                // What each courier still owes for delivered COD parcels (ConversationEngine.Payouts.cs).
+                await HandlePayoutAsync(seller, new ParsedCommand { Kind = CommandKind.Payout, Text = "pending" }, ct);
+                return true;
+
+            case TurnAction.RecordPayout when action.Amount is > 0:
+                var courier = string.IsNullOrWhiteSpace(action.Courier) ? "Courier" : action.Courier.Trim();
+                ctx.ModelEdit = new ModelEditData { Kind = TurnAction.RecordPayout, Name = courier, Amount = action.Amount };
+                SetState(session, ConversationState.AwaitingModelStatusConfirmation);
+                await AskYesNoAsync(seller, MessageTemplates.Get("model-payout.001", courier, Formatters.Money(action.Amount.Value)), ct);
+                return true;
+
+            case TurnAction.SetTracking when await ModelTrackingOrderAsync(seller, action, message, ct) is { } tracked:
+                var trackingCourier = string.IsNullOrWhiteSpace(action.Courier) ? tracked.TrackingCourier ?? "Courier" : action.Courier.Trim();
+                ctx.ModelEdit = new ModelEditData { Kind = TurnAction.SetTracking, OrderId = tracked.Id, Name = trackingCourier, Value = action.Value!.Trim() };
+                SetState(session, ConversationState.AwaitingModelStatusConfirmation);
+                await AskYesNoAsync(seller, MessageTemplates.Get("model-tracking.001", tracked.Id, tracked.Customer?.Name, trackingCourier, action.Value!.Trim()), ct);
+                return true;
+
             case TurnAction.HowTo:
                 var profile = Industry(seller);
                 var topic = action.Topic is not null && action.Topic != "other" ? action.Topic : "other";
@@ -552,6 +625,22 @@ public partial class ConversationEngine
                 await HandleEditProductAsync(seller, new ParsedCommand { Kind = CommandKind.EditProduct, Text = edit.Name, Amount = edit.Amount }, ct);
             else if (edit.Kind == TurnAction.DeleteProduct)
                 await HandleDeleteProductAsync(seller, edit.Name, ct);
+            else if (edit.Kind == TurnAction.RecordPayout && edit.Amount is { } payout)
+                await HandlePayoutAsync(seller, new ParsedCommand { Kind = CommandKind.Payout, Text = "record", Amount = payout, Text2 = edit.Name }, ct);
+            else if (edit.Kind == TurnAction.SetTracking && edit.OrderId is { } trackedId
+                     && await _db.Orders.FirstOrDefaultAsync(o => o.Id == trackedId && o.SellerId == seller.Id, ct) is { } trackedOrder)
+            {
+                trackedOrder.TrackingCourier = edit.Name;
+                trackedOrder.TrackingNumber = edit.Value;
+                await ReplyAsync(seller, MessageTemplates.Get("commands2.020", trackedOrder.TrackingCourier, trackedOrder.TrackingNumber), ct);
+            }
+            else if (edit.Kind == TurnAction.RecordPayment && edit.OrderId is { } paidOrderId)
+            {
+                // The model's order number is a real order id, never a position in the last list the seller saw.
+                ctx.LastListOrderIds = null;
+                if (edit.Amount is { } received) await HandleOrderPaymentAsync(seller, ctx, paidOrderId, received, ct);
+                else await HandleMarkStatusAsync(seller, session, ctx, new ParsedCommand { Kind = CommandKind.MarkStatus, Number = paidOrderId, Text = "paid" }, ct);
+            }
             else if (edit.Kind == TurnAction.EditOrder)
                 await ApplyModelOrderEditAsync(seller, session, ctx, edit, ct);
             else if (edit.Kind == PictureProductKind)
@@ -573,6 +662,8 @@ public partial class ConversationEngine
             await ReplyAsync(seller, MessageTemplates.Get("commands2.005"), ct);
             return;
         }
+        // The confirmed order is a real order id: without this, a list shown earlier would turn "12" into the 12th row's order.
+        ctx.LastListOrderIds = null;
         await HandleMarkStatusAsync(seller, session, ctx,
             new ParsedCommand { Kind = CommandKind.MarkStatus, Number = orderId, Text = status }, ct);
     }

@@ -77,8 +77,16 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         "- clarify: the message is about customers, orders or products but a needed detail is missing or it could mean two things. Put ONE short question in " +
         "question, in simple Roman Urdu (e.g. 'Kis customer ka number chahiye?').\n" +
         "- help_or_chat: a greeting, small talk, or anything not about the shop.\n" +
-        "- out_of_scope: a shop task this bot does not do yet (expenses, discounts, receipts, profit reports). A PAYMENT or advance ('advance 500', 'payment mark karo', " +
-        "'1000 de diye', 'paise mil gaye', 'ایڈوانس') is out_of_scope: never update_status for it.\n" +
+        "- record_payment: money RECEIVED for an order: an advance, a part payment or the full amount ('Sara ne 2000 diye', 'order 12 ke 1500 aa gaye', " +
+        "'advance 500 mil gaya', 'COD aa gaya', 'Bilal ka poora paisa aa gaya', 'ایڈوانس پانچ سو'). Give order_id or customer_name; amount = the money said " +
+        "(digits), or paid_in_full true when they say all / poora / COD aa gaya and no amount. Never update_status for money.\n" +
+        "- cod_pending: they ask which COD / courier money has not come yet ('kis kis ka paisa courier ne nahi diya', 'TCS ka kitna paisa baqi hai', " +
+        "'COD kitna phansa hua hai').\n" +
+        "- record_payout: a COURIER paid the seller for COD parcels ('TCS se 15000 aa gaye', 'courier ne 11700 diye', 'Leopards ki payment aa gayi 8000'). " +
+        "courier = the courier's name as said (null if none); amount = the money said. Money from a CUSTOMER is record_payment, never this.\n" +
+        "- set_tracking: a parcel's tracking number ('order 12 ka tracking TCS 77123456', 'Sara ke parcel ka number 88231 hai Leopards'). " +
+        "order_id or customer_name; courier; value = the tracking number exactly as said.\n" +
+        "- out_of_scope: a shop task this bot does not do yet (expenses, discounts, receipts, profit reports).\n" +
         "Never invent a number, name or phone that is not in the text. Use null for anything not said. " +
         "order_id is ONLY the order number the owner said ('order 3', 'teen number wala', 'تین نمبر آرڈر' = 3); when they named a customer and no number, " +
         "leave order_id null and give customer_name. Never pick an order_id from the list of latest orders yourself. " +
@@ -273,6 +281,10 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
             Topic = topic is not null && TurnAction.HowToTopics.Contains(topic) ? topic : null,
             Question = Str(root, "question"),
             OrderEdits = orderEdits,
+            // Money received belongs to record_payment only; an amount on another action is not carried.
+            Amount = action is TurnAction.RecordPayment or TurnAction.RecordPayout && Dec(root, "amount") is > 0 and var paid ? paid : null,
+            PaidInFull = action == TurnAction.RecordPayment && root.TryGetProperty("paid_in_full", out var full) && full.ValueKind == JsonValueKind.True,
+            Courier = action is TurnAction.RecordPayout or TurnAction.SetTracking ? Str(root, "courier") : null,
         };
     }
 
@@ -375,6 +387,9 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
             ["topic"] = NullableEnum(TurnAction.HowToTopics),
             ["question"] = NullableString(),
             ["edit_lines"] = new JsonObject { ["type"] = "array", ["items"] = editLine },
+            ["amount"] = NullableNumber(),
+            ["paid_in_full"] = new JsonObject { ["type"] = "boolean" },
+            ["courier"] = NullableString(),
         });
         var root = Obj(new JsonObject
         {

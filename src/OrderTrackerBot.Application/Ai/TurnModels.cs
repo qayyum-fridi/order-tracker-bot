@@ -24,6 +24,10 @@ public sealed class TurnAction
     public const string ShowCustomer = "show_customer";
     public const string DeleteProduct = "delete_product";
     public const string DeleteCustomer = "delete_customer";
+    public const string RecordPayment = "record_payment";
+    public const string CodPending = "cod_pending";
+    public const string RecordPayout = "record_payout";
+    public const string SetTracking = "set_tracking";
     public const string HowTo = "how_to";
     public const string ContactSupport = "contact_support";
     public const string Clarify = "clarify";
@@ -35,8 +39,8 @@ public sealed class TurnAction
     public static readonly IReadOnlyList<string> All = new[]
     {
         CreateOrder, UpdateStatus, CancelOrder, ShowOrders, ShowOrder, ShowSummary, AddProduct, EditProduct, AddStock, ShowCatalog,
-        AddCustomer, EditCustomer, EditOrder, ExchangeSize, CreateCategory, ShowCustomer, DeleteProduct, DeleteCustomer, HowTo, ContactSupport, Clarify, Undo,
-        HelpOrChat, OutOfScope
+        AddCustomer, EditCustomer, EditOrder, ExchangeSize, CreateCategory, ShowCustomer, DeleteProduct, DeleteCustomer, RecordPayment, CodPending, RecordPayout, SetTracking, HowTo, ContactSupport,
+        Clarify, Undo, HelpOrChat, OutOfScope
     };
 
     /// <summary>Most actions one message may carry. Extra ones beyond this are dropped by the parser.</summary>
@@ -109,6 +113,15 @@ public sealed class TurnAction
     /// Only the first action is held in the top-level object; the parser fills this list, and the engine runs them one after another.
     /// </summary>
     public List<TurnAction> Also { get; init; } = new();
+
+    /// <summary>record_payout / set_tracking: the courier's name as said ("TCS", "Leopards"); null when none was said.</summary>
+    public string? Courier { get; init; }
+
+    /// <summary>record_payment / record_payout: the money received, as said; null when no amount was said.</summary>
+    public decimal? Amount { get; init; }
+
+    /// <summary>record_payment: the whole balance came in ("poora paisa aa gaya", "COD aa gaya") and no amount was said.</summary>
+    public bool PaidInFull { get; init; }
 }
 
 /// <summary>One change to a saved order's items, as the seller said it. Item is the product name as spoken; the engine finds its line in the order.</summary>
