@@ -18,14 +18,17 @@ public partial class ConversationEngine
     private async Task SendChoicesAsync(string phone, string body, IReadOnlyList<ChoiceOption> options, CancellationToken ct)
     {
         var unique = options.GroupBy(o => o.Value, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).Take(9).ToList();
+        // The question and its choices are this turn's reply, so a voice note's spoken reply covers them too.
         if (unique.Count == 0)
         {
+            _lastReply = body;
             await _sender.SendTextMessageAsync(phone, body, ct);
             return;
         }
 
         if (unique.Count <= 3 && unique.All(o => o.Label.Length <= 20 && o.Label == o.Value))
         {
+            _lastReply = body;
             await _sender.SendButtonsMessageAsync(phone, body, unique.Select(o => o.Label).ToList(), ct);
             return;
         }
@@ -35,6 +38,7 @@ public partial class ConversationEngine
         // The full wording of each option stays readable in the message itself (row titles are cut at 24 characters).
         var full = string.Join("\n", unique.Select((o, i) => $"{i + 1}️⃣ {ShortenChoice(o.Label, 80)}"));
         var text = ShortenChoice($"{body}\n\n{full}", 1000);
+        _lastReply = text;
         await _sender.SendListMessageAsync(phone, text, "Chunein 👇", new[] { new MenuSection("Options", rows) }, ct);
     }
 }
