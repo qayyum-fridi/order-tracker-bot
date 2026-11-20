@@ -11,5 +11,9 @@
   "guided.product.price": "❓ What is the new price of {0}? Please tell me, like: \"{0} ka rate 2000\"",
   "guided.product.delete": "❓ Which product should I take off the list? Pick below 👇",
   "guided.customer.delete": "❓ Which customer should I remove from the list? Please tell me the name, like: \"Sara ko list se hata do\"",
+  "model-restore.001": "❓ Put {0} back in the catalog? Type YES for yes, NO for no.",
+  "model-restore.002": "✅ {0} is back in the catalog.",
+  "model-restore.003": "Sorry, no removed product named \"{0}\" was found. Type \"catalog\" to see the list.",
+  "model-restore.004": "ℹ️ {0} is already in the catalog. Type \"catalog\" to see the list.",
   "model-delete.001": "❓ Take {0} off the catalog? Old orders will keep it. Type YES for yes, NO for no."
 }

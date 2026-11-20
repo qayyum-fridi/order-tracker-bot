@@ -115,6 +115,55 @@ public class ParkAndSpokenTests : IDisposable
         Assert.Equal("03001112222", (await db.Customers.AsNoTracking().SingleAsync(c => c.Id == _bilalId)).Phone);
     }
 
+    /// <summary>The bot waits for YES to mark Sara's order shipped.</summary>
+    private async Task<int> WaitForShippedYesAsync(AppDbContext db)
+    {
+        var saraOrder = await OrderOf(db, _saraId);
+        var session = await db.Sessions.SingleAsync();
+        var ctx = SessionContextData.FromJson(session.ContextJson);
+        ctx.ModelStatusOrderId = saraOrder;
+        ctx.ModelStatusValue = "shipped";
+        session.ContextJson = ctx.ToJson();
+        session.State = ConversationState.AwaitingModelStatusConfirmation;
+        await db.SaveChangesAsync();
+        return saraOrder;
+    }
+
+    [Fact]
+    public async Task ATypedNewRequest_WhileAYesIsOpen_IsKept_NotReadAsNo_ThenRunsAfterTheAnswer()
+    {
+        var (db, type, _) = await ShopAsync();
+        using var _db = db;
+        var saraOrder = await WaitForShippedYesAsync(db);
+        const string message = "acha suno Bilal ka number ab 03001112222 kar do";
+        _model[message] = new TurnAction { Action = TurnAction.EditCustomer, CustomerName = "Bilal", Field = "phone", Value = "03001112222" };
+
+        await type(message);
+        Assert.Contains(_sent, m => m.StartsWith(MessageTemplates.Get("park.001", "").Split('\n')[0]));
+        Assert.Equal(ConversationState.AwaitingModelStatusConfirmation, (await db.Sessions.AsNoTracking().SingleAsync()).State);
+        Assert.Equal(OrderStatus.Pending, (await db.Orders.AsNoTracking().SingleAsync(o => o.Id == saraOrder)).Status);   // not taken as a NO either
+
+        await type("yes");
+        Assert.Equal(OrderStatus.Shipped, (await db.Orders.AsNoTracking().SingleAsync(o => o.Id == saraOrder)).Status);
+        Assert.Contains(_sent, m => m.Contains("Bilal Ahmed") && m.Contains("03001112222"));
+
+        await type("yes");
+        Assert.Equal("03001112222", (await db.Customers.AsNoTracking().SingleAsync(c => c.Id == _bilalId)).Phone);
+    }
+
+    [Fact]
+    public async Task ATypedYesWord_IsTheAnswer_NotParked()
+    {
+        var (db, type, _) = await ShopAsync();
+        using var _db = db;
+        var saraOrder = await WaitForShippedYesAsync(db);
+
+        await type("haan");
+
+        Assert.DoesNotContain(_sent, m => m.StartsWith(MessageTemplates.Get("park.001", "").Split('\n')[0]));
+        Assert.Equal(OrderStatus.Shipped, (await db.Orders.AsNoTracking().SingleAsync(o => o.Id == saraOrder)).Status);
+    }
+
     [Theory]
     [InlineData("haan", true)]
     [InlineData("nahi", true)]

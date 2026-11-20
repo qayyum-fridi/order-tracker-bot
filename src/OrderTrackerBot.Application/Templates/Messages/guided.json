@@ -11,5 +11,9 @@
   "guided.product.price": "❓ {0} ki nayi qeemat kya hai? Barae meherbani bata dein, jaise: \"{0} ka rate 2000\"",
   "guided.product.delete": "❓ Kaun sa product list se hatana hai? Neeche se chunein 👇",
   "guided.customer.delete": "❓ Kis customer ko list se hatana hai? Barae meherbani naam bata dein, jaise: \"Sara ko list se hata do\"",
+  "model-restore.001": "❓ {0} ko wapas catalog mein daal dein? Haan ke liye YES likhein, nahi ke liye NO.",
+  "model-restore.002": "✅ {0} wapas catalog mein aa gaya.",
+  "model-restore.003": "Maaf kijiye, \"{0}\" naam ka hataya hua product nahi mila. \"catalog\" likh kar list dekhein.",
+  "model-restore.004": "ℹ️ {0} pehle se catalog mein hai. \"catalog\" likh kar list dekhein.",
   "model-delete.001": "❓ {0} ko catalog se hata dein? Purane orders mein yeh rahega. Haan ke liye YES likhein, nahi ke liye NO."
 }

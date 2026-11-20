@@ -260,6 +260,53 @@ public class GuidedQuestionTests : IDisposable
         Assert.Null((await db.Customers.AsNoTracking().SingleAsync(c => c.Id == _aliHassanId)).DeletedAt);
     }
 
+    // ----- Restoring by voice or in own words -----
+
+    [Fact]
+    public async Task RestoringARemovedProduct_AsksYes_ThenPutsItBack()
+    {
+        var (db, say) = await ShopAsync();
+        using var _ = db;
+        (await db.Products.SingleAsync()).IsActive = false;
+        await db.SaveChangesAsync();
+        _model["Shirt wapas list mein daal do please"] = new TurnAction { Action = TurnAction.RestoreProduct, Products = { new AiNewProduct { Name = "Shirt" } } };
+
+        await say("Shirt wapas list mein daal do please");
+        Assert.Contains(MessageTemplates.Get("model-restore.001", "Shirt"), _sent);
+        Assert.False(await ShirtActive(db));
+
+        await say("yes");
+        Assert.True(await ShirtActive(db));
+        Assert.Contains(MessageTemplates.Get("model-restore.002", "Shirt"), _sent);
+    }
+
+    [Fact]
+    public async Task RestoringAProductThatIsStillOnTheList_SaysSo_AndChangesNothing()
+    {
+        var (db, say) = await ShopAsync();
+        using var _ = db;
+        _model["Shirt wapas list mein daal do please"] = new TurnAction { Action = TurnAction.RestoreProduct, Products = { new AiNewProduct { Name = "Shirt" } } };
+
+        await say("Shirt wapas list mein daal do please");
+
+        Assert.Contains(MessageTemplates.Get("model-restore.004", "Shirt"), _sent);
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.AsNoTracking().SingleAsync()).State);
+    }
+
+    [Fact]
+    public async Task RestoringARemovedCustomer_BringsThemBack()
+    {
+        var (db, say) = await ShopAsync();
+        using var _ = db;
+        (await db.Customers.SingleAsync(c => c.Id == _bilalId)).DeletedAt = DateTime.UtcNow.AddDays(-1);
+        await db.SaveChangesAsync();
+        _model["Bilal ko wapas le aao list mein"] = new TurnAction { Action = TurnAction.RestoreCustomer, CustomerName = "Bilal" };
+
+        await say("Bilal ko wapas le aao list mein");
+
+        Assert.Null((await db.Customers.AsNoTracking().SingleAsync(c => c.Id == _bilalId)).DeletedAt);
+    }
+
     // ----- Several requests in one message -----
 
     [Fact]
