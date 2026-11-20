@@ -891,6 +891,11 @@ public class CommandParserTests
     [InlineData("Shirt ka stock 15", "Shirt", "set", 15)]
     [InlineData("stock Shirt +10", "Shirt", "add", 10)]
     [InlineData("stock Shirt off", "Shirt", "off", null)]
+    // A minus right before the number takes stock away; it is not a product called "stock Shirt" priced 5.
+    [InlineData("stock Shirt -5", "Shirt", "add", -5)]
+    [InlineData("Shirt ka stock -3", "Shirt", "add", -3)]
+    // A dash with spaces is only a separator, as in "stock: Lawn Suit = 5".
+    [InlineData("stock Shirt - 5", "Shirt", "set", 5)]
     public void ParsesStockCommands(string message, string? product, string? mode, int? amount)
     {
         var parsed = CommandParser.TryParse(message);
@@ -984,6 +989,18 @@ public class ProductLineEndingInStockTests
     [InlineData("Shirt ka stock 20")]
     [InlineData("stock Shirt +10")]
     public void PlainStockCommands_AreUnchanged(string text) => Assert.Equal(CommandKind.Stock, CommandParser.TryParse(text)!.Kind);
+
+    // "sab ... delivered" marks every order of today; a customer's name with ka / ke / ki narrows it to that customer, so it is not that bulk change.
+    [Theory]
+    [InlineData("Sara ke sab orders delivered", false)]
+    [InlineData("Bilal ka sab maal deliver ho gaya", false)]
+    [InlineData("سارہ کے سب آرڈر delivered", false)]
+    [InlineData("sab aaj wale delivered", true)]
+    [InlineData("inka status delivered kar do", true)]
+    [InlineData("mark all today delivered", true)]
+    [InlineData("aaj ke sab delivered karo", true)]
+    public void BulkTodayDelivered_IsNotACustomersOrders(string text, bool bulk) =>
+        Assert.Equal(bulk, CommandParser.TryParse(text)?.Kind == CommandKind.MarkAllTodayDelivered);
 }
 
 

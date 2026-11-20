@@ -88,7 +88,8 @@ public partial class ConversationEngine
                 await ReplyAsync(seller, MessageTemplates.Get("stock.003", Formatters.ProductLabel(product)), ct);
                 return;
             case "add":
-                product.StockQty = (product.StockQty ?? 0) + (int)cmd.Amount!.Value;
+                // "stock Shirt -5" takes stock away; it never goes below zero.
+                product.StockQty = Math.Max(0, (product.StockQty ?? 0) + (int)cmd.Amount!.Value);
                 break;
             default:
                 product.StockQty = (int)cmd.Amount!.Value;

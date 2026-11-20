@@ -527,7 +527,11 @@ public static class CommandParser
     // "stock" lists tracked stock; "stock Kurti 20" sets, "stock Kurti +10" adds, "stock Kurti off" stops tracking. Text = product, Text2 = set|add|off.
     private static readonly Regex StockList = new(@"^(?:stock|stocks|inventory|stock\s+list|low\s+stock(?:\s+items)?|low\s+inventory|show\s+stock|current\s+stock|available\s+stock|stock\s+report|restock\s+list|stock\s+(?:kitna\s+hai|kam\s+hai)|maal\s+kitna\s+hai|short\s+stock|kam\s+stock|out\s+of\s+stock|khatam\s+maal|stock\s+check|اسٹاک)$", Opts);
     private static readonly Regex StockOff = new(@"^(?:stock|اسٹاک)\s*:?\s*(?<name>[^\d].*?)\s+(?:off|band|remove|hatao)$", Opts);
-    private static readonly Regex StockSet = new(@"^(?:stock|اسٹاک)\s*:?\s*(?<name>[^\d].*?)\s*[=:]?\s*(?<sign>\+)?\s*(?<![\d])(?<n>\d{1,6})$|^(?<name>[^\d].*?)\s+(?:ka\s+|ki\s+)?(?:stock|اسٹاک)\s*[=:]?\s*(?<sign>\+)?\s*(?<![\d])(?<n>\d{1,6})$", Opts);
+    // sign: "+10" adds, "-5" (minus right before the number) takes away; a dash with spaces ("stock Shirt - 5") is only a separator.
+    private const string StockAmount = @"\s*(?:[=:]|\s-\s)?\s*(?:(?<sign>\+)\s*|(?<sign>-)(?=\d))?(?<![\d])(?<n>\d{1,6})$";
+    private static readonly Regex StockSet = new(@"^(?:stock|اسٹاک)\s*:?\s*(?<name>[^\d].*?)" + StockAmount + @"|^(?<name>[^\d].*?)\s+(?:ka\s+|ki\s+)?(?:stock|اسٹاک)" + StockAmount, Opts);
+    // "stock Shirt -5" also has the shape of a product line ("name - price"); a message that starts with the word stock is a stock command.
+    private static readonly Regex StartsWithStock = new(@"^(?:stock|اسٹاک)\b", Opts);
 
     // "order 12" / "#12" shows one order in full.
     // "status" / "status 13" / "update status 13" / "order 13 status" / "mark 13" (no status said): show the statuses the order can move to as a pick-list.
@@ -1055,6 +1059,11 @@ public static class CommandParser
     // Only words that mean "all of them" or "today": common words such as "in" or "status" would pull other commands in.
     private static readonly HashSet<string> AllWords = new(StringComparer.OrdinalIgnoreCase) { "sab", "sabhi", "sare", "saare", "inka", "inke", "inhe", "inhein", "aaj" };  // "sara" is left out: it is also a customer name (Sara).
 
+    private static readonly HashSet<string> NotAName = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "aaj", "today", "kal", "is", "us", "in", "un", "sab", "sabhi", "hafte", "mahine", "din", "آج", "کل", "اس", "ان", "سب"
+    };
+
     internal static bool IsBulkTodayDelivered(string message)
     {
         var text = message.Trim();
@@ -1066,7 +1075,11 @@ public static class CommandParser
         // A question or a request to see the list is not an order to change.
         var asksToSee = words.Any(w => w.Equals("dikhao", StringComparison.OrdinalIgnoreCase) || w.Equals("dikha", StringComparison.OrdinalIgnoreCase) || w.Equals("show", StringComparison.OrdinalIgnoreCase) || w.Equals("list", StringComparison.OrdinalIgnoreCase) || w.Equals("kitne", StringComparison.OrdinalIgnoreCase) || w.Equals("kitna", StringComparison.OrdinalIgnoreCase) || w.Equals("kab", StringComparison.OrdinalIgnoreCase) || w.Equals("kaun", StringComparison.OrdinalIgnoreCase) || w.Equals("report", StringComparison.OrdinalIgnoreCase));
         var today = words.Any(w => w.Equals("today", StringComparison.OrdinalIgnoreCase) || w.Equals("aaj", StringComparison.OrdinalIgnoreCase));
-        return hasDelivered && (hasAll || (mark && today)) && words.Count <= 10 && !asksToSee;
+        // "Sara ke sab orders delivered": ka / ke / ki after a name narrows it to one customer's orders, which is not this bulk change of every order
+        // of today. After a time word or pronoun ("aaj ke sab", "in ke") it is still all of them.
+        var namesSomeone = words.Skip(1).Select((w, i) => (Word: w, Before: words[i]))
+            .Any(p => p.Word.ToLowerInvariant() is "ka" or "ke" or "ki" or "کا" or "کے" or "کی" && !NotAName.Contains(p.Before));
+        return hasDelivered && (hasAll || (mark && today)) && words.Count <= 10 && !asksToSee && !namesSomeone;
     }
     // "mark 3 shipped" / "mark 3 bhej diya" / "آرڈر 3 شپ ہو گیا": the verb phrase is mapped by StatusFromPhrase.
     private static readonly Regex MarkStatus = new(@"^(?:mark|order|آرڈر)\s+(\d+)\s+(.+)$", Opts);
@@ -1889,11 +1902,12 @@ public static class CommandParser
         if (StockList.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Stock };
         if ((m = StockOff.Match(message)).Success) return new ParsedCommand { Kind = CommandKind.Stock, Text = m.Groups["name"].Value.Trim(), Text2 = "off" };
         // "Kurti - 1800, stock 10" ends in a stock amount but is a product line (price + details), not "Kurti stock 10".
-        if (!TryParseProductLine(message, out _) && (m = StockSet.Match(message)).Success)
+        // "Kurti - 1800, stock 10" is a product line; "stock Shirt -5" / "Shirt ka stock -3" (a minus on the number) are stock changes.
+        if ((m = StockSet.Match(message)).Success && (StartsWithStock.IsMatch(message) || m.Groups["sign"].Value == "-" || !TryParseProductLine(message, out _)))
             return new ParsedCommand
             {
                 Kind = CommandKind.Stock, Text = m.Groups["name"].Value.Trim(), Text2 = m.Groups["sign"].Success ? "add" : "set",
-                Amount = decimal.Parse(m.Groups["n"].Value)
+                Amount = decimal.Parse(m.Groups["n"].Value) * (m.Groups["sign"].Value == "-" ? -1 : 1)
             };
         if ((m = OrderDetail.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.OrderDetail, Number = int.Parse(m.Groups["n"].Value) };
