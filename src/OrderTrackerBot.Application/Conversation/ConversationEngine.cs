@@ -370,6 +370,14 @@ public partial class ConversationEngine
             }
         }
 
+        // A typed sentence asking for something new at a YES / NO step is kept for after the answer (ConversationEngine.Parking.cs), before the
+        // yes / no reading below could take it as a NO and drop it.
+        if (await TryParkTypedAsync(seller, session, ctx, message, ct))
+        {
+            await PersistAsync(session, ctx, ct);
+            return;
+        }
+
         // A reply that is not a plain yes / no word is read by the AI (with a quoted proof) instead of being asked again.
         if (await TryReadYesNoAsync(seller, session, ctx, message, ct) is { } readAnswer) message = readAnswer;
 

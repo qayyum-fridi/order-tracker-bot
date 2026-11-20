@@ -21,12 +21,31 @@ public partial class ConversationEngine
         ConversationState.AwaitingDeleteCustomerConfirmation, ConversationState.AwaitingVoiceConfirmation,
     };
 
+    /// <summary>
+    /// Typed parking is narrower than voice: only pure YES / NO steps. An order draft or a pick list also takes typed corrections and
+    /// answers by meaning ("phone 0300...", "doosra wala Sara ka"), which must reach their own handler.
+    /// </summary>
+    private static readonly HashSet<ConversationState> TypedParkStates = new()
+    {
+        ConversationState.AwaitingModelStatusConfirmation, ConversationState.AwaitingCancelConfirmation, ConversationState.AwaitingBulkStatusConfirmation,
+        ConversationState.AwaitingDuplicateOrderConfirmation, ConversationState.AwaitingCodCollectedConfirmation, ConversationState.AwaitingDeleteCustomerConfirmation,
+    };
+
+    /// <summary>
+    /// A typed sentence at a YES / NO step that asks for something new (not a yes / no word, not a typed command): it is kept and the question asked
+    /// again, instead of being read as NO and lost. True when it was parked.
+    /// </summary>
+    private async Task<bool> TryParkTypedAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct) =>
+        seller.OnboardingComplete && TypedParkStates.Contains(session.State) && !LooksLikeAnswer(message) && CommandParser.TryParse(message) is null
+        && await TryModelFirstAsync(seller, session, ctx, message, ct, parkOnly: true);
+
     /// <summary>Actions that do a job for the seller. Chat, a question back, a how-to or "not yet" is never parked.</summary>
     private static readonly HashSet<string> RequestActions = new()
     {
         TurnAction.CreateOrder, TurnAction.UpdateStatus, TurnAction.CancelOrder, TurnAction.ShowOrders, TurnAction.ShowOrder, TurnAction.ShowSummary,
         TurnAction.AddProduct, TurnAction.EditProduct, TurnAction.AddStock, TurnAction.ShowCatalog, TurnAction.AddCustomer, TurnAction.EditCustomer,
         TurnAction.EditOrder, TurnAction.ExchangeSize, TurnAction.CreateCategory, TurnAction.ShowCustomer, TurnAction.DeleteProduct, TurnAction.DeleteCustomer,
+        TurnAction.RestoreProduct, TurnAction.RestoreCustomer,
     };
 
     private static readonly Regex JustANumber = new(@"^\s*#?\d{1,3}\s*$", RegexOptions.Compiled);

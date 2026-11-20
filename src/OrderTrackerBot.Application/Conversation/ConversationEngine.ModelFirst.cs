@@ -18,8 +18,9 @@ public partial class ConversationEngine
     /// <param name="fromVoice">The text is a voice transcript.</param>
     /// <param name="image">A screenshot sent with the text (its caption); the picture is read too.</param>
     /// <param name="beforeRun">Runs once the action is known and is going to run (e.g. the voice echo), so it is only sent when the new path answers.</param>
+    /// <param name="parkOnly">A typed sentence at a YES / NO step: understood only to be parked (ConversationEngine.Parking.cs), never run here.</param>
     private async Task<bool> TryModelFirstAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct,
-        bool fromVoice = false, AiImageInput? image = null, bool fromScreenshot = false, Func<Task>? beforeRun = null)
+        bool fromVoice = false, AiImageInput? image = null, bool fromScreenshot = false, Func<Task>? beforeRun = null, bool parkOnly = false)
     {
         if (_turnInterpreter is null || _features.ModelFirst is not ("shadow" or "on")) return false;
         // Exact typed commands ("orders today", "mark 3 shipped") keep their fast path; loose keyword rules are asked about. A picture is never an exact command.
@@ -50,6 +51,7 @@ public partial class ConversationEngine
         // never the older keyword router or voice rewrite (they guessed a command from loose words, e.g. "contact number" became a support request).
         var final = image is null && seller.OnboardingComplete && session.State == ConversationState.Idle && CommandParser.TryParse(message) is null;
         var actions = MergeOrderActions(action);
+        if (parkOnly) return image is null && session.State != ConversationState.Idle && await TryParkAsync(seller, session, ctx, actions, message, beforeRun, ct);
 
         // A new request while a YES / NO or a tap is open: keep it, ask the open question again, run it once that is answered (ConversationEngine.Parking.cs).
         if (!final && image is null && session.State != ConversationState.Idle && await TryParkAsync(seller, session, ctx, actions, message, beforeRun, ct))
@@ -180,6 +182,8 @@ public partial class ConversationEngine
         TurnAction.CreateCategory => !string.IsNullOrWhiteSpace(action.Value),
         TurnAction.DeleteProduct => action.Products.Count > 0 && !string.IsNullOrWhiteSpace(action.Products[0].Name),
         TurnAction.DeleteCustomer => !string.IsNullOrWhiteSpace(action.CustomerName),
+        TurnAction.RestoreProduct => action.Products.Count > 0 && !string.IsNullOrWhiteSpace(action.Products[0].Name),
+        TurnAction.RestoreCustomer => !string.IsNullOrWhiteSpace(action.CustomerName),
         _ => false,
     };
 
@@ -382,6 +386,34 @@ public partial class ConversationEngine
                 await AskYesNoAsync(seller, MessageTemplates.Get("model-delete.001", Formatters.ProductLabel(doomed)), ct);
                 return true;
 
+            case TurnAction.RestoreProduct when action.Products.Count > 0:
+                // Only a product taken off the list can come back; it is switched on again after YES.
+                var wanted = action.Products[0].Name.Trim();
+                var shop = await _db.Products.Where(p => p.SellerId == seller.Id).ToListAsync(ct);
+                bool Named(Product p) => string.Equals(Formatters.ProductLabel(p), wanted, StringComparison.OrdinalIgnoreCase)
+                                         || p.Name.Contains(wanted, StringComparison.OrdinalIgnoreCase);
+                if (shop.FirstOrDefault(p => p.IsActive && Named(p)) is { } live && !shop.Any(p => !p.IsActive && Named(p)))
+                {
+                    await ReplyAsync(seller, MessageTemplates.Get("model-restore.004", Formatters.ProductLabel(live)), ct);
+                    return true;
+                }
+                var gone = shop.Where(p => !p.IsActive && Named(p))
+                    .OrderByDescending(p => string.Equals(Formatters.ProductLabel(p), wanted, StringComparison.OrdinalIgnoreCase)).ThenByDescending(p => p.Id).FirstOrDefault();
+                if (gone is null)
+                {
+                    await ReplyAsync(seller, MessageTemplates.Get("model-restore.003", wanted), ct);
+                    return true;
+                }
+                ctx.ModelEdit = new ModelEditData { Kind = TurnAction.RestoreProduct, Name = Formatters.ProductLabel(gone), OrderId = gone.Id };
+                SetState(session, ConversationState.AwaitingModelStatusConfirmation);
+                await AskYesNoAsync(seller, MessageTemplates.Get("model-restore.001", Formatters.ProductLabel(gone)), ct);
+                return true;
+
+            case TurnAction.RestoreCustomer when !string.IsNullOrWhiteSpace(action.CustomerName):
+                // The typed "restore customer" flow: within the restore window, the newest removed customer of that name.
+                await HandleRestoreCustomerAsync(seller, action.CustomerName!.Trim(), ct);
+                return true;
+
             case TurnAction.DeleteCustomer when !string.IsNullOrWhiteSpace(action.CustomerName):
                 // The typed "delete customer" flow: it finds the customer, asks YES, and keeps them restorable for a while.
                 await HandleDeleteCustomerRequestAsync(seller, session, ctx, new ParsedCommand
@@ -552,6 +584,15 @@ public partial class ConversationEngine
                 await HandleEditProductAsync(seller, new ParsedCommand { Kind = CommandKind.EditProduct, Text = edit.Name, Amount = edit.Amount }, ct);
             else if (edit.Kind == TurnAction.DeleteProduct)
                 await HandleDeleteProductAsync(seller, edit.Name, ct);
+            else if (edit.Kind == TurnAction.RestoreProduct)
+            {
+                // OrderId carries the product id here: the one removed product shown in the question.
+                if (await _db.Products.FirstOrDefaultAsync(p => p.Id == edit.OrderId && p.SellerId == seller.Id, ct) is { } back)
+                {
+                    back.IsActive = true;
+                    await ReplyAsync(seller, MessageTemplates.Get("model-restore.002", Formatters.ProductLabel(back)), ct);
+                }
+            }
             else if (edit.Kind == TurnAction.EditOrder)
                 await ApplyModelOrderEditAsync(seller, session, ctx, edit, ct);
             else if (edit.Kind == PictureProductKind)

@@ -24,6 +24,8 @@ public sealed class TurnAction
     public const string ShowCustomer = "show_customer";
     public const string DeleteProduct = "delete_product";
     public const string DeleteCustomer = "delete_customer";
+    public const string RestoreProduct = "restore_product";
+    public const string RestoreCustomer = "restore_customer";
     public const string HowTo = "how_to";
     public const string ContactSupport = "contact_support";
     public const string Clarify = "clarify";
@@ -35,7 +37,7 @@ public sealed class TurnAction
     public static readonly IReadOnlyList<string> All = new[]
     {
         CreateOrder, UpdateStatus, CancelOrder, ShowOrders, ShowOrder, ShowSummary, AddProduct, EditProduct, AddStock, ShowCatalog,
-        AddCustomer, EditCustomer, EditOrder, ExchangeSize, CreateCategory, ShowCustomer, DeleteProduct, DeleteCustomer, HowTo, ContactSupport, Clarify, Undo,
+        AddCustomer, EditCustomer, EditOrder, ExchangeSize, CreateCategory, ShowCustomer, DeleteProduct, DeleteCustomer, RestoreProduct, RestoreCustomer, HowTo, ContactSupport, Clarify, Undo,
         HelpOrChat, OutOfScope
     };
 
