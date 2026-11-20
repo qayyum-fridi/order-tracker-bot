@@ -189,9 +189,11 @@ public class FreeFormOutcomeEval
             var state = (await db.Sessions.AsNoTracking().SingleAsync()).State;
             var replies = string.Join("\n---\n", sent);
             var question = !IsGeneric(first) && (state != ConversationState.Idle || firstTaps || first.Any(m => m.Contains('?') || m.Contains('❓') || m.Contains('؟')));
+            // When a detail is missing, a how-to that says which details to give ("naam, phone aur pata bol dein") is the question.
+            var toldWhatToSay = first.Any(m => HowToPrefixes.Any(p => m.StartsWith(p, StringComparison.Ordinal)));
 
             Verdict verdict;
-            if (row.Ask) verdict = changed.Count > 0 ? Verdict.WrongChange : question ? Verdict.Asked : Verdict.DeadEnd;
+            if (row.Ask) verdict = changed.Count > 0 ? Verdict.WrongChange : question || toldWhatToSay ? Verdict.Asked : Verdict.DeadEnd;
             else if (await AllMetAsync(row, db, before) && unexpected.Count == 0) verdict = Verdict.Done;
             else if (changed.Count > 0) verdict = Verdict.WrongChange;
             else verdict = question ? Verdict.Asked : Verdict.DeadEnd;
@@ -211,19 +213,19 @@ public class FreeFormOutcomeEval
     internal static bool IsGeneric(IReadOnlyList<string> replies)
     {
         if (replies.Count == 0) return true;
-        return replies.Any(r => GenericPrefixes.Any(p => r.StartsWith(p, StringComparison.Ordinal)) || r.Contains("samajh nahi aaya", StringComparison.OrdinalIgnoreCase));
+        return replies.Any(r => StuckPrefixes.Concat(HowToPrefixes).Any(p => r.StartsWith(p, StringComparison.Ordinal))
+                                || r.Contains("samajh nahi aaya", StringComparison.OrdinalIgnoreCase));
     }
 
-    private static readonly string[] GenericPrefixes = new[]
-        {
-            "model-first.help", "model-first.scope", "model-first.unclear", "model-first.howto.addproduct", "model-first.howto.editproduct",
-            "model-first.howto.showcatalog", "model-first.howto.addcustomer", "model-first.howto.editcustomer", "model-first.howto.showcustomer",
-            "model-first.howto.createorder", "model-first.howto.updatestatus", "model-first.howto.cancelorder", "model-first.howto.showorders",
-            "model-first.howto.showsummary", "model-first.howto.undo", "model-first.howto.other", "model-first.howto.addstock", "mvp.001",
-        }
-        .Select(k => MessageTemplates.Get(k).Split('{')[0].Trim())
-        .Where(p => p.Length >= 12)
-        .ToArray();
+    private static string[] Prefixes(params string[] keys) =>
+        keys.Select(k => MessageTemplates.Get(k).Split('{')[0].Trim()).Where(p => p.Length >= 12).ToArray();
+
+    private static readonly string[] StuckPrefixes = Prefixes("model-first.help", "model-first.scope", "model-first.unclear", "model-first.howto.other", "mvp.001");
+
+    private static readonly string[] HowToPrefixes = Prefixes(
+        "model-first.howto.addproduct", "model-first.howto.editproduct", "model-first.howto.showcatalog", "model-first.howto.addcustomer",
+        "model-first.howto.editcustomer", "model-first.howto.showcustomer", "model-first.howto.createorder", "model-first.howto.updatestatus",
+        "model-first.howto.cancelorder", "model-first.howto.showorders", "model-first.howto.showsummary", "model-first.howto.undo", "model-first.howto.addstock");
 
     // ----- Did the asked-for change happen? -----
 

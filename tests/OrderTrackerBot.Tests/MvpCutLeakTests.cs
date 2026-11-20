@@ -181,6 +181,18 @@ public class MvpCutLeakTests : IDisposable
     }
 
     [Fact]
+    public async Task AskingToAddACustomer_GetsTheWayToSayIt_NotNotAvailable_AndSavesNoCustomer()
+    {
+        var (db, engine) = await SetupAsync();
+        using var _ = db;
+
+        await engine.HandleIncomingMessageAsync(Phone, "naya customer add karna hai", default);
+
+        Assert.Equal(MessageTemplates.Get("model-first.howto.addcustomer"), Assert.Single(_sent));
+        Assert.Empty(await db.Customers.ToListAsync());
+    }
+
+    [Fact]
     public async Task BusinessSetup_DropsThePaymentMethodButton_WhenItIsCut()
     {
         var (db, engine) = await SetupAsync();

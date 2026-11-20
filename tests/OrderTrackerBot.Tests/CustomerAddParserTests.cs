@@ -23,6 +23,11 @@ public class CustomerAddParserTests
     [InlineData("میرے پاس ایک نیا صارفہ ہے جس کا نام محمد علی", "محمد علی", null, null, null)]
     [InlineData("mere paas ek naya client hai jiska naam Bilal hai, shehar Karachi", "Bilal", null, null, "Karachi")]
     [InlineData("نیا خریدار سارہ، پتہ گلبرگ", "سارہ", null, "گلبرگ", null)]
+    // A labelled phone followed by more details after a comma (Urdu "،" or ","): the number is kept and the rest is the address.
+    [InlineData("نیا گاہک عمران، نمبر 03211234567، صدر کراچی", "عمران", "03211234567", "صدر کراچی", null)]
+    [InlineData("naya customer Nadia, phone 03121234567, Johar Town Lahore", "Nadia", "03121234567", "Johar Town Lahore", null)]
+    [InlineData("customer add Sara, address Model Town, 03001234567", "Sara", "03001234567", "Model Town", null)]
+    [InlineData("new client Bilal, city Karachi, 03001234567", "Bilal", "03001234567", null, "Karachi")]
     public void ReadsTheNameAndWhateverDetailsWereGiven(string text, string name, string? phone, string? address, string? city)
     {
         var parsed = CommandParser.TryParse(text);
@@ -47,6 +52,11 @@ public class CustomerAddParserTests
     [InlineData("new clients list")]
     [InlineData("customer ka naam kya hai?")]
     [InlineData("mera customer Sara ka phone 03001234567")]
+    // Asking to add a customer, with no name yet: the verb must not be saved as the buyer's name ("add karna").
+    [InlineData("naya customer add karna hai")]
+    [InlineData("customer add karna hai")]
+    [InlineData("naya client add karo")]
+    [InlineData("new customer save karna hai")]
     public void OtherPhrases_AreNotACustomerAdd(string text) =>
         Assert.NotEqual(CommandKind.CustomerAdd, CommandParser.TryParse(text)?.Kind);
 

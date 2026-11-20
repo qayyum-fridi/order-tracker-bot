@@ -179,6 +179,18 @@ public partial class ConversationEngine
             await SendProOnlyAsync(seller, ct);
             return;
         }
+        // The detailed forms are cut from the MVP, but the job is not: "naya customer add karna hai" gets the way to say it, never "not available".
+        if (_features.MvpOnly && cmd.Kind == CommandKind.DetailedForm && cmd.Text is "customer" or "product" or "order")
+        {
+            var shop = Industry(seller);
+            await ReplyAsync(seller, cmd.Text switch
+            {
+                "customer" => MessageTemplates.Get("model-first.howto.addcustomer"),
+                "product" => MessageTemplates.Get("model-first.howto.addproduct", shop.MainLine, shop.MainName),
+                _ => MessageTemplates.Get("model-first.howto.createorder", shop.OrderExample),
+            }, ct);
+            return;
+        }
         if (IsOutOfMvp(cmd))
         {
             await ReplyAsync(seller, MessageTemplates.Get("mvp.001"), ct);
