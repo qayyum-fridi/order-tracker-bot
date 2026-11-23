@@ -130,18 +130,64 @@ public partial class ConversationEngine
     /// <summary>"kiraya har mahine 15000" saves a monthly expense (added on the 1st, from next month); "kiraya har mahine band" stops it.</summary>
     private async Task HandleRecurringExpenseAsync(Seller seller, SessionContextData ctx, ParsedCommand cmd, CancellationToken ct)
     {
-        var note = cmd.Text!;
         var list = ctx.RecurringExpenses ?? new List<RecurringExpenseData>();
-        list.RemoveAll(r => r.Note == note);
+        if (cmd.Text2 == "list")
+        {
+            await ReplyAsync(seller, list.Count == 0
+                ? MessageTemplates.Get("tapflow.recurring.none")
+                : MessageTemplates.Get("tapflow.recurring.list", string.Join("\n", list.Select(r =>
+                    $"• {(r.IsWage ? "👷 " + r.Note + " (tankhwah)" : r.Note)}: {Formatters.Money(r.Amount)}"))), ct);
+            return;
+        }
+        var note = cmd.Text!;
+        var wage = cmd.Text3 == "wage";
+        list.RemoveAll(r => r.IsWage == wage && string.Equals(r.Note, note, StringComparison.OrdinalIgnoreCase));
+        var shown = wage ? $"{note} ki tankhwah" : note;
         if (cmd.Text2 == "off")
         {
             ctx.RecurringExpenses = list.Count == 0 ? null : list;
-            await ReplyAsync(seller, MessageTemplates.Get("tapflow.recurring.off", note), ct);
+            await ReplyAsync(seller, MessageTemplates.Get("tapflow.recurring.off", shown), ct);
             return;
         }
-        list.Add(new RecurringExpenseData { Note = note, Amount = cmd.Amount!.Value });
+        list.Add(new RecurringExpenseData { Note = note, Amount = cmd.Amount!.Value, IsWage = wage });
         ctx.RecurringExpenses = list;
-        await ReplyAsync(seller, MessageTemplates.Get("tapflow.recurring.on", note, Formatters.Money(cmd.Amount.Value)), ct);
+        await ReplyAsync(seller, MessageTemplates.Get("tapflow.recurring.on", shown, Formatters.Money(cmd.Amount.Value)), ct);
+    }
+
+    internal const string PriceRowPrefix = "tap-price:";
+    private static readonly System.Text.RegularExpressions.Regex TrackingAnswer = new(@"^(?<c>[\p{L}][\p{L} .&-]{1,20}?)\s*[:,-]?\s*(?<n>[A-Za-z0-9-]{5,30})$",
+        System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>"price badlein": the catalog as taps ("✏️ Kurta Rs.2200"); a tap asks only the new price.</summary>
+    private async Task HandlePricePickerAsync(Seller seller, CancellationToken ct)
+    {
+        var products = await _db.Products.AsNoTracking().Where(p => p.SellerId == seller.Id && p.IsActive)
+            .OrderBy(p => p.Name).ThenBy(p => p.Id).Take(PickerProducts).ToListAsync(ct);
+        if (products.Count == 0)
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("tapflow.order.nocatalog", Industry(seller).OrderExample), ct);
+            return;
+        }
+        var rows = products.Select(p =>
+        {
+            var price = " " + Formatters.Money(p.Price);
+            return new MenuRow(PriceRowPrefix + p.Id.ToString(CultureInfo.InvariantCulture), ShortenChoice("✏️ " + Formatters.ProductLabel(p), ListRowTitleMax - price.Length) + price);
+        }).ToArray();
+        await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("tapflow.price.pick"), "Product chunein",
+            new[] { new MenuSection("Price badlein", rows) }, ct);
+    }
+
+    /// <summary>"hisaab time 10": the daily close's hour. 1-11 means evening (10 = 10 pm); 12-23 as typed.</summary>
+    private async Task HandleDailyCloseTimeAsync(Seller seller, SessionContextData ctx, int typed, CancellationToken ct)
+    {
+        var hour = typed is >= 1 and <= 11 ? typed + 12 : typed;
+        if (hour is < 12 or > 23)
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("tapflow.closetime.invalid"), ct);
+            return;
+        }
+        ctx.DailyCloseHour = hour;
+        await ReplyAsync(seller, MessageTemplates.Get("tapflow.closetime.set", hour > 12 ? hour - 12 : hour), ct);
     }
 
     internal const string DeliverAllRowId = "tap-deliver-all";
@@ -170,11 +216,10 @@ public partial class ConversationEngine
             .OrderByDescending(o => o.CreatedAt).ThenByDescending(o => o.Id).FirstOrDefaultAsync(ct);
         if (last is null || last.Items.Count == 0) return null;
         var catalog = await LoadCatalogAsync(seller, ct);
-        return string.Join(", ", last.Items.Select(i =>
-        {
-            var label = catalog.FirstOrDefault(c => c.Product.Id == i.ProductId)?.Label ?? i.ProductNameSnapshot;
-            return $"{i.Quantity}x {label.Replace(",", "")}";
-        }));
+        // Only products still in the catalog: a removed one would stop the order on a "product not found" question.
+        var still = last.Items.Select(i => (i.Quantity, Entry: catalog.FirstOrDefault(c => c.Product.Id == i.ProductId)))
+            .Where(x => x.Entry is not null).ToList();
+        return still.Count == 0 ? null : string.Join(", ", still.Select(x => $"{x.Quantity}x {x.Entry!.Label.Replace(",", "")}"));
     }
 
     /// <summary>Row id of "🔍 Aur products": the next page of the product picker (the same search, if one was typed).</summary>
@@ -426,6 +471,13 @@ public partial class ConversationEngine
             await ReplyAsync(seller, MessageTemplates.Get("tapflow.restock.ask", Formatters.ProductLabel(restocked)), ct);
             return (true, message);
         }
+        if (tappedRow.StartsWith(PriceRowPrefix, StringComparison.Ordinal) && int.TryParse(tappedRow[PriceRowPrefix.Length..], out var priceId)
+            && await _db.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Id == priceId && p.SellerId == seller.Id, ct) is { } priced)
+        {
+            ctx.TapJob = "price:" + priceId;
+            await ReplyAsync(seller, MessageTemplates.Get("tapflow.price.ask", Formatters.ProductLabel(priced), Formatters.Money(priced.Price)), ct);
+            return (true, message);
+        }
         if (tappedRow == DeliverAllRowId)
         {
             await AskDeliverAllShippedAsync(seller, session, ctx, ct);
@@ -453,6 +505,22 @@ public partial class ConversationEngine
         if (ctx.TapJob is not { } job) return (false, message);
         ctx.TapJob = null;
         if (job == "product") return (false, ProductTapAnswer(session, ctx, message));
+        // After "mark shipped": "TCS 1234567890" is the courier and tracking number.
+        if (job == "tracking" && session.State == ConversationState.Idle && TrackingAnswer.Match(message.Trim()) is { Success: true } tracking
+            && tracking.Groups["n"].Value.Any(char.IsDigit))
+            return (false, $"add tracking: {tracking.Groups["c"].Value.Trim()}, {tracking.Groups["n"].Value}");
+        // "price:12": the next number is that product's new price.
+        if (job.StartsWith("price:", StringComparison.Ordinal) && session.State == ConversationState.Idle && TapAmount.Match(message) is { Success: true } newPrice
+            && int.TryParse(job["price:".Length..], out var pricedId)
+            && await _db.Products.FirstOrDefaultAsync(p => p.Id == pricedId && p.SellerId == seller.Id, ct) is { } toPrice)
+        {
+            var before = toPrice.Price;
+            toPrice.Price = decimal.Parse(newPrice.Value.Replace(",", ""), CultureInfo.InvariantCulture);
+            await _db.SaveChangesAsync(ct);
+            await ReplyAsync(seller, MessageTemplates.Get("tapflow.price.done", Formatters.ProductLabel(toPrice), Formatters.Money(before), Formatters.Money(toPrice.Price)), ct);
+            SuggestNext("price badlein", "catalog");
+            return (true, message);
+        }
         // "restock:12" / "expense:kiraya": the next message is a number ("10", "3000", "3,000 is mahine ka").
         if ((job.StartsWith("restock:", StringComparison.Ordinal) || job.StartsWith("expense:", StringComparison.Ordinal) || job.StartsWith("wage:", StringComparison.Ordinal))
             && session.State == ConversationState.Idle && TapAmount.Match(message) is { Success: true } count)

@@ -91,12 +91,26 @@ public partial class ConversationEngine
         if (SessionContextData.FromJson(json).RecurringExpenses is not { Count: > 0 } monthly) return;
         foreach (var r in monthly)
         {
-            var key = $"recurring:{seller.Id}:{local:yyyy-MM}:{r.Note}";
+            var key = $"recurring:{seller.Id}:{local:yyyy-MM}:{(r.IsWage ? "wage:" : "")}{r.Note}";
             if (key.Length > 200 || await _db.ProcessedWebhookMessages.AnyAsync(m => m.MessageId == key, ct)) continue;
             _db.ProcessedWebhookMessages.Add(new ProcessedWebhookMessage { MessageId = key, ProcessedAt = utcNow });
-            _db.Expenses.Add(new Expense { SellerId = seller.Id, Amount = r.Amount, Category = ExpenseCategoryOf(r.Note), Note = r.Note, CreatedAt = utcNow });
+            // Written like a typed entry, with its undo record, so "undo" removes exactly this one.
+            if (r.IsWage)
+            {
+                var wage = new WageEntry { SellerId = seller.Id, WorkerName = r.Note, Amount = r.Amount };
+                _db.WageEntries.Add(wage);
+                await _db.SaveChangesAsync(ct);
+                _db.ActionLogs.Add(new ActionLog { SellerId = seller.Id, ActionType = ActionType.WageLogged, PayloadJson = System.Text.Json.JsonSerializer.Serialize(new { WageId = wage.Id }) });
+            }
+            else
+            {
+                var expense = new Expense { SellerId = seller.Id, Amount = r.Amount, Category = ExpenseCategoryOf(r.Note), Note = r.Note, CreatedAt = utcNow };
+                _db.Expenses.Add(expense);
+                await _db.SaveChangesAsync(ct);
+                _db.ActionLogs.Add(new ActionLog { SellerId = seller.Id, ActionType = ActionType.ExpenseAdded, PayloadJson = System.Text.Json.JsonSerializer.Serialize(new { ExpenseId = expense.Id }) });
+            }
             await _db.SaveChangesAsync(ct);
-            await ProactiveReplyAsync(seller, MessageTemplates.Get("scheduled.recurring.added", r.Note, Formatters.Money(r.Amount)), ct);
+            await ProactiveReplyAsync(seller, MessageTemplates.Get("scheduled.recurring.added", r.IsWage ? $"{r.Note} ki tankhwah" : r.Note, Formatters.Money(r.Amount)), ct);
         }
     }
 
@@ -109,7 +123,11 @@ public partial class ConversationEngine
     private async Task TrySendDailyCloseAsync(Seller seller, DateTime utcNow, CancellationToken ct)
     {
         var local = utcNow + PakistanOffset;
-        if (local.TimeOfDay < DailyCloseHourLocal) return;
+        // The seller's own hour ("hisaab time 10"), else 9 pm.
+        var json = seller.Session?.ContextJson
+                   ?? await _db.Sessions.AsNoTracking().Where(s => s.SellerId == seller.Id).Select(s => s.ContextJson).FirstOrDefaultAsync(ct);
+        var closeAt = SessionContextData.FromJson(json).DailyCloseHour is { } hour ? TimeSpan.FromHours(hour) : DailyCloseHourLocal;
+        if (local.TimeOfDay < closeAt) return;
         var dayStartUtc = local.Date - PakistanOffset;
         var dayEndUtc = dayStartUtc.AddDays(1);
         var key = $"dayclose:{seller.Id}:{local:yyyy-MM-dd}";

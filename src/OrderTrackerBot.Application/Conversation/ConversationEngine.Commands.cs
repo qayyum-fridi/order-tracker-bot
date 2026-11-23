@@ -100,7 +100,7 @@ public partial class ConversationEngine
             {
                 new MenuRow("catalog", "View catalog"), new MenuRow("share catalog", "Share catalog"),
                 new MenuRow("add product", "Add product"), new MenuRow("add product (detailed)", "Add product (form)"),
-                new MenuRow("stock", "Stock list"), new MenuRow("scan cart", "Scanner cart"), BackToMenu
+                new MenuRow("stock", "Stock list"), new MenuRow("price badlein", "✏️ Price badlein"), new MenuRow("scan cart", "Scanner cart"), BackToMenu
             }),
             ["payments"] = ("💰 Payments", "menu.payments", new[]
             {
@@ -596,6 +596,12 @@ public partial class ConversationEngine
                     return;
                 }
                 await HandleAddProductAsync(seller, cmd, ct, ctx);
+                return;
+            case CommandKind.PricePicker:
+                await HandlePricePickerAsync(seller, ct);
+                return;
+            case CommandKind.DailyCloseTime:
+                await HandleDailyCloseTimeAsync(seller, ctx, cmd.Number!.Value, ct);
                 return;
             case CommandKind.RecurringExpense:
                 await HandleRecurringExpenseAsync(seller, ctx, cmd, ct);
@@ -1668,6 +1674,8 @@ public partial class ConversationEngine
             // The next step as a tap: shipped -> delivered; delivered and not paid yet -> paid.
             // On the way: delivered, or came back. Delivered: paid (if not yet), or came back.
             if (order.Status == OrderStatus.Shipped) SuggestNext($"mark #{order.Id} delivered", $"mark #{order.Id} returned");
+            // Just shipped without a tracking number: the next "TCS 1234567890" is its courier and number.
+            if (order.Status == OrderStatus.Shipped && string.IsNullOrEmpty(order.TrackingNumber)) ctx.TapJob = "tracking";
             else if (order.Status == OrderStatus.Delivered && order.PaymentStatus != PaymentStatus.Paid) SuggestNext($"mark #{order.Id} paid", $"mark #{order.Id} returned");
             else if (order.Status == OrderStatus.Delivered) SuggestNext($"mark #{order.Id} returned", "orders today");
         }
@@ -1722,7 +1730,7 @@ public partial class ConversationEngine
                 ? "\nIs ki payment PAID thi — paise wapas kiye hon to yaad rakhein. Sales reports se yeh order nikal diya gaya hai."
                 : "\nSales reports se yeh order nikal diya gaya hai.";
         if (newStatus == OrderStatus.Shipped && string.IsNullOrEmpty(order.TrackingNumber))
-            reply += "\nTracking number add karna hai? (\"add tracking: courier, number\")";
+            reply += "\nTracking number ho to seedha likh dein, jaise: TCS 1234567890 (ya \"add tracking: courier, number\")";
         if (newStatus == OrderStatus.Shipped)
             reply += $"\nParcel label chahiye? (\"label {order.Id}\")";
 

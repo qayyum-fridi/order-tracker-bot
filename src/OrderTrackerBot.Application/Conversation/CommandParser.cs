@@ -169,6 +169,10 @@ public enum CommandKind
     ShippedOrders,
     /// <summary>"kiraya har mahine 15000": an expense written once and added by itself on the 1st of every month. Text = note, Amount; Text2 = "off" to stop.</summary>
     RecurringExpense,
+    /// <summary>"price badlein": products as taps; a tap asks only the new price.</summary>
+    PricePicker,
+    /// <summary>"hisaab time 10": the hour (Pakistan time) of the automatic daily close. Number = the hour as typed.</summary>
+    DailyCloseTime,
     /// <summary>A short reply chosen by the parser: Text is the message template key to send (buyer messages, undo, invalid phone).</summary>
     Notice,
     /// <summary>"return Shirt 1 [cash|bank|none]" at the counter: a buyer brings goods back with no order (ConversationEngine.CounterReturn.cs).</summary>
@@ -1074,6 +1078,14 @@ public static class CommandParser
     // "kiraya har mahine 15000", "har mahine kiraya 15000", "monthly kiraya 15000"; "kiraya har mahine band" stops it.
     private static readonly Regex RecurringExpenseCmd = new(
         @"^(?:(?<note>[\p{L}][\p{L} ]{1,30}?)\s+(?:har\s+mahine|har\s+maah|monthly|mahana)|(?:har\s+mahine|har\s+maah|monthly|mahana)\s+(?<note>[\p{L}][\p{L} ]{1,30}?))\s+(?:(?:rs\.?\s*)?(?<a>\d{1,3}(?:,\d{3})+|\d{2,7})|(?<off>band|off|stop|khatam))$", Opts);
+    // "Ali ki tankhwah har mahine 20000" (stop: "... har mahine band"); "har mahine list" shows what is set up.
+    private static readonly Regex RecurringWageCmd = new(
+        @"^(?<w>[\p{L}][\p{L} ]{1,30}?)\s+(?:ki|ka|ko)\s+(?:tankhwah|tankhah|tankha|salary)\s+(?:har\s+mahine|har\s+maah|monthly)\s+(?:(?:rs\.?\s*)?(?<a>\d{1,3}(?:,\d{3})+|\d{2,7})|(?<off>band|off|stop|khatam))$", Opts);
+    private static readonly Regex RecurringListCmd = new(@"^(?:har\s+mahine|monthly)\s+(?:wale|list|kharche|kya\s+hai)$|^monthly\s+(?:items|expenses)$", Opts);
+    // "price badlein" / "rate badlo" / "edit price": products as taps, then only the new price.
+    private static readonly Regex PricePickerCmd = new(@"^(?:price|prices|rate|qeemat|keemat)\s+badl\w*$|^edit\s+prices?$", Opts);
+    // "hisaab time 10" / "hisaab ka time 10 baje" / "closing time 22": the hour of the daily close.
+    private static readonly Regex DailyCloseTimeCmd = new(@"^(?:hisaab|hisab|closing|din\s+band)\s+(?:ka\s+)?(?:time|waqt)\s+(?<h>\d{1,2})(?:\s*(?:baje|bje|pm))?$", Opts);
     private static readonly Regex ShippedOrdersCmd = new(@"^(?:shipped\s+orders?|orders?\s+shipped|raste\s+mein(?:\s+orders?)?|deliver\s+ho\s+gaye\s*\??|kaun\s+se\s+deliver\s+hue\s*\??)$", Opts);
     // "sab aaj wale delivered", "inka status delivered kar do", "sara delivered karo": the shipped orders of today, after YES.
     // Token rule: a delivered word, a plural word (sab, sara, in ...), and no number, so "order 12 delivered" stays a single order.
@@ -1946,7 +1958,15 @@ public static class CommandParser
         }
         if (TryParseStaff(message) is { } staff) return staff;
         if (TryParsePhoto(message) is { } photo) return photo;
-        if (TryParseLossOrWage(message) is { } lossOrWage) return lossOrWage;
+        // Monthly items come before one-off wages and expenses: "Ali ki tankhwah har mahine 20000" is a monthly wage, not a wage paid now.
+        if (RecurringListCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.RecurringExpense, Text2 = "list" };
+        if ((m = RecurringWageCmd.Match(message)).Success)
+            return new ParsedCommand
+            {
+                Kind = CommandKind.RecurringExpense, Text = m.Groups["w"].Value.Trim(), Text3 = "wage",
+                Amount = m.Groups["a"].Success ? decimal.Parse(m.Groups["a"].Value.Replace(",", ""), System.Globalization.CultureInfo.InvariantCulture) : null,
+                Text2 = m.Groups["off"].Success ? "off" : null,
+            };
         if ((m = RecurringExpenseCmd.Match(message)).Success)
             return new ParsedCommand
             {
@@ -1954,6 +1974,10 @@ public static class CommandParser
                 Amount = m.Groups["a"].Success ? decimal.Parse(m.Groups["a"].Value.Replace(",", ""), System.Globalization.CultureInfo.InvariantCulture) : null,
                 Text2 = m.Groups["off"].Success ? "off" : null,
             };
+        if (PricePickerCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.PricePicker };
+        if ((m = DailyCloseTimeCmd.Match(message)).Success)
+            return new ParsedCommand { Kind = CommandKind.DailyCloseTime, Number = int.Parse(m.Groups["h"].Value, System.Globalization.CultureInfo.InvariantCulture) };
+        if (TryParseLossOrWage(message) is { } lossOrWage) return lossOrWage;
         if (TryParseExpenseNatural(message) is { } spent) return spent;
         if (StockList.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Stock };
         if ((m = StockOff.Match(message)).Success) return new ParsedCommand { Kind = CommandKind.Stock, Text = m.Groups["name"].Value.Trim(), Text2 = "off" };

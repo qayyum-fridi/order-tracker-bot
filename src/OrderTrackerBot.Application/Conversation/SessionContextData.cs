@@ -100,6 +100,8 @@ public sealed class RecurringExpenseData
 {
     public string Note { get; set; } = "";
     public decimal Amount { get; set; }
+    /// <summary>A monthly salary: Note is the worker's name, saved as a wage, not an expense.</summary>
+    public bool IsWage { get; set; }
 }
 
 /// <summary>One line of a tap-by-tap order: the catalog label tapped and how many.</summary>
@@ -132,6 +134,8 @@ public sealed class SessionContextData
     public int TapPickerPage { get; set; }
     /// <summary>Expenses added by themselves on the 1st of each month ("kiraya har mahine 15000").</summary>
     public List<RecurringExpenseData>? RecurringExpenses { get; set; }
+    /// <summary>The hour (0-23, Pakistan time) of the automatic daily close; null = 9 pm.</summary>
+    public int? DailyCloseHour { get; set; }
     public string? TapPickerFilter { get; set; }
     /// <summary>When the seller last asked to reach support (UTC); a repeat inside a few hours is told the first request is already with the team, and the founder is not alerted again.</summary>
     public DateTime? SupportRequestedAt { get; set; }
