@@ -838,6 +838,13 @@ public partial class ConversationEngine
 
     private static readonly System.Text.RegularExpressions.Regex DraftFieldEdit = new(@"^(?<field>phone|address|name|payment)\s+(?<value>.{2,200})$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
 
+    /// <summary>A discount typed on the draft is saved under this code, so discount reports show hand-given discounts on their own line.</summary>
+    internal const string ManualDiscountCode = "MANUAL";
+    private static readonly System.Text.RegularExpressions.Regex ManualDiscount = new(
+        @"^(?:discount|disc|chhoot|chhot|chut|riayat|رعایت|ڈسکاؤنٹ)\s*[:=-]?\s*(?:rs\.?\s*)?(?<n>\d{1,7}(?:\.\d+)?)\s*(?<pct>%|percent|feesad|فیصد)?$",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex LeadingNonLetters = new(@"^[^\p{L}\p{N}]+", System.Text.RegularExpressions.RegexOptions.Compiled);
+
     private async Task HandleOrderConfirmationAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         // "Reply YES to save": an explicit yes, or "ok" / "theek hai" as agreement to exactly this question.
@@ -879,6 +886,18 @@ public partial class ConversationEngine
             }
             draft.Total = OrderTotal(draft.Subtotal, draft.DiscountAmount, delivery);
             await SendDraftConfirmationAsync(seller, BuildConfirmationText(seller.PreferredLanguage, draft), ct);
+            return;
+        }
+
+        // "discount 300" / "discount 10%" (typed or the "🏷️ Discount 10%" tap): a discount given by hand on the goods, never on delivery.
+        if (ctx.PendingOrder is { } discounted && ManualDiscount.Match(LeadingNonLetters.Replace(message.Trim(), "")) is { Success: true } dm)
+        {
+            var n = decimal.Parse(dm.Groups["n"].Value, System.Globalization.CultureInfo.InvariantCulture);
+            var percent = dm.Groups["pct"].Success;
+            discounted.DiscountAmount = Math.Min(discounted.Subtotal, percent ? Math.Round(discounted.Subtotal * Math.Min(n, 100m) / 100m, 2) : n);
+            discounted.DiscountCode = ManualDiscountCode;
+            discounted.Total = OrderTotal(discounted.Subtotal, discounted.DiscountAmount, discounted.DeliveryCharge ?? 0m);
+            await SendDraftConfirmationAsync(seller, BuildConfirmationText(seller.PreferredLanguage, discounted), ct);
             return;
         }
 

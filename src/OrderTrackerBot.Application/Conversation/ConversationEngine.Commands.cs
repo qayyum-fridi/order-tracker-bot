@@ -604,7 +604,7 @@ public partial class ConversationEngine
                 await StartNewCustomerOrderAsync(seller, ctx, ct);
                 return;
             case CommandKind.NewOrderHelp:
-                await SendNewOrderPickerAsync(seller, ct);
+                await SendNewOrderPickerAsync(seller, ctx, ct);
                 return;
             case CommandKind.DetailedForm:
                 await HandleDetailedFormRequestAsync(seller, cmd.Text!, ct);

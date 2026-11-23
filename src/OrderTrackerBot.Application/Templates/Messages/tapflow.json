@@ -1,5 +1,8 @@
 {
-  "tapflow.order.pick": "{0}\n\n👇 Ya tap karke order banayein: pehle customer chunein, phir product.",
+  "tapflow.order.pick": "{0}\n\n👇 Ya tap karke order banayein: pehle customer chunein, phir product. Customer list mein na ho to us ka naam likh dein.",
+  "tapflow.order.search": "🔍 Product list mein na ho to naam likh kar dhoondein, jaise: lawn",
+  "tapflow.order.nomatch": "Maaf kijiye, \"{0}\" naam ka koi product nahi mila. Doosra naam likhein, ya \"catalog\" likh kar list dekhein.",
+  "tapflow.order.extras": "🚚 Delivery ya 🏷️ discount badalna ho to tap karein, ya likhein: delivery 250 · discount 300 · discount 10%",
   "tapflow.customer.ask": "👤 Naye customer ka naam likhein. Phone aur address bhi likh sakte hain, jaise: Hina 03331234567 Johar Town",
   "tapflow.order.product": "👇 Product tap karein (1 piece). Zyada hon to likhein, jaise: {0} 3",
   "tapflow.expense.next": "✍️ Ab kharcha likh dein, jaise: kiraya 3000",

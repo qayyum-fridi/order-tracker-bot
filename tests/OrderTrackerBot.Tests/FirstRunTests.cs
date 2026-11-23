@@ -408,6 +408,49 @@ public class FirstRunTests : IDisposable
         Assert.Equal(new[] { "dupatta", "kurta", "shalwar" }, (await db.Products.Select(p => p.Name).ToListAsync()).OrderBy(n => n).ToArray());
     }
 
+    [Fact]
+    public async Task ProductPicker_MorePage_AndSearchByName()
+    {
+        var (db, engine) = await SetUpSellerAsync();
+        using var _ = db;
+        await engine.HandleIncomingMessageAsync(Phone, "add product", default);
+        await engine.HandleIncomingMessageAsync(Phone, string.Join("\n", Enumerable.Range(1, 11).Select(i => $"Kurta {(char)('A' + i)} {1000 + i}")) + "\nLawn Suit 4500", default);
+        await engine.HandleIncomingMessageAsync(Phone, "customer add Sara, Gulberg, 03001234567", default);
+        await engine.HandleIncomingMessageAsync(Phone, "order for Sara", default);
+
+        var first = LastListRows();
+        Assert.Equal(10, first.Count);
+        Assert.Equal(ConversationEngine.MoreProductsRowId, first[^1].Id);
+        await engine.HandleIncomingMessageAsync(Phone, ConversationEngine.MoreProductsRowId, default);
+        Assert.Equal(3, LastListRows().Count);                       // the other 3 of 12
+
+        await engine.HandleIncomingMessageAsync(Phone, "lawn", default);
+        var lawn = Assert.Single(LastListRows());
+        await engine.HandleIncomingMessageAsync(Phone, lawn.Id, default);
+        await engine.HandleIncomingMessageAsync(Phone, ConversationEngine.CartDone, default);
+        await engine.HandleIncomingMessageAsync(Phone, "🏷️ Discount 10%", default);
+        await engine.HandleIncomingMessageAsync(Phone, "🆓 Free delivery", default);
+        await engine.HandleIncomingMessageAsync(Phone, "✅ Save", default);
+
+        var order = await db.Orders.SingleAsync();
+        Assert.Equal(450m, order.DiscountAmount);
+        Assert.Equal(4050m, order.Total);
+    }
+
+    [Fact]
+    public async Task NayaOrder_TypedCustomerName_StartsTheirOrder()
+    {
+        var (db, engine) = await SetUpSellerAsync();
+        using var _ = db;
+        await AddProductAsync(engine, "Kurta - 2200");
+        await engine.HandleIncomingMessageAsync(Phone, "customer add Sara, Gulberg, 03001234567", default);
+
+        await engine.HandleIncomingMessageAsync(Phone, "naya order", default);
+        await engine.HandleIncomingMessageAsync(Phone, "sara", default);
+
+        Assert.Contains(_sent, m => m.Contains("Sara ke liye order"));
+    }
+
     private async Task SellTwoChiniAsync(ConversationEngine engine, string productLine)
     {
         await engine.HandleIncomingMessageAsync(Phone, productLine, default);

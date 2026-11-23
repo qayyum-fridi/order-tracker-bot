@@ -1,5 +1,8 @@
 {
-  "tapflow.order.pick": "{0}\n\n👇 Or build the order by tapping: first pick the customer, then the product.",
+  "tapflow.order.pick": "{0}\n\n👇 Or build the order by tapping: first pick the customer, then the product. If the customer is not in the list, type their name.",
+  "tapflow.order.search": "🔍 Product not in the list? Type its name to search, for example: lawn",
+  "tapflow.order.nomatch": "Sorry, no product named \"{0}\" was found. Type another name, or type \"catalog\" to see the list.",
+  "tapflow.order.extras": "🚚 To change delivery or 🏷️ add a discount, tap below, or type: delivery 250 · discount 300 · discount 10%",
   "tapflow.customer.ask": "👤 Type the new customer's name. You can add the phone and address too, for example: Hina 03331234567 Johar Town",
   "tapflow.order.product": "👇 Tap a product (1 piece). For more, type it, for example: {0} 3",
   "tapflow.expense.next": "✍️ Now type the expense, for example: rent 3000",

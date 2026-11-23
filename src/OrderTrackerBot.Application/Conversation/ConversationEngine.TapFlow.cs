@@ -25,7 +25,7 @@ public partial class ConversationEngine
     private static readonly Regex TapAmount = new(@"(?<![\d.])(\d{1,3}(?:,\d{3})+|\d+)(?![\d.])", RegexOptions.Compiled);
 
     /// <summary>"Naya order": the ways to write one, then the saved customers to tap (most recent buyers first) and "Naya customer".</summary>
-    private async Task SendNewOrderPickerAsync(Seller seller, CancellationToken ct)
+    private async Task SendNewOrderPickerAsync(Seller seller, SessionContextData ctx, CancellationToken ct)
     {
         // No products yet: a tap-by-tap order would end on an empty list, so the first step is adding products (typing the order still works).
         if (!await _db.Products.AnyAsync(p => p.SellerId == seller.Id && p.IsActive, ct))
@@ -52,6 +52,8 @@ public partial class ConversationEngine
         };
         await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber,
             MessageTemplates.Get("tapflow.order.pick", NewOrderHelpTextFor(seller)), "Customer chunein", sections, ct);
+        // A customer not in the 7 shown: the next plain name ("Hina") finds them.
+        ctx.TapJob = "order-pick-customer";
     }
 
     /// <summary>"naya customer": ask for the buyer; the next plain message is saved as the customer and the product picker follows.</summary>
@@ -61,8 +63,14 @@ public partial class ConversationEngine
         await ReplyAsync(seller, MessageTemplates.Get("tapflow.customer.ask"), ct);
     }
 
-    /// <summary>After "order for Sara" with no usual items: the catalog's best sellers as taps; a tap is that product, 1 piece.</summary>
-    private async Task<bool> SendProductPickerAsync(Seller seller, SessionContextData ctx, string prompt, CancellationToken ct)
+    /// <summary>Row id of "🔍 Aur products": the next page of the product picker (the same search, if one was typed).</summary>
+    internal const string MoreProductsRowId = "tap-more-products";
+
+    /// <summary>
+    /// After "order for Sara" with no usual items: the catalog's best sellers as taps; a tap is that product, 1 piece.
+    /// 9 a page; "🔍 Aur products" shows the next 9, and a typed name ("lawn") shows only matching products.
+    /// </summary>
+    private async Task<bool> SendProductPickerAsync(Seller seller, SessionContextData ctx, string prompt, CancellationToken ct, int page = 0, string? filter = null)
     {
         var catalog = await LoadCatalogAsync(seller, ct);
         if (catalog.Count == 0) return false;
@@ -71,19 +79,38 @@ public partial class ConversationEngine
                 .SelectMany(o => o.Items).Where(i => i.ProductId != null)
                 .Select(i => new { Id = i.ProductId!.Value, i.Quantity }).ToListAsync(ct))
             .GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
-        var labels = catalog
+        var matching = catalog
+            .Where(c => filter is null || c.Label.Contains(filter, StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(c => sold.GetValueOrDefault(c.Product.Id)).ThenBy(c => c.Product.Id)
-            .Select(c => c.Label).Take(PickerProducts).ToList();
+            .Select(c => c.Label).ToList();
+        if (matching.Count == 0) return false;
+        if (page * PickerProducts >= matching.Count) page = 0; // past the last page: start again
+        var labels = matching.Skip(page * PickerProducts).Take(PickerProducts).ToList();
         // List rows hold 24 characters (buttons 20), so names are cut later here.
         var picks = BuildSuggestions(catalog, labels, ListRowTitleMax);
         if (picks.Count == 0) return false;
 
         ctx.ProductSuggestions = picks;
         ctx.TapCart ??= new List<TapCartItem>();
-        var rows = picks.Select(p => new MenuRow(p.Title, p.Title)).ToArray();
+        ctx.TapPickerPage = page + 1;
+        ctx.TapPickerFilter = filter;
+        var rows = picks.Select(p => new MenuRow(p.Title, p.Title)).ToList();
+        var more = matching.Count > (page + 1) * PickerProducts;
+        if (more) rows.Add(new MenuRow(MoreProductsRowId, "🔍 Aur products"));
         var body = prompt + "\n\n" + MessageTemplates.Get("tapflow.order.product", catalog.First(c => c.Label == picks[0].Label).Product.Name);
-        await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, body, "Product chunein", new[] { new MenuSection("Product", rows) }, ct);
+        if (catalog.Count > PickerProducts) body += "\n" + MessageTemplates.Get("tapflow.order.search");
+        await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, body, "Product chunein", new[] { new MenuSection("Product", rows.ToArray()) }, ct);
         return true;
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex SearchWords = new(@"^[\p{L}][\p{L} .'’-]{1,29}$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>The delivery / discount taps under the draft of a tap-by-tap order (the draft's own buttons are Save / Edit / Cancel).</summary>
+    private async Task SendOrderExtrasAsync(Seller seller, CancellationToken ct)
+    {
+        var charge = seller.DefaultDeliveryCharge > 0 ? seller.DefaultDeliveryCharge : 200m;
+        await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("tapflow.order.extras"),
+            new[] { $"🚚 Delivery {charge.ToString("0.##", CultureInfo.InvariantCulture)}", "🆓 Free delivery", "🏷️ Discount 10%" }, ct);
     }
 
     // The cart's buttons; the engine matches on these labels, so they stay in code.
@@ -129,12 +156,28 @@ public partial class ConversationEngine
             await SendProductPickerAsync(seller, ctx, MessageTemplates.Get("tapflow.cart.more", target.Name), ct);
             return true;
         }
+        if (text == MoreProductsRowId)
+        {
+            await SendProductPickerAsync(seller, ctx, MessageTemplates.Get("tapflow.cart.more", target.Name), ct, ctx.TapPickerPage, ctx.TapPickerFilter);
+            return true;
+        }
         if (cart.Count > 0 && text == CartDone)
         {
             var items = string.Join(", ", cart.Select(i => $"{i.Qty}x {i.Label}"));
             ctx.TapCart = null;
-            if (await TryHandleOrderForCustomerItemsAsync(seller, session, ctx, items, ct)) return true;
+            if (await TryHandleOrderForCustomerItemsAsync(seller, session, ctx, items, ct))
+            {
+                if (session.State == ConversationState.AwaitingOrderConfirmation) await SendOrderExtrasAsync(seller, ct);
+                return true;
+            }
             await ReplyAsync(seller, MessageTemplates.Get("tapflow.cart.failed", items), ct);
+            return true;
+        }
+        // A typed word ("lawn") while picking: the products whose name has it. Items with a number ("kurta 2") still go on as typed items.
+        if (SearchWords.IsMatch(text) && CommandParser.TryParse(text) is null && !CommandParser.IsAffirmative(text) && !CommandParser.IsNegative(text))
+        {
+            if (!await SendProductPickerAsync(seller, ctx, MessageTemplates.Get("tapflow.cart.more", target.Name), ct, 0, text))
+                await ReplyAsync(seller, MessageTemplates.Get("tapflow.order.nomatch", text), ct);
             return true;
         }
 
@@ -260,6 +303,12 @@ public partial class ConversationEngine
         var text = message.Trim();
         switch (job)
         {
+            case "order-pick-customer":
+                // Only a plain name: a whole order typed after "Naya order" ("Hina, 2 suit, 0300...") runs as usual.
+                if (!SearchWords.IsMatch(text) || text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length > 3) return (false, message);
+                await HandleOrderForCustomerAsync(seller, session, ctx, text, ct);
+                return (true, message);
+
             case "order-customer":
                 if (CommandParser.TryParse("customer add " + text) is not { Kind: CommandKind.CustomerAdd } add) return (false, message);
                 await ReplyAsync(seller, await SaveNewCustomerAsync(seller, new Ai.AiNewCustomer { Name = add.Text!, Phone = add.Text2, Address = add.Text3, City = add.Text4 }, ct), ct);

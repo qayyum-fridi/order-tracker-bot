@@ -121,6 +121,9 @@ public sealed class SessionContextData
     public List<TapCartItem>? TapCart { get; set; }
     /// <summary>Products are being added after "Add product": after each Save the next plain line is read as the next product.</summary>
     public bool ProductChain { get; set; }
+    /// <summary>The product picker's next page ("🔍 Aur products") and the search it shows, if one was typed.</summary>
+    public int TapPickerPage { get; set; }
+    public string? TapPickerFilter { get; set; }
     /// <summary>When the seller last asked to reach support (UTC); a repeat inside a few hours is told the first request is already with the team, and the founder is not alerted again.</summary>
     public DateTime? SupportRequestedAt { get; set; }
 
