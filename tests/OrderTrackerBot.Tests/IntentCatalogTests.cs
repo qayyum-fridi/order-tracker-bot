@@ -28,6 +28,7 @@ public class IntentCatalogTests
     {
         "Start", "Greeting",                           // the first message of a chat, handled by onboarding
         "GuideLater", "StatusPicker", "PhotoKind", "PaymentMethodPrompt", // answers to a question the bot just asked (taps)
+        "NewCustomerOrder",                            // the "➕ Naya customer" tap under "new order"
         "DetailedForm", "FuzzyStatusUpdate",           // built by the parser from a longer sentence, not a typed line
         "AddProductsBulk", "ImportCatalogSheet",       // the whole message is the data (a pasted list, a file link)
         "CreateLoyalty",                               // loyalty is off in the MVP cut; loyalty.create explains it

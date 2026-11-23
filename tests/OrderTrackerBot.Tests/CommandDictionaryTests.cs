@@ -36,6 +36,8 @@ public class CommandDictionaryTests
     [InlineData("create discount: WINTER20, 20 percent, category Winter 26", CommandKind.CreateDiscount)]
     [InlineData("Ayesha ka order", CommandKind.CustomerOrderLookup)]
     [InlineData("order for Sara", CommandKind.OrderForCustomer)]
+    [InlineData("naya customer", CommandKind.NewCustomerOrder)]
+    [InlineData("new customer", CommandKind.NewCustomerOrder)]
     [InlineData("receipt", CommandKind.Receipt)]
     [InlineData("receipt 12", CommandKind.Receipt)]
     [InlineData("Ayesha ki receipt", CommandKind.Receipt)]

@@ -154,7 +154,8 @@ public sealed partial class ConversationEngine
         ctx.ProductSuggestions = usual.Count > 0 ? usual : ctx.ProductSuggestions;
         if (usual.Count == 0)
         {
-            await ReplyAsync(seller, prompt, ct);
+            // No usual items yet: the catalog's best sellers as taps, so an order needs no typing.
+            if (!(_features.SuggestionButtons && await SendProductPickerAsync(seller, ctx, prompt, ct))) await ReplyAsync(seller, prompt, ct);
             return;
         }
         await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,

@@ -183,7 +183,7 @@ public partial class ConversationEngine
     internal static readonly (string Label, string Value)[] GuideChoices =
     {
         ("Naya order", "Naya order"), ("Aaj ka hisaab", "Aaj ka hisaab"), ("Kharcha likhna", "expenses"),
-        ("Tankhwah dena", "wages"), ("Stock dekhna", "stock"), ("Menu", "menu"),
+        ("Tankhwah dena", "wages"), ("Paisa lena hai", "unpaid orders"), ("Stock dekhna", "stock"), ("Menu", "menu"),
     };
 
     /// <summary>One log line for a message the bot did not understand: <c>grep NotUnderstood</c> in the server log lists the real phrasings to teach it.</summary>
@@ -245,6 +245,15 @@ public partial class ConversationEngine
             return;
         }
 
+        // The one message after a tapped job (see ConversationEngine.TapFlow.cs): handled there, or rewritten as the command it means.
+        var (tapHandled, tapMessage) = await TryTapJobAnswerAsync(seller, session, ctx, message, ct);
+        if (tapHandled)
+        {
+            await PersistAsync(session, ctx, ct);
+            return;
+        }
+        message = tapMessage;
+
         // A product line waiting for YES: saved on YES, dropped on NO (see ConversationEngine.ProductConfirm.cs).
         if (await TryHandlePendingProductAsync(seller, ctx, message, ct))
         {
@@ -261,7 +270,8 @@ public partial class ConversationEngine
             if (session.State == ConversationState.AwaitingOrderMissingFields && ctx.PendingMissingField == "ProductChoice")
                 message = tappedTitle == NewProductButtonTitle ? "1" : "2 " + offered.First(o => o.Title == tappedTitle).Label;
             else if (session.State == ConversationState.Idle && ctx.OrderForCustomer is not null && tappedTitle != NewProductButtonTitle)
-                message = offered.First(o => o.Title == tappedTitle).Label;
+                // Read as typed items, where a comma starts the next item: "Kurta (White, M)" stays one product.
+                message = offered.First(o => o.Title == tappedTitle).Label.Replace(",", "");
             else
             {
                 await ReplyAsync(seller, MessageTemplates.Get("engine.001"), ct);

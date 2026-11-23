@@ -255,6 +255,12 @@ public partial class ConversationEngine
                 return;
             case CommandKind.ExpenseList:
                 await HandleExpenseListAsync(seller, cmd.Text, ct);
+                // "Kharcha likhna" tapped (bare "expenses" reads as this month's list): the next plain "kiraya 3000" is the expense.
+                if (cmd.Text is null or "month")
+                {
+                    ctx.TapJob = "expense";
+                    await ReplyAsync(seller, MessageTemplates.Get("tapflow.expense.next"), ct);
+                }
                 return;
             case CommandKind.BuyerEnquiry:
                 await HandleBuyerEnquiryAsync(seller, cmd.Text ?? "", ct);
@@ -276,6 +282,12 @@ public partial class ConversationEngine
                 return;
             case CommandKind.WageList:
                 await HandleWageListAsync(seller, cmd.Text, ct);
+                // "Tankhwah dena" tapped: the next plain "Ali 1500" is the wage paid.
+                if (cmd.Text is null)
+                {
+                    ctx.TapJob = "wage";
+                    await ReplyAsync(seller, MessageTemplates.Get("tapflow.wage.next"), ct);
+                }
                 return;
             case CommandKind.StaffAdd:
                 await HandleStaffAddAsync(seller, cmd, ct);
@@ -581,8 +593,11 @@ public partial class ConversationEngine
                 }
                 await HandleAddProductAsync(seller, cmd, ct, ctx);
                 return;
+            case CommandKind.NewCustomerOrder:
+                await StartNewCustomerOrderAsync(seller, ctx, ct);
+                return;
             case CommandKind.NewOrderHelp:
-                await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, NewOrderHelpTextFor(seller), "Options dekhein", NewOrderHelpSections, ct);
+                await SendNewOrderPickerAsync(seller, ct);
                 return;
             case CommandKind.DetailedForm:
                 await HandleDetailedFormRequestAsync(seller, cmd.Text!, ct);
@@ -593,6 +608,8 @@ public partial class ConversationEngine
             case CommandKind.HowTo:
                 if (cmd.Text == "discount") SetState(session, ConversationState.AwaitingDiscountDetails);
                 await ReplyAsync(seller, HowToText(cmd.Text!, seller), ct);
+                // "Add product" tapped: the next plain "name price" line is the product, dash or not.
+                if (cmd.Text == "product") ctx.TapJob = "product";
                 return;
             case CommandKind.AddProductsBulk:
                 await HandleAddProductsBulkAsync(seller, cmd, ct);
@@ -1653,6 +1670,8 @@ public partial class ConversationEngine
             .Select((o, i) => Formatters.OrderLine(paging.Skip + i + 1, o) + (o.AmountPaid > 0 ? $", baqi {Formatters.Money(OrderMoney.Balance(o))}" : ", unpaid"));
         await ReplyOrderPageAsync(seller,
             MessageTemplates.Get("commands.032", orders.Count, string.Join("\n", lines), Formatters.Money(orders.Sum(OrderMoney.Balance))), paging, ct);
+        // Each order on this page as a tap that marks it paid.
+        await SendMarkPaidPickerAsync(seller, orders.Skip(paging.Skip).Take(paging.Take).ToList(), paging.Skip + 1, ct);
         // Heard after a voice note: how much is owed in all, and who owes the most.
         var topDebtor = orders.GroupBy(o => o.Customer?.Name ?? "Customer")
             .Select(g => (Name: g.Key, Owed: g.Sum(OrderMoney.Balance))).OrderByDescending(x => x.Owed).First();

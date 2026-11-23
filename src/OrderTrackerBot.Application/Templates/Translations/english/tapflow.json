@@ -1,0 +1,8 @@
+{
+  "tapflow.order.pick": "{0}\n\n👇 Or build the order by tapping: first pick the customer, then the product.",
+  "tapflow.customer.ask": "👤 Type the new customer's name. You can add the phone and address too, for example: Hina 03331234567 Johar Town",
+  "tapflow.order.product": "👇 Tap a product (1 piece). For more, type it, for example: {0} 3",
+  "tapflow.expense.next": "✍️ Now type the expense, for example: rent 3000",
+  "tapflow.wage.next": "✍️ Now type who was paid how much, for example: Ali 1500",
+  "tapflow.unpaid.pick": "👇 Got the money? Tap the customer and the order is marked paid. If it was a mistake, type \"undo\"."
+}

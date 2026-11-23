@@ -108,6 +108,8 @@ public sealed class SessionContextData
     public bool AwaitingSalesMode { get; set; }
     /// <summary>The sales-mode question was the last thing asked: only the very next message may answer it with a bare "1" / "2".</summary>
     public bool SalesModeJustAsked { get; set; }
+    /// <summary>A job was just tapped ("order-customer", "product", "expense", "wage"): only the very next plain message is read as that entry.</summary>
+    public string? TapJob { get; set; }
     /// <summary>When the seller last asked to reach support (UTC); a repeat inside a few hours is told the first request is already with the team, and the founder is not alerted again.</summary>
     public DateTime? SupportRequestedAt { get; set; }
 

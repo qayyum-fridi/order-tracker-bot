@@ -28,6 +28,8 @@ public class UsualItemsTests : IDisposable
             .Callback<string, string, CancellationToken>((_, t, _) => _text.Add(t)).Returns(Task.CompletedTask);
         _sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
             .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, b, l, _) => _buttons.Add((b, l.ToArray()))).Returns(Task.CompletedTask);
+        _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, body, _, _, _) => _text.Add(body)).Returns(Task.CompletedTask);
     }
 
     private async Task<(ConversationEngine Engine, AppDbContext Db)> SetupAsync(bool buttons = true)

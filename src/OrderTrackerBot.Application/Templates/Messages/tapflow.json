@@ -1,0 +1,8 @@
+{
+  "tapflow.order.pick": "{0}\n\n👇 Ya tap karke order banayein: pehle customer chunein, phir product.",
+  "tapflow.customer.ask": "👤 Naye customer ka naam likhein. Phone aur address bhi likh sakte hain, jaise: Hina 03331234567 Johar Town",
+  "tapflow.order.product": "👇 Product tap karein (1 piece). Zyada hon to likhein, jaise: {0} 3",
+  "tapflow.expense.next": "✍️ Ab kharcha likh dein, jaise: kiraya 3000",
+  "tapflow.wage.next": "✍️ Ab likhein kis ko kitna diya, jaise: Ali 1500",
+  "tapflow.unpaid.pick": "👇 Paisa mil gaya? Customer tap karein, order paid ho jayega. Ghalti ho to \"undo\" likhein."
+}

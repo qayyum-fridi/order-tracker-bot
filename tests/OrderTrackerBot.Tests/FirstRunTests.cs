@@ -19,6 +19,7 @@ public class FirstRunTests : IDisposable
     private readonly Mock<IWhatsAppSender> _sender = new();
     private readonly Mock<IAiOrderAssistant> _ai = new();
     private readonly List<string> _sent = new();
+    private readonly List<IReadOnlyList<MenuSection>> _lists = new();
 
     public FirstRunTests()
     {
@@ -27,7 +28,7 @@ public class FirstRunTests : IDisposable
         _sender.Setup(s => s.SendButtonsMessageAsync(Phone, It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<CancellationToken>()))
             .Callback<string, string, IReadOnlyList<string>, CancellationToken>((_, body, _, _) => _sent.Add(body)).Returns(Task.CompletedTask);
         _sender.Setup(s => s.SendListMessageAsync(Phone, It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<MenuSection>>(), It.IsAny<CancellationToken>()))
-            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, body, _, _, _) => _sent.Add(body)).Returns(Task.CompletedTask);
+            .Callback<string, string, string, IReadOnlyList<MenuSection>, CancellationToken>((_, body, _, sections, _) => { _sent.Add(body); _lists.Add(sections); }).Returns(Task.CompletedTask);
         _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiMessageAnalysis { Intent = "unclear", AiUnavailable = true });
     }
@@ -35,7 +36,7 @@ public class FirstRunTests : IDisposable
     public void Dispose() => _dbFactory.Dispose();
 
     private ConversationEngine Engine(AppDbContext db) =>
-        new(db, _ai.Object, _sender.Object, Mock.Of<IFounderAlertNotifier>(), features: new FeatureOptions { ShortcutButtons = false, SuggestionButtons = false, ProductConfirmation = true });
+        new(db, _ai.Object, _sender.Object, Mock.Of<IFounderAlertNotifier>(), features: new FeatureOptions { ShortcutButtons = false, SuggestionButtons = true, ProductConfirmation = true });
 
     private async Task<(AppDbContext Db, ConversationEngine Engine)> SetUpSellerAsync(SessionContextData? ctx = null)
     {
@@ -218,6 +219,133 @@ public class FirstRunTests : IDisposable
         var close = Assert.Single(_sent, m => m.Contains("Reconciliation"));
         Assert.EndsWith(MessageTemplates.Get("day-close.nocost", 1), close);
         Assert.DoesNotContain("📊", close);
+    }
+
+    private IReadOnlyList<MenuRow> LastListRows() => _lists.Last().SelectMany(s => s.Rows).ToList();
+
+    private async Task AddProductAsync(ConversationEngine engine, string line)
+    {
+        await engine.HandleIncomingMessageAsync(Phone, line, default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+    }
+
+    [Theory]
+    [InlineData("Kurta White - 2200, cost 1400, stock 10, size M", 2200)]
+    [InlineData("Lawn Suit 3 Piece - 4500, cost 3000, stock 15", 4500)]
+    public async Task NewOrder_ByTapsOnly_NewCustomerThenProduct_IsSaved(string productLine, decimal total)
+    {
+        var (db, engine) = await SetUpSellerAsync();
+        using var _ = db;
+        await AddProductAsync(engine, productLine);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Naya order", default);
+        var newCustomerRow = Assert.Single(LastListRows(), r => r.Id == ConversationEngine.NewCustomerForOrderRowId);
+        await engine.HandleIncomingMessageAsync(Phone, newCustomerRow.Id, default);
+        Assert.Contains(MessageTemplates.Get("tapflow.customer.ask"), _sent);
+
+        await engine.HandleIncomingMessageAsync(Phone, "Hina 03331234567 Johar Town", default);
+        var hina = await db.Customers.SingleAsync();
+        Assert.Equal(("Hina", "03331234567"), (hina.Name, hina.Phone));
+        var productRow = Assert.Single(LastListRows());
+
+        await engine.HandleIncomingMessageAsync(Phone, productRow.Id, default);
+        await engine.HandleIncomingMessageAsync(Phone, "✅ Save", default);
+
+        var order = await db.Orders.Include(o => o.Items).SingleAsync();
+        Assert.Equal(total, order.Total);
+        Assert.Equal(1, Assert.Single(order.Items).Quantity);
+    }
+
+    [Fact]
+    public async Task NewOrder_Picker_ListsSavedCustomers_AndATapStartsTheirOrder()
+    {
+        var (db, engine) = await SetUpSellerAsync();
+        using var _ = db;
+        await AddProductAsync(engine, "Kurta - 2200");
+        await engine.HandleIncomingMessageAsync(Phone, "customer add Sara, Gulberg, 03001234567", default);
+
+        await engine.HandleIncomingMessageAsync(Phone, "new order", default);
+        var sara = Assert.Single(LastListRows(), r => r.Title.Contains("Sara"));
+        await engine.HandleIncomingMessageAsync(Phone, sara.Id, default);
+        await engine.HandleIncomingMessageAsync(Phone, Assert.Single(LastListRows()).Id, default);
+        await engine.HandleIncomingMessageAsync(Phone, "✅ Save", default);
+
+        Assert.Equal("Sara", (await db.Orders.Include(o => o.Customer).SingleAsync()).Customer!.Name);
+    }
+
+    [Fact]
+    public async Task KharchaTapped_ThenPlainWords_SavesTheExpense()
+    {
+        var (db, engine) = await SetUpSellerAsync();
+        using var _ = db;
+
+        await engine.HandleIncomingMessageAsync(Phone, "expenses", default);
+        await engine.HandleIncomingMessageAsync(Phone, "dukaan ka kiraya 3,000", default);
+
+        var expense = await db.Expenses.SingleAsync();
+        Assert.Equal(3000m, expense.Amount);
+    }
+
+    [Fact]
+    public async Task TankhwahTapped_ThenNameAndAmount_SavesTheWage()
+    {
+        var (db, engine) = await SetUpSellerAsync();
+        using var _ = db;
+
+        await engine.HandleIncomingMessageAsync(Phone, "wages", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Ali 1500", default);
+
+        var wage = await db.WageEntries.SingleAsync();
+        Assert.Equal(1500m, wage.Amount);
+    }
+
+    [Fact]
+    public async Task AddProductTapped_ThenNameAndPriceWithoutDash_ShowsTheProduct()
+    {
+        var (db, engine) = await SetUpSellerAsync();
+        using var _ = db;
+
+        await engine.HandleIncomingMessageAsync(Phone, "add product", default);
+        await engine.HandleIncomingMessageAsync(Phone, "lawn suit 4500", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        var product = await db.Products.SingleAsync();
+        Assert.Equal(4500m, product.Price);
+    }
+
+    [Fact]
+    public async Task TapJob_IsOnlyTheNextMessage()
+    {
+        var (db, engine) = await SetUpSellerAsync();
+        using var _ = db;
+
+        await engine.HandleIncomingMessageAsync(Phone, "expenses", default);
+        await engine.HandleIncomingMessageAsync(Phone, "orders today", default);
+        await engine.HandleIncomingMessageAsync(Phone, "kiraya 3000 baad mein", default);
+
+        Assert.Empty(await db.Expenses.ToListAsync());
+    }
+
+    [Fact]
+    public async Task UnpaidList_EachOrderIsATap_ThatMarksItPaid()
+    {
+        var (db, engine) = await SetUpSellerAsync();
+        using var _ = db;
+        await SellTwoChiniAsync(engine, "Chini 5 kg - 950");
+
+        await engine.HandleIncomingMessageAsync(Phone, "unpaid orders", default);
+        var row = Assert.Single(LastListRows());
+        Assert.Equal("mark 1 paid", row.Id);
+        Assert.True(row.Title.Length <= 24, row.Title);
+        await engine.HandleIncomingMessageAsync(Phone, row.Id, default);
+
+        Assert.Equal(PaymentStatus.Paid, (await db.Orders.SingleAsync()).PaymentStatus);
+    }
+
+    [Fact]
+    public void DailyJobs_OfferCollectingMoney()
+    {
+        Assert.Contains(ConversationEngine.GuideChoices, c => c.Value == "unpaid orders");
     }
 
     [Theory]

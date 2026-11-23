@@ -159,6 +159,8 @@ public enum CommandKind
     Payout,
     WalkInSale,
     OrderForCustomer,
+    /// <summary>"naya customer": an order for a buyer not saved yet; the next message is the name (and phone / address), then products to tap.</summary>
+    NewCustomerOrder,
     /// <summary>A short reply chosen by the parser: Text is the message template key to send (buyer messages, undo, invalid phone).</summary>
     Notice,
     /// <summary>"return Shirt 1 [cash|bank|none]" at the counter: a buyer brings goods back with no order (ConversationEngine.CounterReturn.cs).</summary>
@@ -1166,6 +1168,7 @@ public static class CommandParser
     // Offline / counter sales (ConversationEngine.WalkIn.cs): walkin Kurti 2, Dupatta cash | counter sale 1500 | offline sale Chai - 200 kal.
     private static readonly Regex WalkInCmd = new(@"^(?:walk[\s-]?in(?:\s+(?:sale|order))?|counter\s+sale|offline\s+(?:sale|order)|dukan\s+(?:ki\s+)?sale|dukan\s+par)(?:\s+(?<rest>.+))?$", Opts);
     // "order for Sara" / "Sara ke liye order": start an order for a saved customer (ConversationEngine.WalkIn.cs).
+    private static readonly Regex NewCustomerOrderCmd = new(@"^(?:➕\s*)?(?:naya|nayi|new)\s+(?:customer|gahak|grahak|client)(?:\s+ka)?(?:\s+order)?$", Opts);
     private static readonly Regex OrderForCmd = new(@"^(?:order\s+for\s+(?<n>.*[^\W\d_].*)|(?<n2>.*[^\W\d_].*?)\s+(?:ke\s+liye|k\s+liye|ko)\s+order(?:\s+(?:banao|banana|dena))?)$", Opts);
     private static readonly Regex PayoutAmountFirst = new(@"^(?:rs\.?\s*)?(?<a>\d[\d,]*(?:\.\d+)?)\s*(?<r>.*)$", Opts);
 
@@ -1724,6 +1727,8 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.SetEmail, Text = m.Groups["a"].Value.Trim() };
         if (PrinterHelpCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.PrinterHelp };
 
+        if (NewCustomerOrderCmd.IsMatch(message))
+            return new ParsedCommand { Kind = CommandKind.NewCustomerOrder };
         if ((m = OrderForCmd.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.OrderForCustomer, Text = (m.Groups["n"].Success ? m.Groups["n"].Value : m.Groups["n2"].Value).Trim() };
         if ((m = WalkInCmd.Match(message)).Success)

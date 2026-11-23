@@ -34,7 +34,8 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 | Edit a saved order | `edit order 12` | `edit order` (the latest) — inside: `1 = 3` · `price 1 = 1500` · `remove 2` · `add Shirt 2` · `phone ...` · `address ...` · `delivery 250` · `done` |
 | Change size or colour of one order item (same product, other variant; stock moves, undo works) | `exchange 12 1 to L` · `size exchange 12 2 to color white` |
 | A customer's orders | `Ayesha ka order` | |
-| Order for a saved customer | `order for Sara` | her usual items appear as buttons |
+| Order for a saved customer | `order for Sara` | her usual items appear as buttons; with none yet, the best-selling products appear as taps |
+| Order for a new customer (the "➕ Naya customer" tap under `new order`) | `naya customer` | `new customer` · then type the name (and phone / address); products appear as taps |
 | Advance / part payment | `order 12 advance 500` | |
 | Delivery charge | `delivery 200` (default) · `free delivery` | `order 12 delivery 300` |
 | Order note | `note 12 gift wrap` | `note 12 off` |
