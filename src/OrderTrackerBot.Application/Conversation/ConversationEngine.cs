@@ -183,7 +183,7 @@ public partial class ConversationEngine
     internal static readonly (string Label, string Value)[] GuideChoices =
     {
         ("Naya order", "Naya order"), ("Aaj ka hisaab", "Aaj ka hisaab"), ("Kharcha likhna", "expenses"),
-        ("Tankhwah dena", "wages"), ("Paisa lena hai", "unpaid orders"), ("Stock dekhna", "stock"), ("Menu", "menu"),
+        ("Tankhwah dena", "wages"), ("Paisa lena hai", "unpaid orders"), ("Deliver ho gaye?", "shipped orders"), ("Stock dekhna", "stock"), ("Menu", "menu"),
     };
 
     /// <summary>One log line for a message the bot did not understand: <c>grep NotUnderstood</c> in the server log lists the real phrasings to teach it.</summary>

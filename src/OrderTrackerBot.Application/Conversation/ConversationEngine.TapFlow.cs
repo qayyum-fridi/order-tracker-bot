@@ -63,6 +63,53 @@ public partial class ConversationEngine
         await ReplyAsync(seller, MessageTemplates.Get("tapflow.customer.ask"), ct);
     }
 
+    internal const string RestockRowPrefix = "tap-restock:";
+    internal const string ExpenseCategoryRowPrefix = "tap-expcat:";
+
+    // The usual shop expenses as taps; the word is the expense's category (its first word), so the monthly breakdown groups them.
+    private static readonly (string Title, string Category)[] ExpenseCategories =
+    {
+        ("🏠 Kiraya", "kiraya"), ("💡 Bijli / gas bill", "bill"), ("📦 Packaging", "packaging"),
+        ("🚚 Courier / delivery", "courier"), ("☕ Chai / khana", "khana"), ("🧰 Saman / repair", "saman"), ("✍️ Kuch aur", ""),
+    };
+
+    /// <summary>"Kharcha likhna": the usual expenses as taps; a tap asks only the amount. Typing "kiraya 3000" straight away still works.</summary>
+    private Task SendExpenseCategoriesAsync(Seller seller, CancellationToken ct) =>
+        _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("tapflow.expense.pick"), "Kharcha chunein",
+            new[] { new MenuSection("Kharcha", ExpenseCategories.Select(c => new MenuRow(ExpenseCategoryRowPrefix + c.Category, c.Title)).ToArray()) }, ct);
+
+    /// <summary>The stock list's products as taps (lowest stock first); a tap asks how many came in.</summary>
+    private async Task SendRestockPickerAsync(Seller seller, IReadOnlyList<Product> tracked, CancellationToken ct)
+    {
+        var rows = tracked.OrderBy(p => p.StockQty).Take(PickerProducts)
+            .Select(p => new MenuRow(RestockRowPrefix + p.Id.ToString(CultureInfo.InvariantCulture), ShortenChoice("➕ " + Formatters.ProductLabel(p), ListRowTitleMax)))
+            .ToArray();
+        if (rows.Length == 0) return;
+        await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("tapflow.restock.pick"), "Maal aaya",
+            new[] { new MenuSection("Maal aaya", rows) }, ct);
+    }
+
+    /// <summary>"Deliver ho gaye?": orders on the way, each a tap that marks it delivered (by its id, whatever list was shown before).</summary>
+    private async Task HandleShippedOrdersAsync(Seller seller, CancellationToken ct)
+    {
+        var shipped = await _db.Orders.AsNoTracking().Include(o => o.Customer).Include(o => o.Items)
+            .Where(o => o.SellerId == seller.Id && o.Status == OrderStatus.Shipped)
+            .OrderBy(o => o.ShippedAt ?? o.CreatedAt).Take(PickerUnpaid).ToListAsync(ct);
+        if (shipped.Count == 0)
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("tapflow.shipped.none"), ct);
+            return;
+        }
+        var lines = shipped.Select(o => $"#{o.Id} {o.Customer?.Name} - {Formatters.ItemsSummary(o)} - {Formatters.Money(o.Total)}");
+        var rows = shipped.Select(o =>
+        {
+            var id = " #" + o.Id.ToString(CultureInfo.InvariantCulture);
+            return new MenuRow($"mark #{o.Id} delivered", ShortenChoice("✅ " + (o.Customer?.Name ?? "Order"), ListRowTitleMax - id.Length) + id);
+        }).ToArray();
+        await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("tapflow.shipped.list", shipped.Count, string.Join("\n", lines)),
+            "Delivered karein", new[] { new MenuSection("Deliver ho gaya", rows) }, ct);
+    }
+
     /// <summary>Row id of "🔍 Aur products": the next page of the product picker (the same search, if one was typed).</summary>
     internal const string MoreProductsRowId = "tap-more-products";
 
@@ -293,9 +340,43 @@ public partial class ConversationEngine
     /// </summary>
     private async Task<(bool Handled, string Message)> TryTapJobAnswerAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
+        // A tapped row that starts a job: "➕ Kurta" in the stock list (restock), "🏠 Kiraya" under Kharcha (expense category).
+        var tappedRow = message.Trim();
+        if (tappedRow.StartsWith(RestockRowPrefix, StringComparison.Ordinal) && int.TryParse(tappedRow[RestockRowPrefix.Length..], out var restockId)
+            && await _db.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Id == restockId && p.SellerId == seller.Id, ct) is { } restocked)
+        {
+            ctx.TapJob = "restock:" + restockId;
+            await ReplyAsync(seller, MessageTemplates.Get("tapflow.restock.ask", Formatters.ProductLabel(restocked)), ct);
+            return (true, message);
+        }
+        if (tappedRow.StartsWith(ExpenseCategoryRowPrefix, StringComparison.Ordinal))
+        {
+            var category = tappedRow[ExpenseCategoryRowPrefix.Length..];
+            ctx.TapJob = category.Length == 0 ? "expense" : "expense:" + category;
+            await ReplyAsync(seller, category.Length == 0
+                ? MessageTemplates.Get("tapflow.expense.next")
+                : MessageTemplates.Get("tapflow.expense.amount", category), ct);
+            return (true, message);
+        }
+
         if (ctx.TapJob is not { } job) return (false, message);
         ctx.TapJob = null;
         if (job == "product") return (false, ProductTapAnswer(session, ctx, message));
+        // "restock:12" / "expense:kiraya": the next message is a number ("10", "3000", "3,000 is mahine ka").
+        if ((job.StartsWith("restock:", StringComparison.Ordinal) || job.StartsWith("expense:", StringComparison.Ordinal))
+            && session.State == ConversationState.Idle && TapAmount.Match(message) is { Success: true } count)
+        {
+            var n = count.Value.Replace(",", "");
+            if (job.StartsWith("restock:", StringComparison.Ordinal))
+            {
+                var id = int.Parse(job["restock:".Length..], CultureInfo.InvariantCulture);
+                if (await _db.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id && p.SellerId == seller.Id, ct) is not { } product) return (false, message);
+                return (false, $"stock {Formatters.ProductLabel(product)} +{n}");
+            }
+            var rest = (message[..count.Index] + " " + message[(count.Index + count.Length)..]).Trim();
+            return (false, $"expense {n} {job["expense:".Length..]} {rest}".TrimEnd());
+        }
+        if (job.Contains(':')) return (false, message);
         if (session.State != ConversationState.Idle || CommandParser.TryParse(message) is not null
             || CommandParser.IsAffirmative(message) || CommandParser.IsNegative(message))
             return (false, message);

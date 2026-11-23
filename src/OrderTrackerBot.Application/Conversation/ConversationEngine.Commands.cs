@@ -259,8 +259,9 @@ public partial class ConversationEngine
                 // "Kharcha likhna" tapped (bare "expenses" reads as this month's list): the next plain "kiraya 3000" is the expense.
                 if (cmd.Text is null or "month")
                 {
+                    // Typing "kiraya 3000" works now; or tap a usual expense and type only the amount.
                     ctx.TapJob = "expense";
-                    await ReplyAsync(seller, MessageTemplates.Get("tapflow.expense.next"), ct);
+                    await SendExpenseCategoriesAsync(seller, ct);
                 }
                 return;
             case CommandKind.BuyerEnquiry:
@@ -593,6 +594,9 @@ public partial class ConversationEngine
                     return;
                 }
                 await HandleAddProductAsync(seller, cmd, ct, ctx);
+                return;
+            case CommandKind.ShippedOrders:
+                await HandleShippedOrdersAsync(seller, ct);
                 return;
             case CommandKind.CustomerPartPayment:
                 await HandleCustomerPartPaymentAsync(seller, session, ctx, cmd, ct);
@@ -1633,8 +1637,10 @@ public partial class ConversationEngine
         {
             await ApplyStatusChangeAsync(seller, session, ctx, order, cmd.Text!, ct);
             // The next step as a tap: shipped -> delivered; delivered and not paid yet -> paid.
-            if (order.Status == OrderStatus.Shipped) SuggestNext($"mark #{order.Id} delivered", "orders today");
-            else if (order.Status == OrderStatus.Delivered && order.PaymentStatus != PaymentStatus.Paid) SuggestNext($"mark #{order.Id} paid", "unpaid orders");
+            // On the way: delivered, or came back. Delivered: paid (if not yet), or came back.
+            if (order.Status == OrderStatus.Shipped) SuggestNext($"mark #{order.Id} delivered", $"mark #{order.Id} returned");
+            else if (order.Status == OrderStatus.Delivered && order.PaymentStatus != PaymentStatus.Paid) SuggestNext($"mark #{order.Id} paid", $"mark #{order.Id} returned");
+            else if (order.Status == OrderStatus.Delivered) SuggestNext($"mark #{order.Id} returned", "orders today");
         }
 
         if (fromList)

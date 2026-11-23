@@ -62,6 +62,8 @@ public partial class ConversationEngine
             await ReplyAsync(seller,
                 // The how-to names one of the seller's own products, not the shop type's example (which may not be in the catalog).
                 MessageTemplates.Get("stock.002", tracked.Count, string.Join("\n", lines), tracked[0].Name, tracked[0].Name, tracked[0].Name), ct);
+            // "Maal aa gaya": tap the product, type how many.
+            await SendRestockPickerAsync(seller, tracked, ct);
             return;
         }
 

@@ -29,6 +29,7 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 | Next / previous page of the last order list | `orders next` | `orders prev` · `orders last` · `orders page 3` · `orders size 25` (also sets the catalog page size) |
 | Pending / unpaid / COD owed | `pending orders` · `unpaid orders` · `cod pending` | `pending` · `active orders` · `pending payments` · `payment due list` · `kitne paise baqi hain` · `kis ka paisa baqi hai` · `baqi paise` · `kis ne paise dene hain` (unpaid; each order is a tap that marks it paid) |
 | A buyer paid (her unpaid orders appear as taps; the sentence alone marks nothing) | `Hina ka paisa aa gaya` | `Hina se payment mil gayi` |
+| Orders on the way (each a tap that marks it delivered) | `shipped orders` | `deliver ho gaye?` · `raste mein` |
 | A buyer paid part of what she owes (her newest open order, after YES, the balance shown) | `Hina ne 1000 diye` | `Hina se 1,500 mil gaye` |
 | One order in full | `order 12` | `#12` · `order 12 details` |
 | Change status | `mark 12 shipped` | `delivered` · `returned` · `paid` · `bhej diya` · `mukammal` |

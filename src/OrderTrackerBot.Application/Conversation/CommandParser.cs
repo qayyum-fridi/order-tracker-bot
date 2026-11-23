@@ -165,6 +165,8 @@ public enum CommandKind
     CustomerPaid,
     /// <summary>"Hina ne 1000 diye": Text = the buyer, Amount = the money; recorded on her open order after YES.</summary>
     CustomerPartPayment,
+    /// <summary>"shipped orders" / "deliver ho gaye?": orders on the way, each a tap that marks it delivered.</summary>
+    ShippedOrders,
     /// <summary>A short reply chosen by the parser: Text is the message template key to send (buyer messages, undo, invalid phone).</summary>
     Notice,
     /// <summary>"return Shirt 1 [cash|bank|none]" at the counter: a buyer brings goods back with no order (ConversationEngine.CounterReturn.cs).</summary>
@@ -1067,6 +1069,7 @@ public static class CommandParser
     private static readonly Regex AddProduct = new(@"^add\s+product:\s*(.+?)\s*-\s*(\d+(?:\.\d+)?)$", Opts);
     private static readonly Regex EditProduct = new(@"^edit\s+product:\s*(.+?)\s*-\s*(\d+(?:\.\d+)?)$", Opts);
     private static readonly Regex MarkAllPendingShipped = new(@"^mark\s+all\s+pending\s+as\s+shipped$", Opts);
+    private static readonly Regex ShippedOrdersCmd = new(@"^(?:shipped\s+orders?|orders?\s+shipped|raste\s+mein(?:\s+orders?)?|deliver\s+ho\s+gaye\s*\??|kaun\s+se\s+deliver\s+hue\s*\??)$", Opts);
     // "sab aaj wale delivered", "inka status delivered kar do", "sara delivered karo": the shipped orders of today, after YES.
     // Token rule: a delivered word, a plural word (sab, sara, in ...), and no number, so "order 12 delivered" stays a single order.
     private static readonly HashSet<string> DeliveredWords = new(StringComparer.OrdinalIgnoreCase) { "deliver", "delivered", "delever", "delivar" };
@@ -2062,6 +2065,7 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.EditProduct, Text = m.Groups[1].Value.Trim(), Amount = decimal.Parse(m.Groups[2].Value) };
 
         if (MarkAllPendingShipped.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.MarkAllPendingShipped };
+        if (ShippedOrdersCmd.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.ShippedOrders };
         if (IsBulkTodayDelivered(message)) return new ParsedCommand { Kind = CommandKind.MarkAllTodayDelivered };
 
         if ((m = StatusPicker.Match(message)).Success && !OrderDetail.IsMatch(message))
