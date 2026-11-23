@@ -308,7 +308,7 @@ public class FirstRunTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "aaj ka hisaab", default);
 
         // Profit 2 x (950 - 880) = 140; 140 - 8,000 - 1,500 = -9,360.
-        var close = Assert.Single(_sent, m => m.Contains("Reconciliation"));
+        var close = Assert.Single(_sent, m => m.Contains("hisaab —"));
         Assert.Contains(MessageTemplates.Get("day-close.wages", "Rs.1,500"), close);
         Assert.Contains(MessageTemplates.Get("day-close.net", "-Rs.9,360", "Rs.140", "Rs.8,000", "Rs.1,500"), close);
         Assert.EndsWith(MessageTemplates.Get("day-close.loss", "Rs.9,360"), close);
@@ -326,7 +326,7 @@ public class FirstRunTests : IDisposable
 
         await engine.HandleIncomingMessageAsync(Phone, "aaj ka hisaab", default);
 
-        var close = Assert.Single(_sent, m => m.Contains("Reconciliation"));
+        var close = Assert.Single(_sent, m => m.Contains("hisaab —"));
         Assert.Contains("📊", close);
         Assert.EndsWith(MessageTemplates.Get("day-close.ok"), close);
     }
@@ -341,7 +341,7 @@ public class FirstRunTests : IDisposable
 
         await engine.HandleIncomingMessageAsync(Phone, "aaj ka hisaab", default);
 
-        var close = Assert.Single(_sent, m => m.Contains("Reconciliation"));
+        var close = Assert.Single(_sent, m => m.Contains("hisaab —"));
         Assert.EndsWith(MessageTemplates.Get("day-close.nocost", 1), close);
         Assert.DoesNotContain("📊", close);
     }

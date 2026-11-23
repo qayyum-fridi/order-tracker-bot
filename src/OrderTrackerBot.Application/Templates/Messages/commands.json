@@ -8,7 +8,7 @@
   "commands.007": "Maaf kijiye, yeh command samajh nahi aaya. Tamam commands dekhne ke liye \"help\" likhein.",
   "commands.008": "Koi pending order nahi hai.",
   "commands.009": "📦 Pending Orders ({0}):\n\n{1}\n\nReply \"mark 1 shipped\" to update.",
-  "commands.010": "🧾 {0} Reconciliation — {1}\n\nOrders: {2}\nDelivered: {3} | Shipped: {4} | Pending: {5}\n{6}Cash collected (COD): {7}\nPrepaid received: {8}\nTotal sales {9}: {10}\n{11}{12}{13}\n{14}",
+  "commands.010": "🧾 {0} hisaab — {1}\n\nOrders: {2}\nDeliver: {3} | Ship: {4} | Pending: {5}\n{6}Naqd mila (COD): {7}\nPehle se mila (prepaid): {8}\nKul sale ({9}): {10}\n{11}{12}{13}\n{14}",
   "commands.011": "🛍️ Aapka catalog abhi khali hai.\n\nProduct add karne ke liye naam aur price bhejein:\n{0}\n\nEk saath kai products bhi bhej sakte hain (har line mein ek):\n{1}\n\nApni dukaan ki qism ke examples ke liye \"industry\" likhein.",
   "commands.012": "{0} abhi kisi product par likha hua nahi.\n\nProduct ke saath likhein, e.g. Polo Shirt - 500, {1}: Ali Traders",
   "commands.013": "🏷️ {0} ({1}):\n\n{2}\n\nEk ki products dekhne ke liye likhein: products {3} <naam>",

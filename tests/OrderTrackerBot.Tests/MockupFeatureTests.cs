@@ -483,7 +483,7 @@ public class MockupFeatureTests : IDisposable
         _sent.Clear();
         await engine.HandleIncomingMessageAsync(Phone, "today's summary", default);
         // The order is COD (the model found no payment method) with part paid up front: received money counts, not just fully-paid orders.
-        Assert.Contains(_sent, m => m.Contains("Cash collected (COD): Rs.1,300"));
+        Assert.Contains(_sent, m => m.Contains("Naqd mila (COD): Rs.1,300"));
     }
 
     [Fact]

@@ -77,7 +77,7 @@ public class DayAccountTests : IDisposable
 
         var reply = Assert.Single(_text);
         Assert.Contains("Orders: 2", reply);
-        Assert.Contains("Total sales today: Rs.9,400", reply);
+        Assert.Contains("Kul sale (aaj): Rs.9,400", reply);
         Assert.Contains("Sab se zyada bika: Lawn Suit (2 bike)", reply);
         Assert.DoesNotContain("Shawl", reply);
         Assert.Contains("Kharcha: Rs.1,500 (akram petrol)", reply);

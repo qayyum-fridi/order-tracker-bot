@@ -95,7 +95,7 @@ public class DateRangeEngineTests : IDisposable
     }
 
     [Theory]
-    [InlineData("summary last week", "Reconciliation")]
+    [InlineData("summary last week", "hisaab —")]
     [InlineData("orders today", "")]
     public async Task ARealCommand_LeavesTheDateQuestion_AndRuns(string command, string expected)
     {

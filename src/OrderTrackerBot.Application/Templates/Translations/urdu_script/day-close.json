@@ -1,6 +1,10 @@
 {
   "scheduled.dayclose": "🌙 دن ختم ہونے کو ہے — آج کا حساب:\n\n{0}",
   "scheduled.dayclose.owed": "💸 {0} آرڈر کا پیسہ ابھی باقی ہے: کل {1}۔ پیسہ مل گیا ہو تو نیچے ٹیپ کریں۔",
+  "day-close.label.today": "آج کا",
+  "day-close.label.yesterday": "کل کا",
+  "day-close.sale.today": "آج",
+  "day-close.sale.yesterday": "کل",
   "day-close.ok": "سب ٹھیک لگ رہا ہے ✅",
   "day-close.loss": "⚠️ آج نقصان ہوا: خرچہ اور تنخواہ منافع سے {0} زیادہ رہے۔",
   "day-close.nocost": "ℹ️ اصل بچت نہیں نکل سکی: {0} آرڈر کے پروڈکٹس کی قیمتِ خرید نہیں لکھی۔ پوری فہرست کے لیے \"data check\" لکھیں۔",

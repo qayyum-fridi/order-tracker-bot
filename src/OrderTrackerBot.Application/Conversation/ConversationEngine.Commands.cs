@@ -807,7 +807,9 @@ public partial class ConversationEngine
     private async Task<(string Text, bool DrawerOpen, string? Spoken)> BuildTodaysSummaryAsync(Seller seller, string? period, CancellationToken ct)
     {
         var (start, end) = ReportRange(seller, period);
-        var label = period switch { null => "Today's", "yesterday" => "Yesterday's", "lastmonth" => MessageTemplates.Get("commands.038"), _ => PeriodLabel(seller, period) };
+        // Today / yesterday are templates, so a Roman Urdu seller reads "Aaj ka hisaab" and the translations still say "Today's".
+        var label = period switch { null or "today" => MessageTemplates.Get("day-close.label.today"), "yesterday" => MessageTemplates.Get("day-close.label.yesterday"), "lastmonth" => MessageTemplates.Get("commands.038"), _ => PeriodLabel(seller, period) };
+        var salesWhen = period switch { null or "today" => MessageTemplates.Get("day-close.sale.today"), "yesterday" => MessageTemplates.Get("day-close.sale.yesterday"), _ => label.Replace("'s", "").ToLowerInvariant() };
         var orders = await _db.Orders
             .Where(o => o.SellerId == seller.Id && o.CreatedAt >= start && o.CreatedAt < end && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
             .ToListAsync(ct);
@@ -828,7 +830,7 @@ public partial class ConversationEngine
         var today = period is null or "today";
         var (dayExtra, drawerOpen, verdict) = today ? await DayAccountLinesAsync(seller, orders, start, end, ct) : ("", false, MessageTemplates.Get("day-close.ok"));
 
-        var text = MessageTemplates.Get("commands.010", label, seller.BusinessName, orders.Count, delivered, shipped, pending, ((returned > 0 ? $"Returned: {returned}\n" : "") + (counterReturns.Count > 0 ? MessageTemplates.Get("counter-return.007", counterReturns.Count, Formatters.Money(counterReturns.Amount)) : "")), Formatters.Money(cod), Formatters.Money(prepaid), (period is null ? "today" : label.Replace("'s", "").ToLowerInvariant()), Formatters.Money(totalSales), (salesTax > 0 ? $"Sales tax included: {Formatters.Money(salesTax)}\n" : ""), (withheld > 0 ? $"Tax withheld by courier/gateway: {Formatters.Money(withheld)} → net after withholding {Formatters.Money(totalSales - withheld)}\n" : ""), dayExtra, verdict);
+        var text = MessageTemplates.Get("commands.010", label, seller.BusinessName, orders.Count, delivered, shipped, pending, ((returned > 0 ? $"Returned: {returned}\n" : "") + (counterReturns.Count > 0 ? MessageTemplates.Get("counter-return.007", counterReturns.Count, Formatters.Money(counterReturns.Amount)) : "")), Formatters.Money(cod), Formatters.Money(prepaid), salesWhen, Formatters.Money(totalSales), (salesTax > 0 ? $"Sales tax included: {Formatters.Money(salesTax)}\n" : ""), (withheld > 0 ? $"Tax withheld by courier/gateway: {Formatters.Money(withheld)} → net after withholding {Formatters.Money(totalSales - withheld)}\n" : ""), dayExtra, verdict);
         // Heard after a voice note: just the period's two numbers (no orders: the generic spoken summary of the text is enough).
         var sales = Formatters.Money(totalSales);
         string? spoken = orders.Count == 0 ? null : period switch
