@@ -616,10 +616,20 @@ public partial class ConversationEngine
                 if (cmd.Text == "discount") SetState(session, ConversationState.AwaitingDiscountDetails);
                 await ReplyAsync(seller, HowToText(cmd.Text!, seller), ct);
                 // "Add product" tapped: the next plain "name price" line is the product, dash or not.
-                if (cmd.Text == "product") ctx.TapJob = "product";
+                if (cmd.Text == "product")
+                {
+                    ctx.TapJob = "product";
+                    await ReplyAsync(seller, MessageTemplates.Get("tapflow.product.next"), ct);
+                }
                 return;
             case CommandKind.AddProductsBulk:
                 await HandleAddProductsBulkAsync(seller, cmd, ct);
+                // Several lines after "Add product" save at once; the next plain line is still a product.
+                if (ctx.ProductChain)
+                {
+                    ctx.TapJob = "product";
+                    await ReplyAsync(seller, MessageTemplates.Get("tapflow.product.more"), ct);
+                }
                 return;
             case CommandKind.ImportCatalogSheet:
                 await HandleImportCatalogSheetAsync(seller, cmd, ct);

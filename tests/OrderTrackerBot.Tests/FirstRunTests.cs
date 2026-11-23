@@ -362,6 +362,52 @@ public class FirstRunTests : IDisposable
         Assert.Contains(MessageTemplates.Get("day-close.rough", 1, 2, "Rs.140"), close);
     }
 
+    [Theory]
+    [InlineData("Kurta White - 2200, size S/M/L")]
+    [InlineData("Kurta White - 2200, size S M L")]
+    public async Task Sizes_InOneLine_AreOneProductPerSize_SavedTogether(string line)
+    {
+        var (db, engine) = await SetUpSellerAsync();
+        using var _ = db;
+
+        await engine.HandleIncomingMessageAsync(Phone, line, default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        var sizes = await db.Products.Select(p => p.Size).ToListAsync();
+        Assert.Equal(new[] { "L", "M", "S" }, sizes.OrderBy(s => s).ToArray());
+        Assert.All(await db.Products.ToListAsync(), p => Assert.Equal(2200m, p.Price));
+    }
+
+    [Fact]
+    public async Task ProductWithoutCost_PreviewAsksForIt_AndCostBeforeSaveIsKept()
+    {
+        var (db, engine) = await SetUpSellerAsync();
+        using var _ = db;
+
+        await engine.HandleIncomingMessageAsync(Phone, "Kurta - 2200", default);
+        Assert.Contains(MessageTemplates.Get("product.cost.ask"), _sent);
+        await engine.HandleIncomingMessageAsync(Phone, "cost 1,400", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        Assert.Equal(1400m, (await db.Products.SingleAsync()).CostPrice);
+    }
+
+    [Fact]
+    public async Task AddProductTapped_SeveralLines_ThenKeepsAddingAfterSave()
+    {
+        var (db, engine) = await SetUpSellerAsync();
+        using var _ = db;
+
+        await engine.HandleIncomingMessageAsync(Phone, "add product", default);
+        await engine.HandleIncomingMessageAsync(Phone, "kurta 2200\nshalwar 900", default);   // several lines save at once
+        await engine.HandleIncomingMessageAsync(Phone, "dupatta 600", default);   // no tap needed: still adding
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        await engine.HandleIncomingMessageAsync(Phone, "orders today", default);  // ends the chain
+        await engine.HandleIncomingMessageAsync(Phone, "topi 300", default);
+
+        Assert.Equal(new[] { "dupatta", "kurta", "shalwar" }, (await db.Products.Select(p => p.Name).ToListAsync()).OrderBy(n => n).ToArray());
+    }
+
     private async Task SellTwoChiniAsync(ConversationEngine engine, string productLine)
     {
         await engine.HandleIncomingMessageAsync(Phone, productLine, default);

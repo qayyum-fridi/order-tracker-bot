@@ -221,6 +221,29 @@ public partial class ConversationEngine
     }
 
     /// <summary>
+    /// After "Add product": every line of the message is a product, with or without the dash ("lawn suit 4500", "Kurta - 2200, size S/M/L").
+    /// All lines products: they go on as product lines and the chain stays on (after Save the next message is read the same way).
+    /// Anything else ends the chain and the message runs as usual.
+    /// </summary>
+    private static string ProductTapAnswer(ConversationSession session, SessionContextData ctx, string message)
+    {
+        ctx.ProductChain = false;
+        if (session.State != ConversationState.Idle) return message;
+        var lines = message.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (lines.Length == 0) return message;
+        var asProducts = new List<string>();
+        foreach (var line in lines)
+        {
+            if (CommandParser.TryParseProductLine(line, out ProductLine? _)) asProducts.Add(line);
+            else if (CommandParser.TryParseSpacedProductLine(line, out var spaced) && spaced is not null)
+                asProducts.Add($"{spaced.Name} - {spaced.Price.ToString("0.##", CultureInfo.InvariantCulture)}");
+            else return message;
+        }
+        ctx.ProductChain = true;
+        return string.Join("\n", asProducts);
+    }
+
+    /// <summary>
     /// The one message after a job was tapped ("Naya customer", "Add product", "Kharcha likhna", "Tankhwah dena"): a plain answer is that entry.
     /// Returns true when it was handled here; otherwise <paramref name="message"/> may come back rewritten as the command it means, to run as usual.
     /// A real command, a yes / no, or text that is not such an entry is left alone.
@@ -229,6 +252,7 @@ public partial class ConversationEngine
     {
         if (ctx.TapJob is not { } job) return (false, message);
         ctx.TapJob = null;
+        if (job == "product") return (false, ProductTapAnswer(session, ctx, message));
         if (session.State != ConversationState.Idle || CommandParser.TryParse(message) is not null
             || CommandParser.IsAffirmative(message) || CommandParser.IsNegative(message))
             return (false, message);
@@ -241,11 +265,6 @@ public partial class ConversationEngine
                 await ReplyAsync(seller, await SaveNewCustomerAsync(seller, new Ai.AiNewCustomer { Name = add.Text!, Phone = add.Text2, Address = add.Text3, City = add.Text4 }, ct), ct);
                 await HandleOrderForCustomerAsync(seller, session, ctx, add.Text!, ct);
                 return (true, message);
-
-            case "product":
-                return CommandParser.TryParseSpacedProductLine(text, out var line) && line is not null
-                    ? (false, $"{line.Name} - {line.Price.ToString("0.##", CultureInfo.InvariantCulture)}")
-                    : (false, message);
 
             case "expense":
             case "wage":

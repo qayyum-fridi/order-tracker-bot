@@ -119,6 +119,8 @@ public sealed class SessionContextData
     public string? TapJob { get; set; }
     /// <summary>A tap-by-tap order being built for <see cref="OrderForCustomer"/>: products tapped so far, with how many of each.</summary>
     public List<TapCartItem>? TapCart { get; set; }
+    /// <summary>Products are being added after "Add product": after each Save the next plain line is read as the next product.</summary>
+    public bool ProductChain { get; set; }
     /// <summary>When the seller last asked to reach support (UTC); a repeat inside a few hours is told the first request is already with the team, and the founder is not alerted again.</summary>
     public DateTime? SupportRequestedAt { get; set; }
 

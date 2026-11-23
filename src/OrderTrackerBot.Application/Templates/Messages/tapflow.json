@@ -5,6 +5,8 @@
   "tapflow.expense.next": "✍️ Ab kharcha likh dein, jaise: kiraya 3000",
   "tapflow.wage.next": "✍️ Ab likhein kis ko kitna diya, jaise: Ali 1500",
   "tapflow.order.nocatalog": "🛍️ Aap ke catalog mein abhi koi product nahi. Pehle products add karein (neeche \"add product\"), phir order sirf tap se ban jayega.\n\nOrder seedha likhna ho to aise likhein:\n{0}",
+  "tapflow.product.next": "✍️ Ab product likh dein: naam aur price, jaise: kurta white 2200. Kai products hon to har line mein ek. Sizes ek saath: Kurta - 2200, size S/M/L",
+  "tapflow.product.more": "✍️ Agla product likh dein, ya kuch aur likh kar band karein.",
   "tapflow.cart": "🛒 {0} ka order:\n{1}\n\nAur cheez chahiye to \"Aur product\" dabayein, warna \"Order banayein\". {2} ki ginti badalni ho to number likhein, jaise 3.",
   "tapflow.cart.more": "🛍️ {0} ke order mein aur kya daalna hai?",
   "tapflow.cart.failed": "Maaf kijiye, yeh order nahi ban saka: {0}. Barae meherbani items likh dein, jaise: Kurta 2",

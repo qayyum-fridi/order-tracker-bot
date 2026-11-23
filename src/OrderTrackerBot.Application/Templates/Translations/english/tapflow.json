@@ -5,6 +5,8 @@
   "tapflow.expense.next": "✍️ Now type the expense, for example: rent 3000",
   "tapflow.wage.next": "✍️ Now type who was paid how much, for example: Ali 1500",
   "tapflow.order.nocatalog": "🛍️ Your catalog has no products yet. Add products first (tap \"add product\" below), then an order is just a few taps.\n\nTo write an order directly, type it like this:\n{0}",
+  "tapflow.product.next": "✍️ Now type the product: name and price, for example: kurta white 2200. For several products, one per line. All sizes at once: Kurta - 2200, size S/M/L",
+  "tapflow.product.more": "✍️ Type the next product, or type anything else to stop.",
   "tapflow.cart": "🛒 Order for {0}:\n{1}\n\nNeed something else? Tap \"Aur product\", otherwise \"Order banayein\". To change how many {2}, type the number, for example 3.",
   "tapflow.cart.more": "🛍️ What else goes in {0}'s order?",
   "tapflow.cart.failed": "Sorry, this order could not be made: {0}. Please type the items, for example: Kurta 2",

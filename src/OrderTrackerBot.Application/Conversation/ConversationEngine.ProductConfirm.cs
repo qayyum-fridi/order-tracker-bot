@@ -11,15 +11,39 @@ namespace OrderTrackerBot.Application.Conversation;
 public partial class ConversationEngine
 {
     // One or more product lines (typed, or spoken and read by the AI) are shown back; they are saved together on YES.
-    private async Task AskProductConfirmationAsync(Seller seller, SessionContextData ctx, IReadOnlyList<ProductLine> lines, CancellationToken ct)
+    private async Task AskProductConfirmationAsync(Seller seller, SessionContextData ctx, IReadOnlyList<ProductLine> given, CancellationToken ct)
     {
+        // "size S/M/L" is one product per size, same price: shown together, saved together on one YES.
+        var lines = given.SelectMany(ExpandSizes).ToList();
         ctx.PendingProductJson = JsonSerializer.Serialize(lines);
         var body = lines.Count == 1
             ? MessageTemplates.Get("commands.050", string.Join("\n", await ProductPreviewRowsAsync(seller, lines[0], ct)))
             : MessageTemplates.Get("commands.052", string.Join("\n", lines.Select(l =>
                 $"• {l.Name} - {Formatters.Money(l.Price)}" + (ProductPreviewDetails(l) is { Length: > 0 } d ? $" ({d})" : ""))));
         await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, body, new[] { "✅ Save", "❌ Cancel" }, ct);
+        // Profit needs the cost: asked now, while the product is being added, not after the first order.
+        if (lines.Any(l => l.Extras?.Cost is null))
+            await ReplyAsync(seller, MessageTemplates.Get("product.cost.ask"), ct);
     }
+
+    private static readonly System.Text.RegularExpressions.Regex SizeListSplit = new(@"\s*(?:/|,|\+|&|\band\b|\baur\b|\s)\s*",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>"Kurta - 2200, size S/M/L" (or "S M L", "S, M aur L"): the same product once per size. A single size, or a long word, stays one line.</summary>
+    internal static IEnumerable<ProductLine> ExpandSizes(ProductLine line)
+    {
+        // "size S/M/L" / "colors red/blue" are already lists from the parser: one listing per combination (stock is left off a split set).
+        if (line.Extras is { } e && (e.SizeList is { Count: > 1 } || e.ColorList is { Count: > 1 }))
+            return VariantLines(line.Name, line.Price, e).Select(v => v with { UnitType = line.UnitType, UnitQty = line.UnitQty });
+        if (line.Extras?.Size is not { } size) return new[] { line };
+        var sizes = SizeListSplit.Split(size.Trim()).Where(s => s.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (sizes.Count < 2 || sizes.Any(s => s.Length > 5)) return new[] { line };
+        return sizes.Select(s => line with { Extras = line.Extras with { Size = s } });
+    }
+
+    // "cost 1400" / "cost: 1,400" / "lagat 1400" while a product waits for YES: its cost price.
+    private static readonly System.Text.RegularExpressions.Regex PendingCost = new(@"^(?:cost|lagat|laagat|kharid|khareed|purchase)(?:\s+price)?\s*[:=-]?\s*(?:rs\.?\s*)?(?<c>\d{1,3}(?:,\d{3})+|\d{1,7})$",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
 
     // Every fact that will be saved is shown (cost and category included); a fact the seller did not give is left out, not shown as "-".
     private static List<string> ProductPreviewRows(ProductLine line)
@@ -87,6 +111,20 @@ public partial class ConversationEngine
         {
             foreach (var line in pending)
                 await HandleAddProductAsync(seller, new ParsedCommand { Kind = CommandKind.AddProduct, Text = line.Name, Amount = line.Price, Product = line }, ct, ctx);
+            // Products are being added after "Add product": the next plain line is the next product, until the seller sends something else.
+            if (ctx.ProductChain)
+            {
+                ctx.TapJob = "product";
+                await ReplyAsync(seller, MessageTemplates.Get("tapflow.product.more"), ct);
+            }
+            return true;
+        }
+        // "cost 1400" before Save: the cost price of the waiting product(s), shown again for YES.
+        if (PendingCost.Match(message.Trim()) is { Success: true } costMatch)
+        {
+            var cost = decimal.Parse(costMatch.Groups["c"].Value.Replace(",", ""), System.Globalization.CultureInfo.InvariantCulture);
+            var withCost = pending.Select(l => l with { Extras = (l.Extras ?? new ProductExtras(null, null, null, null, null, null, null)) with { Cost = cost } }).ToList();
+            await AskProductConfirmationAsync(seller, ctx, withCost, ct);
             return true;
         }
         // "cancel" is the Cancel button's word; the plain "no" pattern does not include it, so it is read as a no here.
