@@ -106,6 +106,9 @@ public partial class ConversationEngine
             if (correction.VariantsInSheet) await ReplyAsync(seller, MessageTemplates.Get("commands.054"), ct);
             return true;
         }
+        // Anything else drops the waiting product: say so, so a later "yes" is not taken for a save. A new product line shows its own preview instead.
+        if (CommandParser.TryParse(message) is not { Kind: CommandKind.AddProduct })
+            await ReplyAsync(seller, MessageTemplates.Get("product.pending.dropped", string.Join(", ", pending.Select(p => p.Name))), ct);
         return false;
     }
 

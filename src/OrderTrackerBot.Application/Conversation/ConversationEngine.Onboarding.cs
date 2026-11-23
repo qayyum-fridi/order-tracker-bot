@@ -291,6 +291,7 @@ public partial class ConversationEngine
         if (seller.SalesMode is null && _turnCtx is not null)
         {
             _turnCtx.AwaitingSalesMode = true;
+            _turnCtx.SalesModeJustAsked = true;
             await SendChoicesAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("sales-mode.001"),
                 new[] { new ChoiceOption(MessageTemplates.Get("sales-mode.counter.label"), "sales-counter"), new ChoiceOption(MessageTemplates.Get("sales-mode.delivery.label"), "sales-delivery") }, ct);
         }
@@ -657,7 +658,7 @@ public partial class ConversationEngine
                 return;
 
             case ConversationState.OnboardingStartChoice:
-                await HandleOnboardingStartChoiceAsync(seller, session, message, ct);
+                await HandleOnboardingStartChoiceAsync(seller, session, ctx, message, ct);
                 return;
 
             default:

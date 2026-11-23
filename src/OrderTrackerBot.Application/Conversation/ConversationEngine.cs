@@ -231,7 +231,11 @@ public partial class ConversationEngine
         _turnCtx = ctx;
 
         // The answer to "do you ship too?" asked at the end of setup.
-        if (ctx.AwaitingSalesMode && ReadSalesMode(message) is { } salesMode)
+        // "1" / "2" typed instead of a tap mean the first / second choice (shop only, delivery too), but only as the very next message:
+        // a later "1" answers whatever was asked since.
+        var typedSalesMode = ctx.SalesModeJustAsked ? message.Trim() switch { "1" or "١" or "۱" => "counter", "2" or "٢" or "۲" => "delivery", _ => null } : null;
+        ctx.SalesModeJustAsked = false;
+        if (ctx.AwaitingSalesMode && (ReadSalesMode(message) ?? typedSalesMode) is { } salesMode)
         {
             ctx.AwaitingSalesMode = false;
             seller.SalesMode = salesMode;

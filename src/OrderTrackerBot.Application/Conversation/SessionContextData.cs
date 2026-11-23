@@ -106,6 +106,8 @@ public sealed class SessionContextData
 {
     /// <summary>Setup just ended: the next tap or word answers "shop only or delivery too" (see SalesMode).</summary>
     public bool AwaitingSalesMode { get; set; }
+    /// <summary>The sales-mode question was the last thing asked: only the very next message may answer it with a bare "1" / "2".</summary>
+    public bool SalesModeJustAsked { get; set; }
     /// <summary>When the seller last asked to reach support (UTC); a repeat inside a few hours is told the first request is already with the team, and the founder is not alerted again.</summary>
     public DateTime? SupportRequestedAt { get; set; }
 

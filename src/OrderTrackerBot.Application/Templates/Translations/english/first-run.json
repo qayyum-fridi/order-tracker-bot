@@ -1,0 +1,4 @@
+{
+  "business.name.invalid": "Sorry, \"{0}\" does not look like a shop name. Please type your shop's name, for example: Ali Clothing",
+  "product.pending.dropped": "ℹ️ \"{0}\" was not saved because no YES came. To save it, send the product again."
+}

@@ -338,6 +338,12 @@ public partial class ConversationEngine
         var byName = catalog.FirstOrDefault(c => string.Equals(c.Label, wanted, StringComparison.OrdinalIgnoreCase))
                ?? catalog.FirstOrDefault(c => string.Equals(c.Product.Name, wanted, StringComparison.OrdinalIgnoreCase));
         if (byName is not null) return byName;
+        // "Chini 5 kg" names the product saved from "Chini 5 kg - 950" (name "Chini", pack 5 kg), when exactly one product has that name and pack.
+        var sized = CommandParser.SplitUnit(wanted, 0m);
+        if ((sized.UnitType != "piece" || sized.UnitQty != 1)
+            && catalog.Where(c => string.Equals(c.Product.Name, sized.Name, StringComparison.OrdinalIgnoreCase)
+                                  && c.Product.UnitType == sized.UnitType && c.Product.UnitQty == sized.UnitQty).ToList() is [var packed])
+            return packed;
         // "Polo Shirt white" names the one variant that has that colour or size.
         if (catalog.Where(c => ProductVariants.NamesVariant(c.Product, wanted)).ToList() is [var named]) return named;
         // A design code or SKU typed in the order ("1203 x2", "KRT-001") names its product when exactly one product has it.

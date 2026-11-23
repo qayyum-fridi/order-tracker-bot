@@ -57,8 +57,20 @@ public partial class ConversationEngine
     private static bool IsLanguageButton(string message) =>
         Lang.ButtonLabels.Any(label => ButtonWords(label) == ButtonWords(message));
 
-    private async Task HandleOnboardingStartChoiceAsync(Seller seller, ConversationSession session, string message, CancellationToken ct)
+    private async Task HandleOnboardingStartChoiceAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
+        // "1" / "2" / "3" typed instead of a tap: the button in that place.
+        var buttons = StartChoiceButtonsFor();
+        if (int.TryParse(message.Trim(), out var picked) && picked >= 1 && picked <= buttons.Length)
+            message = buttons[picked - 1];
+        // The shop's name typed straight away ("Ali Clothing") answers the next question: it is kept, not dropped and asked for again.
+        else if (IsTypedShopName(message))
+        {
+            SetState(session, ConversationState.OnboardingBusinessName);
+            await HandleOnboardingAsync(seller, session, ctx, message, ct);
+            return;
+        }
+
         // A repeated language tap must not restart the language step or lose the start choice: show the start choice again.
         if (IsLanguageButton(message))
         {
@@ -124,7 +136,32 @@ public partial class ConversationEngine
             return true;
         }
 
+        // "1", "2", "..." has no letter: not a shop name. Say so and ask again instead of saving it.
+        if (!message.Any(char.IsLetter))
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("business.name.invalid", message.Trim()), ct);
+            await AskBusinessNameAsync(seller, session, ct);
+            return true;
+        }
+
         return false;
+    }
+
+    // Words that answer the start question itself ("setup", "haan", "ok") rather than name the shop.
+    private static readonly HashSet<string> StartChoiceAnswerWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "setup", "setup karein", "setup karo", "shuru", "shuru karein", "start", "guide", "haan", "han", "ha", "yes", "ji haan", "no", "nahi"
+    };
+
+    /// <summary>Typed text at the start choice that is the shop's name: has a letter, is no button, answer word, acknowledgement or command.</summary>
+    private static bool IsTypedShopName(string message)
+    {
+        var words = ButtonWords(message);
+        return message.Any(char.IsLetter) && words.Length > 0
+               && !ButtonLikeOnboardingWords.Contains(words) && !StartChoiceAnswerWords.Contains(words) && !AcknowledgementWords.Contains(words)
+               && !words.Contains("setup") && !words.Contains("guide") && !words.Contains("language") && !words.Contains("purana") && !words.Contains("import")
+               && !IsLanguageButton(message) && !CommandParser.IsAffirmative(message) && !CommandParser.IsNegative(message)
+               && CommandParser.TryParse(message) is null;
     }
 
     // Screen 0b: "change language" works anytime.

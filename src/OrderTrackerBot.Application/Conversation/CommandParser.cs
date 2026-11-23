@@ -387,6 +387,7 @@ public static class CommandParser
     private static readonly Regex CustomerAddLabel = new(
         @"(?<![\p{L}\p{N}])(?<k>address|pata|patta|phone|fone|mobile|number|city|shehar|پتہ|ایڈریس|ایڈرس|فون|موبائل|نمبر|شہر)(?![\p{L}\p{N}])", Opts);
     private static readonly Regex CustomerAddPhoneLike = new(@"^\+?\d[\d\s-]{8,16}\d$", Opts);
+    private static readonly Regex CustomerAddInlinePhone = new(@"^(?<name>\D+?)\s+(?<phone>\+?\d[\d\s-]{8,16}\d)(?:\s+(?<after>\D.*))?$", Opts);
     private static readonly Regex CustomerAddNameBlocked = new(@"^(?:order|orders|list|report|search|find|phone|number|address|city|summary|catalog|price|bana\p{L}*|create|make|naya|nayi)\b", Opts);
     private static readonly Regex CustomerAddFillerOnly = new(@"^(?:hai|hain|ہے|ہیں)$", Opts);
     private static readonly Regex CustomerAddNameWord = new(@"^[\p{L}\p{M}.'’-]+$", Opts);
@@ -474,6 +475,13 @@ public static class CommandParser
             var parts = rest.Split(CustomerAddSeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             if (parts.Length == 0) return null;
             name = CleanCustomerPart(parts[0]);
+            // "customer add Bilal 03001234567 Model Town": no commas, the phone after the name ends it; words after the phone are the address.
+            if (CustomerAddInlinePhone.Match(name) is { Success: true } inline)
+            {
+                name = CleanCustomerPart(inline.Groups["name"].Value);
+                phone = inline.Groups["phone"].Value.Trim();
+                if (CleanCustomerPart(inline.Groups["after"].Value) is { Length: > 0 } after) Unlabelled(after);
+            }
             foreach (var part in parts.Skip(1).Select(CleanCustomerPart).Where(p => p.Length > 0)) Unlabelled(part);
         }
 
