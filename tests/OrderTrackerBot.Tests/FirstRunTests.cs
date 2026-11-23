@@ -159,6 +159,131 @@ public class FirstRunTests : IDisposable
         Assert.Equal((name, phone, address), (cmd.Text, cmd.Text2, cmd.Text3));
     }
 
+    [Fact]
+    public async Task CustomerPaid_InPlainWords_ListsHerUnpaidOrders_AndATapMarksItPaid()
+    {
+        var (db, engine) = await SetUpSellerAsync();
+        using var _ = db;
+        await SellTwoChiniAsync(engine, "Chini 5 kg - 950");
+
+        await engine.HandleIncomingMessageAsync(Phone, "Bilal ka paisa aa gaya", default);
+        Assert.Equal(PaymentStatus.Unpaid, (await db.Orders.SingleAsync()).PaymentStatus); // the sentence alone marks nothing
+        Assert.Contains(MessageTemplates.Get("tapflow.paid.owes", "Bilal", 1, "Rs.1,900"), _sent);
+        await engine.HandleIncomingMessageAsync(Phone, Assert.Single(LastListRows()).Id, default);
+
+        Assert.Equal(PaymentStatus.Paid, (await db.Orders.SingleAsync()).PaymentStatus);
+    }
+
+    [Theory]
+    [InlineData("Sara ka paisa aa gaya", "tapflow.paid.nocustomer")]
+    [InlineData("Bilal se payment mil gayi", "tapflow.paid.nothing")]
+    public async Task CustomerPaid_UnknownBuyerOrNothingOwed_SaysSo(string text, string key)
+    {
+        var (db, engine) = await SetUpSellerAsync();
+        using var _ = db;
+        await engine.HandleIncomingMessageAsync(Phone, "customer add Bilal, Model Town, 03001234567", default);
+
+        await engine.HandleIncomingMessageAsync(Phone, text, default);
+
+        Assert.Contains(_sent, m => m == MessageTemplates.Get(key, key.EndsWith("nocustomer") ? "Sara" : "Bilal"));
+    }
+
+    [Theory]
+    [InlineData("kitne paise baqi hain")]
+    [InlineData("kis ka paisa baqi hai")]
+    public async Task MoneyOwed_InPlainWords_ShowsTheUnpaidList(string text)
+    {
+        var (db, engine) = await SetUpSellerAsync();
+        using var _ = db;
+        await SellTwoChiniAsync(engine, "Chini 5 kg - 950");
+
+        await engine.HandleIncomingMessageAsync(Phone, text, default);
+
+        Assert.Equal("mark 1 paid", Assert.Single(LastListRows()).Id);
+    }
+
+    [Theory]
+    [InlineData("Lawn Suit 3 Piece - 4500")]
+    [InlineData("Lawn Suit 3 Piece - 4500, cost 3000, stock 15")]
+    public void PieceCountInTheName_IsTheItem_NotAPack(string line)
+    {
+        var cmd = CommandParser.TryParse(line);
+        Assert.Equal(CommandKind.AddProduct, cmd!.Kind);
+        Assert.Equal(("Lawn Suit 3 Piece", "piece", 1m), (cmd.Product!.Name, cmd.Product.UnitType, cmd.Product.UnitQty));
+    }
+
+    [Fact]
+    public async Task ReportsMenu_OffersTheBusinessAudit()
+    {
+        var (db, engine) = await SetUpSellerAsync();
+        using var _ = db;
+
+        await engine.HandleIncomingMessageAsync(Phone, "menu", default);
+        await engine.HandleIncomingMessageAsync(Phone, Assert.Single(LastListRows(), r => r.Title.Contains("Reports")).Id, default);
+
+        var audit = Assert.Single(LastListRows(), r => r.Id == "business audit");
+        Assert.NotNull(CommandParser.TryParse(audit.Id));
+        Assert.True(LastListRows().Count <= 10);
+    }
+
+    [Fact]
+    public async Task SetupEnds_WithTheOptionsListAndTheSalesQuestion_GuideIsARow()
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, Mock.Of<IFounderAlertNotifier>(),
+            features: new FeatureOptions { ShortcutButtons = false, IndustryQuestion = true });
+        await engine.HandleIncomingMessageAsync(Phone, "start", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Roman Urdu", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Zara Boutique", default);
+        _sent.Clear();
+        _lists.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "1", default);
+
+        Assert.True((await db.Sellers.SingleAsync()).OnboardingComplete);
+        Assert.Equal(2, _sent.Count);
+        Assert.Contains(_lists[0].SelectMany(s => s.Rows), r => r.Id == "guide");
+        Assert.Contains(_lists[0].SelectMany(s => s.Rows), r => r.Id == "new order");
+    }
+
+    [Fact]
+    public async Task DailyClose_At9pm_SendsTodaysCloseOnce_ToABusySeller()
+    {
+        using var db = _dbFactory.CreateContext();
+        var seller = new Seller { WhatsAppPhoneNumber = Phone, BusinessName = "Ali Store", OnboardingComplete = true, SalesMode = "delivery", Session = new ConversationSession { State = ConversationState.Idle } };
+        db.Sellers.Add(seller);
+        await db.SaveChangesAsync();
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, Mock.Of<IFounderAlertNotifier>(),
+            features: new FeatureOptions { ShortcutButtons = false, SuggestionButtons = true, ProductConfirmation = true, DailyCloseNudge = true });
+        await SellTwoChiniAsync(engine, "Chini 5 kg - 950, cost 880");
+        _sent.Clear();
+
+        var nowUtc = DateTime.UtcNow;
+        var ninePmUtc = (nowUtc + TimeSpan.FromHours(5)).Date.AddHours(21) - TimeSpan.FromHours(5);
+        var at = nowUtc > ninePmUtc ? nowUtc : ninePmUtc; // never earlier than the orders, so they still count as "today"
+        if ((at + TimeSpan.FromHours(5)).Date != (nowUtc + TimeSpan.FromHours(5)).Date) return; // the test ran too close to midnight PKT
+
+        await engine.RunScheduledJobsAsync(at.AddMinutes(1));
+        await engine.RunScheduledJobsAsync(at.AddMinutes(20));
+
+        Assert.Single(_sent, m => m.StartsWith("🌙"));
+        Assert.Contains(_sent, m => m.StartsWith(MessageTemplates.Get("scheduled.dayclose.owed", 1, "Rs.1,900")));
+    }
+
+    [Fact]
+    public async Task DailyClose_Before9pm_SendsNothing()
+    {
+        var (db, engine) = await SetUpSellerAsync();
+        using var _ = db;
+        await SellTwoChiniAsync(engine, "Chini 5 kg - 950");
+        _sent.Clear();
+        var eightPmUtc = (DateTime.UtcNow + TimeSpan.FromHours(5)).Date.AddHours(20) - TimeSpan.FromHours(5);
+
+        await engine.RunScheduledJobsAsync(eightPmUtc);
+
+        Assert.DoesNotContain(_sent, m => m.StartsWith("🌙"));
+    }
+
     private async Task SellTwoChiniAsync(ConversationEngine engine, string productLine)
     {
         await engine.HandleIncomingMessageAsync(Phone, productLine, default);

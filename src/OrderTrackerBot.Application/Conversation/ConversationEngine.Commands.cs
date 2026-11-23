@@ -88,10 +88,11 @@ public partial class ConversationEngine
             }),
             ["reports"] = ("📊 Reports", "menu.reports", new[]
             {
-                new MenuRow("today's summary", "Today's summary"), new MenuRow("trending products", "Trending products"),
+                // The shop's health check sits right under today's summary; discount performance is typed ("discount performance"), discounts being cut from the MVP.
+                new MenuRow("today's summary", "Today's summary"), new MenuRow("business audit", "Business audit"),
+                new MenuRow("trending products", "Trending products"),
                 new MenuRow("slow movers", "Slow movers"), new MenuRow("loyal customers", "Loyal customers"),
                 new MenuRow("customer feedback", "Customer feedback"), new MenuRow("weekly summary", "Weekly summary"),
-                new MenuRow("discount performance", "Discount performance"),
                 new MenuRow("monthly net", "Monthly net"), new MenuRow("expenses", "Expenses"), BackToMenu
             }),
             ["catalog"] = ("🛍️ Catalog", "menu.catalog", new[]
@@ -592,6 +593,9 @@ public partial class ConversationEngine
                     return;
                 }
                 await HandleAddProductAsync(seller, cmd, ct, ctx);
+                return;
+            case CommandKind.CustomerPaid:
+                await HandleCustomerPaidAsync(seller, ctx, cmd.Text!, ct);
                 return;
             case CommandKind.NewCustomerOrder:
                 await StartNewCustomerOrderAsync(seller, ctx, ct);

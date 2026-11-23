@@ -161,6 +161,8 @@ public enum CommandKind
     OrderForCustomer,
     /// <summary>"naya customer": an order for a buyer not saved yet; the next message is the name (and phone / address), then products to tap.</summary>
     NewCustomerOrder,
+    /// <summary>"Hina ka paisa aa gaya": Text = the buyer; her unpaid orders are listed, each a tap that marks it paid (nothing is marked by the sentence alone).</summary>
+    CustomerPaid,
     /// <summary>A short reply chosen by the parser: Text is the message template key to send (buyer messages, undo, invalid phone).</summary>
     Notice,
     /// <summary>"return Shirt 1 [cash|bank|none]" at the counter: a buyer brings goods back with no order (ConversationEngine.CounterReturn.cs).</summary>
@@ -1140,6 +1142,18 @@ public static class CommandParser
     private static readonly Regex PaymentLink = new(@"^payment\s+link(?:\s+(\d+))?$", Opts);
     private static readonly Regex AddPaymentMethod = new(@"^add\s+payment:\s*(jazzcash|easypaisa|bank|safepay)\s*(?:,\s*(.+))?$", Opts);
     private static readonly Regex UnpaidOrders = new(@"^(?:unpaid\s+orders?|pending\s+payments?|payment\s+due\s+list)$", Opts);
+    // "kitne paise baqi hain", "kis ka paisa baqi hai", "baqi paise", "kis ne paise dene hain": the money still owed, in plain words.
+    private const string MoneyWord = @"(?:paise|paisa|pesay|paisay|payment|payments|raqam|udhaar|udhar)";
+    private static readonly Regex UnpaidOrdersSpoken = new(
+        @"^(?:(?:kitne|kitna|kitni|kis\s+(?:ka|ki|ke)|kin\s+(?:ka|ki|ke)|kaun\s+(?:se|sa|si))\s+)?" + MoneyWord + @"\s+(?:baqi|baaqi|baki|baaki|reh\s+gaye|rehte)(?:\s+(?:hain|hai|he|hein))?\s*\??$"
+        + @"|^(?:baqi|baaqi|baki|baaki)\s+" + MoneyWord + @"(?:\s+(?:kitne|kitna|dikhao|batao))?\s*\??$"
+        + @"|^(?:kis|kin)\s+(?:ne|se)\s+" + MoneyWord + @"\s+(?:dene|lene)\s+(?:hain|hai|he|hein)\s*\??$", Opts);
+    // Words that start a sentence about the shop or a period, not a buyer's name ("aaj ka paisa aa gaya", "sab ka payment mil gaya").
+    private static readonly Regex CustomerPaidNotAName = new(@"^(?:aaj|kal|sab|sabhi|is|us|order|orders|customer|courier|tcs|leopards|mera|meri|mere|humara|hamara)\b", Opts);
+    // "Hina ka paisa aa gaya", "Hina ne paise de diye", "Hina se payment mil gayi": that buyer paid; her unpaid orders are offered as taps.
+    private static readonly Regex CustomerPaidSpoken = new(
+        @"^(?<n>[\p{L}][\p{L} .'’-]{1,30}?)\s+(?:(?:ka|ki|ke)\s+" + MoneyWord + @"\s+(?:aa|a|mil)|se\s+" + MoneyWord + @"\s+(?:mil|aa|a))\s+(?:gaya|gaye|gayi|gai|gya|gyi|gye)\s*[.!]?$", Opts);
+    // "Sara ne paise de diye" is left to the payment-by-voice route, which asks how much was paid.
     private static readonly Regex CodPending = new(@"^cod\s+pending$", Opts);
     private static readonly Regex AddTracking = new(@"^add\s+tracking:\s*(.+?)\s*,\s*(.+)$", Opts);
     private static readonly Regex TrackingLookup = new(@"^(.+?)\s+(?:ka|کا)\s+(?:tracking|ٹریکنگ)$", Opts);
@@ -1434,7 +1448,10 @@ public static class CommandParser
         var m = UnitProductLine.Match(text);
         if (m.Success && NormalizeUnit(m.Groups[3].Value) is { } unit)
         {
-            product = new ProductLine(m.Groups[1].Value.Trim(), decimal.Parse(m.Groups[4].Value), unit, decimal.Parse(m.Groups[2].Value));
+            // "Lawn Suit 3 Piece - 4500" is a 3-piece suit (one item), not a pack of three: a piece count stays in the name.
+            product = unit == "piece"
+                ? new ProductLine($"{m.Groups[1].Value.Trim()} {m.Groups[2].Value} {m.Groups[3].Value}", decimal.Parse(m.Groups[4].Value), "piece", 1)
+                : new ProductLine(m.Groups[1].Value.Trim(), decimal.Parse(m.Groups[4].Value), unit, decimal.Parse(m.Groups[2].Value));
             return true;
         }
 
@@ -1469,7 +1486,8 @@ public static class CommandParser
     public static ProductLine SplitUnit(string name, decimal price)
     {
         var m = NameWithUnit.Match(name.Trim());
-        return m.Success && NormalizeUnit(m.Groups[3].Value) is { } unit
+        // A piece count ("Lawn Suit 3 Piece", "Bedsheet 2 pcs") names the item, not a pack: it stays in the name, one piece.
+        return m.Success && NormalizeUnit(m.Groups[3].Value) is { } unit && unit != "piece"
             ? new ProductLine(m.Groups[1].Value.Trim(), price, unit, decimal.Parse(m.Groups[2].Value))
             : new ProductLine(name.Trim(), price, "piece", 1);
     }
@@ -2056,7 +2074,9 @@ public static class CommandParser
         if ((m = AddPaymentMethod.Match(message)).Success)
             return new ParsedCommand { Kind = CommandKind.AddPaymentMethod, Text = m.Groups[1].Value.ToLowerInvariant(), Text2 = m.Groups[2].Success ? m.Groups[2].Value.Trim() : null };
 
-        if (UnpaidOrders.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.UnpaidOrders };
+        if (UnpaidOrders.IsMatch(message) || UnpaidOrdersSpoken.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.UnpaidOrders };
+        if ((m = CustomerPaidSpoken.Match(message)).Success && !CustomerPaidNotAName.IsMatch(m.Groups["n"].Value))
+            return new ParsedCommand { Kind = CommandKind.CustomerPaid, Text = m.Groups["n"].Value.Trim() };
         if (CodPending.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CodPending };
 
         if ((m = AddTracking.Match(message)).Success)

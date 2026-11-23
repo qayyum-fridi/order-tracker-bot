@@ -27,7 +27,8 @@ Capital words in `[ ]` are values you fill in. Case does not matter. Roman Urdu,
 | Expenses / wages / losses by period | `expenses this week` · `wages last month` · `losses yesterday` | `expenses` · `wages` · `losses 7 days` |
 | How to enter data (formats) | `data help` | `how to add` · `kaise dalein` |
 | Next / previous page of the last order list | `orders next` | `orders prev` · `orders last` · `orders page 3` · `orders size 25` (also sets the catalog page size) |
-| Pending / unpaid / COD owed | `pending orders` · `unpaid orders` · `cod pending` | `pending` · `active orders` · `pending payments` · `payment due list` (unpaid) |
+| Pending / unpaid / COD owed | `pending orders` · `unpaid orders` · `cod pending` | `pending` · `active orders` · `pending payments` · `payment due list` · `kitne paise baqi hain` · `kis ka paisa baqi hai` · `baqi paise` · `kis ne paise dene hain` (unpaid; each order is a tap that marks it paid) |
+| A buyer paid (her unpaid orders appear as taps; the sentence alone marks nothing) | `Hina ka paisa aa gaya` | `Hina se payment mil gayi` |
 | One order in full | `order 12` | `#12` · `order 12 details` |
 | Change status | `mark 12 shipped` | `delivered` · `returned` · `paid` · `bhej diya` · `mukammal` |
 | Cancel an order | `cancel 12` | |

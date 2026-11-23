@@ -63,6 +63,8 @@ public partial class ConversationEngine
                     if (claimed == 1) await SendTrialEndingReminderAsync(seller, ct);
                 }
 
+                if (_features.DailyCloseNudge) await TrySendDailyCloseAsync(seller, utcNow, ct);
+
                 await _db.SaveChangesAsync(ct);
             }
             catch (Exception ex) when (!ct.IsCancellationRequested)
@@ -71,6 +73,40 @@ public partial class ConversationEngine
                 await ReportScheduledIssueAsync(seller.WhatsAppPhoneNumber, $"seller {seller.Id}", ex, ct);
             }
         }
+    }
+
+    private static readonly TimeSpan DailyCloseHourLocal = TimeSpan.FromHours(21);
+
+    /// <summary>
+    /// 9 pm Pakistan time: a seller who logged an order or an expense today gets today's close, then a tap for money still owed.
+    /// Once a day (a dated key in the processed-message table, purged after a week) and only inside the 24-hour window: an old close next morning is noise, so it is not kept.
+    /// </summary>
+    private async Task TrySendDailyCloseAsync(Seller seller, DateTime utcNow, CancellationToken ct)
+    {
+        var local = utcNow + PakistanOffset;
+        if (local.TimeOfDay < DailyCloseHourLocal) return;
+        var dayStartUtc = local.Date - PakistanOffset;
+        var dayEndUtc = dayStartUtc.AddDays(1);
+        var key = $"dayclose:{seller.Id}:{local:yyyy-MM-dd}";
+        if (await _db.ProcessedWebhookMessages.AnyAsync(m => m.MessageId == key, ct)) return;
+
+        var busy = await _db.Orders.AnyAsync(o => o.SellerId == seller.Id && o.CreatedAt >= dayStartUtc && o.CreatedAt < dayEndUtc, ct)
+                   || await _db.Expenses.AnyAsync(x => x.SellerId == seller.Id && x.CreatedAt >= dayStartUtc && x.CreatedAt < dayEndUtc, ct);
+        if (!busy || !await WithinServiceWindowAsync(seller, ct)) return;
+
+        _db.ProcessedWebhookMessages.Add(new ProcessedWebhookMessage { MessageId = key, ProcessedAt = utcNow });
+        await _db.SaveChangesAsync(ct);
+
+        var (text, _, _) = await BuildTodaysSummaryAsync(seller, null, ct);
+        await ReplyAsync(seller, MessageTemplates.Get("scheduled.dayclose", text), ct);
+
+        var owed = await _db.Orders.Where(o => o.SellerId == seller.Id && o.PaymentStatus == PaymentStatus.Unpaid
+                && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
+            .ToListAsync(ct);
+        if (owed.Count == 0) return;
+        await SendChoicesAsync(seller.WhatsAppPhoneNumber,
+            MessageTemplates.Get("scheduled.dayclose.owed", owed.Count, Formatters.Money(owed.Sum(OrderMoney.Balance))),
+            new[] { new ChoiceOption("Paisa lena hai", "unpaid orders"), new ChoiceOption("Rozana", "rozana") }, ct);
     }
 
     private Task ReportScheduledIssueAsync(string? phone, string detail, Exception ex, CancellationToken ct) =>

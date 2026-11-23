@@ -1,4 +1,6 @@
 {
+  "scheduled.dayclose": "🌙 Din khatam hone ko hai — aaj ka hisaab:\n\n{0}",
+  "scheduled.dayclose.owed": "💸 {0} order ka paisa abhi baqi hai: kul {1}. Paisa mil gaya ho to neeche tap karein.",
   "day-close.ok": "Sab theek lag raha hai ✅",
   "day-close.loss": "⚠️ Aaj nuqsan hua: kharcha aur tankhwah munafe se {0} zyada rahe.",
   "day-close.nocost": "ℹ️ Asal bachat nahi nikal saki: {0} order ke products ki cost price nahi likhi. Poori list ke liye \"data check\" likhein.",

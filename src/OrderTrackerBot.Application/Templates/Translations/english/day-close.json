@@ -1,4 +1,6 @@
 {
+  "scheduled.dayclose": "🌙 The day is nearly over — today's account:\n\n{0}",
+  "scheduled.dayclose.owed": "💸 Money is still owed on {0} order(s): {1} in all. If you have been paid, tap below.",
   "day-close.ok": "Everything looks correct ✅",
   "day-close.loss": "⚠️ Today was a loss: expenses and wages were {0} more than the profit.",
   "day-close.nocost": "ℹ️ Could not work out the real result: {0} order(s) have products with no cost price. Type \"data check\" for the full list.",

@@ -283,10 +283,9 @@ public partial class ConversationEngine
         var reply = skipped
             ? (shopType is null ? MessageTemplates.Get("onboarding.024", TrialStartedText(seller)) : MessageTemplates.Get("onboarding.039", shopType, TrialStartedText(seller)))
             : MessageTemplates.Get("onboarding.025", TrialStartedText(seller));
+        // One list with the next steps (the 2-minute guide is a row in it), then the one setup question: two messages, not three.
         await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("onboarding.013", reply.TrimEnd() + "\n\n" + MessageTemplates.Get("disclaimer.001")),
             "Options dekhein", AfterSetupSections, ct);
-        await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
-            MessageTemplates.Get("onboarding.014"), GuideOfferButtons, ct);
         // One question after setup: do they ship too? The answer decides whether orders ask for a phone and address.
         if (seller.SalesMode is null && _turnCtx is not null)
         {
@@ -358,7 +357,9 @@ public partial class ConversationEngine
     {
         new Abstractions.MenuSection("Shuru karein", new[]
         {
-            new Abstractions.MenuRow("new order (detailed)", "📦 Pehla order darj karein"),
+            // "new order" opens the tap-by-tap order (customer, then product), which needs no typing.
+            new Abstractions.MenuRow("new order", "📦 Pehla order darj karein"),
+            new Abstractions.MenuRow("guide", "📖 2 minute ka guide"),
             new Abstractions.MenuRow("catalog", "🛍️ Catalog dekhein"),
             new Abstractions.MenuRow("add payment", "💰 Payment number add"),
             new Abstractions.MenuRow("menu", "📋 Main menu"),

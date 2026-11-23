@@ -838,6 +838,9 @@ public sealed class FeatureOptions
     /// <summary>Once-a-day reminder after a saved order when products lack a cost price (profit reports need it); <c>data check</c> works either way.</summary>
     public bool SetupNudges { get; set; }
 
+    /// <summary>At 9 pm Pakistan time, a seller who logged an order or expense today gets today's close (and a tap for money still owed), once a day, inside the 24-hour window only.</summary>
+    public bool DailyCloseNudge { get; set; }
+
     /// <summary>Setup asks the kind of shop right after the shop name (taps); off = the old flow without that question (unit tests).</summary>
     public bool IndustryQuestion { get; set; }
 

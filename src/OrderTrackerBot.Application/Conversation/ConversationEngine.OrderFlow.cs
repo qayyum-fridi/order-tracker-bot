@@ -23,7 +23,7 @@ public partial class ConversationEngine
     private const int ButtonTitleMax = 20;
 
     /// <summary>One tap per near-miss product, titled "Name Rs.1800" (cut to the 20 characters a button holds; the same text is what comes back on a tap).</summary>
-    private static List<ProductSuggestion> BuildSuggestions(IReadOnlyList<CatalogEntry> catalog, IReadOnlyList<string> nearestLabels)
+    private static List<ProductSuggestion> BuildSuggestions(IReadOnlyList<CatalogEntry> catalog, IReadOnlyList<string> nearestLabels, int titleMax = ButtonTitleMax)
     {
         var result = new List<ProductSuggestion>();
         foreach (var label in nearestLabels)
@@ -31,7 +31,7 @@ public partial class ConversationEngine
             var entry = catalog.FirstOrDefault(c => c.Label == label);
             if (entry is null) continue;
             var price = " Rs." + entry.Product.Price.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
-            var room = ButtonTitleMax - price.Length;
+            var room = titleMax - price.Length;
             if (room < 4) continue;
             var name = label.Length <= room ? label : label[..(room - 1)] + "…";
             var title = name + price;

@@ -60,7 +60,8 @@ public partial class ConversationEngine
             }
             var lines = tracked.Select(p => $"{(p.StockQty <= 0 ? "⛔" : p.StockQty <= LowStockThreshold ? "⚠️" : "✅")} {Formatters.ProductLabel(p)}: {p.StockQty}");
             await ReplyAsync(seller,
-                MessageTemplates.Get("stock.002", tracked.Count, string.Join("\n", lines), Industry(seller).MainName, Industry(seller).MainName, Industry(seller).MainName), ct);
+                // The how-to names one of the seller's own products, not the shop type's example (which may not be in the catalog).
+                MessageTemplates.Get("stock.002", tracked.Count, string.Join("\n", lines), tracked[0].Name, tracked[0].Name, tracked[0].Name), ct);
             return;
         }
 

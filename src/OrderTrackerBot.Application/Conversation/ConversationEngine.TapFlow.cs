@@ -66,7 +66,8 @@ public partial class ConversationEngine
         var labels = catalog
             .OrderByDescending(c => sold.GetValueOrDefault(c.Product.Id)).ThenBy(c => c.Product.Id)
             .Select(c => c.Label).Take(PickerProducts).ToList();
-        var picks = BuildSuggestions(catalog, labels);
+        // List rows hold 24 characters (buttons 20), so names are cut later here.
+        var picks = BuildSuggestions(catalog, labels, ListRowTitleMax);
         if (picks.Count == 0) return false;
 
         ctx.ProductSuggestions = picks;
@@ -88,6 +89,35 @@ public partial class ConversationEngine
         if (rows.Length == 0) return;
         await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("tapflow.unpaid.pick"), "Paid karein",
             new[] { new MenuSection("Paisa mil gaya", rows) }, ct);
+    }
+
+    /// <summary>"Hina ka paisa aa gaya": her unpaid orders, each a tap that marks it paid. The sentence alone marks nothing.</summary>
+    private async Task HandleCustomerPaidAsync(Seller seller, SessionContextData ctx, string name, CancellationToken ct)
+    {
+        var customers = await _db.Customers.AsNoTracking().Where(c => c.SellerId == seller.Id && c.DeletedAt == null).ToListAsync(ct);
+        var matched = customers.Where(c => c.Name.Equals(name, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (matched.Count == 0) matched = customers.Where(c => c.Name.Contains(name, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (matched.Count == 0)
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("tapflow.paid.nocustomer", name), ct);
+            return;
+        }
+
+        var ids = matched.Select(c => c.Id).ToList();
+        var orders = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
+            .Where(o => o.SellerId == seller.Id && ids.Contains(o.CustomerId) &&o.PaymentStatus == PaymentStatus.Unpaid
+                        && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
+            .OrderBy(o => o.CreatedAt).Take(PickerUnpaid).ToListAsync(ct);
+        if (orders.Count == 0)
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("tapflow.paid.nothing", matched[0].Name), ct);
+            return;
+        }
+
+        // The taps say "mark 1 paid" ...: their numbers point into this list.
+        ctx.LastListOrderIds = orders.Select(o => o.Id).ToList();
+        await ReplyAsync(seller, MessageTemplates.Get("tapflow.paid.owes", matched[0].Name, orders.Count, Formatters.Money(orders.Sum(OrderMoney.Balance))), ct);
+        await SendMarkPaidPickerAsync(seller, orders, 1, ct);
     }
 
     /// <summary>

@@ -4,5 +4,8 @@
   "tapflow.order.product": "👇 Product tap karein (1 piece). Zyada hon to likhein, jaise: {0} 3",
   "tapflow.expense.next": "✍️ Ab kharcha likh dein, jaise: kiraya 3000",
   "tapflow.wage.next": "✍️ Ab likhein kis ko kitna diya, jaise: Ali 1500",
+  "tapflow.paid.owes": "💸 {0} ke {1} order ka paisa baqi hai: kul {2}.",
+  "tapflow.paid.nothing": "✅ {0} ka koi paisa baqi nahi. Sab orders paid hain.",
+  "tapflow.paid.nocustomer": "Maaf kijiye, \"{0}\" naam ka customer nahi mila. Saare customers dekhne ke liye \"customer list\" likhein.",
   "tapflow.unpaid.pick": "👇 Paisa mil gaya? Customer tap karein, order paid ho jayega. Ghalti ho to \"undo\" likhein."
 }
