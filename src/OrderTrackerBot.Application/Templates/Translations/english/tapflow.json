@@ -19,7 +19,9 @@
   "tapflow.cart": "🛒 Order for {0}:\n{1}\n\nNeed something else? Tap \"Aur product\", otherwise \"Order banayein\". To change how many {2}, type the number, for example 3.",
   "tapflow.cart.more": "🛍️ What else goes in {0}'s order?",
   "tapflow.cart.failed": "Sorry, this order could not be made: {0}. Please type the items, for example: Kurta 2",
-  "tapflow.paid.owes": "💸 {0} still owes money on {1} order(s): {2} in all.",
+  "tapflow.paid.owes": "💸 {0} still owes money on {1} order(s): {2} in all.\nPaid in full? Tap below. Paid part? Tell me how much {0} paid, for example: {0} ne 1000 diye",
+  "tapflow.wage.pick": "👷 Who was paid? Tap below, then type only the amount. For a new worker, type for example: Ali 1500",
+  "tapflow.wage.amount": "✍️ How much was {0} paid? Type only the amount, for example: 1500",
   "tapflow.paid.nothing": "✅ {0} owes nothing. All orders are paid.",
   "tapflow.paid.nocustomer": "Sorry, no customer named \"{0}\" was found. Type \"customer list\" to see all customers.",
   "tapflow.unpaid.pick": "👇 Got the money? Tap the customer and the order is marked paid. If it was a mistake, type \"undo\"."

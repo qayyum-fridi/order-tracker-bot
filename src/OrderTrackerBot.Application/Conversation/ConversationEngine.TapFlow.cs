@@ -63,6 +63,21 @@ public partial class ConversationEngine
         await ReplyAsync(seller, MessageTemplates.Get("tapflow.customer.ask"), ct);
     }
 
+    internal const string WorkerRowPrefix = "tap-worker:";
+
+    /// <summary>"Tankhwah dena": the shop's workers as taps; a tap asks only the amount. False when there are none yet.</summary>
+    private async Task<bool> SendWorkerPickerAsync(Seller seller, CancellationToken ct)
+    {
+        var staff = await _db.StaffMembers.AsNoTracking().Where(s => s.SellerId == seller.Id && s.IsActive)
+            .OrderBy(s => s.Name).Take(PickerProducts).Select(s => s.Name).ToListAsync(ct);
+        if (staff.Count == 0) return false;
+        var rows = staff.Select(n => new MenuRow(WorkerRowPrefix + n, ShortenChoice("👷 " + n, ListRowTitleMax)))
+            .Append(new MenuRow(WorkerRowPrefix, "➕ Naya worker")).ToArray();
+        await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("tapflow.wage.pick"), "Worker chunein",
+            new[] { new MenuSection("Workers", rows) }, ct);
+        return true;
+    }
+
     internal const string RestockRowPrefix = "tap-restock:";
     internal const string ExpenseCategoryRowPrefix = "tap-expcat:";
 
@@ -349,6 +364,15 @@ public partial class ConversationEngine
             await ReplyAsync(seller, MessageTemplates.Get("tapflow.restock.ask", Formatters.ProductLabel(restocked)), ct);
             return (true, message);
         }
+        if (tappedRow.StartsWith(WorkerRowPrefix, StringComparison.Ordinal))
+        {
+            var worker = tappedRow[WorkerRowPrefix.Length..];
+            ctx.TapJob = worker.Length == 0 ? "wage" : "wage:" + worker;
+            await ReplyAsync(seller, worker.Length == 0
+                ? MessageTemplates.Get("tapflow.wage.next")
+                : MessageTemplates.Get("tapflow.wage.amount", worker), ct);
+            return (true, message);
+        }
         if (tappedRow.StartsWith(ExpenseCategoryRowPrefix, StringComparison.Ordinal))
         {
             var category = tappedRow[ExpenseCategoryRowPrefix.Length..];
@@ -363,10 +387,11 @@ public partial class ConversationEngine
         ctx.TapJob = null;
         if (job == "product") return (false, ProductTapAnswer(session, ctx, message));
         // "restock:12" / "expense:kiraya": the next message is a number ("10", "3000", "3,000 is mahine ka").
-        if ((job.StartsWith("restock:", StringComparison.Ordinal) || job.StartsWith("expense:", StringComparison.Ordinal))
+        if ((job.StartsWith("restock:", StringComparison.Ordinal) || job.StartsWith("expense:", StringComparison.Ordinal) || job.StartsWith("wage:", StringComparison.Ordinal))
             && session.State == ConversationState.Idle && TapAmount.Match(message) is { Success: true } count)
         {
             var n = count.Value.Replace(",", "");
+            if (job.StartsWith("wage:", StringComparison.Ordinal)) return (false, $"{job["wage:".Length..]} ko {n} tankhwah di");
             if (job.StartsWith("restock:", StringComparison.Ordinal))
             {
                 var id = int.Parse(job["restock:".Length..], CultureInfo.InvariantCulture);

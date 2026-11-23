@@ -1,5 +1,6 @@
 {
-  "scheduled.dayclose": "🌙 Din khatam hone ko hai — aaj ka hisaab:\n\n{0}",
+  "scheduled.export.reminder": "💾 Hafte ka record apne paas bhi rakhein: \"export orders 30 days\" likhein aur file save kar lein. Phone ya server kho jaye to bhi hisaab mehfooz rahega.",
+  "scheduled.dayclose":"🌙 Din khatam hone ko hai — aaj ka hisaab:\n\n{0}",
   "scheduled.dayclose.owed": "💸 {0} order ka paisa abhi baqi hai: kul {1}. Paisa mil gaya ho to neeche tap karein.",
   "day-close.label.today": "Aaj ka",
   "day-close.label.yesterday": "Kal ka",

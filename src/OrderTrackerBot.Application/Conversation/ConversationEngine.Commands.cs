@@ -89,11 +89,12 @@ public partial class ConversationEngine
             ["reports"] = ("📊 Reports", "menu.reports", new[]
             {
                 // The shop's health check sits right under today's summary; discount performance is typed ("discount performance"), discounts being cut from the MVP.
-                new MenuRow("today's summary", "Today's summary"), new MenuRow("business audit", "Business audit"),
-                new MenuRow("trending products", "Trending products"),
-                new MenuRow("slow movers", "Slow movers"), new MenuRow("loyal customers", "Loyal customers"),
-                new MenuRow("customer feedback", "Customer feedback"), new MenuRow("weekly summary", "Weekly summary"),
-                new MenuRow("monthly net", "Monthly net"), new MenuRow("expenses", "Expenses"), BackToMenu
+                // Titles in the sellers' own words; the ids stay the commands.
+                new MenuRow("today's summary", "Aaj ka hisaab"), new MenuRow("business audit", "Dukaan ki sehat"),
+                new MenuRow("trending products", "Sab se zyada bikne wale"),
+                new MenuRow("slow movers", "Kam bikne wale"), new MenuRow("loyal customers", "Pakke customers"),
+                new MenuRow("customer feedback", "Customers ki raye"), new MenuRow("weekly summary", "Hafte ka hisaab"),
+                new MenuRow("monthly net", "Mahine ka net"), new MenuRow("expenses", "Kharche"), BackToMenu
             }),
             ["catalog"] = ("🛍️ Catalog", "menu.catalog", new[]
             {
@@ -288,7 +289,8 @@ public partial class ConversationEngine
                 if (cmd.Text is null)
                 {
                     ctx.TapJob = "wage";
-                    await ReplyAsync(seller, MessageTemplates.Get("tapflow.wage.next"), ct);
+                    // Workers paid before are taps (then only the amount); a new one is typed: "Ali 1500".
+                    if (!await SendWorkerPickerAsync(seller, ct)) await ReplyAsync(seller, MessageTemplates.Get("tapflow.wage.next"), ct);
                 }
                 return;
             case CommandKind.StaffAdd:

@@ -34,11 +34,16 @@ public partial class ConversationEngine
     {
         // "size S/M/L" / "colors red/blue" are already lists from the parser: one listing per combination (stock is left off a split set).
         if (line.Extras is { } e && (e.SizeList is { Count: > 1 } || e.ColorList is { Count: > 1 }))
-            return VariantLines(line.Name, line.Price, e).Select(v => v with { UnitType = line.UnitType, UnitQty = line.UnitQty });
+            // Stock typed on the line ("stock 10") is each size's count; the preview shows it per size before YES.
+            return VariantLines(line.Name, line.Price, e).Select(v => v with
+            {
+                UnitType = line.UnitType, UnitQty = line.UnitQty,
+                Extras = e.Stock is { } each && v.Extras is { } ve ? ve with { Stock = each } : v.Extras
+            });
         if (line.Extras?.Size is not { } size) return new[] { line };
         var sizes = SizeListSplit.Split(size.Trim()).Where(s => s.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         if (sizes.Count < 2 || sizes.Any(s => s.Length > 5)) return new[] { line };
-        return sizes.Select(s => line with { Extras = line.Extras with { Size = s } });
+        return sizes.Select(s => line with { Extras = line.Extras with { Size = s } }); // the typed stock, if any, is each size's count
     }
 
     // "cost 1400" / "cost: 1,400" / "lagat 1400" while a product waits for YES: its cost price.

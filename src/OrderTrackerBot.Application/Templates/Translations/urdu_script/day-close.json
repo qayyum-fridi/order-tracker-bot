@@ -1,5 +1,6 @@
 {
-  "scheduled.dayclose": "🌙 دن ختم ہونے کو ہے — آج کا حساب:\n\n{0}",
+  "scheduled.export.reminder": "💾 ہفتے کا ریکارڈ اپنے پاس بھی رکھیں: \"export orders 30 days\" لکھیں اور فائل محفوظ کر لیں۔ فون یا سرور کھو جائے تو بھی حساب محفوظ رہے گا۔",
+  "scheduled.dayclose":"🌙 دن ختم ہونے کو ہے — آج کا حساب:\n\n{0}",
   "scheduled.dayclose.owed": "💸 {0} آرڈر کا پیسہ ابھی باقی ہے: کل {1}۔ پیسہ مل گیا ہو تو نیچے ٹیپ کریں۔",
   "day-close.label.today": "آج کا",
   "day-close.label.yesterday": "کل کا",

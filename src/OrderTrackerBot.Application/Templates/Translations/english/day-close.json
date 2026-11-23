@@ -1,5 +1,6 @@
 {
-  "scheduled.dayclose": "🌙 The day is nearly over — today's account:\n\n{0}",
+  "scheduled.export.reminder": "💾 Keep a copy of the week's records too: type \"export orders 30 days\" and save the file. Your accounts stay safe even if a phone or the server is lost.",
+  "scheduled.dayclose":"🌙 The day is nearly over — today's account:\n\n{0}",
   "scheduled.dayclose.owed": "💸 Money is still owed on {0} order(s): {1} in all. If you have been paid, tap below.",
   "day-close.label.today": "Today's",
   "day-close.label.yesterday": "Yesterday's",

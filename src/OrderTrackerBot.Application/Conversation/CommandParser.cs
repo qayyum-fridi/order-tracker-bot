@@ -1159,8 +1159,9 @@ public static class CommandParser
     private static readonly Regex CustomerPaidNotAName = new(@"^(?:aaj|kal|sab|sabhi|is|us|order|orders|customer|courier|tcs|leopards|mera|meri|mere|humara|hamara)\b", Opts);
     // "Hina ka paisa aa gaya", "Hina ne paise de diye", "Hina se payment mil gayi": that buyer paid; her unpaid orders are offered as taps.
     private static readonly Regex CustomerPaidSpoken = new(
-        @"^(?<n>[\p{L}][\p{L} .'’-]{1,30}?)\s+(?:(?:ka|ki|ke)\s+" + MoneyWord + @"\s+(?:aa|a|mil)|se\s+" + MoneyWord + @"\s+(?:mil|aa|a))\s+(?:gaya|gaye|gayi|gai|gya|gyi|gye)\s*[.!]?$", Opts);
-    // "Sara ne paise de diye" is left to the payment-by-voice route, which asks how much was paid.
+        @"^(?<n>[\p{L}][\p{L} .'’-]{1,30}?)\s+(?:(?:ka|ki|ke)\s+" + MoneyWord + @"\s+(?:aa|a|mil)|se\s+" + MoneyWord + @"\s+(?:mil|aa|a))\s+(?:gaya|gaye|gayi|gai|gya|gyi|gye)\s*[.!]?$"
+        // "Sara ne paise de diye (hain)": no amount said, so her open orders are listed and the reply asks how much (as the AI route does), with no AI call.
+        + @"|^(?<n>[\p{L}][\p{L} .'’-]{1,30}?)\s+ne\s+" + MoneyWord + @"\s+(?:de|dey|bhej)\s+(?:diye|diya|di|dia)(?:\s+(?:hain|hai))?\s*[.!]?$", Opts);
     // "Hina ne 1000 diye", "Hina se 1,500 mil gaye": an amount from that buyer, recorded on her open order after YES (the same step the AI route uses).
     private static readonly Regex CustomerPartPaymentSpoken = new(
         @"^(?<n>[\p{L}][\p{L} .'’-]{1,30}?)\s+(?:ne|se)\s+(?:rs\.?\s*)?(?<a>\d{1,3}(?:,\d{3})+|\d{2,7})\s*(?:rs|rupay|rupaye|rupees?|روپے)?\s+"

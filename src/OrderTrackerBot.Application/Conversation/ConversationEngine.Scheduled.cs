@@ -50,6 +50,8 @@ public partial class ConversationEngine
                     {
                         seller.LastWeeklySummaryAt = utcNow;
                         await SendWeeklySummaryAsync(seller, weeklyDueUtc, ct);
+                        // Once a week: keep a copy of the records outside the bot.
+                        await ProactiveReplyAsync(seller, MessageTemplates.Get("scheduled.export.reminder"), ct);
                     }
                 }
 
