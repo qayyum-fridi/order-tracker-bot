@@ -158,6 +158,68 @@ public class FirstRunTests : IDisposable
         Assert.Equal((name, phone, address), (cmd.Text, cmd.Text2, cmd.Text3));
     }
 
+    private async Task SellTwoChiniAsync(ConversationEngine engine, string productLine)
+    {
+        await engine.HandleIncomingMessageAsync(Phone, productLine, default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        await engine.HandleIncomingMessageAsync(Phone, "customer add Bilal, Model Town, 03001234567", default);
+        await engine.HandleIncomingMessageAsync(Phone, "order for Bilal", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Chini 5 kg 2", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+    }
+
+    [Fact]
+    public async Task DayClose_ExpensesAndWagesAboveProfit_SaysItWasALoss()
+    {
+        var (db, engine) = await SetUpSellerAsync();
+        using var _ = db;
+        await SellTwoChiniAsync(engine, "Chini 5 kg - 950, cost 880, stock 40");
+        Assert.Single(await db.Orders.ToListAsync());
+        await engine.HandleIncomingMessageAsync(Phone, "bijli ka bill 8000", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Ali ko 1500 dihari di", default);
+        _sent.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "aaj ka hisaab", default);
+
+        // Profit 2 x (950 - 880) = 140; 140 - 8,000 - 1,500 = -9,360.
+        var close = Assert.Single(_sent, m => m.Contains("Reconciliation"));
+        Assert.Contains(MessageTemplates.Get("day-close.wages", "Rs.1,500"), close);
+        Assert.Contains(MessageTemplates.Get("day-close.net", "-Rs.9,360", "Rs.140", "Rs.8,000", "Rs.1,500"), close);
+        Assert.EndsWith(MessageTemplates.Get("day-close.loss", "Rs.9,360"), close);
+        Assert.DoesNotContain(MessageTemplates.Get("day-close.ok"), close);
+    }
+
+    [Fact]
+    public async Task DayClose_ProfitAboveExpenses_SaysAllFine()
+    {
+        var (db, engine) = await SetUpSellerAsync();
+        using var _ = db;
+        await SellTwoChiniAsync(engine, "Chini 5 kg - 950, cost 880, stock 40");
+        await engine.HandleIncomingMessageAsync(Phone, "chai pe 100 lage", default);
+        _sent.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "aaj ka hisaab", default);
+
+        var close = Assert.Single(_sent, m => m.Contains("Reconciliation"));
+        Assert.Contains("📊", close);
+        Assert.EndsWith(MessageTemplates.Get("day-close.ok"), close);
+    }
+
+    [Fact]
+    public async Task DayClose_ProductWithoutCostPrice_SaysTheResultCannotBeWorkedOut()
+    {
+        var (db, engine) = await SetUpSellerAsync();
+        using var _ = db;
+        await SellTwoChiniAsync(engine, "Chini 5 kg - 950");
+        _sent.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "aaj ka hisaab", default);
+
+        var close = Assert.Single(_sent, m => m.Contains("Reconciliation"));
+        Assert.EndsWith(MessageTemplates.Get("day-close.nocost", 1), close);
+        Assert.DoesNotContain("📊", close);
+    }
+
     [Theory]
     [InlineData("1", "counter")]
     [InlineData("2", "delivery")]

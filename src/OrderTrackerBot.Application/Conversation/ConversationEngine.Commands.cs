@@ -805,9 +805,9 @@ public partial class ConversationEngine
 
         // Today's summary is also "aaj ka hisaab": the day's sales picture adds the top item, the day's expenses and what the cash drawer should hold.
         var today = period is null or "today";
-        var (dayExtra, drawerOpen) = today ? await DayAccountLinesAsync(seller, orders, start, end, ct) : ("", false);
+        var (dayExtra, drawerOpen, verdict) = today ? await DayAccountLinesAsync(seller, orders, start, end, ct) : ("", false, MessageTemplates.Get("day-close.ok"));
 
-        var text = MessageTemplates.Get("commands.010", label, seller.BusinessName, orders.Count, delivered, shipped, pending, ((returned > 0 ? $"Returned: {returned}\n" : "") + (counterReturns.Count > 0 ? MessageTemplates.Get("counter-return.007", counterReturns.Count, Formatters.Money(counterReturns.Amount)) : "")), Formatters.Money(cod), Formatters.Money(prepaid), (period is null ? "today" : label.Replace("'s", "").ToLowerInvariant()), Formatters.Money(totalSales), (salesTax > 0 ? $"Sales tax included: {Formatters.Money(salesTax)}\n" : ""), (withheld > 0 ? $"Tax withheld by courier/gateway: {Formatters.Money(withheld)} → net after withholding {Formatters.Money(totalSales - withheld)}\n" : ""), dayExtra);
+        var text = MessageTemplates.Get("commands.010", label, seller.BusinessName, orders.Count, delivered, shipped, pending, ((returned > 0 ? $"Returned: {returned}\n" : "") + (counterReturns.Count > 0 ? MessageTemplates.Get("counter-return.007", counterReturns.Count, Formatters.Money(counterReturns.Amount)) : "")), Formatters.Money(cod), Formatters.Money(prepaid), (period is null ? "today" : label.Replace("'s", "").ToLowerInvariant()), Formatters.Money(totalSales), (salesTax > 0 ? $"Sales tax included: {Formatters.Money(salesTax)}\n" : ""), (withheld > 0 ? $"Tax withheld by courier/gateway: {Formatters.Money(withheld)} → net after withholding {Formatters.Money(totalSales - withheld)}\n" : ""), dayExtra, verdict);
         // Heard after a voice note: just the period's two numbers (no orders: the generic spoken summary of the text is enough).
         var sales = Formatters.Money(totalSales);
         string? spoken = orders.Count == 0 ? null : period switch
@@ -823,7 +823,7 @@ public partial class ConversationEngine
     /// The extra lines of today's account, all from the same plain database code as the other reports (no AI): the product sold the most (units, from the orders already counted
     /// in the summary), today's expenses, and the cash drawer's expected cash. Saved orders only — a draft that was never confirmed is not an order and is not counted.
     /// </summary>
-    private async Task<(string Text, bool DrawerOpen)> DayAccountLinesAsync(Seller seller, List<Order> orders, DateTime start, DateTime end, CancellationToken ct)
+    private async Task<(string Text, bool DrawerOpen, string Verdict)> DayAccountLinesAsync(Seller seller, List<Order> orders, DateTime start, DateTime end, CancellationToken ct)
     {
         var lines = new List<string>();
 
@@ -838,6 +838,23 @@ public partial class ConversationEngine
             ? "💸 Kharcha: koi nahi"
             : $"💸 Kharcha: {Formatters.Money(expenses.Sum(x => x.Amount))}" + (expenses.Count == 1 ? $" ({expenses[0].Note ?? expenses[0].Category})" : $" ({expenses.Count} entries, sab se bara: {expenses[0].Note ?? expenses[0].Category})"));
 
+        // The day's real result: product profit less what went out (expenses, wages). Never "all fine" on a day that lost money.
+        var spent = expenses.Sum(x => x.Amount);
+        var wageTotal = (await LoadWagesAsync(seller, start, end, ct)).Sum(x => x.Amount);
+        if (wageTotal > 0) lines.Add(MessageTemplates.Get("day-close.wages", Formatters.Money(wageTotal)));
+        var profit = await ComputeProfitAsync(seller, start, end, ct);
+        string verdict;
+        if (profit.Counted < profit.Orders)
+            verdict = MessageTemplates.Get("day-close.nocost", profit.Orders - profit.Counted);
+        else
+        {
+            var gross = profit.Revenue - profit.Cost;
+            var net = gross - spent - wageTotal;
+            if (profit.Orders > 0 || spent > 0 || wageTotal > 0)
+                lines.Add(MessageTemplates.Get("day-close.net", SignedMoney(net), SignedMoney(gross), Formatters.Money(spent), Formatters.Money(wageTotal)));
+            verdict = net < 0 ? MessageTemplates.Get("day-close.loss", Formatters.Money(-net)) : MessageTemplates.Get("day-close.ok");
+        }
+
         var open = await OpenDrawerAsync(seller, ct);
         if (open is not null)
         {
@@ -846,8 +863,10 @@ public partial class ConversationEngine
         }
         else lines.Add("💵 Drawer band hai (kholne ke liye: drawer open 5000)");
 
-        return ("\n" + string.Join("\n", lines) + "\n", open is not null);
+        return ("\n" + string.Join("\n", lines) + "\n", open is not null, verdict);
     }
+
+    private static string SignedMoney(decimal amount) => amount < 0 ? "-" + Formatters.Money(-amount) : Formatters.Money(amount);
 
     private async Task HandleCatalogAsync(Seller seller, SessionContextData ctx, string? action, CancellationToken ct)
     {

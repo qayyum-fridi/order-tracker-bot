@@ -8,7 +8,7 @@
   "commands.007": "Sorry, I did not understand this command. Type \"help\" to see all commands.",
   "commands.008": "There are no pending orders.",
   "commands.009": "📦 Pending Orders ({0}):\n\n{1}\n\nReply \"mark 1 shipped\" to update.",
-  "commands.010": "🧾 {0} Reconciliation — {1}\n\nOrders: {2}\nDelivered: {3} | Shipped: {4} | Pending: {5}\n{6}Cash collected (COD): {7}\nPrepaid received: {8}\nTotal sales {9}: {10}\n{11}{12}{13}\nEverything looks correct ✅",
+  "commands.010": "🧾 {0} Reconciliation — {1}\n\nOrders: {2}\nDelivered: {3} | Shipped: {4} | Pending: {5}\n{6}Cash collected (COD): {7}\nPrepaid received: {8}\nTotal sales {9}: {10}\n{11}{12}{13}\n{14}",
   "commands.011": "🛍️ Your catalog is empty for now.\n\nTo add a product, send its name and price:\n{0}\n\nYou can also send several products at once (one per line):\n{1}\n\nFor examples for your kind of shop, type \"industry\".",
   "commands.012": "{0} is not on any product yet.\n\nWrite it with the product, e.g. Polo Shirt - 500, {1}: Ali Traders",
   "commands.013": "🏷️ {0} ({1}):\n\n{2}\n\nTo see the products of one, type: products {3} <name>",

@@ -1,0 +1,7 @@
+{
+  "day-close.ok": "Sab theek lag raha hai ✅",
+  "day-close.loss": "⚠️ Aaj nuqsan hua: kharcha aur tankhwah munafe se {0} zyada rahe.",
+  "day-close.nocost": "ℹ️ Asal bachat nahi nikal saki: {0} order ke products ki cost price nahi likhi. Poori list ke liye \"data check\" likhein.",
+  "day-close.wages": "👷 Tankhwah: {0}",
+  "day-close.net": "📊 Aaj ki asal bachat: {0}\n(munafa {1} − kharcha {2} − tankhwah {3})"
+}

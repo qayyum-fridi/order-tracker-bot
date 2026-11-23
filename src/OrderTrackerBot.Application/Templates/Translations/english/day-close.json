@@ -1,0 +1,7 @@
+{
+  "day-close.ok": "Everything looks correct ✅",
+  "day-close.loss": "⚠️ Today was a loss: expenses and wages were {0} more than the profit.",
+  "day-close.nocost": "ℹ️ Could not work out the real result: {0} order(s) have products with no cost price. Type \"data check\" for the full list.",
+  "day-close.wages": "👷 Wages: {0}",
+  "day-close.net": "📊 Today's real result: {0}\n(profit {1} − expenses {2} − wages {3})"
+}
