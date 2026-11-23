@@ -4,6 +4,7 @@
   "tapflow.order.product": "👇 Product tap karein (1 piece). Zyada hon to likhein, jaise: {0} 3",
   "tapflow.expense.next": "✍️ Ab kharcha likh dein, jaise: kiraya 3000",
   "tapflow.wage.next": "✍️ Ab likhein kis ko kitna diya, jaise: Ali 1500",
+  "tapflow.order.nocatalog": "🛍️ Aap ke catalog mein abhi koi product nahi. Pehle products add karein (neeche \"add product\"), phir order sirf tap se ban jayega.\n\nOrder seedha likhna ho to aise likhein:\n{0}",
   "tapflow.cart": "🛒 {0} ka order:\n{1}\n\nAur cheez chahiye to \"Aur product\" dabayein, warna \"Order banayein\". {2} ki ginti badalni ho to number likhein, jaise 3.",
   "tapflow.cart.more": "🛍️ {0} ke order mein aur kya daalna hai?",
   "tapflow.cart.failed": "Maaf kijiye, yeh order nahi ban saka: {0}. Barae meherbani items likh dein, jaise: Kurta 2",

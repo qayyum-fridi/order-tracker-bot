@@ -27,6 +27,14 @@ public partial class ConversationEngine
     /// <summary>"Naya order": the ways to write one, then the saved customers to tap (most recent buyers first) and "Naya customer".</summary>
     private async Task SendNewOrderPickerAsync(Seller seller, CancellationToken ct)
     {
+        // No products yet: a tap-by-tap order would end on an empty list, so the first step is adding products (typing the order still works).
+        if (!await _db.Products.AnyAsync(p => p.SellerId == seller.Id && p.IsActive, ct))
+        {
+            await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
+                MessageTemplates.Get("tapflow.order.nocatalog", Industry(seller).OrderExample), new[] { "add product", "catalog" }, ct);
+            return;
+        }
+
         var customers = await _db.Customers.AsNoTracking()
             .Where(c => c.SellerId == seller.Id && c.DeletedAt == null)
             .Select(c => new { c.Id, c.Name, Last = _db.Orders.Where(o => o.CustomerId == c.Id).Max(o => (DateTime?)o.CreatedAt) })
