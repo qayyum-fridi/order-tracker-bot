@@ -72,7 +72,8 @@ public class NextActionEngineTests : IDisposable
 
         var bar = Assert.Single(_bars);
         // "menu" is not repeated as a follow-up: the bar's own Menu button is the only one.
-        Assert.Equal(new[] { "catalog", "📋 Menu" }, bar);
+        // "add product" first: the next product is one tap away.
+        Assert.Equal(new[] { "add product", "catalog", "📋 Menu" }, bar);
         Assert.All(bar, l => Assert.NotNull(CommandParser.TryParse(l)));
     }
 

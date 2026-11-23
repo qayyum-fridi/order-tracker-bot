@@ -261,6 +261,13 @@ public partial class ConversationEngine
             return;
         }
 
+        // A tap-by-tap order in progress (ConversationEngine.TapFlow.cs): product taps, "➕ 1 aur", a number, "✅ Order banayein".
+        if (await TryTapCartAsync(seller, session, ctx, message, ct))
+        {
+            await PersistAsync(session, ctx, ct);
+            return;
+        }
+
         // A tap on a product button: an answer to the unknown-product question ("2 <product>" / "1"), or one of the customer's usual items after "order for Sara"
         // (read as her items). With no such question waiting it is a stale tap.
         if (ctx.ProductSuggestions is { Count: > 0 } offered

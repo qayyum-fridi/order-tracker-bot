@@ -284,6 +284,84 @@ public class FirstRunTests : IDisposable
         Assert.DoesNotContain(_sent, m => m.StartsWith("🌙"));
     }
 
+    [Fact]
+    public async Task TapOrder_QuantityAndAnotherProduct_AllInOneOrder()
+    {
+        var (db, engine) = await SetUpSellerAsync();
+        using var _ = db;
+        await AddProductAsync(engine, "Kurta White - 2200, size M");
+        await AddProductAsync(engine, "Lawn Suit 3 Piece - 4500");
+        await engine.HandleIncomingMessageAsync(Phone, "customer add Sara, Gulberg, 03001234567", default);
+        await engine.HandleIncomingMessageAsync(Phone, "order for Sara", default);
+
+        await engine.HandleIncomingMessageAsync(Phone, LastListRows().Single(r => r.Title.StartsWith("Lawn")).Id, default);
+        await engine.HandleIncomingMessageAsync(Phone, ConversationEngine.CartOneMore, default);          // 2 suits
+        await engine.HandleIncomingMessageAsync(Phone, ConversationEngine.CartAnotherProduct, default);
+        await engine.HandleIncomingMessageAsync(Phone, LastListRows().Single(r => r.Title.StartsWith("Kurta")).Id, default);
+        await engine.HandleIncomingMessageAsync(Phone, "3", default);                                    // 3 kurtas
+        await engine.HandleIncomingMessageAsync(Phone, ConversationEngine.CartDone, default);
+        await engine.HandleIncomingMessageAsync(Phone, "✅ Save", default);
+
+        var order = await db.Orders.Include(o => o.Items).SingleAsync();
+        Assert.Equal(2 * 4500m + 3 * 2200m, order.Total);
+        Assert.Equal(new[] { 2, 3 }, order.Items.OrderBy(i => i.UnitPrice).Select(i => i.Quantity).Reverse().ToArray());
+    }
+
+    [Fact]
+    public async Task PartPayment_InPlainWords_AsksYesWithTheBalance_ThenRecordsIt()
+    {
+        var (db, engine) = await SetUpSellerAsync();
+        using var _ = db;
+        await SellTwoChiniAsync(engine, "Chini 5 kg - 950");
+
+        await engine.HandleIncomingMessageAsync(Phone, "Bilal ne 500 diye", default);
+        Assert.Equal(0, (await db.Orders.SingleAsync()).AmountPaid);           // nothing before YES
+        Assert.Contains(_sent, m => m.Contains("500") && m.Contains("1,400"));  // 1,900 - 500 left
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+
+        var order = await db.Orders.SingleAsync();
+        Assert.Equal(500, order.AmountPaid);
+        Assert.NotEqual(PaymentStatus.Paid, order.PaymentStatus);
+    }
+
+    [Fact]
+    public async Task MarkById_IgnoresAnOpenList()
+    {
+        var (db, engine) = await SetUpSellerAsync();
+        using var _ = db;
+        await SellTwoChiniAsync(engine, "Chini 5 kg - 950");
+        await engine.HandleIncomingMessageAsync(Phone, "customer add Sara, Gulberg, 03001234567", default);
+        await engine.HandleIncomingMessageAsync(Phone, "order for Sara", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Chini 5 kg 1", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        var saraOrder = await db.Orders.Include(o => o.Customer).SingleAsync(o => o.Customer!.Name == "Sara");
+        await engine.HandleIncomingMessageAsync(Phone, "unpaid orders", default);                   // list: 1 = Bilal, 2 = Sara
+
+        await engine.HandleIncomingMessageAsync(Phone, $"mark #{saraOrder.Id} shipped", default);
+
+        Assert.Equal(OrderStatus.Shipped, (await db.Orders.AsNoTracking().SingleAsync(o => o.Id == saraOrder.Id)).Status);
+        Assert.Equal(1, await db.Orders.CountAsync(o => o.Status == OrderStatus.Shipped));
+    }
+
+    [Fact]
+    public async Task DayClose_ShowsTips_LowStockAndRoughProfit()
+    {
+        var (db, engine) = await SetUpSellerAsync();
+        using var _ = db;
+        await SellTwoChiniAsync(engine, "Chini 5 kg - 950, cost 880, stock 4");
+        await AddProductAsync(engine, "Daal 1 kg - 330");
+        await engine.HandleIncomingMessageAsync(Phone, "order for Bilal", default);
+        await engine.HandleIncomingMessageAsync(Phone, "Daal 1 kg 1", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        _sent.Clear();
+
+        await engine.HandleIncomingMessageAsync(Phone, "aaj ka hisaab", default);
+
+        var close = Assert.Single(_sent, m => m.Contains("hisaab —"));
+        Assert.Contains(MessageTemplates.Get("day-close.tip.lowstock", "Chini (5 kg) (2)"), close);
+        Assert.Contains(MessageTemplates.Get("day-close.rough", 1, 2, "Rs.140"), close);
+    }
+
     private async Task SellTwoChiniAsync(ConversationEngine engine, string productLine)
     {
         await engine.HandleIncomingMessageAsync(Phone, productLine, default);
@@ -374,6 +452,7 @@ public class FirstRunTests : IDisposable
         var productRow = Assert.Single(LastListRows());
 
         await engine.HandleIncomingMessageAsync(Phone, productRow.Id, default);
+        await engine.HandleIncomingMessageAsync(Phone, ConversationEngine.CartDone, default);
         await engine.HandleIncomingMessageAsync(Phone, "✅ Save", default);
 
         var order = await db.Orders.Include(o => o.Items).SingleAsync();
@@ -393,6 +472,7 @@ public class FirstRunTests : IDisposable
         var sara = Assert.Single(LastListRows(), r => r.Title.Contains("Sara"));
         await engine.HandleIncomingMessageAsync(Phone, sara.Id, default);
         await engine.HandleIncomingMessageAsync(Phone, Assert.Single(LastListRows()).Id, default);
+        await engine.HandleIncomingMessageAsync(Phone, ConversationEngine.CartDone, default);
         await engine.HandleIncomingMessageAsync(Phone, "✅ Save", default);
 
         Assert.Equal("Sara", (await db.Orders.Include(o => o.Customer).SingleAsync()).Customer!.Name);

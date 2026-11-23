@@ -123,6 +123,8 @@ public partial class ConversationEngine
         await ReplyAsync(seller,
             MessageTemplates.Get("losses.005", worker, Formatters.Money(amount), daysText, Formatters.Money(monthTotal)), ct);
         if (addedToStaff) await ReplyAsync(seller, MessageTemplates.Get("staff.008", worker), ct);
+        // "wages" re-opens the tap-then-type step for the next worker.
+        SuggestNext("wages", "aaj ka hisaab");
     }
 
     private async Task UndoWageAsync(Seller seller, ActionLog log, CancellationToken ct)

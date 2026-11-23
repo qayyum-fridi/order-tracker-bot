@@ -82,7 +82,7 @@ public class MockupFeatureTests : IDisposable
 
         var id = (await db.Orders.AsNoTracking().SingleAsync()).Id;
         var labels = Assert.Single(_buttons, b => b.Buttons.Contains($"Receipt {id}")).Buttons;
-        Assert.Equal(new[] { $"Receipt {id}", $"Mark {id} shipped" }, labels);
+        Assert.Equal(new[] { $"Receipt {id}", $"Mark #{id} shipped" }, labels);
         Assert.All(labels, l => Assert.True(l.Length <= 20));
         Assert.Equal(CommandKind.Receipt, CommandParser.TryParse(labels[0])?.Kind);
         Assert.Equal(CommandKind.MarkStatus, CommandParser.TryParse(labels[1])?.Kind);

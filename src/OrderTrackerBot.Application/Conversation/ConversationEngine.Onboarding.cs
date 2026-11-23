@@ -358,6 +358,8 @@ public partial class ConversationEngine
         new Abstractions.MenuSection("Shuru karein", new[]
         {
             // "new order" opens the tap-by-tap order (customer, then product), which needs no typing.
+            // Products first: the tap-by-tap order picks from the catalog.
+            new Abstractions.MenuRow("add product", "➕ Pehla product add"),
             new Abstractions.MenuRow("new order", "📦 Pehla order darj karein"),
             new Abstractions.MenuRow("guide", "📖 2 minute ka guide"),
             new Abstractions.MenuRow("catalog", "🛍️ Catalog dekhein"),

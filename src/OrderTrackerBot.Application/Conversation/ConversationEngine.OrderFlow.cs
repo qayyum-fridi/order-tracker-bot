@@ -970,7 +970,8 @@ public partial class ConversationEngine
     /// </summary>
     private Task SendOrderActionButtonsAsync(Seller seller, Order order, CancellationToken ct) =>
         _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("order-flow.013"),
-            new[] { $"Receipt {order.Id}", $"Mark {order.Id} shipped" }, ct);   // Undo is typed ("undo"), not a button: it reverses the save.
+            // "#" = this order's id, even while a numbered list is open. Undo is typed ("undo"), not a button: it reverses the save.
+            new[] { $"Receipt {order.Id}", $"Mark #{order.Id} shipped" }, ct);
 
     private static string SavedText(Seller seller, Order order, PendingOrderData pending) =>
         SavedText(seller, order) + (pending.CommentLeadNumber is { } leadNumber ? $"\nLead #{leadNumber} marked CONVERTED." : "");

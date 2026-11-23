@@ -71,10 +71,87 @@ public partial class ConversationEngine
         if (picks.Count == 0) return false;
 
         ctx.ProductSuggestions = picks;
+        ctx.TapCart ??= new List<TapCartItem>();
         var rows = picks.Select(p => new MenuRow(p.Title, p.Title)).ToArray();
         var body = prompt + "\n\n" + MessageTemplates.Get("tapflow.order.product", catalog.First(c => c.Label == picks[0].Label).Product.Name);
         await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, body, "Product chunein", new[] { new MenuSection("Product", rows) }, ct);
         return true;
+    }
+
+    // The cart's buttons; the engine matches on these labels, so they stay in code.
+    internal const string CartOneMore = "➕ 1 aur";
+    internal const string CartAnotherProduct = "🛍️ Aur product";
+    internal const string CartDone = "✅ Order banayein";
+    private static readonly string[] CartButtons = { CartOneMore, CartAnotherProduct, CartDone };
+
+    /// <summary>
+    /// A tap-by-tap order in progress: a tapped product goes in the cart (1 piece), "➕ 1 aur" or a typed number sets how many,
+    /// "🛍️ Aur product" shows the products again, "✅ Order banayein" turns the cart into the usual order draft (confirm, Save).
+    /// Anything else leaves the cart and runs as usual. Returns true when handled here.
+    /// </summary>
+    private async Task<bool> TryTapCartAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
+    {
+        if (ctx.TapCart is not { } cart || ctx.OrderForCustomer is not { } target || session.State != ConversationState.Idle) return false;
+        var text = message.Trim();
+        target.At = DateTime.UtcNow; // each tap keeps the request open
+
+        if (ctx.ProductSuggestions?.FirstOrDefault(p => p.Title == text) is { } tapped)
+        {
+            var label = tapped.Label.Replace(",", "");
+            if (cart.FirstOrDefault(i => i.Label == label) is { } same) same.Qty++;
+            else cart.Add(new TapCartItem { Label = label });
+            MoveToEnd(cart, label); // "➕ 1 aur" and a typed number act on the product tapped last
+            await SendCartAsync(seller, target.Name, cart, ct);
+            return true;
+        }
+        if (cart.Count > 0 && text == CartOneMore)
+        {
+            cart[^1].Qty++;
+            await SendCartAsync(seller, target.Name, cart, ct);
+            return true;
+        }
+        if (cart.Count > 0 && int.TryParse(text, out var qty) && qty is >= 1 and <= 999)
+        {
+            cart[^1].Qty = qty;
+            await SendCartAsync(seller, target.Name, cart, ct);
+            return true;
+        }
+        if (text == CartAnotherProduct)
+        {
+            await SendProductPickerAsync(seller, ctx, MessageTemplates.Get("tapflow.cart.more", target.Name), ct);
+            return true;
+        }
+        if (cart.Count > 0 && text == CartDone)
+        {
+            var items = string.Join(", ", cart.Select(i => $"{i.Qty}x {i.Label}"));
+            ctx.TapCart = null;
+            if (await TryHandleOrderForCustomerItemsAsync(seller, session, ctx, items, ct)) return true;
+            await ReplyAsync(seller, MessageTemplates.Get("tapflow.cart.failed", items), ct);
+            return true;
+        }
+
+        // Not a cart step: the cart is dropped and the message runs as usual (typed items still go to this customer's order).
+        ctx.TapCart = null;
+        return false;
+    }
+
+    private static void MoveToEnd(List<TapCartItem> cart, string label)
+    {
+        var item = cart.First(i => i.Label == label);
+        cart.Remove(item);
+        cart.Add(item);
+    }
+
+    private async Task SendCartAsync(Seller seller, string customer, List<TapCartItem> cart, CancellationToken ct)
+    {
+        var catalog = await LoadCatalogAsync(seller, ct);
+        var lines = cart.Select(i =>
+        {
+            var price = catalog.FirstOrDefault(c => c.Label.Replace(",", "") == i.Label)?.Product.Price;
+            return price is { } p ? $"• {i.Qty}x {i.Label} — {Formatters.Money(p * i.Qty)}" : $"• {i.Qty}x {i.Label}";
+        });
+        await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
+            MessageTemplates.Get("tapflow.cart", customer, string.Join("\n", lines), cart[^1].Label), CartButtons, ct);
     }
 
     /// <summary>"Paisa lena hai": after the unpaid list, each order on it as a tap that marks it paid (its list number, as "mark 2 paid" would).</summary>
@@ -89,6 +166,21 @@ public partial class ConversationEngine
         if (rows.Length == 0) return;
         await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("tapflow.unpaid.pick"), "Paid karein",
             new[] { new MenuSection("Paisa mil gaya", rows) }, ct);
+    }
+
+    /// <summary>
+    /// "Hina ne 1000 diye": the same step as the AI's payment action (her newest open order, YES first, the balance shown), with no AI call.
+    /// No such buyer or nothing owed: said so, as for "Hina ka paisa aa gaya".
+    /// </summary>
+    private async Task HandleCustomerPartPaymentAsync(Seller seller, ConversationSession session, SessionContextData ctx, ParsedCommand cmd, CancellationToken ct)
+    {
+        var amount = cmd.Amount!.Value;
+        var said = $"{cmd.Text} ne {amount.ToString("0.##", CultureInfo.InvariantCulture)} diye";
+        var action = new Ai.TurnAction { Action = Ai.TurnAction.RecordPayment, CustomerName = cmd.Text, Amount = amount };
+        if (await ModelPaymentOrderAsync(seller, action, said, ct) is not null
+            && await RunTurnActionAsync(seller, session, ctx, action, await LoadCatalogAsync(seller, ct), said, ct, fromScreenshot: false))
+            return;
+        await HandleCustomerPaidAsync(seller, ctx, cmd.Text!, ct);
     }
 
     /// <summary>"Hina ka paisa aa gaya": her unpaid orders, each a tap that marks it paid. The sentence alone marks nothing.</summary>

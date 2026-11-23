@@ -43,6 +43,8 @@ public class CommandDictionaryTests
     [InlineData("kis ne paise dene hain", CommandKind.UnpaidOrders)]
     [InlineData("Hina ka paisa aa gaya", CommandKind.CustomerPaid)]
     [InlineData("Hina se payment mil gayi", CommandKind.CustomerPaid)]
+    [InlineData("Hina ne 1000 diye", CommandKind.CustomerPartPayment)]
+    [InlineData("Hina se 1,500 mil gaye", CommandKind.CustomerPartPayment)]
     [InlineData("new customer", CommandKind.NewCustomerOrder)]
     [InlineData("receipt", CommandKind.Receipt)]
     [InlineData("receipt 12", CommandKind.Receipt)]

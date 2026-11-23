@@ -56,6 +56,8 @@ public partial class ConversationEngine
         var monthTotal = (await LoadExpensesAsync(seller, start, end, ct)).Sum(x => x.Amount);
         await ReplyAsync(seller,
             MessageTemplates.Get("expenses.002", Formatters.Money(amount), note ?? category, Formatters.Money(monthTotal)), ct);
+        // "expenses" re-opens the tap-then-type step for the next one.
+        SuggestNext("expenses", "aaj ka hisaab");
     }
 
     /// <summary>The category is the first word of the note, lower-cased ("packaging 500" = packaging); "other" when there is no note.</summary>

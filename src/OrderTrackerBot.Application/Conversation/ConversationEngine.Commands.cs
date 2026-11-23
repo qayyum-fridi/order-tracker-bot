@@ -594,6 +594,9 @@ public partial class ConversationEngine
                 }
                 await HandleAddProductAsync(seller, cmd, ct, ctx);
                 return;
+            case CommandKind.CustomerPartPayment:
+                await HandleCustomerPartPaymentAsync(seller, session, ctx, cmd, ct);
+                return;
             case CommandKind.CustomerPaid:
                 await HandleCustomerPaidAsync(seller, ctx, cmd.Text!, ct);
                 return;
@@ -868,7 +871,12 @@ public partial class ConversationEngine
         var profit = await ComputeProfitAsync(seller, start, end, ct);
         string verdict;
         if (profit.Counted < profit.Orders)
+        {
             verdict = MessageTemplates.Get("day-close.nocost", profit.Orders - profit.Counted);
+            // A rough figure from the orders whose costs are known, clearly marked as partial.
+            if (profit.Counted > 0)
+                lines.Add(MessageTemplates.Get("day-close.rough", profit.Counted, profit.Orders, SignedMoney(profit.Revenue - profit.Cost)));
+        }
         else
         {
             var gross = profit.Revenue - profit.Cost;
@@ -886,7 +894,57 @@ public partial class ConversationEngine
         }
         else lines.Add("💵 Drawer band hai (kholne ke liye: drawer open 5000)");
 
+        lines.AddRange(await DayTipsAsync(seller, orders, start, ct));
         return ("\n" + string.Join("\n", lines) + "\n", open is not null, verdict);
+    }
+
+    private const int OwedTipDays = 3;
+    private const int SlowTipDays = 7;
+
+    /// <summary>
+    /// What to do next, from the same database (no AI): today against yesterday, products about to run out, the oldest money still owed,
+    /// and one product that has not sold for a week. Each line only when it applies.
+    /// </summary>
+    private async Task<List<string>> DayTipsAsync(Seller seller, List<Order> todaysOrders, DateTime dayStartUtc, CancellationToken ct)
+    {
+        var tips = new List<string>();
+
+        var yesterdayStart = dayStartUtc.AddDays(-1);
+        var yesterday = await _db.Orders.AsNoTracking()
+            .Where(o => o.SellerId == seller.Id && o.CreatedAt >= yesterdayStart && o.CreatedAt < dayStartUtc
+                        && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
+            .Select(o => o.Total).ToListAsync(ct);
+        var diff = todaysOrders.Sum(o => o.Total) - yesterday.Sum();
+        if (yesterday.Count > 0 && diff != 0)
+            tips.Add(MessageTemplates.Get(diff > 0 ? "day-close.vs.up" : "day-close.vs.down", Formatters.Money(Math.Abs(diff))));
+
+        var low = await _db.Products.AsNoTracking()
+            .Where(p => p.SellerId == seller.Id && p.IsActive && p.StockQty != null && p.StockQty <= LowStockThreshold)
+            .OrderBy(p => p.StockQty).Take(3).ToListAsync(ct);
+        if (low.Count > 0)
+            tips.Add(MessageTemplates.Get("day-close.tip.lowstock", string.Join(", ", low.Select(p => $"{Formatters.ProductLabel(p)} ({p.StockQty})"))));
+
+        var owedBefore = dayStartUtc.AddDays(-(OwedTipDays - 1));
+        var oldest = await _db.Orders.AsNoTracking().Include(o => o.Customer)
+            .Where(o => o.SellerId == seller.Id && o.PaymentStatus == PaymentStatus.Unpaid && o.CreatedAt < owedBefore
+                        && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
+            .OrderBy(o => o.CreatedAt).FirstOrDefaultAsync(ct);
+        if (oldest is not null)
+            tips.Add(MessageTemplates.Get("day-close.tip.owed", oldest.Customer?.Name ?? $"#{oldest.Id}", Formatters.Money(OrderMoney.Balance(oldest)),
+                Math.Max(OwedTipDays, (int)(dayStartUtc.AddDays(1) - oldest.CreatedAt).TotalDays)));
+
+        var slowSince = dayStartUtc.AddDays(-SlowTipDays);
+        var soldRecently = await _db.Orders.AsNoTracking()
+            .Where(o => o.SellerId == seller.Id && o.CreatedAt >= slowSince && o.Status != OrderStatus.Cancelled)
+            .SelectMany(o => o.Items).Where(i => i.ProductId != null).Select(i => i.ProductId!.Value).Distinct().ToListAsync(ct);
+        var slow = await _db.Products.AsNoTracking()
+            .Where(p => p.SellerId == seller.Id && p.IsActive && p.CreatedAt < slowSince && (p.StockQty == null || p.StockQty > 0) && !soldRecently.Contains(p.Id))
+            .OrderByDescending(p => p.StockQty).FirstOrDefaultAsync(ct);
+        if (slow is not null)
+            tips.Add(MessageTemplates.Get("day-close.tip.slow", Formatters.ProductLabel(slow), SlowTipDays));
+
+        if (tips.Count > 0) tips.Insert(0, MessageTemplates.Get("day-close.tips"));
+        return tips;
     }
 
     private static string SignedMoney(decimal amount) => amount < 0 ? "-" + Formatters.Money(-amount) : Formatters.Money(amount);
@@ -1351,7 +1409,8 @@ public partial class ConversationEngine
         product.Sku ??= await NextAutoSkuAsync(seller, ct);   // the seller's own code when typed; otherwise ours
         _db.Products.Add(product);
         await _db.SaveChangesAsync(ct);
-        SuggestNext("catalog", "menu");
+        // "add product" re-opens the tap-then-type step, so the next product is one tap away.
+        SuggestNext("add product", "catalog");
         return (product, false, variants);
     }
 
@@ -1546,7 +1605,8 @@ public partial class ConversationEngine
 
     private async Task HandleMarkStatusAsync(Seller seller, ConversationSession session, SessionContextData ctx, ParsedCommand cmd, CancellationToken ct)
     {
-        var (orderId, fromList) = ResolveListNumber(ctx, cmd.Number!.Value);
+        // "mark #12 ..." (the bot's buttons) is the order id itself; "mark 2 ..." may be a position in the last list.
+        var (orderId, fromList) = cmd.Text2 == "id" ? (cmd.Number!.Value, false) : ResolveListNumber(ctx, cmd.Number!.Value);
         var order = await _db.Orders.Include(o => o.Customer).Include(o => o.Items)
             .FirstOrDefaultAsync(o => o.SellerId == seller.Id && o.Id == orderId, ct);
         if (order is null)
@@ -1562,6 +1622,9 @@ public partial class ConversationEngine
         else
         {
             await ApplyStatusChangeAsync(seller, session, ctx, order, cmd.Text!, ct);
+            // The next step as a tap: shipped -> delivered; delivered and not paid yet -> paid.
+            if (order.Status == OrderStatus.Shipped) SuggestNext($"mark #{order.Id} delivered", "orders today");
+            else if (order.Status == OrderStatus.Delivered && order.PaymentStatus != PaymentStatus.Paid) SuggestNext($"mark #{order.Id} paid", "unpaid orders");
         }
 
         if (fromList)

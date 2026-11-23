@@ -95,6 +95,13 @@ public sealed class AgentAwaitingData
 }
 
 /// <summary>A "did you mean ...?" tap offered for an unknown product name: the button title as sent, and the catalog label it stands for.</summary>
+/// <summary>One line of a tap-by-tap order: the catalog label tapped and how many.</summary>
+public sealed class TapCartItem
+{
+    public string Label { get; set; } = "";
+    public int Qty { get; set; } = 1;
+}
+
 public sealed class ProductSuggestion
 {
     public string Title { get; set; } = "";
@@ -110,6 +117,8 @@ public sealed class SessionContextData
     public bool SalesModeJustAsked { get; set; }
     /// <summary>A job was just tapped ("order-customer", "product", "expense", "wage"): only the very next plain message is read as that entry.</summary>
     public string? TapJob { get; set; }
+    /// <summary>A tap-by-tap order being built for <see cref="OrderForCustomer"/>: products tapped so far, with how many of each.</summary>
+    public List<TapCartItem>? TapCart { get; set; }
     /// <summary>When the seller last asked to reach support (UTC); a repeat inside a few hours is told the first request is already with the team, and the founder is not alerted again.</summary>
     public DateTime? SupportRequestedAt { get; set; }
 

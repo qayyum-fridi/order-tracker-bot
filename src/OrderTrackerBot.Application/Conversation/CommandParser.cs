@@ -163,6 +163,8 @@ public enum CommandKind
     NewCustomerOrder,
     /// <summary>"Hina ka paisa aa gaya": Text = the buyer; her unpaid orders are listed, each a tap that marks it paid (nothing is marked by the sentence alone).</summary>
     CustomerPaid,
+    /// <summary>"Hina ne 1000 diye": Text = the buyer, Amount = the money; recorded on her open order after YES.</summary>
+    CustomerPartPayment,
     /// <summary>A short reply chosen by the parser: Text is the message template key to send (buyer messages, undo, invalid phone).</summary>
     Notice,
     /// <summary>"return Shirt 1 [cash|bank|none]" at the counter: a buyer brings goods back with no order (ConversationEngine.CounterReturn.cs).</summary>
@@ -1095,6 +1097,8 @@ public static class CommandParser
     }
     // "mark 3 shipped" / "mark 3 bhej diya" / "آرڈر 3 شپ ہو گیا": the verb phrase is mapped by StatusFromPhrase.
     private static readonly Regex MarkStatus = new(@"^(?:mark|order|آرڈر)\s+(\d+)\s+(.+)$", Opts);
+    // "mark #12 delivered": the real order id, never a position in the last list (what the bot's own buttons send).
+    private static readonly Regex MarkStatusById = new(@"^(?:mark|order|آرڈر)\s+#(\d+)\s+(.+)$", Opts);
     private const string DoneWords = @"(?:\s+(?:ho\s*(?:gaya|gya|gaye|gai|gayi)|kar\s+(?:diya|dia|do|dein|den)|ہو\s+گیا(?:\s+ہے)?|کر\s+(?:دیا|دو|دیں)))?";
     private static readonly Regex ShippedPhrase = new(@"^(?:shipped?" + DoneWords + @"|bhej\s*(?:diya|dia|di|do)|شپ" + DoneWords + @"|بھیج\s+(?:دیا|دو))$", Opts);
     private static readonly Regex DeliveredPhrase = new(@"^(?:deliver(?:ed)?" + DoneWords + @"|(?:pohanch|pahunch|pohnch)\s+gaya|ڈیلیور" + DoneWords + @"|پہنچ\s+گیا"
@@ -1154,6 +1158,10 @@ public static class CommandParser
     private static readonly Regex CustomerPaidSpoken = new(
         @"^(?<n>[\p{L}][\p{L} .'’-]{1,30}?)\s+(?:(?:ka|ki|ke)\s+" + MoneyWord + @"\s+(?:aa|a|mil)|se\s+" + MoneyWord + @"\s+(?:mil|aa|a))\s+(?:gaya|gaye|gayi|gai|gya|gyi|gye)\s*[.!]?$", Opts);
     // "Sara ne paise de diye" is left to the payment-by-voice route, which asks how much was paid.
+    // "Hina ne 1000 diye", "Hina se 1,500 mil gaye": an amount from that buyer, recorded on her open order after YES (the same step the AI route uses).
+    private static readonly Regex CustomerPartPaymentSpoken = new(
+        @"^(?<n>[\p{L}][\p{L} .'’-]{1,30}?)\s+(?:ne|se)\s+(?:rs\.?\s*)?(?<a>\d{1,3}(?:,\d{3})+|\d{2,7})\s*(?:rs|rupay|rupaye|rupees?|روپے)?\s+"
+        + @"(?:de\s+|bhej\s+)?(?:diye|diya|di|dia|bheje|mil\s+(?:gaye|gaya|gayi|gai)|aa\s+(?:gaye|gaya|gayi|gai)|mile)(?:\s+(?:hain|hai))?\s*[.!]?$", Opts);
     private static readonly Regex CodPending = new(@"^cod\s+pending$", Opts);
     private static readonly Regex AddTracking = new(@"^add\s+tracking:\s*(.+?)\s*,\s*(.+)$", Opts);
     private static readonly Regex TrackingLookup = new(@"^(.+?)\s+(?:ka|کا)\s+(?:tracking|ٹریکنگ)$", Opts);
@@ -2059,6 +2067,8 @@ public static class CommandParser
         if ((m = StatusPicker.Match(message)).Success && !OrderDetail.IsMatch(message))
             return new ParsedCommand { Kind = CommandKind.StatusPicker, Number = m.Groups["n"].Success ? int.Parse(m.Groups["n"].Value) : null };
 
+        if ((m = MarkStatusById.Match(message)).Success && StatusFromPhrase(m.Groups[2].Value) is { } markStatusById)
+            return new ParsedCommand { Kind = CommandKind.MarkStatus, Number = int.Parse(m.Groups[1].Value), Text = markStatusById, Text2 = "id" };
         if ((m = MarkStatus.Match(message)).Success && StatusFromPhrase(m.Groups[2].Value) is { } markStatus)
             return new ParsedCommand { Kind = CommandKind.MarkStatus, Number = int.Parse(m.Groups[1].Value), Text = markStatus };
 
@@ -2075,6 +2085,8 @@ public static class CommandParser
             return new ParsedCommand { Kind = CommandKind.AddPaymentMethod, Text = m.Groups[1].Value.ToLowerInvariant(), Text2 = m.Groups[2].Success ? m.Groups[2].Value.Trim() : null };
 
         if (UnpaidOrders.IsMatch(message) || UnpaidOrdersSpoken.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.UnpaidOrders };
+        if ((m = CustomerPartPaymentSpoken.Match(message)).Success && !CustomerPaidNotAName.IsMatch(m.Groups["n"].Value))
+            return new ParsedCommand { Kind = CommandKind.CustomerPartPayment, Text = m.Groups["n"].Value.Trim(), Amount = decimal.Parse(m.Groups["a"].Value.Replace(",", ""), System.Globalization.CultureInfo.InvariantCulture) };
         if ((m = CustomerPaidSpoken.Match(message)).Success && !CustomerPaidNotAName.IsMatch(m.Groups["n"].Value))
             return new ParsedCommand { Kind = CommandKind.CustomerPaid, Text = m.Groups["n"].Value.Trim() };
         if (CodPending.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.CodPending };
