@@ -32,6 +32,7 @@ public class IntentCatalogTests
         "CustomerPaid",                                // "Hina ka paisa aa gaya": a fixed sentence shape; it only lists taps
         "CustomerPartPayment",                         // "Hina ne 1000 diye": the AI route has its own payment action
         "ShippedOrders",                               // the "Deliver ho gaye?" daily-jobs tap
+        "RecurringExpense",                            // "kiraya har mahine 15000": a fixed sentence shape
         "DetailedForm", "FuzzyStatusUpdate",           // built by the parser from a longer sentence, not a typed line
         "AddProductsBulk", "ImportCatalogSheet",       // the whole message is the data (a pasted list, a file link)
         "CreateLoyalty",                               // loyalty is off in the MVP cut; loyalty.create explains it

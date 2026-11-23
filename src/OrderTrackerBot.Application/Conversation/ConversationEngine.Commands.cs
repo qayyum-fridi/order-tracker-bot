@@ -597,6 +597,9 @@ public partial class ConversationEngine
                 }
                 await HandleAddProductAsync(seller, cmd, ct, ctx);
                 return;
+            case CommandKind.RecurringExpense:
+                await HandleRecurringExpenseAsync(seller, ctx, cmd, ct);
+                return;
             case CommandKind.ShippedOrders:
                 await HandleShippedOrdersAsync(seller, ct);
                 return;
@@ -938,7 +941,31 @@ public partial class ConversationEngine
             .Where(p => p.SellerId == seller.Id && p.IsActive && p.StockQty != null && p.StockQty <= LowStockThreshold)
             .OrderBy(p => p.StockQty).Take(3).ToListAsync(ct);
         if (low.Count > 0)
-            tips.Add(MessageTemplates.Get("day-close.tip.lowstock", string.Join(", ", low.Select(p => $"{Formatters.ProductLabel(p)} ({p.StockQty})"))));
+        {
+            // How much to reorder: about a week's sales (last 14 days / 2), and from whom when a supplier is saved.
+            var lowIds = low.Select(p => p.Id).ToList();
+            var twoWeeks = dayStartUtc.AddDays(-13);
+            var recent = (await _db.Orders.AsNoTracking()
+                    .Where(o => o.SellerId == seller.Id && o.CreatedAt >= twoWeeks && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
+                    .SelectMany(o => o.Items).Where(i => i.ProductId != null && lowIds.Contains(i.ProductId.Value))
+                    .Select(i => new { Id = i.ProductId!.Value, i.Quantity }).ToListAsync(ct))
+                .GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+            tips.Add(MessageTemplates.Get("day-close.tip.lowstock", string.Join(", ", low.Select(p =>
+            {
+                var weekly = (int)Math.Ceiling(recent.GetValueOrDefault(p.Id) / 2m);
+                var extra = new List<string> { p.StockQty!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) };
+                if (weekly > 0) extra.Add($"~{weekly}/hafta");
+                if (ProductDetail(p, "vendor") is { Length: > 0 } supplier) extra.Add(supplier);
+                return $"{Formatters.ProductLabel(p)} ({string.Join(", ", extra)})";
+            }))));
+        }
+
+        // All money still owed, then the oldest debt by name.
+        var owedAll = await _db.Orders.AsNoTracking()
+            .Where(o => o.SellerId == seller.Id && o.PaymentStatus == PaymentStatus.Unpaid && o.Status != OrderStatus.Cancelled && o.Status != OrderStatus.Returned)
+            .ToListAsync(ct);
+        if (owedAll.Count > 0)
+            tips.Add(MessageTemplates.Get("day-close.tip.owedtotal", owedAll.Count, Formatters.Money(owedAll.Sum(OrderMoney.Balance))));
 
         var owedBefore = dayStartUtc.AddDays(-(OwedTipDays - 1));
         var oldest = await _db.Orders.AsNoTracking().Include(o => o.Customer)

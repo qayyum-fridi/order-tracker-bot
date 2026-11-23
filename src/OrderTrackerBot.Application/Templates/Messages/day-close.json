@@ -1,4 +1,6 @@
 {
+  "day-close.tip.owedtotal": "💸 Kul baqi: {0} order, {1} — \"Paisa lena hai\" se dekhein",
+  "scheduled.recurring.added": "🗓️ Har mahine wala kharcha likh diya: {0} {1}. Ghalti ho to \"undo\" likhein.",
   "scheduled.export.reminder": "💾 Hafte ka record apne paas bhi rakhein: \"export orders 30 days\" likhein aur file save kar lein. Phone ya server kho jaye to bhi hisaab mehfooz rahega.",
   "scheduled.dayclose":"🌙 Din khatam hone ko hai — aaj ka hisaab:\n\n{0}",
   "scheduled.dayclose.owed": "💸 {0} order ka paisa abhi baqi hai: kul {1}. Paisa mil gaya ho to neeche tap karein.",

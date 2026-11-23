@@ -156,10 +156,20 @@ public sealed partial class ConversationEngine
         {
             // No usual items yet: the catalog's best sellers as taps, so an order needs no typing.
             if (!(_features.SuggestionButtons && await SendProductPickerAsync(seller, ctx, prompt, ct))) await ReplyAsync(seller, prompt, ct);
+            await OfferRepeatLastOrderAsync(seller, ct);
             return;
         }
         await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber,
             MessageTemplates.Get("walk-in.003", prompt, customer.Name), usual.Select(u => u.Title).ToList(), ct);
+        await OfferRepeatLastOrderAsync(seller, ct);
+    }
+
+    /// <summary>A customer who ordered before gets "🔁 Pichla order": her last order again in one tap.</summary>
+    private async Task OfferRepeatLastOrderAsync(Seller seller, CancellationToken ct)
+    {
+        if (!_features.SuggestionButtons || _turnCtx?.OrderForCustomer is not { } target) return;
+        if (await LastOrderItemsAsync(seller, target, ct) is not { } items) return;
+        await _sender.SendButtonsMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("tapflow.order.repeat", target.Name, items), new[] { RepeatLastOrder }, ct);
     }
 
     /// <summary>

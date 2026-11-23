@@ -1,4 +1,6 @@
 {
+  "day-close.tip.owedtotal": "💸 کل باقی: {0} آرڈر، {1} — \"Paisa lena hai\" سے دیکھیں",
+  "scheduled.recurring.added": "🗓️ ہر مہینے والا خرچہ لکھ دیا: {0} {1}۔ غلطی ہو تو \"undo\" لکھیں۔",
   "scheduled.export.reminder": "💾 ہفتے کا ریکارڈ اپنے پاس بھی رکھیں: \"export orders 30 days\" لکھیں اور فائل محفوظ کر لیں۔ فون یا سرور کھو جائے تو بھی حساب محفوظ رہے گا۔",
   "scheduled.dayclose":"🌙 دن ختم ہونے کو ہے — آج کا حساب:\n\n{0}",
   "scheduled.dayclose.owed": "💸 {0} آرڈر کا پیسہ ابھی باقی ہے: کل {1}۔ پیسہ مل گیا ہو تو نیچے ٹیپ کریں۔",

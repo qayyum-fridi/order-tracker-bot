@@ -121,8 +121,60 @@ public partial class ConversationEngine
             var id = " #" + o.Id.ToString(CultureInfo.InvariantCulture);
             return new MenuRow($"mark #{o.Id} delivered", ShortenChoice("✅ " + (o.Customer?.Name ?? "Order"), ListRowTitleMax - id.Length) + id);
         }).ToArray();
+        // Two or more on the way: one row marks them all delivered (after YES, the usual bulk step).
+        if (shipped.Count > 1) rows = rows.Append(new MenuRow(DeliverAllRowId, "✅ Sab deliver ho gaye")).ToArray();
         await _sender.SendListMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("tapflow.shipped.list", shipped.Count, string.Join("\n", lines)),
             "Delivered karein", new[] { new MenuSection("Deliver ho gaya", rows) }, ct);
+    }
+
+    /// <summary>"kiraya har mahine 15000" saves a monthly expense (added on the 1st, from next month); "kiraya har mahine band" stops it.</summary>
+    private async Task HandleRecurringExpenseAsync(Seller seller, SessionContextData ctx, ParsedCommand cmd, CancellationToken ct)
+    {
+        var note = cmd.Text!;
+        var list = ctx.RecurringExpenses ?? new List<RecurringExpenseData>();
+        list.RemoveAll(r => r.Note == note);
+        if (cmd.Text2 == "off")
+        {
+            ctx.RecurringExpenses = list.Count == 0 ? null : list;
+            await ReplyAsync(seller, MessageTemplates.Get("tapflow.recurring.off", note), ct);
+            return;
+        }
+        list.Add(new RecurringExpenseData { Note = note, Amount = cmd.Amount!.Value });
+        ctx.RecurringExpenses = list;
+        await ReplyAsync(seller, MessageTemplates.Get("tapflow.recurring.on", note, Formatters.Money(cmd.Amount.Value)), ct);
+    }
+
+    internal const string DeliverAllRowId = "tap-deliver-all";
+    internal const string RepeatLastOrder = "🔁 Pichla order";
+
+    /// <summary>"✅ Sab deliver ho gaye": every order on the way, listed for YES; the existing bulk step marks them delivered.</summary>
+    private async Task AskDeliverAllShippedAsync(Seller seller, ConversationSession session, SessionContextData ctx, CancellationToken ct)
+    {
+        var ids = await _db.Orders.Where(o => o.SellerId == seller.Id && o.Status == OrderStatus.Shipped).OrderBy(o => o.Id).Select(o => o.Id).ToListAsync(ct);
+        if (ids.Count == 0)
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("tapflow.shipped.none"), ct);
+            return;
+        }
+        ctx.BulkStatusOrderIds = ids;
+        ctx.BulkStatusTarget = "delivered";
+        SetState(session, ConversationState.AwaitingBulkStatusConfirmation);
+        await AskYesNoAsync(seller, MessageTemplates.Get("tapflow.shipped.all", ids.Count, string.Join(", #", ids)), ct);
+    }
+
+    /// <summary>The customer's last order as text items ("2x Kurta (White M), 1x Dupatta"), from the catalog's current labels; null when she has none.</summary>
+    private async Task<string?> LastOrderItemsAsync(Seller seller, OrderForCustomerData target, CancellationToken ct)
+    {
+        var last = await _db.Orders.AsNoTracking().Include(o => o.Items).Include(o => o.Customer)
+            .Where(o => o.SellerId == seller.Id && o.Customer!.Name == target.Name && o.Status != OrderStatus.Cancelled)
+            .OrderByDescending(o => o.CreatedAt).ThenByDescending(o => o.Id).FirstOrDefaultAsync(ct);
+        if (last is null || last.Items.Count == 0) return null;
+        var catalog = await LoadCatalogAsync(seller, ct);
+        return string.Join(", ", last.Items.Select(i =>
+        {
+            var label = catalog.FirstOrDefault(c => c.Product.Id == i.ProductId)?.Label ?? i.ProductNameSnapshot;
+            return $"{i.Quantity}x {label.Replace(",", "")}";
+        }));
     }
 
     /// <summary>Row id of "🔍 Aur products": the next page of the product picker (the same search, if one was typed).</summary>
@@ -188,6 +240,16 @@ public partial class ConversationEngine
     /// </summary>
     private async Task<bool> TryTapCartAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
+        // "🔁 Pichla order": the customer's last order again, straight to the usual confirm screen (change anything with Edit).
+        if (message.Trim() == RepeatLastOrder && ctx.OrderForCustomer is { } repeatFor && session.State == ConversationState.Idle)
+        {
+            repeatFor.At = DateTime.UtcNow;
+            ctx.TapCart = null;
+            var again = await LastOrderItemsAsync(seller, repeatFor, ct);
+            if (again is null || !await TryHandleOrderForCustomerItemsAsync(seller, session, ctx, again, ct))
+                await ReplyAsync(seller, MessageTemplates.Get("tapflow.cart.failed", again ?? repeatFor.Name), ct);
+            return true;
+        }
         if (ctx.TapCart is not { } cart || ctx.OrderForCustomer is not { } target || session.State != ConversationState.Idle) return false;
         var text = message.Trim();
         target.At = DateTime.UtcNow; // each tap keeps the request open
@@ -362,6 +424,11 @@ public partial class ConversationEngine
         {
             ctx.TapJob = "restock:" + restockId;
             await ReplyAsync(seller, MessageTemplates.Get("tapflow.restock.ask", Formatters.ProductLabel(restocked)), ct);
+            return (true, message);
+        }
+        if (tappedRow == DeliverAllRowId)
+        {
+            await AskDeliverAllShippedAsync(seller, session, ctx, ct);
             return (true, message);
         }
         if (tappedRow.StartsWith(WorkerRowPrefix, StringComparison.Ordinal))

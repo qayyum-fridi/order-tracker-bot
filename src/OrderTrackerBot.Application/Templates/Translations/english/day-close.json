@@ -1,4 +1,6 @@
 {
+  "day-close.tip.owedtotal": "💸 Owed in all: {0} order(s), {1} — see \"Paisa lena hai\"",
+  "scheduled.recurring.added": "🗓️ Monthly expense added: {0} {1}. If it is wrong, type \"undo\".",
   "scheduled.export.reminder": "💾 Keep a copy of the week's records too: type \"export orders 30 days\" and save the file. Your accounts stay safe even if a phone or the server is lost.",
   "scheduled.dayclose":"🌙 The day is nearly over — today's account:\n\n{0}",
   "scheduled.dayclose.owed": "💸 Money is still owed on {0} order(s): {1} in all. If you have been paid, tap below.",

@@ -66,6 +66,7 @@ public partial class ConversationEngine
                 }
 
                 if (_features.DailyCloseNudge) await TrySendDailyCloseAsync(seller, utcNow, ct);
+                await AddRecurringExpensesAsync(seller, utcNow, ct);
 
                 await _db.SaveChangesAsync(ct);
             }
@@ -74,6 +75,28 @@ public partial class ConversationEngine
                 // One seller's failure must not stop everyone else's weekly summary.
                 await ReportScheduledIssueAsync(seller.WhatsAppPhoneNumber, $"seller {seller.Id}", ex, ct);
             }
+        }
+    }
+
+    /// <summary>
+    /// On the 1st of the month (Pakistan time), each monthly expense ("kiraya har mahine 15000") is written once for that month,
+    /// guarded by a dated key in the processed-message table; the seller is told (now, or with their next message).
+    /// </summary>
+    private async Task AddRecurringExpensesAsync(Seller seller, DateTime utcNow, CancellationToken ct)
+    {
+        var local = utcNow + PakistanOffset;
+        if (local.Day != 1) return;
+        var json = seller.Session?.ContextJson
+                   ?? await _db.Sessions.AsNoTracking().Where(s => s.SellerId == seller.Id).Select(s => s.ContextJson).FirstOrDefaultAsync(ct);
+        if (SessionContextData.FromJson(json).RecurringExpenses is not { Count: > 0 } monthly) return;
+        foreach (var r in monthly)
+        {
+            var key = $"recurring:{seller.Id}:{local:yyyy-MM}:{r.Note}";
+            if (key.Length > 200 || await _db.ProcessedWebhookMessages.AnyAsync(m => m.MessageId == key, ct)) continue;
+            _db.ProcessedWebhookMessages.Add(new ProcessedWebhookMessage { MessageId = key, ProcessedAt = utcNow });
+            _db.Expenses.Add(new Expense { SellerId = seller.Id, Amount = r.Amount, Category = ExpenseCategoryOf(r.Note), Note = r.Note, CreatedAt = utcNow });
+            await _db.SaveChangesAsync(ct);
+            await ProactiveReplyAsync(seller, MessageTemplates.Get("scheduled.recurring.added", r.Note, Formatters.Money(r.Amount)), ct);
         }
     }
 

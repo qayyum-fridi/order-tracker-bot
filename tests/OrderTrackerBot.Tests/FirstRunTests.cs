@@ -358,7 +358,8 @@ public class FirstRunTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "aaj ka hisaab", default);
 
         var close = Assert.Single(_sent, m => m.Contains("hisaab —"));
-        Assert.Contains(MessageTemplates.Get("day-close.tip.lowstock", "Chini (5 kg) (2)"), close);
+        // 2 left; 2 sold in the last two weeks, so about 1 a week.
+        Assert.Contains(MessageTemplates.Get("day-close.tip.lowstock", "Chini (5 kg) (2, ~1/hafta)"), close);
         Assert.Contains(MessageTemplates.Get("day-close.rough", 1, 2, "Rs.140"), close);
     }
 

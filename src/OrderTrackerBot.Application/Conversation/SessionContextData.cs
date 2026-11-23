@@ -95,6 +95,13 @@ public sealed class AgentAwaitingData
 }
 
 /// <summary>A "did you mean ...?" tap offered for an unknown product name: the button title as sent, and the catalog label it stands for.</summary>
+/// <summary>A monthly expense: the note (its first word is the category) and the amount.</summary>
+public sealed class RecurringExpenseData
+{
+    public string Note { get; set; } = "";
+    public decimal Amount { get; set; }
+}
+
 /// <summary>One line of a tap-by-tap order: the catalog label tapped and how many.</summary>
 public sealed class TapCartItem
 {
@@ -123,6 +130,8 @@ public sealed class SessionContextData
     public bool ProductChain { get; set; }
     /// <summary>The product picker's next page ("🔍 Aur products") and the search it shows, if one was typed.</summary>
     public int TapPickerPage { get; set; }
+    /// <summary>Expenses added by themselves on the 1st of each month ("kiraya har mahine 15000").</summary>
+    public List<RecurringExpenseData>? RecurringExpenses { get; set; }
     public string? TapPickerFilter { get; set; }
     /// <summary>When the seller last asked to reach support (UTC); a repeat inside a few hours is told the first request is already with the team, and the founder is not alerted again.</summary>
     public DateTime? SupportRequestedAt { get; set; }

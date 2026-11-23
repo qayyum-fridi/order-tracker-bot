@@ -167,6 +167,8 @@ public enum CommandKind
     CustomerPartPayment,
     /// <summary>"shipped orders" / "deliver ho gaye?": orders on the way, each a tap that marks it delivered.</summary>
     ShippedOrders,
+    /// <summary>"kiraya har mahine 15000": an expense written once and added by itself on the 1st of every month. Text = note, Amount; Text2 = "off" to stop.</summary>
+    RecurringExpense,
     /// <summary>A short reply chosen by the parser: Text is the message template key to send (buyer messages, undo, invalid phone).</summary>
     Notice,
     /// <summary>"return Shirt 1 [cash|bank|none]" at the counter: a buyer brings goods back with no order (ConversationEngine.CounterReturn.cs).</summary>
@@ -1069,6 +1071,9 @@ public static class CommandParser
     private static readonly Regex AddProduct = new(@"^add\s+product:\s*(.+?)\s*-\s*(\d+(?:\.\d+)?)$", Opts);
     private static readonly Regex EditProduct = new(@"^edit\s+product:\s*(.+?)\s*-\s*(\d+(?:\.\d+)?)$", Opts);
     private static readonly Regex MarkAllPendingShipped = new(@"^mark\s+all\s+pending\s+as\s+shipped$", Opts);
+    // "kiraya har mahine 15000", "har mahine kiraya 15000", "monthly kiraya 15000"; "kiraya har mahine band" stops it.
+    private static readonly Regex RecurringExpenseCmd = new(
+        @"^(?:(?<note>[\p{L}][\p{L} ]{1,30}?)\s+(?:har\s+mahine|har\s+maah|monthly|mahana)|(?:har\s+mahine|har\s+maah|monthly|mahana)\s+(?<note>[\p{L}][\p{L} ]{1,30}?))\s+(?:(?:rs\.?\s*)?(?<a>\d{1,3}(?:,\d{3})+|\d{2,7})|(?<off>band|off|stop|khatam))$", Opts);
     private static readonly Regex ShippedOrdersCmd = new(@"^(?:shipped\s+orders?|orders?\s+shipped|raste\s+mein(?:\s+orders?)?|deliver\s+ho\s+gaye\s*\??|kaun\s+se\s+deliver\s+hue\s*\??)$", Opts);
     // "sab aaj wale delivered", "inka status delivered kar do", "sara delivered karo": the shipped orders of today, after YES.
     // Token rule: a delivered word, a plural word (sab, sara, in ...), and no number, so "order 12 delivered" stays a single order.
@@ -1942,6 +1947,13 @@ public static class CommandParser
         if (TryParseStaff(message) is { } staff) return staff;
         if (TryParsePhoto(message) is { } photo) return photo;
         if (TryParseLossOrWage(message) is { } lossOrWage) return lossOrWage;
+        if ((m = RecurringExpenseCmd.Match(message)).Success)
+            return new ParsedCommand
+            {
+                Kind = CommandKind.RecurringExpense, Text = m.Groups["note"].Value.Trim().ToLowerInvariant(),
+                Amount = m.Groups["a"].Success ? decimal.Parse(m.Groups["a"].Value.Replace(",", ""), System.Globalization.CultureInfo.InvariantCulture) : null,
+                Text2 = m.Groups["off"].Success ? "off" : null,
+            };
         if (TryParseExpenseNatural(message) is { } spent) return spent;
         if (StockList.IsMatch(message)) return new ParsedCommand { Kind = CommandKind.Stock };
         if ((m = StockOff.Match(message)).Success) return new ParsedCommand { Kind = CommandKind.Stock, Text = m.Groups["name"].Value.Trim(), Text2 = "off" };
