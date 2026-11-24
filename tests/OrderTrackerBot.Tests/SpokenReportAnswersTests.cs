@@ -3,6 +3,7 @@ using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Ai;
 using OrderTrackerBot.Application.Conversation;
 using OrderTrackerBot.Application.Templates;
+using OrderTrackerBot.Application.Time;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
 using OrderTrackerBot.Infrastructure.Persistence;
@@ -35,11 +36,15 @@ public class SpokenReportAnswersTests : IDisposable
         var bilal = new Customer { SellerId = seller.Id, Name = "Bilal Ahmed", Phone = "03215557788" };
         db.Customers.AddRange(sara, bilal);
         await db.SaveChangesAsync();
+        // "N minutes ago", but never before the start of today in Pakistan: run just after PKT midnight, the orders must still be today's.
+        var now = DateTime.UtcNow;
+        var dayStart = SellerClock.StartOfLocalDayUtc(null, now);
+        DateTime MinutesAgo(int minutes) => now.AddMinutes(-minutes) < dayStart ? dayStart : now.AddMinutes(-minutes);
         // Today: Sara's 5000 COD parcel was delivered by TCS (TCS has not paid yet); Bilal's 3000 order is still pending. Nothing is paid.
         var delivered = new Order { SellerId = seller.Id, CustomerId = sara.Id, Status = OrderStatus.Delivered, PaymentMethod = OrderPaymentMethod.Cod,
-            TrackingCourier = "TCS", Subtotal = 5000, Total = 5000, CreatedAt = DateTime.UtcNow.AddMinutes(-30), DeliveredAt = DateTime.UtcNow.AddMinutes(-10) };
+            TrackingCourier = "TCS", Subtotal = 5000, Total = 5000, CreatedAt = MinutesAgo(30), DeliveredAt = MinutesAgo(10) };
         var pending = new Order { SellerId = seller.Id, CustomerId = bilal.Id, PaymentMethod = OrderPaymentMethod.Cod,
-            Subtotal = 3000, Total = 3000, CreatedAt = DateTime.UtcNow.AddMinutes(-20) };
+            Subtotal = 3000, Total = 3000, CreatedAt = MinutesAgo(20) };
         foreach (var o in new[] { delivered, pending }) o.Items.Add(new OrderItem { ProductNameSnapshot = "Lawn Suit", UnitPrice = o.Total, Quantity = 1 });
         db.Orders.AddRange(delivered, pending);
         await db.SaveChangesAsync();
