@@ -607,6 +607,16 @@ public partial class ConversationEngine
             return;
         }
 
+        // Waiting for new products' prices and the seller says no / cancel: the waiting products are dropped, as the price question offers ("cancel").
+        if (ctx.PendingPriceProducts is { Count: > 0 } && (CommandParser.IsNegative(message.Trim()) || message.Trim().Equals("cancel", StringComparison.OrdinalIgnoreCase)))
+        {
+            ctx.PendingPriceProducts = null;
+            ctx.PendingPriceSetAt = null;
+            ctx.PendingProductExtras = null;
+            await ReplyAsync(seller, MessageTemplates.Get("commands.051"), ct);
+            return;
+        }
+
         // Waiting for the price of ONE new product and the seller sends just an amount ("9000", "Rs. 9,000"): that is its price. Plain code, no AI guess.
         if (ctx.PendingPriceProducts is { Count: 1 } waiting && BareAmount.Match(message.Trim()) is { Success: true } bare
             && decimal.TryParse(bare.Groups["n"].Value.Replace(",", ""), System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var amount) && amount > 0)
