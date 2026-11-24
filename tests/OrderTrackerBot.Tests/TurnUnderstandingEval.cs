@@ -58,6 +58,11 @@ public class TurnUnderstandingEval
         // catalog
         new("ek naya product daalna hai shawl 2500 ka", new[] { TurnAction.AddProduct }, a => Product(a, 2500, "shawl")),
         new("2500 ki hai shawl, catalog mein daal do", new[] { TurnAction.AddProduct }, a => Product(a, 2500, "shawl")),
+        // English product lines with buy/sell, "in stock", store, expiry, plural sizes and colours (the TRY examples on the shop screen)
+        new("Tapal Danedar tea 950g, buy 950 sell 1100, 20 in stock", new[] { TurnAction.AddProduct }, a => Product(a, 1100, "Tapal") && a.Products[0].Cost == 950 && a.Products[0].Stock == 20),
+        new("Nestle milk 1L, 24 in Main Store, cost 250, expires 15 Nov", new[] { TurnAction.AddProduct }, a => a.Products.Count > 0 && Has(a.Products[0].Name, "Nestle") && a.Products[0].Cost == 250 && a.Products[0].Stock == 24 && a.Products[0].Attributes.Keys.Any(k => Has(k, "expir"))),
+        new("Men's cotton shirt, sizes S M L XL, colours white black", new[] { TurnAction.AddProduct }, a => a.Products.Count > 0 && Has(a.Products[0].Name, "shirt") && a.Products[0].Sizes.Count == 4 && a.Products[0].Colors.Count == 2),
+        new("Surf Excel 1kg, kharid 500 bech 555", new[] { TurnAction.AddProduct }, a => Product(a, 555, "Surf") && a.Products[0].Cost == 500),
         new("شال پچیس سو روپے کی ہے اسے لسٹ میں شامل کر دو", new[] { TurnAction.AddProduct }, a => Product(a, 2500), Voice: true),
         new("add a new item bedsheet for 1200", new[] { TurnAction.AddProduct }, a => Product(a, 1200, "bedsheet")),
         new("میرے پاس ایک نئی چیز آئی ہے چادر بارہ سو کی ہے", new[] { TurnAction.AddProduct }, a => Product(a, 1200), Voice: true),
@@ -163,7 +168,7 @@ public class TurnUnderstandingEval
 
     private static string Describe(TurnAction? a) => a is null ? "nothing" :
         $"{a.Action} topic={a.Topic} order={a.OrderId} status={a.Status} period={a.Period} customer={a.CustomerName} field={a.Field} value={a.Value} " +
-        $"new={a.Customer?.Name}/{a.Customer?.Phone} products=[{string.Join(", ", a.Products.Select(p => $"{p.Name} {p.Price}"))}] " +
+        $"new={a.Customer?.Name}/{a.Customer?.Phone} products=[{string.Join(", ", a.Products.Select(p => $"{p.Name} {p.Price} cost={p.Cost} stock={p.Stock} sizes={string.Join("/", p.Sizes)} colors={string.Join("/", p.Colors)} attrs={string.Join("/", p.Attributes.Select(kv => kv.Key + "=" + kv.Value))}"))}] " +
         $"orders=[{string.Join("; ", a.Orders.Select(o => $"{o.CustomerName}: {string.Join(", ", o.Items.Select(i => $"{i.ProductName} x{i.Quantity}"))}"))}] q={a.Question}";
 
     // Offline: the expected answers themselves are sane (every case names real actions), so a typo here cannot hide a failure.

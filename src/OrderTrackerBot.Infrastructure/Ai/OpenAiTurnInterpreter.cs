@@ -41,6 +41,10 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         "- show_summary: sales / money summary (hisaab, kitni sale hui) for a period.\n" +
         "- add_product: they are saying what they sell (name, price, optional cost and stock; 'naya product', 'nayi chiz', 'catalog mein daal do', 'list mein shamil'). " +
         "A product name with its price and no buyer is add_product, never create_order. Put each product in products. price, cost and stock are for ONE piece. " +
+        "Words: 'buy' / 'kharid' / 'cost' = cost; 'sell' / 'bech' / 'bechna' = price (the selling price); 'N in stock' / 'stock N' = stock. " +
+        "Several sizes of one product ('sizes S M L XL') go in sizes, one entry each; several colours ('colours white black') go in colors, one entry each. " +
+        "An expiry ('expires 15 Nov', 'expiry 2027-03') is an attribute with key 'expiry' and value yyyy-MM-dd (yyyy-MM when only the month is said). With no year said, the year is the one that puts the date AFTER today (today is in the prompt header): 'expires 15 Nov' on 2026-11-24 = 2027-11-15. " +
+        "A stock count with a place is stock plus a store: '24 in Main Store' = stock 24 and attribute key 'store' = 'Main Store' (the place name only, never the number). Never invent a price: when no selling price is said, price stays null. " +
         "When the product comes in a bigger pack (carton, box, peti, dozen, bori), also fill: pack_name; pack_qty = pieces in one pack; " +
         "pack_cost = what the owner PAYS / BUYS one whole pack for (words like 'aata hai', 'aati hai', 'milta hai', 'khareedta hun', 'ka hai', 'cost'); " +
         "pack_price = what the owner SELLS one whole pack for (words like 'bechta hun', 'bechna hai', 'mein deta hun', 'sale'); stock_packs = how many whole packs they have. " +
@@ -110,7 +114,7 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         var catalog = context.Catalog.Count == 0 ? "(no products yet)"
             : string.Join("\n", context.Catalog.Select(c => $"- {c.Name}: Rs.{c.Price}"));
         var system = Prompt +
-            $"\n\nShop: {context.BusinessName}. Shop type: {context.ShopType ?? "not set"}. It has {context.CatalogSize} products in all; the list below is the likely part." +
+            $"\n\nToday: {PakistanToday():yyyy-MM-dd}. Shop: {context.BusinessName}. Shop type: {context.ShopType ?? "not set"}. It has {context.CatalogSize} products in all; the list below is the likely part." +
             $"\nLikely products:\n{catalog}" +
             (context.KnownCustomers.Count > 0 ? "\nCustomers: " + string.Join("; ", context.KnownCustomers) : "") +
             (context.RecentOrders.Count > 0 ? "\nLatest orders:\n" + string.Join("\n", context.RecentOrders) : "") +
@@ -233,6 +237,9 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
                     Sizes = StandardSizes.NormalizeAll(p.TryGetProperty("sizes", out var sizesEl) && sizesEl.ValueKind == JsonValueKind.Array
                         ? sizesEl.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()!).ToList()
                         : new List<string>()),
+                    Colors = p.TryGetProperty("colors", out var colorsEl) && colorsEl.ValueKind == JsonValueKind.Array
+                        ? colorsEl.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()!.Trim()).Where(x => x.Length > 0).ToList()
+                        : new List<string>(),
                 });
             }
 
@@ -301,6 +308,8 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
     private static int? Int(JsonElement e, string name) =>
         e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var n) && n >= 0 ? n : null;
 
+    private static DateTime PakistanToday() => OrderTrackerBot.Application.Time.SellerClock.ToLocal(null, DateTime.UtcNow).Date;
+
     /// <summary>The page's details as key/value pairs ("fabric" -> "Premium Khaddar", "size chart" -> "Length 80"). Empty pairs are dropped.</summary>
     private static Dictionary<string, string> ProductAttributes(JsonElement p)
     {
@@ -354,6 +363,7 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
             ["pack_price"] = NullableNumber(),
             ["stock_packs"] = NullableNumber(),
             ["sizes"] = new JsonObject { ["type"] = "array", ["items"] = new JsonObject { ["type"] = "string" } },
+            ["colors"] = new JsonObject { ["type"] = "array", ["items"] = new JsonObject { ["type"] = "string" } },
             ["old_price"] = NullableNumber(),
             ["attributes"] = new JsonObject
             {

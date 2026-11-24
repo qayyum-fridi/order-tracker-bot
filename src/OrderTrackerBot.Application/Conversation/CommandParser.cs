@@ -1338,7 +1338,7 @@ public static class CommandParser
     private static readonly Regex ProductWithDetailsDigits = new(@"^([^,;:|\n]{2,50}?)\s*[-–=]\s*(?:rs\.?\s*)?(\d{1,7}(?:\.\d+)?)\s*[,;|]\s*(.+)$", Opts);
     private static readonly Regex ProductWithDetails = new(@"^([^\d,;:|\n]{2,50}?)\s*[-–=]\s*(?:rs\.?\s*)?(\d{1,7}(?:\.\d+)?)\s*[,;|]\s*(.+)$", Opts);
     private static readonly Regex KnownDetail = new(
-        @"^(?<key>price[ ]+[abc]|cost price|purchase price|kharid price|buying price|cost|purchase|kharid|khareed|stock|quantity|qty|tadad|maal|colour|color|rang|size|category|qism|kism|sku)\b\s*[:=]?\s*(?<val>.+)$", Opts);
+        @"^(?<key>price[ ]+[abc]|cost price|purchase price|kharid price|buying price|cost|purchase|kharid|khareed|buy|buying|stock|quantity|qty|tadad|maal|colour|colours|color|colors|rang|size|sizes|category|qism|kism|sku)\b\s*[:=]?\s*(?<val>.+)$", Opts);
     private static readonly Regex AttributeDetail = new(@"^(?<key>[^\d:=]{2,30}?)\s*:\s*(?<val>.+)$", Opts);
 
     // The words sellers use for who supplied/made/sorted a product, folded onto one stored name so "vendor: X" and "supplier: X" group together.
@@ -1371,7 +1371,7 @@ public static class CommandParser
         decimal? cost = null; int? stock = null;
         decimal? priceA = null, priceB = null, priceC = null;
         string? category = null, size = null, color = null, sku = null;
-        IReadOnlyList<string>? sizeList = null;
+        IReadOnlyList<string>? sizeList = null, colorList = null;
         Dictionary<string, string>? attributes = null;
         var any = false;
 
@@ -1384,7 +1384,7 @@ public static class CommandParser
                 var number = Regex.Match(value.Replace(",", ""), @"^(?:rs\.?\s*)?(\d{1,7})(?:\.\d+)?$", RegexOptions.IgnoreCase);
                 switch (key)
                 {
-                    case "cost" or "cost price" or "purchase" or "purchase price" or "kharid" or "khareed" or "kharid price" or "buying price":
+                    case "cost" or "cost price" or "purchase" or "purchase price" or "kharid" or "khareed" or "kharid price" or "buy" or "buying" or "buying price":
                         if (!number.Success) return false;
                         cost = decimal.Parse(Regex.Match(value.Replace(",", ""), @"\d+(?:\.\d+)?").Value, System.Globalization.CultureInfo.InvariantCulture);
                         break;
@@ -1401,9 +1401,16 @@ public static class CommandParser
                         else priceC = level;
                         break;
                     case "color" or "colour" or "rang": color = value; break;
-                    case "size":
+                    case "colors" or "colours":
+                        // "colours white black" / "colours: white, black": several colours, one listing each; one colour is just that colour.
+                        var colours = value.Split(new[] { ',', '/', ' ' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                        if (colours.Length > 1) colorList = colours;
+                        else color = value;
+                        break;
+                    case "size" or "sizes":
                         // "size: S, M, L" is several sizes: one listing each (the same variants the AI path makes); one size is just that size.
-                        var sizes = value.Split(new[] { ',', '/' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                        // "sizes S M L XL" (plural, spaces) is the same list.
+                        var sizes = value.Split(key == "sizes" ? new[] { ',', '/', ' ' } : new[] { ',', '/' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
                         if (sizes.Length > 1) sizeList = sizes;
                         else size = value;
                         break;
@@ -1423,7 +1430,7 @@ public static class CommandParser
         }
 
         if (!any) return false;
-        extras = new ProductExtras(cost, stock, category, size, color, sku, attributes, priceA, priceB, priceC, SizeList: sizeList);
+        extras = new ProductExtras(cost, stock, category, size, color, sku, attributes, priceA, priceB, priceC, ColorList: colorList, SizeList: sizeList);
         return true;
     }
 
