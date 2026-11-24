@@ -1,4 +1,4 @@
-using OrderTrackerBot.Application.Intents;
+﻿using OrderTrackerBot.Application.Intents;
 using OrderTrackerBot.Application.Templates;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
@@ -62,6 +62,7 @@ public partial class ConversationEngine
         var options = MissChoiceOptions(message);
         if (options.Count == 0) return false;
         await OfferTapLearningAsync(seller, session, ctx, message, options.Select(o => o.Value).ToList(), ct);
+        await _sender.SendTextMessageAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("howto.addentry"), ct);
         await SendChoicesAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("miss-choices.001"), options, ct);
         return true;
     }

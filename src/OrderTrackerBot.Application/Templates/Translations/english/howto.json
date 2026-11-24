@@ -1,4 +1,5 @@
-{
+﻿{
+  "howto.addentry": "✏️ Type these three things like this:\n\n📦 Product (name, price and stock):\nLawn Suit - 3500, cost 2500, stock 10\n\n👤 Customer (name, phone, address):\ncustomer add Sara, Model Town, 03001234567\n\n🧾 Order (customer, item, quantity):\nSara, Lawn Suit 2\n\nFor more help type \"guide\" or \"menu\".",
   "miss-choices.001": "Sorry, I did not fully understand that. Did you mean one of these? Pick below 👇",
   "howto.discount": "🎟️ To make a discount code, copy and send:\n\ncreate discount: EID10, 10 percent, expires 15 days\n\nOr a flat amount:\ncreate discount: WELCOME50, Rs.50 flat\n\nOr just send the code name (e.g. EID10) and I will ask for the value. Type \"cancel\" to stop.",
   "howto.payment": "💳 To save a payment method, type:\n\nadd payment: jazzcash, 0300-1234567\nadd payment: easypaisa, 0300-1234567",

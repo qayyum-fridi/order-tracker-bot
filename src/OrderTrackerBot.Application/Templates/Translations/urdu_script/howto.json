@@ -1,4 +1,5 @@
-{
+﻿{
+  "howto.addentry": "✏️ یہ تین چیزیں اس طرح لکھیں:\n\n📦 پروڈکٹ (نام، قیمت اور اسٹاک):\nLawn Suit - 3500, cost 2500, stock 10\n\n👤 کسٹمر (نام، فون، پتہ):\ncustomer add Sara, Model Town, 03001234567\n\n🧾 آرڈر (کسٹمر، آئٹم، تعداد):\nSara, Lawn Suit 2\n\nمدد کے لیے \"guide\" یا \"menu\" لکھیں۔",
   "miss-choices.001": "معاف کیجیے، یہ پوری طرح سمجھ نہیں آیا۔ کیا آپ یہ کہنا چاہتے ہیں؟ نیچے سے چنیں 👇",
   "howto.discount": "🎟️ ڈسکاؤنٹ کوڈ بنانے کے لیے کاپی کر کے بھیجیں:\n\ncreate discount: EID10, 10 percent, expires 15 days\n\nیا فلیٹ رقم:\ncreate discount: WELCOME50, Rs.50 flat\n\nیا صرف کوڈ کا نام بھیجیں (مثلاً EID10)، میں رقم پوچھ لوں گا۔ رکنے کے لیے \"cancel\" لکھیں۔",
   "howto.payment": "💳 پیمنٹ کا طریقہ محفوظ کرنے کے لیے لکھیں:\n\nadd payment: jazzcash, 0300-1234567\nadd payment: easypaisa, 0300-1234567",
