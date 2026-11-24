@@ -589,6 +589,9 @@ public partial class ConversationEngine
                 await HandleCatalogAsync(seller, ctx, cmd.Text, ct);
                 return;
             case CommandKind.AddProduct:
+                // The price a seller types after "send the price for X" is joined to what was said about X before (cost, stock, colours, sizes).
+                if (cmd.Product is not null && TakeWaitingExtras(ctx, cmd.Product.Name) is { } said)
+                    cmd = new ParsedCommand { Kind = cmd.Kind, Text = cmd.Text, Text2 = cmd.Text2, Amount = cmd.Amount, Product = cmd.Product with { Extras = MergeExtras(said, cmd.Product.Extras) } };
                 // Show the product back first; it is saved when the seller says YES (TryHandlePendingProductAsync).
                 if (_features.ProductConfirmation && cmd.Product is not null)
                 {
@@ -1328,6 +1331,23 @@ public partial class ConversationEngine
     }
 
     /// <summary>What was said later wins over what was said earlier.</summary>
+    // The details said for a product that is waiting for its price, taken out of the waiting list (null when it is not waiting).
+    private static ProductExtras? TakeWaitingExtras(SessionContextData ctx, string name)
+    {
+        if (ctx.PendingProductExtras is not { } waiting) return null;
+        var key = waiting.Keys.FirstOrDefault(k => k.Equals(name, StringComparison.OrdinalIgnoreCase));
+        if (key is null) return null;
+        var said = waiting[key];
+        waiting.Remove(key);
+        if (waiting.Count == 0) ctx.PendingProductExtras = null;
+        if (ctx.PendingPriceProducts is { } names)
+        {
+            var left = names.Where(n => !n.Equals(name, StringComparison.OrdinalIgnoreCase)).ToList();
+            ctx.PendingPriceProducts = left.Count == 0 ? null : left;
+        }
+        return said;
+    }
+
     private static ProductExtras? MergeExtras(ProductExtras? earlier, ProductExtras? later)
     {
         if (earlier is null) return later;

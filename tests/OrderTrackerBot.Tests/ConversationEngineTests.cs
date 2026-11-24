@@ -1074,6 +1074,32 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task Price_typed_after_a_price_question_keeps_the_cost_and_stock_said_before()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var session = await db.Sessions.FirstAsync();
+        session.ContextJson = new SessionContextData
+        {
+            PendingPriceProducts = new List<string> { "Nestle milk" },
+            PendingPriceSetAt = DateTime.UtcNow,
+            PendingProductExtras = new Dictionary<string, ProductExtras> { ["Nestle milk"] = new(250, 24, null, null, null, null, null) },
+        }.ToJson();
+        await db.SaveChangesAsync();
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, catalogSheets: _catalogSheets.Object,
+            features: new FeatureOptions { ProductConfirmation = true, ShortcutButtons = false, ConfirmButtons = false, SuggestionButtons = false, SetupNudges = false, IndustryQuestion = false });
+
+        await engine.HandleIncomingMessageAsync(Phone, "Nestle milk - 330", default);
+        await engine.HandleIncomingMessageAsync(Phone, "✅ Save", default);
+
+        var saved = await db.Products.SingleAsync(p => p.Name == "Nestle milk");
+        Assert.Equal(330m, saved.Price);
+        Assert.Equal(250m, saved.CostPrice);
+        Assert.Equal(24, saved.StockQty);
+        Assert.Null((await db.Sessions.FirstAsync()).ContextJson is { } j ? SessionContextData.FromJson(j).PendingProductExtras : null);
+    }
+
+    [Fact]
     public async Task Tapping_Save_on_the_product_preview_saves_the_product()
     {
         using var db = _dbFactory.CreateContext();
