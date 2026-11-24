@@ -44,7 +44,7 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         "Words: 'buy' / 'kharid' / 'cost' = cost; 'sell' / 'bech' / 'bechna' = price (the selling price); 'N in stock' / 'stock N' = stock. " +
         "Several sizes of one product ('sizes S M L XL') go in sizes, one entry each; several colours ('colours white black') go in colors, one entry each. " +
         "An expiry ('expires 15 Nov', 'expiry 2027-03') is an attribute with key 'expiry' and value yyyy-MM-dd (yyyy-MM when only the month is said). With no year said, the year is the one that puts the date AFTER today (today is in the prompt header): 'expires 15 Nov' on 2026-11-24 = 2027-11-15. " +
-        "A stock count with a place is stock plus a store: '24 in Main Store' = stock 24 and attribute key 'store' = 'Main Store' (the place name only, never the number). Never invent a price: when no selling price is said, price stays null. " +
+        "A stock count with a place ('24 in Main Store') is the stock count only: the place is not kept. Never invent a price: when no selling price is said, price stays null. " +
         "When the product comes in a bigger pack (carton, box, peti, dozen, bori), also fill: pack_name; pack_qty = pieces in one pack; " +
         "pack_cost = what the owner PAYS / BUYS one whole pack for (words like 'aata hai', 'aati hai', 'milta hai', 'khareedta hun', 'ka hai', 'cost'); " +
         "pack_price = what the owner SELLS one whole pack for (words like 'bechta hun', 'bechna hai', 'mein deta hun', 'sale'); stock_packs = how many whole packs they have. " +

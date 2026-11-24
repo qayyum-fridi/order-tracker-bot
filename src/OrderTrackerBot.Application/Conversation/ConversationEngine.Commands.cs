@@ -1149,7 +1149,8 @@ public partial class ConversationEngine
             : showHowTo ? MessageTemplates.Get("commands.035", label, Formatters.Money(product.Price), ProductDetailsText(product), Industry(seller).FullProduct)
             : MessageTemplates.Get("commands.034", label, Formatters.Money(product.Price), ProductDetailsText(product)), ct);
         // A shop that sells only at the counter: a new product is saved to the catalog, and a sale is written with "walkin" (no product question on the way).
-        if (!updated && existingReply is null && seller.SalesMode == "counter")
+        // Once per product, not once per variant: a later colour / size listing of the same product (variants.Count > 0) does not repeat it.
+        if (!updated && existingReply is null && variants.Count == 0 && seller.SalesMode == "counter")
             await ReplyAsync(seller, MessageTemplates.Get("counter-tip.001", product.Name), ct);
         // A new variant of a product the catalog already has: name its siblings, so the seller sees the listings were kept apart.
         if (!updated && variants.Count > 0)
