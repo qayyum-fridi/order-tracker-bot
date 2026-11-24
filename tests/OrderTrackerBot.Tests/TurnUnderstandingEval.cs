@@ -63,6 +63,11 @@ public class TurnUnderstandingEval
         new("Nestle milk 1L, 24 in Main Store, cost 250, expires 15 Nov", new[] { TurnAction.AddProduct }, a => a.Products.Count > 0 && Has(a.Products[0].Name, "Nestle") && a.Products[0].Cost == 250 && a.Products[0].Stock == 24 && a.Products[0].Attributes.Keys.Any(k => Has(k, "expir"))),
         new("Men's cotton shirt, sizes S M L XL, colours white black", new[] { TurnAction.AddProduct }, a => a.Products.Count > 0 && Has(a.Products[0].Name, "shirt") && a.Products[0].Sizes.Count == 4 && a.Products[0].Colors.Count == 2),
         new("Surf Excel 1kg, kharid 500 bech 555", new[] { TurnAction.AddProduct }, a => Product(a, 555, "Surf") && a.Products[0].Cost == 500),
+        // the same details in any order: name last, name in the middle, colours first, Roman Urdu wording
+        new("sell 1100, 20 in stock, buy 950, Tapal Danedar tea 950g", new[] { TurnAction.AddProduct }, a => Product(a, 1100, "Tapal") && a.Products[0].Cost == 950 && a.Products[0].Stock == 20),
+        new("kharid 500, Surf Excel 1kg, bech 555, stock 30", new[] { TurnAction.AddProduct }, a => Product(a, 555, "Surf") && a.Products[0].Cost == 500 && a.Products[0].Stock == 30),
+        new("colours white black, price 1800, Men's cotton shirt, sizes S M L XL, stock 40", new[] { TurnAction.AddProduct }, a => Product(a, 1800, "shirt") && a.Products[0].Stock == 40 && a.Products[0].Sizes.Count == 4 && a.Products[0].Colors.Count == 2),
+        new("Tapal Danedar tea 950g 1100 mein bechta hun, 950 ka aata hai, 20 piece hain", new[] { TurnAction.AddProduct }, a => Product(a, 1100, "Tapal") && a.Products[0].Cost == 950 && a.Products[0].Stock == 20),
         new("شال پچیس سو روپے کی ہے اسے لسٹ میں شامل کر دو", new[] { TurnAction.AddProduct }, a => Product(a, 2500), Voice: true),
         new("add a new item bedsheet for 1200", new[] { TurnAction.AddProduct }, a => Product(a, 1200, "bedsheet")),
         new("میرے پاس ایک نئی چیز آئی ہے چادر بارہ سو کی ہے", new[] { TurnAction.AddProduct }, a => Product(a, 1200), Voice: true),

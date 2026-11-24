@@ -41,7 +41,10 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         "- show_summary: sales / money summary (hisaab, kitni sale hui) for a period.\n" +
         "- add_product: they are saying what they sell (name, price, optional cost and stock; 'naya product', 'nayi chiz', 'catalog mein daal do', 'list mein shamil'). " +
         "A product name with its price and no buyer is add_product, never create_order. Put each product in products. price, cost and stock are for ONE piece. " +
-        "Words: 'buy' / 'kharid' / 'cost' = cost; 'sell' / 'bech' / 'bechna' = price (the selling price); 'N in stock' / 'stock N' = stock. " +
+        "The seller may say the name, price, cost, stock, sizes and colours in ANY order, with the name first, in the middle or last. The word next to each number says what it is, " +
+        "never its place in the message: 'buy' / 'kharid' / 'cost' / 'X ka aata hai' / 'X ka milta hai' / 'X ka mila' (for one piece) = cost; 'sell' / 'bech' / 'bechta hun' / 'bechni hai' / " +
+        "'sale' / 'price' / 'qeemat' = price (the selling price); 'N in stock' / 'stock N' / 'N piece hain' / 'N pade hain' / 'N hain' = stock. A detail said before the product name belongs to " +
+        "that same product. Never move a number to another field because of where it stands, and never drop a labelled number. 'aata hai' is a pack cost only when a pack word (carton, box, peti, dozen, bori) is said. " +
         "Several sizes of one product ('sizes S M L XL') go in sizes, one entry each; several colours ('colours white black') go in colors, one entry each. " +
         "An expiry ('expires 15 Nov', 'expiry 2027-03') is an attribute with key 'expiry' and value yyyy-MM-dd (yyyy-MM when only the month is said). With no year said, the year is the one that puts the date AFTER today (today is in the prompt header): 'expires 15 Nov' on 2026-11-24 = 2027-11-15. " +
         "A stock count with a place ('24 in Main Store') is the stock count only: the place is not kept. Never invent a price: when no selling price is said, price stays null. " +
