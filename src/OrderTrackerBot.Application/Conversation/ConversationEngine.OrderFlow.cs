@@ -1649,6 +1649,8 @@ public partial class ConversationEngine
 
     private async Task HandleClarificationChoiceAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
+        // The taps of "which did you mean?" for a message the model was not sure about (ConversationEngine.ActionChoice.cs).
+        if (await TryHandleActionChoiceAsync(seller, session, ctx, message, ct)) return;
         // A guided question's taps ("#12", "@5") fill the stored action; they are not commands ("#12" alone would only show the order).
         if (await TryHandleGuidedChoiceAsync(seller, session, ctx, message, ct)) return;
         var options = ctx.ClarificationOptions ?? DefaultClarificationOptions.ToList();

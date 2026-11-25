@@ -75,6 +75,12 @@ public sealed class TurnAction
 
     public string Action { get; init; } = HelpOrChat;
 
+    /// <summary>How sure the model is that <see cref="Action"/> is what the seller means, 0 to 10. Null = not given (older answers, scripted tests): the action is trusted as before.</summary>
+    public int? Score { get; init; }
+
+    /// <summary>Up to two other actions that could also fit the message, each with its own 0 to 10 score.</summary>
+    public List<ActionGuess> Alternatives { get; init; } = new();
+
     /// <summary>create_order: one entry per customer.</summary>
     public List<AiOrderDraft> Orders { get; init; } = new();
 
@@ -138,8 +144,13 @@ public sealed class AiOrderEdit
 }
 
 /// <summary>What the model is shown besides the message, so its answer is about THIS seller's shop.</summary>
+/// <summary>Another action the model thinks could fit the message, with how sure it is (0 to 10).</summary>
+public sealed record ActionGuess(string Action, int Score);
+
 public sealed class TurnContext
 {
+    /// <summary>Set after the seller tapped which action they meant: the model must return exactly this action, with its fields filled from the message.</summary>
+    public string? ConfirmedAction { get; init; }
     public string BusinessName { get; init; } = "";
     public string? ShopType { get; init; }
     /// <summary>The products most likely meant by this message (by sound and spelling), not the whole catalog: a shop can have hundreds.</summary>

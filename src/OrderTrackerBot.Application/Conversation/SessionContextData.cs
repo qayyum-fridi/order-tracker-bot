@@ -158,6 +158,8 @@ public sealed class SessionContextData
     public List<string>? ClarificationOptions { get; set; }
     /// <summary>When the open 1 / 2 pick question was first asked (UTC). Set by the engine on persist, cleared when the question is gone; a question older than <c>PickQuestionExpiry</c> is dropped.</summary>
     public DateTime? PickAskedAt { get; set; }
+    /// <summary>The "which did you mean?" taps for a message the model was not sure about (ConversationEngine.ActionChoice.cs). Set together with <see cref="ClarificationOptions"/>.</summary>
+    public ActionChoiceData? ActionChoice { get; set; }
     /// <summary>The sentence the bot just asked "what did you mean?" about; when the seller picks an option it is learned for this seller.</summary>
     public string? ClarifiedText { get; set; }
     /// <summary>Phrases this seller taught (normalised sentence -> command text), see ConversationEngine.Learning.cs.</summary>
@@ -371,6 +373,21 @@ public sealed class ModelEditData
     public int? ItemNo { get; set; }
     /// <summary>edit_order: the "edit order" instructions to run after YES, one per line ("1 = 3", "remove 2", "add Shirt 1").</summary>
     public List<string> Lines { get; set; } = new();
+}
+
+/// <summary>A message the model could not place with confidence: its words and the actions offered as taps.</summary>
+public sealed class ActionChoiceData
+{
+    public string Message { get; set; } = "";
+    public bool FromVoice { get; set; }
+    public List<ActionChoiceOption> Options { get; set; } = new();
+}
+
+public sealed class ActionChoiceOption
+{
+    /// <summary>The action, or "none" for the "Kuch aur" tap.</summary>
+    public string Action { get; set; } = "";
+    public string Label { get; set; } = "";
 }
 
 /// <summary>A further action from the same message, waiting until the open question is answered (see <c>DrainModelQueueAsync</c>).</summary>

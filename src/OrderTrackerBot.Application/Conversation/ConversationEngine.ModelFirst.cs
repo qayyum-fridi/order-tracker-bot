@@ -27,19 +27,7 @@ public partial class ConversationEngine
         if (image is null && CommandParser.TryParse(message) is { } exact && !LooseRuleKinds.Contains(exact.Kind)) return false;
 
         var catalog = await LoadCatalogAsync(seller, ct);
-        var shortlist = SoundMatch.Shortlist(message, catalog, c => c.Label, ModelFirstCatalogShortlist);
-        // The same context the voice rewrite already reads: latest orders, saved customers with their history, and the last chat lines.
-        var voice = await LoadVoiceContextAsync(seller, catalog, ct);
-        var context = new TurnContext
-        {
-            BusinessName = seller.BusinessName ?? "",
-            Catalog = shortlist.Select(c => new AiCatalogItem { Name = c.Label, Price = c.Product.Price }).ToList(),
-            CatalogSize = catalog.Count,
-            RecentOrders = voice.Recent.Select(o => $"#{o.Id} {o.Customer?.Name} {o.Status}").ToList(),
-            KnownCustomers = voice.KnownCustomers,
-            RecentExchanges = voice.Exchanges,
-            FromVoice = fromVoice,
-        };
+        var context = await BuildTurnContextAsync(seller, catalog, message, fromVoice, null, ct);
 
         var action = await _turnInterpreter.UnderstandAsync(context, message, image, ct);
         // Metadata only: the message holds customer names and phone numbers, so its text is never logged.
@@ -56,6 +44,9 @@ public partial class ConversationEngine
         // A new request while a YES / NO or a tap is open: keep it, ask the open question again, run it once that is answered (ConversationEngine.Parking.cs).
         if (!final && image is null && session.State != ConversationState.Idle && await TryParkAsync(seller, session, ctx, actions, message, beforeRun, ct))
             return true;
+
+        // Not sure enough, or two actions close in score: ask which one is meant, with taps, instead of running a guess (ConversationEngine.ActionChoice.cs).
+        if (final && actions.Count == 1 && await TryAskWhichActionAsync(seller, session, ctx, action, message, fromVoice, beforeRun, ct)) return true;
 
         if (actions.Count == 1)
         {
@@ -80,6 +71,25 @@ public partial class ConversationEngine
         for (var i = 0; i < actions.Count; i++)
             await RunOrQueueAsync(seller, session, ctx, actions[i], catalog, message, ct, fromScreenshot, guide: final);
         return true;
+    }
+
+    /// <summary>What the understanding call is told besides the message: the shop, the likely products, customers, latest orders and recent chat.</summary>
+    private async Task<TurnContext> BuildTurnContextAsync(Seller seller, List<CatalogEntry> catalog, string message, bool fromVoice, string? confirmedAction, CancellationToken ct)
+    {
+        var shortlist = SoundMatch.Shortlist(message, catalog, c => c.Label, ModelFirstCatalogShortlist);
+        // The same context the voice rewrite already reads: latest orders, saved customers with their history, and the last chat lines.
+        var voice = await LoadVoiceContextAsync(seller, catalog, ct);
+        return new TurnContext
+        {
+            BusinessName = seller.BusinessName ?? "",
+            Catalog = shortlist.Select(c => new AiCatalogItem { Name = c.Label, Price = c.Product.Price }).ToList(),
+            CatalogSize = catalog.Count,
+            RecentOrders = voice.Recent.Select(o => $"#{o.Id} {o.Customer?.Name} {o.Status}").ToList(),
+            KnownCustomers = voice.KnownCustomers,
+            RecentExchanges = voice.Exchanges,
+            FromVoice = fromVoice,
+            ConfirmedAction = confirmedAction,
+        };
     }
 
     /// <summary>
@@ -484,13 +494,13 @@ public partial class ConversationEngine
                 return true;
 
             case TurnAction.RecordExpense when action.Amount is > 0 && !string.IsNullOrWhiteSpace(action.Value):
-                // The same handler as the typed "kharcha 15000 kiraya": written now, with its undo record.
-                await HandleExpenseAsync(seller, new ParsedCommand { Kind = CommandKind.Expense, Text = action.Value!.Trim(), Amount = action.Amount }, ct);
-                return true;
-
             case TurnAction.MonthlyExpense when action.Amount is > 0 && !string.IsNullOrWhiteSpace(action.Value):
-                // The same handler as the typed "kiraya har mahine 15000": saved to be added on the 1st of each month.
-                await HandleRecurringExpenseAsync(seller, ctx, new ParsedCommand { Kind = CommandKind.RecurringExpense, Text = action.Value!.Trim().ToLowerInvariant(), Amount = action.Amount }, ct);
+                // Money written from a spoken or loose sentence waits for YES (a misheard 15,000 / 50,000 must not be saved); then the same handler as the typed command runs.
+                var expenseNote = action.Value!.Trim();
+                ctx.ModelEdit = new ModelEditData { Kind = action.Action, Name = expenseNote, Amount = action.Amount };
+                SetState(session, ConversationState.AwaitingModelStatusConfirmation);
+                await AskYesNoAsync(seller, MessageTemplates.Get(action.Action == TurnAction.MonthlyExpense ? "model-expense.002" : "model-expense.001",
+                    expenseNote, Formatters.Money(action.Amount.Value)), ct);
                 return true;
 
             case TurnAction.RecordPayout when action.Amount is > 0:
@@ -669,6 +679,10 @@ public partial class ConversationEngine
                 await HandleEditProductAsync(seller, new ParsedCommand { Kind = CommandKind.EditProduct, Text = edit.Name, Amount = edit.Amount }, ct);
             else if (edit.Kind == TurnAction.DeleteProduct)
                 await HandleDeleteProductAsync(seller, edit.Name, ct);
+            else if (edit.Kind == TurnAction.RecordExpense && edit.Amount is { } spent)
+                await HandleExpenseAsync(seller, new ParsedCommand { Kind = CommandKind.Expense, Text = edit.Name, Amount = spent }, ct);
+            else if (edit.Kind == TurnAction.MonthlyExpense && edit.Amount is { } monthly)
+                await HandleRecurringExpenseAsync(seller, ctx, new ParsedCommand { Kind = CommandKind.RecurringExpense, Text = edit.Name.ToLowerInvariant(), Amount = monthly }, ct);
             else if (edit.Kind == TurnAction.RecordPayout && edit.Amount is { } payout)
                 await HandlePayoutAsync(seller, new ParsedCommand { Kind = CommandKind.Payout, Text = "record", Amount = payout, Text2 = edit.Name }, ct);
             else if (edit.Kind == TurnAction.SetTracking && edit.OrderId is { } trackedId
