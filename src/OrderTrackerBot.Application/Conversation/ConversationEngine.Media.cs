@@ -126,6 +126,9 @@ public partial class ConversationEngine
         var voiceClock = System.Diagnostics.Stopwatch.StartNew();
         var media = _media is null ? null : await _media.DownloadAsync(mediaId, ct);
         var downloadMs = voiceClock.ElapsedMilliseconds;
+        if (media is null)
+            _logger?.LogWarning("Voice note: media {MediaId} was not downloaded ({Reason}); the seller gets the 'not understood' reply",
+                mediaId, _media is null ? "no WhatsApp media client is configured" : "WhatsApp media download returned nothing");
         // An empty or tiny file has nothing to hear, and an oversized one is a long recording the speech model would charge in full: neither is transcribed.
         // The length is read from the Ogg Opus file itself (5 minutes at most); any other format falls back to the file size.
         if (media is { } audio && (audio.Bytes.Length < MinVoiceBytes || VoiceTooLong(audio.Bytes)))

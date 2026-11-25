@@ -98,7 +98,11 @@ public class OpenAiAudioTranscriber : IAudioTranscriber
 
     private async Task<string?> TranscribeWithAsync(string model, byte[] audio, string mimeType, IReadOnlyList<string>? vocabulary, CancellationToken cancellationToken)
     {
-        if (!IsConfigured) return null;
+        if (!IsConfigured)
+        {
+            _logger.LogWarning("Voice note transcription skipped: OpenAi:ApiKey is not set, so every voice note gets the 'not understood' reply");
+            return null;
+        }
 
         try
         {
