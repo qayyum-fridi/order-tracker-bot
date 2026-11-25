@@ -171,7 +171,8 @@ public class ScoredChoiceTests : IDisposable
 
         await type(Rent);
 
-        Assert.Empty(_buttons);
+        Assert.DoesNotContain(_buttons, b => b.Contains(ConversationEngine.ActionNoneLabel));   // no "which one?" taps (the YES / No buttons are the money question)
+        Assert.DoesNotContain(_sent, m => m == MessageTemplates.Get("model-first.pick"));
         Assert.Contains(_sent, m => m == MessageTemplates.Get("model-expense.001", "kiraya", Formatters.Money(15000)));
         Assert.Empty(await db.Expenses.AsNoTracking().ToListAsync());
     }
