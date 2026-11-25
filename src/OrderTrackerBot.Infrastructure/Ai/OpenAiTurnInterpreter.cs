@@ -96,7 +96,11 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         "courier = the courier's name as said (null if none); amount = the money said. Money from a CUSTOMER is record_payment, never this.\n" +
         "- set_tracking: a parcel's tracking number ('order 12 ka tracking TCS 77123456', 'Sara ke parcel ka number 88231 hai Leopards'). " +
         "order_id or customer_name; courier; value = the tracking number exactly as said.\n" +
-        "- out_of_scope: a shop task this bot does not do yet (expenses, discounts, receipts, profit reports).\n" +
+        "- record_expense: the shop SPENT money once on something (rent, electricity, petrol, tea, packaging): 'kiraya 15000 diya', 'petrol 1000', 'پندرہ ہزار کا کرایہ ڈال دیں'. " +
+        "value = what it was for, in the owner's own word (kiraya, bijli, petrol); amount = the money said. Money from a customer is record_payment, never this.\n" +
+        "- monthly_expense: a cost that repeats EVERY MONTH and should be added by itself on the 1st ('kiraya har mahine 15000', 'mahine ka 15000 kiraya', 'مہینے کا پندرہ ہزار پہ کرائے کا', 'monthly bijli 8000'). " +
+        "The words month / mahine / mahana / har mahine / monthly mark it; without them it is record_expense. value = what it is for; amount = the money said. It is never show_summary.\n" +
+        "- out_of_scope: a shop task this bot does not do yet (discounts, profit reports).\n" +
         "Never invent a number, name or phone that is not in the text. Use null for anything not said. " +
         "order_id is ONLY the order number the owner said ('order 3', 'teen number wala', 'تین نمبر آرڈر' = 3); when they named a customer and no number, " +
         "leave order_id null and give customer_name. Never pick an order_id from the list of latest orders yourself. " +
@@ -108,7 +112,10 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         "actions, in the order the owner said them, up to 5. A single request is one entry. Every entry is complete on its own: its own action, order_id, customer and fields. " +
         "A new buyer with items ('new customer Asim, phone 0300..., 2 shirt') is create_order first (the buyer is saved with the order); add_customer only when no items are named.\n" +
         "MESSY TEXT: typos and misspellings are the same words ('shrt' = shirt, 'odr' = order, 'cathalog' = catalog, 'shiped' = shipped); read the meaning. " +
-        "Emoji carry no meaning on their own (📦, ✅, 🙏, 👍): ignore them and read the words.";
+        "Emoji carry no meaning on their own (📦, ✅, 🙏, 👍): ignore them and read the words.\n" +
+        "SURENESS: for every entry give score = how sure you are, from 0 to 10, that its action is what the owner means (10 = certain, 5 = it could easily be something else, 0 = a guess), " +
+        "and alternatives = up to 2 OTHER actions from the list that could also fit the message, each with its own score (an empty list when nothing else fits). " +
+        "Be honest: a very short or unclear message, or a task none of the actions really covers, gets a low score. Use out_of_scope when no action fits.";
 
     public async Task<TurnAction?> UnderstandAsync(TurnContext context, string text, AiImageInput? image = null, CancellationToken cancellationToken = default)
     {
@@ -122,7 +129,10 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
             (context.KnownCustomers.Count > 0 ? "\nCustomers: " + string.Join("; ", context.KnownCustomers) : "") +
             (context.RecentOrders.Count > 0 ? "\nLatest orders:\n" + string.Join("\n", context.RecentOrders) : "") +
             (context.RecentExchanges.Count > 0 ? "\nRecent chat:\n" + string.Join("\n", context.RecentExchanges) : "") +
-            (context.FromVoice ? "\nThe text is a voice note transcript." : "");
+            (context.FromVoice ? "\nThe text is a voice note transcript." : "") +
+            (context.ConfirmedAction is { Length: > 0 } confirmed
+                ? $"\nThe owner has just confirmed that this message means the action \"{confirmed}\". Return exactly that action, with its fields filled from the message, and score 10."
+                : "");
 
         try
         {
@@ -295,11 +305,29 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
             Topic = topic is not null && TurnAction.HowToTopics.Contains(topic) ? topic : null,
             Question = Str(root, "question"),
             OrderEdits = orderEdits,
-            // Money received belongs to record_payment only; an amount on another action is not carried.
-            Amount = action is TurnAction.RecordPayment or TurnAction.RecordPayout && Dec(root, "amount") is > 0 and var paid ? paid : null,
+            // An amount is carried only for money actions (payment, payout, expense); on any other action it is dropped.
+            Amount = action is TurnAction.RecordPayment or TurnAction.RecordPayout or TurnAction.RecordExpense or TurnAction.MonthlyExpense && Dec(root, "amount") is > 0 and var paid ? paid : null,
             PaidInFull = action == TurnAction.RecordPayment && root.TryGetProperty("paid_in_full", out var full) && full.ValueKind == JsonValueKind.True,
             Courier = action is TurnAction.RecordPayout or TurnAction.SetTracking ? Str(root, "courier") : null,
+            Score = root.TryGetProperty("score", out var scoreEl) && scoreEl.ValueKind == JsonValueKind.Number && scoreEl.TryGetInt32(out var score) ? Math.Clamp(score, 0, 10) : null,
+            Alternatives = ParseAlternatives(root, action),
         };
+    }
+
+    /// <summary>The "alternatives" list: other actions of the closed list with a 0 to 10 score, at most two, never the chosen action itself.</summary>
+    private static List<ActionGuess> ParseAlternatives(JsonElement root, string chosen)
+    {
+        var guesses = new List<ActionGuess>();
+        if (!root.TryGetProperty("alternatives", out var list) || list.ValueKind != JsonValueKind.Array) return guesses;
+        foreach (var item in list.EnumerateArray())
+        {
+            var name = item.ValueKind == JsonValueKind.Object ? Str(item, "action") : null;
+            if (name is null || name == chosen || !TurnAction.All.Contains(name) || guesses.Any(g => g.Action == name)) continue;
+            if (!item.TryGetProperty("score", out var s) || s.ValueKind != JsonValueKind.Number || !s.TryGetInt32(out var value)) continue;
+            guesses.Add(new ActionGuess(name, Math.Clamp(value, 0, 10)));
+            if (guesses.Count == 2) break;
+        }
+        return guesses;
     }
 
     private static string? Str(JsonElement e, string name) =>
@@ -407,6 +435,16 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
             ["amount"] = NullableNumber(),
             ["paid_in_full"] = new JsonObject { ["type"] = "boolean" },
             ["courier"] = NullableString(),
+            ["score"] = new JsonObject { ["type"] = "integer" },
+            ["alternatives"] = new JsonObject
+            {
+                ["type"] = "array",
+                ["items"] = Obj(new JsonObject
+                {
+                    ["action"] = new JsonObject { ["type"] = "string", ["enum"] = new JsonArray(TurnAction.All.Select(a => (JsonNode?)JsonValue.Create(a)).ToArray()) },
+                    ["score"] = new JsonObject { ["type"] = "integer" },
+                }),
+            },
         });
         var root = Obj(new JsonObject
         {

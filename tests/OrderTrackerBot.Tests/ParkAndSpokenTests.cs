@@ -164,6 +164,52 @@ public class ParkAndSpokenTests : IDisposable
         Assert.Equal(OrderStatus.Shipped, (await db.Orders.AsNoTracking().SingleAsync(o => o.Id == saraOrder)).Status);
     }
 
+    /// <summary>The bot waits for a 1 / 2 pick ("which order?"), asked <paramref name="askedMinutesAgo"/> minutes ago.</summary>
+    private async Task WaitForPickAsync(AppDbContext db, int askedMinutesAgo)
+    {
+        var session = await db.Sessions.SingleAsync();
+        var ctx = SessionContextData.FromJson(session.ContextJson);
+        ctx.ClarificationOptions = new List<string> { "Sara Khan ka order", "Bilal Ahmed ka order" };
+        ctx.PickAskedAt = DateTime.UtcNow.AddMinutes(-askedMinutesAgo);
+        session.ContextJson = ctx.ToJson();
+        session.State = ConversationState.AwaitingClarificationChoice;
+        await db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task ANewVoiceRequest_WhileAPickQuestionIsOpen_IsKept_AndTheOptionsAreShownAgain()
+    {
+        var (db, _, speak) = await ShopAsync();
+        using var _db = db;
+        await WaitForPickAsync(db, askedMinutesAgo: 1);
+        const string note = "acha suno Bilal ka number ab 03001112222 kar do";
+        _model[note] = new TurnAction { Action = TurnAction.EditCustomer, CustomerName = "Bilal", Field = "phone", Value = "03001112222" };
+
+        await speak(note);
+
+        Assert.Contains(_sent, m => m.StartsWith(MessageTemplates.Get("park.001", "").Split('\n')[0]));
+        Assert.Contains(_sent, m => m == MessageTemplates.Get("park.002"));   // the open question comes back, with its two options as taps
+        Assert.Equal(ConversationState.AwaitingClarificationChoice, (await db.Sessions.AsNoTracking().SingleAsync()).State);
+    }
+
+    [Fact]
+    public async Task APickQuestionOlderThanTenMinutes_IsDropped_SoANewVoiceRequestRunsInsteadOfBeingParked()
+    {
+        var (db, _, speak) = await ShopAsync();
+        using var _db = db;
+        await WaitForPickAsync(db, askedMinutesAgo: 11);
+        const string note = "acha suno Bilal ka number ab 03001112222 kar do";
+        _model[note] = new TurnAction { Action = TurnAction.EditCustomer, CustomerName = "Bilal", Field = "phone", Value = "03001112222" };
+
+        await speak(note);
+
+        Assert.DoesNotContain(_sent, m => m.StartsWith(MessageTemplates.Get("park.001", "").Split('\n')[0]));
+        Assert.Contains(_sent, m => m.Contains("Bilal Ahmed") && m.Contains("03001112222"));   // the request itself ran: it asks its YES
+        var ctx = SessionContextData.FromJson((await db.Sessions.AsNoTracking().SingleAsync()).ContextJson);
+        Assert.Null(ctx.ClarificationOptions);
+        Assert.Null(ctx.PickAskedAt);
+    }
+
     [Theory]
     [InlineData("haan", true)]
     [InlineData("nahi", true)]

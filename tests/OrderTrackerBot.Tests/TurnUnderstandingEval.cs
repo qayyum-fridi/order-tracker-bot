@@ -55,6 +55,12 @@ public class TurnUnderstandingEval
         new("mere saare customers dikhao", new[] { TurnAction.ShowCustomer }, a => a.CustomerName is null),
         new("mujhe kisi banday se baat karni hai, masla hai", new[] { TurnAction.ContactSupport }),
         new("سپورٹ والوں سے بات کروا دیں", new[] { TurnAction.ContactSupport }, Voice: true),
+        // expenses: a rent said once vs. every month (the live voice note "مہینے کا پندرہ ہزار پہ کرائے کا" came back as the monthly summary)
+        new("مہینے کا پندرہ ہزار پہ کرائے کا", new[] { TurnAction.MonthlyExpense }, a => a.Amount == 15000 && !string.IsNullOrWhiteSpace(a.Value), Voice: true),
+        new("دکان کا کرایہ ہر مہینے پندرہ ہزار", new[] { TurnAction.MonthlyExpense }, a => a.Amount == 15000, Voice: true),
+        new("kiraya har mahine 15000 hai dukaan ka", new[] { TurnAction.MonthlyExpense }, a => a.Amount == 15000),
+        new("پندرہ ہزار کا کرایہ ڈال دیں", new[] { TurnAction.RecordExpense, TurnAction.MonthlyExpense }, a => a.Amount == 15000, Voice: true),
+        new("aaj petrol pe 1000 lag gaye", new[] { TurnAction.RecordExpense }, a => a.Amount == 1000),
         // catalog
         new("ek naya product daalna hai shawl 2500 ka", new[] { TurnAction.AddProduct }, a => Product(a, 2500, "shawl")),
         new("2500 ki hai shawl, catalog mein daal do", new[] { TurnAction.AddProduct }, a => Product(a, 2500, "shawl")),
@@ -117,7 +123,7 @@ public class TurnUnderstandingEval
         // not the shop, or not built yet
         new("assalam o alaikum kya haal hai", new[] { TurnAction.HelpOrChat }),
         new("mausam kaisa hai aaj", new[] { TurnAction.HelpOrChat, TurnAction.OutOfScope }),
-        new("petrol ka 500 kharcha likh lo", new[] { TurnAction.OutOfScope }),
+        new("petrol ka 500 kharcha likh lo", new[] { TurnAction.RecordExpense }, a => a.Amount == 500),
         new("ek shirt", new[] { Clarify, Order }),
     };
 

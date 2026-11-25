@@ -11,7 +11,7 @@
   "guidance.009": "Order confirm karne ke liye YES likhein. Tabdeeli ke liye likhein: \"delivery 300\", \"advance 500\". Rokne ke liye \"cancel\" likhein.",
   "guidance.010": "Order ki baqi detail bhejein ({0}). Rokne ke liye \"cancel\".",
   "guidance.011": "Sab orders confirm karne ke liye YES, ya sirf ek ka number bhejein.",
-  "guidance.012": "Upar diye options mein se number bhejein (1 ya 2) — bolte waqt \"pehla\" / \"dusra\" bhi chalta hai.",
+  "guidance.012": "Upar diye options mein se number bhejein (1 ya 2) — bolte waqt \"pehla\" / \"dusra\" bhi chalta hai. Is sawal ko chhodna ho to \"cancel\" likhein ya bolein.",
   "guidance.013": "YES ya NO likhein (bol kar \"haan\" / \"nahi\" bhi chalta hai).",
   "guidance.014": "Aapki voice se jo actions samjhe, woh upar likhe hain — chalane ke liye YES, rokne ke liye NO.",
   "guidance.015": "Discount code likhein, jaise \"create discount: EID10, 10 percent, expires 15 days\".",

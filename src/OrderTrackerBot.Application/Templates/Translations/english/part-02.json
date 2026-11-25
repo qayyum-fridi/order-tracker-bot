@@ -107,7 +107,7 @@
   "guidance.009": "To confirm the order, write YES. To change it, write \"delivery 300\" or \"advance 500\". To stop, write \"cancel\".",
   "guidance.010": "Send the rest of the order details ({0}). To stop, write \"cancel\".",
   "guidance.011": "Write YES to confirm all orders, or send the number of just one.",
-  "guidance.012": "Send a number from the options above (1 or 2) — saying \"first\" or \"second\" also works.",
+  "guidance.012": "Send a number from the options above (1 or 2) — saying \"first\" or \"second\" also works. To drop this question, type or say \"cancel\".",
   "guidance.013": "Write YES or NO (saying \"yes\" or \"no\" aloud also works).",
   "guidance.014": "The actions understood from your voice are listed above — YES to run them, NO to stop.",
   "guidance.015": "Write a discount code, for example \"create discount: EID10, 10 percent, expires 15 days\".",
