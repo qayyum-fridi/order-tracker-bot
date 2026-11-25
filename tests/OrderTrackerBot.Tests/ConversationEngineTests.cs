@@ -1074,6 +1074,36 @@ public class ConversationEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task A_message_with_a_priced_product_does_not_relist_the_older_product_still_waiting_for_its_price()
+    {
+        using var db = _dbFactory.CreateContext();
+        await OnboardSellerAsync(db);
+        var session = await db.Sessions.FirstAsync();
+        // "Nestle milk" is already waiting for its price (cost and stock were said before).
+        session.ContextJson = new SessionContextData
+        {
+            PendingPriceProducts = new List<string> { "Nestle milk" },
+            PendingPriceSetAt = DateTime.UtcNow,
+            PendingProductExtras = new Dictionary<string, ProductExtras> { ["Nestle milk"] = new(250, 24, null, null, null, null, null) },
+        }.ToJson();
+        await db.SaveChangesAsync();
+        var engine = new ConversationEngine(db, _ai.Object, _sender.Object, _founderAlerts.Object, catalogSheets: _catalogSheets.Object,
+            features: new FeatureOptions { ProductConfirmation = true, ShortcutButtons = false, ConfirmButtons = false, SuggestionButtons = false, SetupNudges = false, IndustryQuestion = false });
+        _ai.Setup(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiMessageAnalysis { Intent = "add_products", NewProducts = new List<AiNewProduct> { new() { Name = "Surf Excel", Cost = 500, Stock = 30 } } });
+
+        await engine.HandleIncomingMessageAsync(Phone, "ek aur cheez aayi hai: Surf Excel", default);
+
+        var listing = _sentMessages.Where(m => m.Contains("Samajh gaya")).ToList();
+        Assert.Single(listing);
+        // The full list holds only the new product; the older one is named once, in the short line.
+        Assert.Contains("• Surf Excel", listing[0]);
+        Assert.DoesNotContain("• Nestle milk", listing[0]);
+        Assert.Single(listing[0].Split('\n').Where(l => l.Contains("Nestle milk")));
+        Assert.Contains("Abhi price baaki hai: Nestle milk", listing[0]);
+    }
+
+    [Fact]
     public async Task Price_typed_after_a_price_question_keeps_the_cost_and_stock_said_before()
     {
         using var db = _dbFactory.CreateContext();

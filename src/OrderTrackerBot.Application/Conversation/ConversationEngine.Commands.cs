@@ -1272,6 +1272,8 @@ public partial class ConversationEngine
         ctx.PendingPriceSetAt = stillWaiting.Count == 0 ? null : _clock.GetUtcNow().UtcDateTime;
         ctx.PendingProductExtras = pendingExtras.Where(e => stillWaiting.Contains(e.Key, StringComparer.OrdinalIgnoreCase)).ToDictionary(e => e.Key, e => e.Value);
         if (ctx.PendingProductExtras.Count == 0) ctx.PendingProductExtras = null;
+        // Only the products that started waiting in THIS message are listed in full; the older waiting ones get one short line.
+        var newlyWaiting = needPrice;
         needPrice = stillWaiting;
 
         var reply = saved.Count == 0 ? "" : MessageTemplates.Get("commands.044", saved.Count, (saved.Count == 1 ? "" : "s"), string.Join("\n", saved));
@@ -1288,16 +1290,20 @@ public partial class ConversationEngine
                 existingProducts.FirstOrDefault(p => p.Name.Equals(n, StringComparison.OrdinalIgnoreCase)) is { } e ? $"{Formatters.ProductLabel(e)} ({Formatters.Money(e.Price)})" : n)) +
                 "\nPrice badalni ho to likhein: " + already[0] + " - 700\n\n";
         }
-        if (needPrice.Count > 0)
+        if (newlyWaiting.Count > 0)
             reply += "📦 Samajh gaya — yeh naye products hain:\n" +
-                     string.Join("\n", needPrice.Select(n => $"• {n}{(ctx.PendingProductExtras is { } extras && extras.FirstOrDefault(e => string.Equals(e.Key, n, StringComparison.OrdinalIgnoreCase)) is { Value: not null } found ? ExtrasText(found.Value) : "")}")) +
+                     string.Join("\n", newlyWaiting.Select(n => $"• {n}{(ctx.PendingProductExtras is { } extras && extras.FirstOrDefault(e => string.Equals(e.Key, n, StringComparison.OrdinalIgnoreCase)) is { Value: not null } found ? ExtrasText(found.Value) : "")}")) +
                      "\n\nBarae meherbani har product ki sale price bata dein (misaal: '" + Industry(seller).MainLine + "' ya \"teenon ki 5000\") — jo kuch aap ne bataya hai (cost, stock) woh yaad hai.";
+        // Products that were waiting before this message and still wait: one short line, never the full list again.
+        var olderWaiting = needPrice.Where(n => !newlyWaiting.Contains(n, StringComparer.OrdinalIgnoreCase)).ToList();
+        if (olderWaiting.Count > 0)
+            reply += "\n\n" + MessageTemplates.Get("commands.057", string.Join(", ", olderWaiting), olderWaiting[0]);
         // A range is not a price: say what was heard and ask for one, instead of guessing an end of it.
         foreach (var nvRange in products.Where(x => x.Price is null && x.PriceLow is not null && x.PriceHigh is not null))
             reply += "\n\n" + MessageTemplates.Get("commands.055", nvRange.Name, Formatters.Money(nvRange.PriceLow!.Value), Formatters.Money(nvRange.PriceHigh!.Value));
         foreach (var nvDrop in droppedNumbers.Distinct())
             reply += "\n\n" + MessageTemplates.Get("commands.056", nvDrop.Name, nvDrop.What, Industry(seller).CostLine);
-        if (needPrice.Count > 0) reply += "\n\n" + PriceHowToText(needPrice[0]);
+        if (newlyWaiting.Count > 0) reply += "\n\n" + PriceHowToText(newlyWaiting[0]);
         if (reply.Trim().Length > 0) await ReplyAsync(seller, reply.TrimEnd(), ct);
         if (toConfirm.Count > 0) await AskProductConfirmationAsync(seller, ctx, toConfirm, ct);
     }
