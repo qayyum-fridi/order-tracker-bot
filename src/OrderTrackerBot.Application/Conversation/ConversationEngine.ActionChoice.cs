@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using OrderTrackerBot.Application.Ai;
 using OrderTrackerBot.Application.Templates;
 using OrderTrackerBot.Domain.Entities;
