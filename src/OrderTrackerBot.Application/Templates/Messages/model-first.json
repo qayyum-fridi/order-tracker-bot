@@ -4,6 +4,7 @@
   "model-first.scope": "🙏 Maaf kijiye, yeh kaam abhi main nahi karta. Abhi main yeh kar sakta hoon:\n\n🛒 Order likhna: {1}\n📦 Product rakhna: {0}\n👤 Customer rakhna aur dikhana\n📋 Order aur aaj ka hisaab dikhana\n\n💡 Poori list ke liye \"commands\" likhein.",
   "model-first.unclear": "🙏 Maaf kijiye, poori baat samajh nahi aayi. Barae meherbani thoda khol kar dobara bol dein ya likh dein, jaise:\n\n🛒 Order: {1}\n📦 Naya product: {0}\n\n💡 Poori list ke liye \"commands\" likhein.",
   "model-first.pick": "🤔 Pakka nahi hua ke aap kya karna chahte hain. Neeche se ek chunein:",
+  "model-first.decline": "🙏 Yeh kaam abhi main nahi karta. Kya aap in mein se kuch karna chahte hain?",
   "model-expense.001": "❓ {0} ka kharcha {1} likh dein? Haan ke liye YES likhein, nahi ke liye NO.",
   "model-expense.002": "❓ Har mahine ki 1 tareekh ko {0}: {1} khud likh dein? Haan ke liye YES likhein, nahi ke liye NO.",
   "model-first.howto.addproduct": "📦 Naya product rakhne ke liye uska naam aur qeemat bol dein ya likh dein, jaise:\n\n{0}\n\nYa: \"{1} naya product hai, qeemat itni hai\".",

@@ -388,6 +388,8 @@ public sealed class ActionChoiceOption
     /// <summary>The action, or "none" for the "Kuch aur" tap.</summary>
     public string Action { get; set; } = "";
     public string Label { get; set; } = "";
+    /// <summary>The model's own 0 to 10 score for this action when it was offered (0 for "Kuch aur"); kept only to tune the cut-offs.</summary>
+    public int Score { get; set; }
 }
 
 /// <summary>A further action from the same message, waiting until the open question is answered (see <c>DrainModelQueueAsync</c>).</summary>

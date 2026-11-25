@@ -62,15 +62,28 @@ public partial class ConversationEngine
     internal static bool NeedsActionChoice(TurnAction action) =>
         action.Score is { } score && (score < ActionRunScore || action.Alternatives.Any(a => a.Score > score - ActionRunGap));
 
-    /// <summary>True when the "which one?" taps were sent. False = the action is trusted (or nothing worth offering): the caller carries on as before.</summary>
-    private async Task<bool> TryAskWhichActionAsync(Seller seller, ConversationSession session, SessionContextData ctx, TurnAction action, string message,
-        bool fromVoice, Func<Task>? beforeAsk, CancellationToken ct)
+    /// <summary>
+    /// What the bot did with a model answer, for tuning the cut-offs: the action with its score (as 0 to 1) and what happened. Kept in the router-decision log
+    /// (intent and number only, never the message or the seller); "mf:" marks it as the model-first path, and outcomes start with "mf_".
+    /// </summary>
+    private void RecordModelDecision(string action, int? score, string outcome)
     {
-        if (!NeedsActionChoice(action)) return false;
+        if (score is null) return;
+        _db.RouterDecisions.Add(new RouterDecision { IntentId = "mf:" + action, Confidence = score.Value / 10.0, Outcome = outcome });
+    }
+
+    /// <summary>
+    /// True when the "which one?" taps were sent. False = the action is trusted (or nothing worth offering): the caller carries on as before.
+    /// <paramref name="decline"/>: the model is sure the task is not one the bot does, but it scored other actions close; they are offered after the catalog could not place it.
+    /// </summary>
+    private async Task<bool> TryAskWhichActionAsync(Seller seller, ConversationSession session, SessionContextData ctx, TurnAction action, string message,
+        bool fromVoice, Func<Task>? beforeAsk, CancellationToken ct, bool decline = false)
+    {
+        if (action.Score is null || (!decline && !NeedsActionChoice(action))) return false;
         var options = new[] { new ActionGuess(action.Action, action.Score!.Value) }.Concat(action.Alternatives)
             .Where(g => ActionLabels.ContainsKey(g.Action) && (g.Action == action.Action || g.Score >= ActionMinScore))
             .OrderByDescending(g => g.Score).Take(ActionChoiceLimit)
-            .Select(g => new ActionChoiceOption { Action = g.Action, Label = ActionLabels[g.Action] }).ToList();
+            .Select(g => new ActionChoiceOption { Action = g.Action, Label = ActionLabels[g.Action], Score = g.Score }).ToList();
         if (options.Count == 0) return false;
         options.Add(new ActionChoiceOption { Action = "none", Label = ActionNoneLabel });
 
@@ -82,7 +95,8 @@ public partial class ConversationEngine
         SetState(session, ConversationState.AwaitingClarificationChoice);
         // Scores only, never the message text (it holds names and amounts).
         _logger?.LogInformation("ModelFirst: not sure (score {Score}, first {Action}), asked which of {Count} actions was meant", action.Score, action.Action, options.Count - 1);
-        await SendChoicesAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("model-first.pick"),
+        RecordModelDecision(action.Action, action.Score, decline ? "mf_decline" : "mf_ask");
+        await SendChoicesAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get(decline ? "model-first.decline" : "model-first.pick"),
             ctx.ClarificationOptions.Select(l => new ChoiceOption(l, l)).ToList(), ct);
         return true;
     }
@@ -102,6 +116,7 @@ public partial class ConversationEngine
 
         if (index < 0)
         {
+            RecordModelDecision("none", 0, "mf_moved");
             // Not a tap: the seller moved on. A typed command runs; anything else is a new message.
             if (CommandParser.TryParse(message) is { } command) await ExecuteCommandAsync(seller, session, ctx, command, ct);
             else await HandleFreeformMessageAsync(seller, session, ctx, message, ct);
@@ -110,6 +125,7 @@ public partial class ConversationEngine
 
         var profile = Industry(seller);
         var picked = choice.Options[index];
+        RecordModelDecision(picked.Action, picked.Score, "mf_picked");
         if (picked.Action == "none")
         {
             await ReplyAsync(seller, MessageTemplates.Get("model-first.unclear", profile.MainLine, profile.OrderExample), ct);
