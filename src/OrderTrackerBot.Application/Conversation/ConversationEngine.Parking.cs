@@ -71,6 +71,29 @@ public partial class ConversationEngine
         foreach (var a in actions.Where(a => RequestActions.Contains(a.Action)))
             ctx.ModelQueue.Add(new QueuedModelTurn(Plain(a), message));
         await ReplyAsync(seller, MessageTemplates.Get("park.001", GuidanceFor(session.State, ctx, seller)), ct);
+        // The seller may have scrolled past the open question: ask it again with its own options as taps.
+        if (session.State == ConversationState.AwaitingClarificationChoice && ctx.ClarificationOptions is { Count: > 0 } open)
+            await SendChoicesAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("park.002"), open.Select(o => new ChoiceOption(o, o)).ToList(), ct);
+        return true;
+    }
+
+    /// <summary>A 1 / 2 pick question older than this is dropped: the seller has moved on, and every new request would otherwise be parked behind it.</summary>
+    private static readonly TimeSpan PickQuestionExpiry = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// Drops an open pick question (<see cref="ConversationState.AwaitingClarificationChoice"/>) that was asked more than <see cref="PickQuestionExpiry"/> ago.
+    /// Requests parked behind it stay in <see cref="SessionContextData.ModelQueue"/> and run at the end of this message. True when it was dropped.
+    /// </summary>
+    private async Task<bool> DropExpiredPickQuestionAsync(Seller seller, ConversationSession session, SessionContextData ctx, CancellationToken ct)
+    {
+        if (session.State != ConversationState.AwaitingClarificationChoice || ctx.PickAskedAt is not { } asked
+            || _clock.GetUtcNow().UtcDateTime - asked <= PickQuestionExpiry)
+            return false;
+        ctx.ClarificationOptions = null;
+        ctx.ClarifiedText = null;
+        ctx.PickAskedAt = null;
+        SetState(session, ConversationState.Idle);
+        if (ctx.ModelQueue.Count > 0) await ReplyAsync(seller, MessageTemplates.Get("park.003"), ct);
         return true;
     }
 }

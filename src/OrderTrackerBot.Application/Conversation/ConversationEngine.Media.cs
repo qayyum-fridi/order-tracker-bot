@@ -198,6 +198,10 @@ public partial class ConversationEngine
             return;
         }
 
+        // An old 1 / 2 pick question is dropped before the note is read, so the note is not parked behind a question nobody sees any more.
+        var pickCtx = SessionContextData.FromJson(seller.Session!.ContextJson);
+        if (await DropExpiredPickQuestionAsync(seller, seller.Session!, pickCtx, ct)) await PersistAsync(seller.Session!, pickCtx, ct);
+
         // Features:ModelFirst: the transcript is read by the one understanding call. The echo is sent only when that call's action is going to run.
         if (_features.ModelFirst is "shadow" or "on")
         {
@@ -249,6 +253,7 @@ public partial class ConversationEngine
                 var voiceSession = seller.Session!;
                 var voiceCtx = SessionContextData.FromJson(voiceSession.ContextJson);
                 voiceCtx.ClarificationOptions = options.ToList();
+                voiceCtx.PickAskedAt = _clock.GetUtcNow().UtcDateTime;
                 voiceCtx.GuidedTurn = null;
                 SetState(voiceSession, ConversationState.AwaitingClarificationChoice);
                 voiceSession.ContextJson = voiceCtx.ToJson();

@@ -1,5 +1,7 @@
 {
   "park.001": "📝 I have noted your new request. I will do it as soon as you answer the earlier question.\n\n{0}",
+  "park.002": "❓ The first question is still open. Pick one of these, or type \"cancel\":",
+  "park.003": "ℹ️ The earlier question was more than 10 minutes old, so it was dropped. I am doing your waiting request now.",
   "spoken.more": "{0} The rest of the details are in the text.",
   "spoken.list": "{0} There are {1} items. The full list is in the text.",
   "spoken.summary.today": "Today {0} orders came in, total sales {1}.",

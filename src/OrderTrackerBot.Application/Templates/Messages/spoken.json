@@ -1,5 +1,7 @@
 {
   "park.001": "📝 Aap ki nayi baat yaad rakh li hai. Pehle wale sawal ka jawab dete hi woh bhi kar dunga.\n\n{0}",
+  "park.002": "❓ Pehla sawal abhi khula hai. In mein se ek chunein, ya \"cancel\" likhein:",
+  "park.003": "ℹ️ Pichla sawal 10 minute se zyada purana tha, is liye chhod diya gaya. Aap ki rukhi hui baat ab kar raha hoon.",
   "spoken.more": "{0} Baaki tafseel text mein likhi hai.",
   "spoken.list": "{0} Is mein {1} cheezein hain. Poori list text mein hai.",
   "spoken.summary.today": "Aaj {0} order aaye, kul sale {1} ki hui.",

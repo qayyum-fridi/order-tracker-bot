@@ -346,6 +346,9 @@ public partial class ConversationEngine
             return;
         }
 
+        // A 1 / 2 pick question left open for a long time is dropped, so it cannot swallow every later message (ConversationEngine.Parking.cs).
+        await DropExpiredPickQuestionAsync(seller, session, ctx, ct);
+
         // An order draft left waiting for a long time is dropped: a phone or name sent hours later must not be taken as its answer.
         if (session.State is ConversationState.AwaitingOrderConfirmation or ConversationState.AwaitingOrderMissingFields
                 or ConversationState.AwaitingOrderGroupingChoice or ConversationState.AwaitingMultiOrderConfirmation
@@ -732,6 +735,9 @@ public partial class ConversationEngine
         // A draft's clock starts when it is first persisted, and stops when the draft is gone.
         if (ctx.PendingOrder is null) ctx.PendingOrderAskedAt = null;
         else ctx.PendingOrderAskedAt ??= _clock.GetUtcNow().UtcDateTime;
+        // An open pick question keeps its first-asked time even while parked messages keep the session busy (UpdatedAt moves on every message).
+        if (session.State == ConversationState.AwaitingClarificationChoice) ctx.PickAskedAt ??= _clock.GetUtcNow().UtcDateTime;
+        else ctx.PickAskedAt = null;
         session.ContextJson = ctx.ToJson();
         session.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);

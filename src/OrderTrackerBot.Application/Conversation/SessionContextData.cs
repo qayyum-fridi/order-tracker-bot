@@ -156,6 +156,8 @@ public sealed class SessionContextData
     public DateTime? PendingOrderAskedAt { get; set; }
     public string? PendingMissingField { get; set; }
     public List<string>? ClarificationOptions { get; set; }
+    /// <summary>When the open 1 / 2 pick question was first asked (UTC). Set by the engine on persist, cleared when the question is gone; a question older than <c>PickQuestionExpiry</c> is dropped.</summary>
+    public DateTime? PickAskedAt { get; set; }
     /// <summary>The sentence the bot just asked "what did you mean?" about; when the seller picks an option it is learned for this seller.</summary>
     public string? ClarifiedText { get; set; }
     /// <summary>Phrases this seller taught (normalised sentence -> command text), see ConversationEngine.Learning.cs.</summary>

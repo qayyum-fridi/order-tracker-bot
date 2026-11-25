@@ -1,8 +1,8 @@
 {
   "model-first.clarify": "❓ {0}",
   "model-first.help": "🙂 Jee, main aap ki dukaan ka hisaab rakhta hoon. Bas bol dein ya likh dein, jaise:\n\n🛒 Order: {1}\n📦 Naya product: {0}\n👤 Naya customer: naam, phone aur pata bata dein\n📋 \"aaj ke order dikhao\" ya \"aaj ka hisaab\"",
-  "model-first.scope": "🙏 Maaf kijiye, yeh kaam abhi main nahi karta. Abhi main yeh kar sakta hoon:\n\n🛒 Order likhna: {1}\n📦 Product rakhna: {0}\n👤 Customer rakhna aur dikhana\n📋 Order aur aaj ka hisaab dikhana",
-  "model-first.unclear": "🙏 Maaf kijiye, poori baat samajh nahi aayi. Barae meherbani thoda khol kar dobara bol dein ya likh dein, jaise:\n\n🛒 Order: {1}\n📦 Naya product: {0}",
+  "model-first.scope": "🙏 Maaf kijiye, yeh kaam abhi main nahi karta. Abhi main yeh kar sakta hoon:\n\n🛒 Order likhna: {1}\n📦 Product rakhna: {0}\n👤 Customer rakhna aur dikhana\n📋 Order aur aaj ka hisaab dikhana\n\n💡 Poori list ke liye \"commands\" likhein.",
+  "model-first.unclear": "🙏 Maaf kijiye, poori baat samajh nahi aayi. Barae meherbani thoda khol kar dobara bol dein ya likh dein, jaise:\n\n🛒 Order: {1}\n📦 Naya product: {0}\n\n💡 Poori list ke liye \"commands\" likhein.",
   "model-first.howto.addproduct": "📦 Naya product rakhne ke liye uska naam aur qeemat bol dein ya likh dein, jaise:\n\n{0}\n\nYa: \"{1} naya product hai, qeemat itni hai\".",
   "model-first.howto.editproduct": "✏️ Qeemat badalne ke liye product ka naam aur nayi qeemat bol dein, jaise:\n\n\"{0} ka rate ab 2000 hai\"\n\nMain pehle aap se poochhunga, phir badlunga.",
   "model-first.howto.showcatalog": "📦 Apne products dekhne ke liye bol dein ya likh dein:\n\n\"mere products dikhao\" ya \"catalog\"",
