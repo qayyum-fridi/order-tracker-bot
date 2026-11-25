@@ -96,7 +96,11 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
         "courier = the courier's name as said (null if none); amount = the money said. Money from a CUSTOMER is record_payment, never this.\n" +
         "- set_tracking: a parcel's tracking number ('order 12 ka tracking TCS 77123456', 'Sara ke parcel ka number 88231 hai Leopards'). " +
         "order_id or customer_name; courier; value = the tracking number exactly as said.\n" +
-        "- out_of_scope: a shop task this bot does not do yet (expenses, discounts, receipts, profit reports).\n" +
+        "- record_expense: the shop SPENT money once on something (rent, electricity, petrol, tea, packaging): 'kiraya 15000 diya', 'petrol 1000', 'پندرہ ہزار کا کرایہ ڈال دیں'. " +
+        "value = what it was for, in the owner's own word (kiraya, bijli, petrol); amount = the money said. Money from a customer is record_payment, never this.\n" +
+        "- monthly_expense: a cost that repeats EVERY MONTH and should be added by itself on the 1st ('kiraya har mahine 15000', 'mahine ka 15000 kiraya', 'مہینے کا پندرہ ہزار پہ کرائے کا', 'monthly bijli 8000'). " +
+        "The words month / mahine / mahana / har mahine / monthly mark it; without them it is record_expense. value = what it is for; amount = the money said. It is never show_summary.\n" +
+        "- out_of_scope: a shop task this bot does not do yet (discounts, profit reports).\n" +
         "Never invent a number, name or phone that is not in the text. Use null for anything not said. " +
         "order_id is ONLY the order number the owner said ('order 3', 'teen number wala', 'تین نمبر آرڈر' = 3); when they named a customer and no number, " +
         "leave order_id null and give customer_name. Never pick an order_id from the list of latest orders yourself. " +
@@ -295,8 +299,8 @@ public sealed class OpenAiTurnInterpreter : ITurnInterpreter
             Topic = topic is not null && TurnAction.HowToTopics.Contains(topic) ? topic : null,
             Question = Str(root, "question"),
             OrderEdits = orderEdits,
-            // Money received belongs to record_payment only; an amount on another action is not carried.
-            Amount = action is TurnAction.RecordPayment or TurnAction.RecordPayout && Dec(root, "amount") is > 0 and var paid ? paid : null,
+            // An amount is carried only for money actions (payment, payout, expense); on any other action it is dropped.
+            Amount = action is TurnAction.RecordPayment or TurnAction.RecordPayout or TurnAction.RecordExpense or TurnAction.MonthlyExpense && Dec(root, "amount") is > 0 and var paid ? paid : null,
             PaidInFull = action == TurnAction.RecordPayment && root.TryGetProperty("paid_in_full", out var full) && full.ValueKind == JsonValueKind.True,
             Courier = action is TurnAction.RecordPayout or TurnAction.SetTracking ? Str(root, "courier") : null,
         };

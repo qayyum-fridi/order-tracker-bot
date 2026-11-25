@@ -188,6 +188,8 @@ public partial class ConversationEngine
                                     && await ModelPaymentOrderAsync(seller, action, message, ct) is not null,
         TurnAction.CodPending => true,
         TurnAction.RecordPayout => action.Amount is > 0 && SaidNumbers(message).Contains((long)Math.Round(action.Amount.Value, MidpointRounding.AwayFromZero)),
+        TurnAction.RecordExpense or TurnAction.MonthlyExpense => !string.IsNullOrWhiteSpace(action.Value)
+            && action.Amount is > 0 && SaidNumbers(message).Contains((long)Math.Round(action.Amount.Value, MidpointRounding.AwayFromZero)),
         // The tracking number must be in the seller's words (it is copied, never made up), and the order must be found.
         TurnAction.SetTracking => !string.IsNullOrWhiteSpace(action.Value) && Compact(message).Contains(Compact(action.Value), StringComparison.OrdinalIgnoreCase)
                                   && await ModelTrackingOrderAsync(seller, action, message, ct) is not null,
@@ -479,6 +481,16 @@ public partial class ConversationEngine
             case TurnAction.CodPending:
                 // What each courier still owes for delivered COD parcels (ConversationEngine.Payouts.cs).
                 await HandlePayoutAsync(seller, new ParsedCommand { Kind = CommandKind.Payout, Text = "pending" }, ct);
+                return true;
+
+            case TurnAction.RecordExpense when action.Amount is > 0 && !string.IsNullOrWhiteSpace(action.Value):
+                // The same handler as the typed "kharcha 15000 kiraya": written now, with its undo record.
+                await HandleExpenseAsync(seller, new ParsedCommand { Kind = CommandKind.Expense, Text = action.Value!.Trim(), Amount = action.Amount }, ct);
+                return true;
+
+            case TurnAction.MonthlyExpense when action.Amount is > 0 && !string.IsNullOrWhiteSpace(action.Value):
+                // The same handler as the typed "kiraya har mahine 15000": saved to be added on the 1st of each month.
+                await HandleRecurringExpenseAsync(seller, ctx, new ParsedCommand { Kind = CommandKind.RecurringExpense, Text = action.Value!.Trim().ToLowerInvariant(), Amount = action.Amount }, ct);
                 return true;
 
             case TurnAction.RecordPayout when action.Amount is > 0:

@@ -46,7 +46,7 @@ public partial class ConversationEngine
         TurnAction.AddProduct, TurnAction.EditProduct, TurnAction.AddStock, TurnAction.ShowCatalog, TurnAction.AddCustomer, TurnAction.EditCustomer,
         TurnAction.EditOrder, TurnAction.ExchangeSize, TurnAction.CreateCategory, TurnAction.ShowCustomer, TurnAction.DeleteProduct, TurnAction.DeleteCustomer,
         TurnAction.RestoreProduct, TurnAction.RestoreCustomer,
-        TurnAction.RecordPayment, TurnAction.CodPending, TurnAction.RecordPayout, TurnAction.SetTracking,
+        TurnAction.RecordPayment, TurnAction.CodPending, TurnAction.RecordPayout, TurnAction.SetTracking, TurnAction.RecordExpense, TurnAction.MonthlyExpense,
     };
 
     private static readonly Regex JustANumber = new(@"^\s*#?\d{1,3}\s*$", RegexOptions.Compiled);

@@ -28,6 +28,8 @@ public sealed class TurnAction
     public const string CodPending = "cod_pending";
     public const string RecordPayout = "record_payout";
     public const string SetTracking = "set_tracking";
+    public const string RecordExpense = "record_expense";
+    public const string MonthlyExpense = "monthly_expense";
     public const string RestoreProduct = "restore_product";
     public const string RestoreCustomer = "restore_customer";
     public const string HowTo = "how_to";
@@ -42,7 +44,7 @@ public sealed class TurnAction
     {
         CreateOrder, UpdateStatus, CancelOrder, ShowOrders, ShowOrder, ShowSummary, AddProduct, EditProduct, AddStock, ShowCatalog,
         AddCustomer, EditCustomer, EditOrder, ExchangeSize, CreateCategory, ShowCustomer, DeleteProduct, DeleteCustomer, RestoreProduct, RestoreCustomer,
-        RecordPayment, CodPending, RecordPayout, SetTracking, HowTo, ContactSupport, Clarify, Undo, HelpOrChat, OutOfScope
+        RecordPayment, CodPending, RecordPayout, SetTracking, RecordExpense, MonthlyExpense, HowTo, ContactSupport, Clarify, Undo, HelpOrChat, OutOfScope
     };
 
     /// <summary>Most actions one message may carry. Extra ones beyond this are dropped by the parser.</summary>
