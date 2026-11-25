@@ -86,7 +86,6 @@ public class ModelFirstFreeFormTests : IDisposable
 
     [Theory]
     [InlineData(TurnAction.HelpOrChat, "dukaan ka hisaab rakhta hoon")]
-    [InlineData(TurnAction.OutOfScope, "yeh kaam abhi main nahi karta")]
     [InlineData(TurnAction.CreateOrder, "poori baat samajh nahi aayi")]   // an order with no details: asked again, nothing guessed
     public async Task Nothing_to_run_gets_one_plain_reply(string action, string expected)
     {
@@ -94,6 +93,18 @@ public class ModelFirstFreeFormTests : IDisposable
 
         Assert.Contains(expected, Assert.Single(_sent));
         OlderPipelineWasNotAsked();
+    }
+
+    [Fact]
+    public async Task OutOfScope_asks_the_catalog_once_and_still_gets_one_plain_reply_when_it_places_nothing()
+    {
+        await SayAsync("kuch bhi keh diya", new TurnAction { Action = TurnAction.OutOfScope });
+
+        Assert.Contains("yeh kaam abhi main nahi karta", Assert.Single(_sent));
+        // The intent catalog has far more commands than the model's own action list, so it gets one turn before "not something I do";
+        // the older order reader is still never asked.
+        _ai.Verify(a => a.AnalyzeMessageAsync(It.IsAny<AiAnalysisContext>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _ai.Verify(a => a.RouteIntentAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<OrderTrackerBot.Application.Intents.IntentDefinition>>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

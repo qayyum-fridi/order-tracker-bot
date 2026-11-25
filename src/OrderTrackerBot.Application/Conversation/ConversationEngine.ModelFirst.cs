@@ -46,7 +46,11 @@ public partial class ConversationEngine
             return true;
 
         // Not sure enough, or two actions close in score: ask which one is meant, with taps, instead of running a guess (ConversationEngine.ActionChoice.cs).
-        if (final && actions.Count == 1 && await TryAskWhichActionAsync(seller, session, ctx, action, message, fromVoice, beforeRun, ct)) return true;
+        if (final && actions.Count == 1)
+        {
+            if (await TryAskWhichActionAsync(seller, session, ctx, action, message, fromVoice, beforeRun, ct)) return true;
+            RecordModelDecision(action.Action, action.Score, "mf_run");
+        }
 
         if (actions.Count == 1)
         {
@@ -58,6 +62,16 @@ public partial class ConversationEngine
             if (beforeRun is not null) await beforeRun();
             if (runnable && await RunTurnActionAsync(seller, session, ctx, action, catalog, message, ct, fromScreenshot)) return true;
             if (!final) return false;
+            if (action.Action == TurnAction.OutOfScope && image is null)
+            {
+                // No action of the model's list fits, but the catalog has far more commands: it may place the message; failing that, offer the closest actions the model scored.
+                if (await TryRunRoutedIntentAsync(seller, session, ctx, message, ct))
+                {
+                    RecordModelDecision(action.Action, action.Score, "mf_catalog");
+                    return true;
+                }
+                if (await TryAskWhichActionAsync(seller, session, ctx, action, message, fromVoice, null, ct, decline: true)) return true;
+            }
             await ReplyNotRunAsync(seller, action, ct);
             return true;
         }
