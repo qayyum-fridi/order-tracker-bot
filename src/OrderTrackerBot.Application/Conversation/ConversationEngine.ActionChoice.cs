@@ -6,18 +6,15 @@ using OrderTrackerBot.Domain.Enums;
 
 namespace OrderTrackerBot.Application.Conversation;
 
-// Scored choice: the understanding call also says how sure it is (0 to 10) and what else the message could mean. When it is not sure, or a second
-// action scores close to the first, the bot does not run a guess: it asks which one is meant, with taps in plain words and a "Kuch aur" way out.
+// Scored choice: the understanding call also says how sure it is (0 to 10) and what else the message could mean. The choice itself is made by
+// ConversationPipeline.SelectAction (Stage 3 candidates, Stage 5a selector). Only a clear Select runs; a close or low or conflicting choice asks
+// which one is meant, with taps in plain words and a "Kuch aur" way out.
 // A tap runs the model again with that action confirmed (so its fields are filled from the same message), then the action runs through the usual
 // handlers, including their own YES for anything that changes money or data. The taps use the pick-question state, so re-showing them while another
 // request is parked, and dropping them after 10 minutes, already work (ConversationEngine.Parking.cs).
 public partial class ConversationEngine
 {
-    /// <summary>A score at or above this, with the next action well behind, runs without asking.</summary>
-    internal const int ActionRunScore = 8;
-    /// <summary>The first action must lead the next one by at least this many points to run without asking.</summary>
-    internal const int ActionRunGap = 4;
-    /// <summary>An alternative below this score is not worth a tap.</summary>
+    /// <summary>An alternative below this score (0 to 10) is not worth a tap.</summary>
     private const int ActionMinScore = 3;
     /// <summary>At most this many actions are offered (plus "Kuch aur"), so they stay one-tap buttons.</summary>
     private const int ActionChoiceLimit = 2;
@@ -58,15 +55,15 @@ public partial class ConversationEngine
         [TurnAction.HowTo] = "Tarika janna",
     };
 
-    /// <summary>True when the score is missing-free and low, or another action is within <see cref="ActionRunGap"/> points of it.</summary>
-    internal static bool NeedsActionChoice(TurnAction action) =>
-        action.Score is { } score && (score < ActionRunScore || action.Alternatives.Any(a => a.Score > score - ActionRunGap));
+    /// <summary>True unless Stage 5a selects the action clearly (see <see cref="CandidateSelector"/>).</summary>
+    internal static bool NeedsActionChoice(TurnAction action, string? message = null) =>
+        action.Score is not null && ConversationPipeline.SelectAction(action, message).Decision != CandidateDecision.Select;
 
     /// <summary>True when the "which one?" taps were sent. False = the action is trusted (or nothing worth offering): the caller carries on as before.</summary>
     private async Task<bool> TryAskWhichActionAsync(Seller seller, ConversationSession session, SessionContextData ctx, TurnAction action, string message,
         bool fromVoice, Func<Task>? beforeAsk, CancellationToken ct)
     {
-        if (!NeedsActionChoice(action)) return false;
+        if (!NeedsActionChoice(action, message)) return false;
         var options = new[] { new ActionGuess(action.Action, action.Score!.Value) }.Concat(action.Alternatives)
             .Where(g => ActionLabels.ContainsKey(g.Action) && (g.Action == action.Action || g.Score >= ActionMinScore))
             .OrderByDescending(g => g.Score).Take(ActionChoiceLimit)

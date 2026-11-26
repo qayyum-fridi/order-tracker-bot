@@ -65,12 +65,12 @@ public class ScoredChoiceTests : IDisposable
     // ----- the rule -----
 
     [Theory]
-    [InlineData(10, 0, 0, false)]    // sure and nothing else close
-    [InlineData(9, 6, 0, true)]      // a second action only 3 behind
-    [InlineData(9, 5, 0, false)]     // 4 behind: clear
-    [InlineData(8, 3, 0, false)]
-    [InlineData(7, 0, 0, true)]      // not sure on its own
-    [InlineData(5, 4, 0, true)]
+    [InlineData(10, 0, 0, false)]    // sure (1.0), nothing else close: select
+    [InlineData(9, 0, 0, false)]     // 0.9 with no rival: select
+    [InlineData(9, 8, 0, true)]      // rival 0.8, margin 0.1 under 0.15: clarify
+    [InlineData(9, 6, 0, false)]     // rival 0.6, margin 0.3: select
+    [InlineData(8, 0, 0, true)]      // 0.8 under the 0.85 select score: clarify
+    [InlineData(5, 0, 0, true)]      // 0.5 under the 0.55 floor: reject, which asks too
     public void NeedsActionChoice_FollowsTheScoreAndTheGap(int score, int alternative, int unused, bool expected)
     {
         var action = new TurnAction { Action = TurnAction.RecordExpense, Score = score };
