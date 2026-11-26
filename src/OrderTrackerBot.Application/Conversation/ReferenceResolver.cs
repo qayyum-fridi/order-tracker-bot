@@ -36,6 +36,14 @@ public sealed class ReferenceResolver
         var needle = (name ?? string.Empty).Trim().ToLowerInvariant();
         if (needle.Length == 0) return new(ReferenceStatus.NotFound, null, None);
 
+        // The full name matches exactly one saved customer: that is the customer, not a guess among those containing it.
+        var exact = await _db.Customers
+            .Where(c => c.SellerId == sellerId && c.DeletedAt == null && c.Name.ToLower() == needle)
+            .Select(c => c.Id)
+            .Take(2)
+            .ToListAsync(ct);
+        if (exact.Count == 1) return new(ReferenceStatus.Resolved, exact[0], exact);
+
         var ids = await _db.Customers
             .Where(c => c.SellerId == sellerId && c.DeletedAt == null && c.Name.ToLower().Contains(needle))
             .OrderBy(c => c.Id)
