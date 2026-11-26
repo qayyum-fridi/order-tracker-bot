@@ -100,13 +100,14 @@ public sealed class ConversationPipelineTests
     }
 
     [Fact]
-    public void Analyze_LowScoreIsReportedAsLowConfidenceNotCloseCandidates()
+    public void Analyze_ModerateScoreWithArgumentsSeenIsBelowSelectNotCloseCandidates()
     {
+        // Intent 0.5 plus the amount (15000) found in the message lifts the composite to about 0.61: the clarify band, not reject.
         var action = new TurnAction { Action = TurnAction.RecordExpense, Score = 5, Value = "rent", Amount = 15000 };
 
         var result = ConversationPipeline.Analyze("rent 15000", action);
 
         Assert.Equal(ConversationPipelineStage.Ambiguous, result.Stage);
-        Assert.Equal("low_confidence", result.Reason);
+        Assert.Equal("below_select_score", result.Reason);
     }
 }
