@@ -67,11 +67,29 @@ public static class ConversationPipeline
         return new(input, entities, candidates, Array.Empty<string>(), ConversationPipelineStage.SafetyValidation);
     }
 
+    // An order ID needs an explicit order marker ("order 12", "#12", "no. 12"). Any other number is a plain "number": never an order ID.
+    private static readonly Regex OrderIdMarked = new(
+        @"(?<![\p{L}])(?:orders?|odr|number|num|no|nambar|numbar|id|آرڈر|نمبر)\.?\s*[#:]?\s*(\d+)(?![\p{L}\p{N}])|#\s*(\d+)(?!\d)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
     private static IReadOnlyList<ConversationEntity> ExtractEntities(string input)
     {
         var entities = new List<ConversationEntity>();
         entities.AddRange(Phone.Matches(input).Select(m => new ConversationEntity("phone", m.Value)));
-        entities.AddRange(Number.Matches(input).Select(m => new ConversationEntity("number", m.Value)));
+
+        var orderSpans = new List<(int Start, int End)>();
+        foreach (Match m in OrderIdMarked.Matches(input))
+        {
+            var digits = m.Groups[1].Success ? m.Groups[1] : m.Groups[2];
+            entities.Add(new ConversationEntity("order_id", digits.Value));
+            orderSpans.Add((digits.Index, digits.Index + digits.Length));
+        }
+
+        foreach (Match m in Number.Matches(input))
+        {
+            if (orderSpans.Any(s => m.Index >= s.Start && m.Index < s.End)) continue;
+            entities.Add(new ConversationEntity("number", m.Value));
+        }
         return entities;
     }
 

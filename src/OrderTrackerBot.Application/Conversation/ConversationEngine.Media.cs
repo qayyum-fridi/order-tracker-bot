@@ -188,7 +188,8 @@ public partial class ConversationEngine
 
         // Typed text and voice transcripts must enter the same parser with the same Unicode, digit and whitespace rules.
         text = InputTextNormalizer.Normalize(text);
-        var voicePipeline = ConversationPipeline.Analyze(text);
+        // Same candidate step as typed text (ConversationEngine.cs HandleIncomingCoreAsync): only the transcription differs.
+        var voicePipeline = ConversationPipeline.Analyze(text, command: CommandParser.TryParse(text));
         _logger?.LogInformation("ConversationPipeline input={InputKind} stage={Stage} entities={Entities} candidates={Candidates}",
             "voice", voicePipeline.Stage, voicePipeline.Entities.Count, voicePipeline.Candidates.Count);
 

@@ -17,6 +17,27 @@ public sealed class ConversationPipelineTests
         Assert.Equal(ConversationPipelineStage.ProduceCandidates, result.Stage);
     }
 
+    [Theory]
+    [InlineData("order 12 shipped", "12")]
+    [InlineData("#12 cancel", "12")]
+    [InlineData("order no. 7", "7")]
+    public void Analyze_OrderIdOnlyWithOrderMarker(string input, string id)
+    {
+        var result = ConversationPipeline.Analyze(input);
+
+        Assert.Contains(result.Entities, e => e.Kind == "order_id" && e.Value == id);
+        Assert.DoesNotContain(result.Entities, e => e.Kind == "number" && e.Value == id);
+    }
+
+    [Fact]
+    public void Analyze_QuantityBeforeProductIsNeverOrderId()
+    {
+        var result = ConversationPipeline.Analyze("2 shirts add karo");
+
+        Assert.DoesNotContain(result.Entities, e => e.Kind == "order_id");
+        Assert.Contains(result.Entities, e => e.Kind == "number" && e.Value == "2");
+    }
+
     [Fact]
     public void Analyze_ReportsMissingFieldsBeforeSafetyValidation()
     {
