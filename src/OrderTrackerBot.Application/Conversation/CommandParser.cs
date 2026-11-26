@@ -1655,7 +1655,7 @@ public static class CommandParser
     public static ParsedCommand? TryParse(string rawMessage)
     {
         // Digits too big for int/decimal ("Order 9999999999") are not a command: the parser never throws on typed text.
-        try { return TryParseCommand(rawMessage); }
+        try { return TryParseCommand(InputTextNormalizer.Normalize(rawMessage)); }
         catch (OverflowException) { return null; }
     }
 

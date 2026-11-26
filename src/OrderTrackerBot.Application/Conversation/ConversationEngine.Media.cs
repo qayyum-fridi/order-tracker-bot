@@ -186,6 +186,9 @@ public partial class ConversationEngine
             return;
         }
 
+        // Typed text and voice transcripts must enter the same parser with the same Unicode, digit and whitespace rules.
+        text = InputTextNormalizer.Normalize(text);
+
         if (messageId is not null) await RememberVoiceNoteAsync(seller, messageId, ct);
         var heard = $"🎤 Maine suna: \"{text}\"";
         if (_voiceCorrectionOrderId is { } correcting) heard += $"\n{MessageTemplates.Get("voice-confirm.015", correcting)}";
@@ -1226,6 +1229,7 @@ public partial class ConversationEngine
         var ctx = SessionContextData.FromJson(session.ContextJson);
         // A photo sent after "photo customers" (etc.) is read as that kind, when it has no caption of its own.
         caption = PhotoCaptionFor(ctx, caption);
+        caption = string.IsNullOrWhiteSpace(caption) ? caption : InputTextNormalizer.Normalize(caption);
 
         if (!seller.OnboardingComplete)
         {

@@ -22,6 +22,7 @@ public partial class ConversationEngine
     private async Task<bool> TryModelFirstAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct,
         bool fromVoice = false, AiImageInput? image = null, bool fromScreenshot = false, Func<Task>? beforeRun = null, bool parkOnly = false)
     {
+        message = InputTextNormalizer.Normalize(message);
         if (_turnInterpreter is null || _features.ModelFirst is not ("shadow" or "on")) return false;
         // Exact typed commands ("orders today", "mark 3 shipped") keep their fast path; loose keyword rules are asked about. A picture is never an exact command.
         if (image is null && CommandParser.TryParse(message) is { } exact && !LooseRuleKinds.Contains(exact.Kind)) return false;
@@ -183,7 +184,8 @@ public partial class ConversationEngine
         TurnAction.ShowOrder => SaidOrderId(action, message) is not null || await ModelCustomerAsync(seller, action.CustomerName, ct) is not null,
         TurnAction.UpdateStatus => action.Status is not null && (SaidOrderId(action, message) is not null
                                    || (SaidName(action.CustomerName, message) && await ModelCustomerAsync(seller, action.CustomerName, ct) is not null)),
-        TurnAction.CancelOrder => SaidOrderId(action, message) is not null,
+        TurnAction.CancelOrder => SaidOrderId(action, message) is not null
+            || (SaidName(action.CustomerName, message) && await FindLatestOrderByCustomerNameAsync(seller, action.CustomerName!, ct) is not null),
         TurnAction.AddCustomer => action.Customer is not null,
         TurnAction.EditCustomer => action.CustomerName is not null && action.Field is not null && !string.IsNullOrWhiteSpace(action.Value),
         TurnAction.EditOrder => action.OrderEdits.Count > 0 && (SaidOrderId(action, message) is not null
@@ -243,8 +245,18 @@ public partial class ConversationEngine
     internal static int? SaidOrderId(TurnAction action, string message)
     {
         if (action.OrderId is not { } id) return null;
-        return SpokenNumbers.DigitAmounts(message).Contains(id) || SpokenNumbers.Amounts(message).Contains(id) || SpokenNumbers.SmallCounts(message).Contains(id) ? id : null;
+        var normalized = InputTextNormalizer.Normalize(message);
+        if (!HasExplicitOrderReference(normalized)) return null;
+        return SpokenNumbers.DigitAmounts(normalized).Contains(id) || SpokenNumbers.Amounts(normalized).Contains(id) || SpokenNumbers.SmallCounts(normalized).Contains(id) ? id : null;
     }
+
+    private static bool HasExplicitOrderReference(string message) =>
+        message.Contains("order", StringComparison.OrdinalIgnoreCase)
+        || message.Contains("odr", StringComparison.OrdinalIgnoreCase)
+        || message.Contains("number", StringComparison.OrdinalIgnoreCase)
+        || message.Contains("num", StringComparison.OrdinalIgnoreCase)
+        || message.Contains("آرڈر", StringComparison.Ordinal)
+        || message.Contains("نمبر", StringComparison.Ordinal);
 
     /// <summary>The reply when nothing ran: the model's own question, or what the bot can do, so the seller is never left with a guess.</summary>
     private async Task ReplyNotRunAsync(Seller seller, TurnAction action, CancellationToken ct)
@@ -367,6 +379,13 @@ public partial class ConversationEngine
             case TurnAction.CancelOrder when orderId is { } cancelId:
                 await HandleCancelOrderRequestAsync(seller, session, ctx,
                     new ParsedCommand { Kind = CommandKind.CancelOrder, Number = cancelId }, ct);
+                return true;
+
+            case TurnAction.CancelOrder when SaidName(action.CustomerName, message)
+                                             && await ModelCustomerAsync(seller, action.CustomerName, ct) is { } cancelCustomer
+                                             && await FindLatestOrderByCustomerNameAsync(seller, cancelCustomer.Name, ct) is { } latestCancel:
+                await HandleCancelOrderRequestAsync(seller, session, ctx,
+                    new ParsedCommand { Kind = CommandKind.CancelOrder, Number = latestCancel.Id }, ct);
                 return true;
 
             case TurnAction.UpdateStatus when action.Status is not null && SaidName(action.CustomerName, message)
