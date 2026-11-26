@@ -57,7 +57,7 @@ public partial class ConversationEngine
 
     /// <summary>True unless Stage 5a selects the action clearly (see <see cref="CandidateSelector"/>).</summary>
     internal static bool NeedsActionChoice(TurnAction action, string? message = null) =>
-        ConversationPipeline.SelectAction(action, message).Decision != CandidateDecision.Select;
+        action.Score is not null && ConversationPipeline.SelectAction(action, message).Decision != CandidateDecision.Select;
 
     /// <summary>True when the "which one?" taps were sent. False = the action is trusted (or nothing worth offering): the caller carries on as before.</summary>
     private async Task<bool> TryAskWhichActionAsync(Seller seller, ConversationSession session, SessionContextData ctx, TurnAction action, string message,

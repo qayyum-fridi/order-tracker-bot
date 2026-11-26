@@ -43,7 +43,8 @@ public static class CandidateGenerationService
     public static CandidateGenerationResult Generate(
         string input, ParsedCommand? command, TurnAction? model, IReadOnlyList<ConversationEntity> entities, CandidateContext? context)
     {
-        var (outcome, deterministic) = Deterministic(input, command, model is not null);
+        // A model action without a score is trusted as before: deterministic suggestions do not reopen it.
+        var (outcome, deterministic) = Deterministic(input, command, model?.Score is not null);
 
         var sources = new List<ConversationCandidate>(deterministic);
         if (model is not null) sources.AddRange(ModelCandidates(model, entities, input));
@@ -60,6 +61,7 @@ public static class CandidateGenerationService
         return new CandidateGenerationResult(candidates, outcome, blockers, conclusive);
     }
 
+    /// <param name="hasModel">True when a scored model action is present (see <see cref="Generate"/>).</param>
     private static (DeterministicOutcome Outcome, List<ConversationCandidate> Candidates) Deterministic(string input, ParsedCommand? command, bool hasModel)
     {
         if (command is not null)
