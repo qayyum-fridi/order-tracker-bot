@@ -26,6 +26,24 @@ public sealed class CandidateStageTests
     }
 
     [Fact]
+    public void Merge_SameActionDifferentArguments_StayCompeting()
+    {
+        var order12 = new ConversationCandidate("cancel_order", null, Intent: 0.9, Arguments: "12|||||");
+        var order13 = new ConversationCandidate("cancel_order", null, Intent: 0.9, Arguments: "13|||||");
+
+        Assert.Equal(2, CandidateMerger.Merge(new[] { order12, order13 }).Count);
+    }
+
+    [Fact]
+    public void Merge_UnstatedArgumentIsNotADifference()
+    {
+        var model = new ConversationCandidate("cancel_order", null, Intent: 0.9, Arguments: "12|||||");
+        var deterministic = new ConversationCandidate("cancel_order", null, IsDeterministic: true, Intent: 1, Pattern: 1);
+
+        Assert.Single(CandidateMerger.Merge(new[] { deterministic, model }));
+    }
+
+    [Fact]
     public void Merge_PlanMembersAreNotAlsoListedAlone()
     {
         var plan = new ConversationCandidate("cancel_order+create_order", null, Plan: new[] { "cancel_order", "create_order" }, Intent: 0.9);

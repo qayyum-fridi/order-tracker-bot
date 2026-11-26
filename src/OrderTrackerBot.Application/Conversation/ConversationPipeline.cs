@@ -32,7 +32,8 @@ public sealed record ConversationCandidate(
     double? Entity = null,
     double? Context = null,
     double? Argument = null,
-    IReadOnlyList<string>? Plan = null);
+    IReadOnlyList<string>? Plan = null,
+    string? Arguments = null);
 
 public sealed record ConversationPipelineResult(
     string Input,

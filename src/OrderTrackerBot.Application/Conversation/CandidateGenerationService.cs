@@ -54,6 +54,8 @@ public static class CandidateGenerationService
         var blockers = new List<string>();
         if (model is not null && CandidateScorer.EntityAlignment(model, entities) == 0)
             blockers.Add("conflicting_reference");
+        if (model?.Score is not null && CandidateScorer.ArgumentEvidence(model, entities, input) == 0)
+            blockers.Add("unsupported_argument");
 
         var conclusive = outcome == DeterministicOutcome.Exact
             && (model is null || CandidateMerger.Canonical(model.Action) == CandidateMerger.Canonical(command!.Kind.ToString()));
@@ -109,10 +111,17 @@ public static class CandidateGenerationService
                 Plan: plan, Intent: intent, Entity: entity, Argument: argument);
         }
 
-        yield return new ConversationCandidate(name, null, Intent: intent, Entity: entity, Argument: argument);
+        yield return new ConversationCandidate(name, null, Intent: intent, Entity: entity, Argument: argument, Arguments: ArgumentsKey(model));
 
         foreach (var alt in model.Alternatives)
             yield return new ConversationCandidate(CandidateMerger.Canonical(alt.Action), null, IsAlternative: true, Intent: alt.Score / 10.0);
+    }
+
+    /// <summary>The identifying arguments the action states, as one key. Null when it states none (so it is not a difference from another source).</summary>
+    private static string? ArgumentsKey(TurnAction a)
+    {
+        var parts = new[] { a.OrderId?.ToString(), a.CustomerName, a.Amount?.ToString(System.Globalization.CultureInfo.InvariantCulture), a.Status, a.Courier };
+        return parts.All(string.IsNullOrWhiteSpace) ? null : string.Join("|", parts.Select(p => p ?? ""));
     }
 
     /// <summary>Context support (1 = the seller was offered this action, 0 = offered others, null = no context) and the composite score.</summary>
