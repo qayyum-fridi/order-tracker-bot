@@ -209,7 +209,8 @@ public partial class ConversationEngine
 
         // Read before this message is logged: the gap since the seller's previous message decides the welcome-back below.
         var previousInboundAt = await LastInboundAtAsync(fromPhoneNumber, ct);
-        _db.MessageLogs.Add(new MessageLog { Phone = fromPhoneNumber, Direction = "inbound", RawText = message });
+        // The log keeps the seller's own text (audit); only invisible characters are dropped, as before normalization was added.
+        _db.MessageLogs.Add(new MessageLog { Phone = fromPhoneNumber, Direction = "inbound", RawText = TextHygiene.StripInvisible(rawMessage ?? string.Empty).Trim() });
         var seller = await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
         if (seller.Status != SellerStatus.Active)
         {
@@ -675,7 +676,7 @@ public partial class ConversationEngine
                 return;
             }
             await ExecuteCommandAsync(seller, session, ctx, command, ct);
-            RecordPipelineOutcome(inputPipeline, ConversationPipelineStage.Execute);
+            RecordPipelineOutcome(ConversationPipeline.Analyze(message, command: command), ConversationPipelineStage.Execute);
             return;
         }
 

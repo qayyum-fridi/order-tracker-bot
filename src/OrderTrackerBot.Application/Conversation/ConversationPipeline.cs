@@ -56,7 +56,8 @@ public static class ConversationPipeline
         if (candidates.Count == 0)
             return new(input, entities, candidates, Array.Empty<string>(), ConversationPipelineStage.ProduceCandidates, "no_candidate");
 
-        if (action is not null && action.Alternatives.Any(a => a.Score >= (action.Score ?? 0) - 3))
+        // The engine's own rule (ConversationEngine.ActionChoice.cs), so the logged stage matches what the seller is asked.
+        if (action is not null && ConversationEngine.NeedsActionChoice(action))
             return new(input, entities, candidates, Array.Empty<string>(), ConversationPipelineStage.Ambiguous, "close_candidates");
 
         var missing = MissingFieldsFor(action);

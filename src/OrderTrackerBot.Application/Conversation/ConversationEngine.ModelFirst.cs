@@ -215,8 +215,10 @@ public partial class ConversationEngine
         TurnAction.ShowOrder => SaidOrderId(action, message) is not null || await ModelCustomerAsync(seller, action.CustomerName, ct) is not null,
         TurnAction.UpdateStatus => action.Status is not null && (SaidOrderId(action, message) is not null
                                    || (SaidName(action.CustomerName, message) && await ModelCustomerAsync(seller, action.CustomerName, ct) is not null)),
+        // Same lookup as the run below (the resolved customer's latest order), so "runnable" never promises an order the run cannot find.
         TurnAction.CancelOrder => SaidOrderId(action, message) is not null
-            || (SaidName(action.CustomerName, message) && await FindLatestOrderByCustomerNameAsync(seller, action.CustomerName!, ct) is not null),
+            || (SaidName(action.CustomerName, message) && await ModelCustomerAsync(seller, action.CustomerName, ct) is { } cancelFor
+                && await FindLatestOrderByCustomerNameAsync(seller, cancelFor.Name, ct) is not null),
         TurnAction.AddCustomer => action.Customer is not null,
         TurnAction.EditCustomer => action.CustomerName is not null && action.Field is not null && !string.IsNullOrWhiteSpace(action.Value),
         TurnAction.EditOrder => action.OrderEdits.Count > 0 && (SaidOrderId(action, message) is not null
@@ -281,13 +283,12 @@ public partial class ConversationEngine
         return SpokenNumbers.DigitAmounts(normalized).Contains(id) || SpokenNumbers.Amounts(normalized).Contains(id) || SpokenNumbers.SmallCounts(normalized).Contains(id) ? id : null;
     }
 
-    private static bool HasExplicitOrderReference(string message) =>
-        message.Contains("order", StringComparison.OrdinalIgnoreCase)
-        || message.Contains("odr", StringComparison.OrdinalIgnoreCase)
-        || message.Contains("number", StringComparison.OrdinalIgnoreCase)
-        || message.Contains("num", StringComparison.OrdinalIgnoreCase)
-        || message.Contains("آرڈر", StringComparison.Ordinal)
-        || message.Contains("نمبر", StringComparison.Ordinal);
+    // Whole words only ("numbers" in a sentence is not "num"), plus "#12".
+    private static readonly System.Text.RegularExpressions.Regex OrderReference = new(
+        @"(?<![\p{L}])(?:orders?|odr|number|num|no|nambar|numbar|id|آرڈر|نمبر)(?![\p{L}])|#\s*\d",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static bool HasExplicitOrderReference(string message) => OrderReference.IsMatch(message);
 
     /// <summary>The reply when nothing ran: the model's own question, or what the bot can do, so the seller is never left with a guess.</summary>
     private async Task ReplyNotRunAsync(Seller seller, TurnAction action, CancellationToken ct)
