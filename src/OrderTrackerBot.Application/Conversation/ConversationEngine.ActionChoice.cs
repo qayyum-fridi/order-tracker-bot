@@ -14,9 +14,9 @@ namespace OrderTrackerBot.Application.Conversation;
 public partial class ConversationEngine
 {
     /// <summary>A score at or above this, with the next action well behind, runs without asking.</summary>
-    private const int ActionRunScore = 8;
+    internal const int ActionRunScore = 8;
     /// <summary>The first action must lead the next one by at least this many points to run without asking.</summary>
-    private const int ActionRunGap = 4;
+    internal const int ActionRunGap = 4;
     /// <summary>An alternative below this score is not worth a tap.</summary>
     private const int ActionMinScore = 3;
     /// <summary>At most this many actions are offered (plus "Kuch aur"), so they stay one-tap buttons.</summary>

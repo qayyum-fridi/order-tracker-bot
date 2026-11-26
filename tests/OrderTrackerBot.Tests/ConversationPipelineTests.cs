@@ -66,4 +66,44 @@ public sealed class ConversationPipelineTests
         Assert.True(result.IsAmbiguous);
         Assert.Equal(2, result.Candidates.Count);
     }
+
+    [Fact]
+    public void Analyze_RepeatedActionIsOneCandidateWithStrongestScore()
+    {
+        var action = new TurnAction
+        {
+            Action = TurnAction.RecordExpense,
+            Score = 7,
+            Alternatives = [new ActionGuess(TurnAction.RecordExpense, 5)],
+        };
+
+        var result = ConversationPipeline.Analyze("rent 15000", action);
+
+        var candidate = Assert.Single(result.Candidates);
+        Assert.Equal(7, candidate.Score);
+        Assert.False(candidate.IsAlternative);
+    }
+
+    [Fact]
+    public void Analyze_DeterministicCommandIsUnscoredAlternativeWhenModelPicksOtherAction()
+    {
+        var action = new TurnAction { Action = TurnAction.AddProduct, Score = 9 };
+
+        var result = ConversationPipeline.Analyze("cancel 12", action, new ParsedCommand { Kind = CommandKind.CancelOrder });
+
+        Assert.Equal(2, result.Candidates.Count);
+        Assert.Contains(result.Candidates, c => c.IsDeterministic && c.IsAlternative && c.Score is null);
+        Assert.Contains(result.Candidates, c => c.Action == TurnAction.AddProduct && !c.IsAlternative && c.Score == 9);
+    }
+
+    [Fact]
+    public void Analyze_LowScoreIsReportedAsLowConfidenceNotCloseCandidates()
+    {
+        var action = new TurnAction { Action = TurnAction.RecordExpense, Score = 5, Value = "rent", Amount = 15000 };
+
+        var result = ConversationPipeline.Analyze("rent 15000", action);
+
+        Assert.Equal(ConversationPipelineStage.Ambiguous, result.Stage);
+        Assert.Equal("low_confidence", result.Reason);
+    }
 }
