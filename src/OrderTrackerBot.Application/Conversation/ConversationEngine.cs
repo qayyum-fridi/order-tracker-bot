@@ -275,10 +275,12 @@ public partial class ConversationEngine
 
         // A tap on a product button: an answer to the unknown-product question ("2 <product>" / "1"), or one of the customer's usual items after "order for Sara"
         // (read as her items). With no such question waiting it is a stale tap.
+        // Button titles are stored as written ("…" included), so the tap is matched on the raw text, not the NFKC-normalized one.
+        var tapText = TextHygiene.StripInvisible(rawMessage ?? string.Empty).Trim();
         if (ctx.ProductSuggestions is { Count: > 0 } offered
-            && (message.Trim() == NewProductButtonTitle || offered.Any(o => o.Title == message.Trim())))
+            && (tapText == NewProductButtonTitle || offered.Any(o => o.Title == tapText)))
         {
-            var tappedTitle = message.Trim();
+            var tappedTitle = tapText;
             if (session.State == ConversationState.AwaitingOrderMissingFields && ctx.PendingMissingField == "ProductChoice")
                 message = tappedTitle == NewProductButtonTitle ? "1" : "2 " + offered.First(o => o.Title == tappedTitle).Label;
             else if (session.State == ConversationState.Idle && ctx.OrderForCustomer is not null && tappedTitle != NewProductButtonTitle)
@@ -479,7 +481,8 @@ public partial class ConversationEngine
                 await HandleSupportReplyConfirmationAsync(seller, session, ctx, message, ct);
                 break;
             case ConversationState.AwaitingSupportReplyEdit:
-                await HandleSupportReplyEditAsync(seller, session, ctx, message, ct);
+                // The reply is sent and stored as the seller wrote it: no dash or digit folding (normalization is for parsing only).
+                await HandleSupportReplyEditAsync(seller, session, ctx, TextHygiene.StripInvisible(rawMessage ?? string.Empty).Trim(), ct);
                 break;
             case ConversationState.AwaitingLanguageChoice:
                 await HandleLanguageChoiceAsync(seller, session, ctx, message, ct);

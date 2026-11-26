@@ -18,7 +18,7 @@ public enum ConversationPipelineStage
 
 public sealed record ConversationEntity(string Kind, string Value);
 
-public sealed record ConversationCandidate(string Action, int? Score, bool IsAlternative = false);
+public sealed record ConversationCandidate(string Action, int? Score, bool IsAlternative = false, bool IsDeterministic = false);
 
 public sealed record ConversationPipelineResult(
     string Input,
@@ -43,28 +43,62 @@ public static class ConversationPipeline
     {
         var input = InputTextNormalizer.Normalize(rawInput);
         var entities = ExtractEntities(input);
-        var candidates = new List<ConversationCandidate>();
-
-        if (command is not null)
-            candidates.Add(new ConversationCandidate(command.Kind.ToString(), null));
-        if (action is not null)
-        {
-            candidates.Add(new ConversationCandidate(action.Action, action.Score));
-            candidates.AddRange(action.Alternatives.Select(a => new ConversationCandidate(a.Action, a.Score, true)));
-        }
+        var candidates = ProduceCandidates(action, command);
 
         if (candidates.Count == 0)
             return new(input, entities, candidates, Array.Empty<string>(), ConversationPipelineStage.ProduceCandidates, "no_candidate");
 
         // The engine's own rule (ConversationEngine.ActionChoice.cs), so the logged stage matches what the seller is asked.
         if (action is not null && ConversationEngine.NeedsActionChoice(action))
-            return new(input, entities, candidates, Array.Empty<string>(), ConversationPipelineStage.Ambiguous, "close_candidates");
+        {
+            var reason = action.Score is { } score && score < ConversationEngine.ActionRunScore ? "low_confidence" : "close_candidates";
+            return new(input, entities, candidates, Array.Empty<string>(), ConversationPipelineStage.Ambiguous, reason);
+        }
 
         var missing = MissingFieldsFor(action);
         if (missing.Count > 0)
             return new(input, entities, candidates, missing, ConversationPipelineStage.MissingFields, "required_fields_missing");
 
         return new(input, entities, candidates, Array.Empty<string>(), ConversationPipelineStage.SafetyValidation);
+    }
+
+    /// <summary>
+    /// Stage 3. One candidate per action name. The same action from several sources keeps one entry with the strongest
+    /// score (scores are never added: they judge the same message). The deterministic command is unscored and is an
+    /// alternative when the model names another primary action.
+    /// </summary>
+    private static IReadOnlyList<ConversationCandidate> ProduceCandidates(TurnAction? action, ParsedCommand? command)
+    {
+        var list = new List<ConversationCandidate>();
+
+        void Add(ConversationCandidate c)
+        {
+            var i = list.FindIndex(x => x.Action == c.Action);
+            if (i < 0)
+            {
+                list.Add(c);
+                return;
+            }
+
+            var e = list[i];
+            list[i] = e with
+            {
+                Score = e.Score is null ? c.Score : c.Score is null ? e.Score : Math.Max(e.Score.Value, c.Score.Value),
+                IsAlternative = e.IsAlternative && c.IsAlternative,
+                IsDeterministic = e.IsDeterministic || c.IsDeterministic,
+            };
+        }
+
+        if (command is not null)
+            Add(new ConversationCandidate(command.Kind.ToString(), null, IsAlternative: action is not null, IsDeterministic: true));
+        if (action is not null)
+        {
+            Add(new ConversationCandidate(action.Action, action.Score));
+            foreach (var alt in action.Alternatives)
+                Add(new ConversationCandidate(alt.Action, alt.Score, IsAlternative: true));
+        }
+
+        return list;
     }
 
     // An order ID needs an explicit order marker ("order 12", "#12", "no. 12"). Any other number is a plain "number": never an order ID.
