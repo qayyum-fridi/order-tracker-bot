@@ -200,8 +200,12 @@ public partial class ConversationEngine
     private async Task HandleIncomingCoreAsync(string fromPhoneNumber, string rawMessage, CancellationToken ct)
     {
         // A typed backslash-n (copied from code or a template) is meant as a line break.
-        var message = TextHygiene.StripInvisible(rawMessage ?? string.Empty).Replace("\\n", "\n").Trim();
+        var message = InputTextNormalizer.Normalize(rawMessage);
         if (message.Length == 0) return;
+
+        var inputPipeline = ConversationPipeline.Analyze(message, command: CommandParser.TryParse(message));
+        _logger?.LogInformation("ConversationPipeline input={InputKind} stage={Stage} entities={Entities} candidates={Candidates}",
+            "text", inputPipeline.Stage, inputPipeline.Entities.Count, inputPipeline.Candidates.Count);
 
         // Read before this message is logged: the gap since the seller's previous message decides the welcome-back below.
         var previousInboundAt = await LastInboundAtAsync(fromPhoneNumber, ct);
@@ -648,6 +652,7 @@ public partial class ConversationEngine
         {
             _logger?.LogInformation("Learned phrase used (similar): {Kind}", similarCommand.Kind);
             await ExecuteCommandAsync(seller, session, ctx, similarCommand, ct);
+            RecordPipelineOutcome(ConversationPipeline.Analyze(message, command: similarCommand), ConversationPipelineStage.Execute);
             return;
         }
         // Level 3 prototype: no shared words at all, but the same MEANING as something this seller taught.
@@ -657,6 +662,7 @@ public partial class ConversationEngine
         {
             _logger?.LogInformation("Learned phrase used (semantic): {Kind} score {Score:0.00}", semanticCommand.Kind, semantic.Score);
             await ExecuteCommandAsync(seller, session, ctx, semanticCommand, ct);
+            RecordPipelineOutcome(ConversationPipeline.Analyze(message, command: semanticCommand), ConversationPipelineStage.Execute);
             return;
         }
         if (command is not null)
@@ -669,6 +675,7 @@ public partial class ConversationEngine
                 return;
             }
             await ExecuteCommandAsync(seller, session, ctx, command, ct);
+            RecordPipelineOutcome(inputPipeline, ConversationPipelineStage.Execute);
             return;
         }
 

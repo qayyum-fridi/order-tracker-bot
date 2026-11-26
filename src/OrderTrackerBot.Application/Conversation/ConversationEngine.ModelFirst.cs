@@ -36,6 +36,10 @@ public partial class ConversationEngine
             action is null ? 0 : 1 + action.Also.Count, message.Length);
         if (_features.ModelFirst != "on" || action is null) return false;
 
+        var pipeline = ConversationPipeline.Analyze(message, action);
+        _logger?.LogInformation("ConversationPipeline stage={Stage} candidates={Candidates} entities={Entities} missing={Missing} reason={Reason}",
+            pipeline.Stage, pipeline.Candidates.Count, pipeline.Entities.Count, pipeline.MissingFields.Count, pipeline.Reason ?? "none");
+
         // An idle, set-up seller whose words are no typed command gets the whole answer from this one call: a question, a how-to or "not yet",
         // never the older keyword router or voice rewrite (they guessed a command from loose words, e.g. "contact number" became a support request).
         var final = image is null && seller.OnboardingComplete && session.State == ConversationState.Idle && CommandParser.TryParse(message) is null;
@@ -47,18 +51,34 @@ public partial class ConversationEngine
             return true;
 
         // Not sure enough, or two actions close in score: ask which one is meant, with taps, instead of running a guess (ConversationEngine.ActionChoice.cs).
-        if (final && actions.Count == 1 && await TryAskWhichActionAsync(seller, session, ctx, action, message, fromVoice, beforeRun, ct)) return true;
+        if (final && actions.Count == 1 && await TryAskWhichActionAsync(seller, session, ctx, action, message, fromVoice, beforeRun, ct))
+        {
+            RecordPipelineOutcome(pipeline, ConversationPipelineStage.Ambiguous);
+            return true;
+        }
 
         if (actions.Count == 1)
         {
             var runnable = await CanRunAsync(seller, action, message, ct);
             // Understood, but a detail is missing or fits several records: ask with taps instead of the generic reply (ConversationEngine.Guided.cs).
             if (final && (!runnable || await NeedsCustomerChoiceAsync(seller, action, ct)) && await TryGuideAsync(seller, session, ctx, action, message, beforeRun, ct))
+            {
+                RecordPipelineOutcome(pipeline, ConversationPipelineStage.MissingFields);
                 return true;
-            if (!runnable && !final) return false;
+            }
+            if (!runnable && !final)
+            {
+                RecordPipelineOutcome(pipeline, ConversationPipelineStage.SafetyValidation);
+                return false;
+            }
             if (beforeRun is not null) await beforeRun();
-            if (runnable && await RunTurnActionAsync(seller, session, ctx, action, catalog, message, ct, fromScreenshot)) return true;
+            if (runnable && await RunTurnActionAsync(seller, session, ctx, action, catalog, message, ct, fromScreenshot))
+            {
+                RecordPipelineOutcome(pipeline, ConversationPipelineStage.Execute);
+                return true;
+            }
             if (!final) return false;
+            RecordPipelineOutcome(pipeline, ConversationPipelineStage.RecordOutcome);
             await ReplyNotRunAsync(seller, action, ct);
             return true;
         }
@@ -66,12 +86,23 @@ public partial class ConversationEngine
         // Several requests in one message: all of them must be runnable, or the older pipeline answers the whole message (unless this one is final).
         var ready = new List<bool>();
         foreach (var a in actions) ready.Add(await CanRunAsync(seller, a, message, ct));
-        if (!ready.All(r => r) && !final) return false;
+        if (!ready.All(r => r) && !final)
+        {
+            RecordPipelineOutcome(pipeline, ConversationPipelineStage.SafetyValidation);
+            return false;
+        }
         if (beforeRun is not null) await beforeRun();
         // Each request in its turn: one missing a detail asks its guided question when it comes up; the ones after it wait in the queue.
         for (var i = 0; i < actions.Count; i++)
             await RunOrQueueAsync(seller, session, ctx, actions[i], catalog, message, ct, fromScreenshot, guide: final);
+        RecordPipelineOutcome(pipeline, ConversationPipelineStage.Execute);
         return true;
+    }
+
+    private void RecordPipelineOutcome(ConversationPipelineResult pipeline, ConversationPipelineStage outcome)
+    {
+        _logger?.LogInformation("ConversationPipeline outcome={Outcome} inputStage={InputStage} candidateCount={CandidateCount} reason={Reason}",
+            outcome, pipeline.Stage, pipeline.Candidates.Count, pipeline.Reason ?? "none");
     }
 
     /// <summary>What the understanding call is told besides the message: the shop, the likely products, customers, latest orders and recent chat.</summary>

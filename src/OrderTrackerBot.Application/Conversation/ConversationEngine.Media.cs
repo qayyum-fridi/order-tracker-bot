@@ -188,6 +188,9 @@ public partial class ConversationEngine
 
         // Typed text and voice transcripts must enter the same parser with the same Unicode, digit and whitespace rules.
         text = InputTextNormalizer.Normalize(text);
+        var voicePipeline = ConversationPipeline.Analyze(text);
+        _logger?.LogInformation("ConversationPipeline input={InputKind} stage={Stage} entities={Entities} candidates={Candidates}",
+            "voice", voicePipeline.Stage, voicePipeline.Entities.Count, voicePipeline.Candidates.Count);
 
         if (messageId is not null) await RememberVoiceNoteAsync(seller, messageId, ct);
         var heard = $"🎤 Maine suna: \"{text}\"";
@@ -1230,6 +1233,9 @@ public partial class ConversationEngine
         // A photo sent after "photo customers" (etc.) is read as that kind, when it has no caption of its own.
         caption = PhotoCaptionFor(ctx, caption);
         caption = string.IsNullOrWhiteSpace(caption) ? caption : InputTextNormalizer.Normalize(caption);
+        var imagePipeline = ConversationPipeline.Analyze(caption);
+        _logger?.LogInformation("ConversationPipeline input={InputKind} stage={Stage} entities={Entities} candidates={Candidates}",
+            "image", imagePipeline.Stage, imagePipeline.Entities.Count, imagePipeline.Candidates.Count);
 
         if (!seller.OnboardingComplete)
         {
