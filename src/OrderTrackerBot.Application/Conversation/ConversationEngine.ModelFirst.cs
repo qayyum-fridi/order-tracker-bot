@@ -36,7 +36,9 @@ public partial class ConversationEngine
             action is null ? 0 : 1 + action.Also.Count, message.Length);
         if (_features.ModelFirst != "on" || action is null) return false;
 
-        var pipeline = ConversationPipeline.Analyze(message, action);
+        // The actions offered in an open "which one?" question are the context the candidates are checked against (Stage 3, context feature).
+        var offered = ctx.ActionChoice?.Options.Select(o => o.Action).ToList();
+        var pipeline = ConversationPipeline.Analyze(message, action, context: offered is null ? null : new CandidateContext(offered));
         _logger?.LogInformation("ConversationPipeline stage={Stage} candidates={Candidates} entities={Entities} missing={Missing} reason={Reason}",
             pipeline.Stage, pipeline.Candidates.Count, pipeline.Entities.Count, pipeline.MissingFields.Count, pipeline.Reason ?? "none");
 

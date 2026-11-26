@@ -64,7 +64,8 @@ public sealed class ConversationPipelineTests
 
         Assert.Equal(ConversationPipelineStage.Ambiguous, result.Stage);
         Assert.True(result.IsAmbiguous);
-        Assert.Equal(2, result.Candidates.Count);
+        Assert.Contains(result.Candidates, c => c.Action == TurnAction.RecordExpense);
+        Assert.Contains(result.Candidates, c => c.Action == TurnAction.MonthlyExpense);
     }
 
     [Fact]

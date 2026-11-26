@@ -19,9 +19,8 @@ public enum ConversationPipelineStage
 public sealed record ConversationEntity(string Kind, string Value);
 
 /// <summary>
-/// One action with its merged evidence (0-1 each, null = not applicable). Score is the composite of the evidence present.
-/// Intent: model confidence, or 1 for an exact deterministic match. Pattern: 1 when the deterministic parser matched this action.
-/// Entity: the order number in the action agrees with the number in the message (1), contradicts it (0), or there is none (null).
+/// One action with its merged evidence (each feature 0 to 1, null = not applicable). Score is the composite of the features present.
+/// Plan: the actions of a multi-action message, when this candidate is the whole plan (members are not also listed alone).
 /// </summary>
 public sealed record ConversationCandidate(
     string Action,
@@ -30,7 +29,10 @@ public sealed record ConversationCandidate(
     bool IsDeterministic = false,
     double? Intent = null,
     double? Pattern = null,
-    double? Entity = null);
+    double? Entity = null,
+    double? Context = null,
+    double? Argument = null,
+    IReadOnlyList<string>? Plan = null);
 
 public sealed record ConversationPipelineResult(
     string Input,
@@ -51,20 +53,24 @@ public static class ConversationPipeline
     private static readonly Regex Number = new(@"(?<![\p{L}\p{N}])\d+(?:[.,]\d+)?(?![\p{L}\p{N}])", RegexOptions.Compiled);
     private static readonly Regex Phone = new(@"(?<!\d)(?:\+?\d[\d -]{8,14}\d)(?!\d)", RegexOptions.Compiled);
 
-    public static ConversationPipelineResult Analyze(string? rawInput, TurnAction? action = null, ParsedCommand? command = null)
+    public static ConversationPipelineResult Analyze(string? rawInput, TurnAction? action = null, ParsedCommand? command = null, CandidateContext? context = null)
     {
         var input = InputTextNormalizer.Normalize(rawInput);
         var entities = ExtractEntities(input);
-        var candidates = ProduceCandidates(action, command, entities);
+
+        // Stage 3: deterministic and model candidates, merged and scored.
+        var generated = CandidateGenerationService.Generate(input, command, action, entities, context);
+        var candidates = generated.Candidates;
 
         if (candidates.Count == 0)
             return new(input, entities, candidates, Array.Empty<string>(), ConversationPipelineStage.ProduceCandidates, "no_candidate");
 
-        // Stage 5a. Same selector the engine uses before it asks "which one?", so the logged stage matches what the seller sees.
-        var selection = CandidateSelector.Decide(candidates, OrderReferenceConflicts(action, entities));
+        // Stage 5a: the same selector the engine uses before it asks "which one?", so the logged stage matches what the seller sees.
+        var selection = CandidateSelector.Decide(candidates, generated.Blockers);
         if (selection.Decision != CandidateDecision.Select)
             return new(input, entities, candidates, Array.Empty<string>(), ConversationPipelineStage.Ambiguous, selection.Reason);
 
+        // Stage 5b: the intent is settled; the arguments may still be missing.
         var missing = MissingFieldsFor(action);
         if (missing.Count > 0)
             return new(input, entities, candidates, missing, ConversationPipelineStage.MissingFields, "required_fields_missing");
@@ -72,93 +78,20 @@ public static class ConversationPipeline
         return new(input, entities, candidates, Array.Empty<string>(), ConversationPipelineStage.SafetyValidation);
     }
 
-    // Composite weights from the intent-understanding design. Context (0.15) and argument evidence (0.10) are not computed yet,
-    // so the weights of the features that are present are renormalised: a missing feature neither helps nor hurts.
-    private const double IntentWeight = 0.35;
-    private const double PatternWeight = 0.20;
-    private const double EntityWeight = 0.20;
-
-    /// <summary>
-    /// Stage 3. One candidate per action name. Sources are merged by taking the strongest value of each evidence feature,
-    /// never by adding them (they all judge the same message). The deterministic command is an exact match, so it scores
-    /// full intent and pattern evidence; it is an alternative when the model names another primary action.
-    /// Alternatives only exist relative to a scored primary action, so an unscored primary carries none.
-    /// </summary>
-    internal static IReadOnlyList<ConversationCandidate> ProduceCandidates(TurnAction? action, ParsedCommand? command, IReadOnlyList<ConversationEntity> entities)
-    {
-        var list = new List<ConversationCandidate>();
-
-        void Add(ConversationCandidate c)
-        {
-            var i = list.FindIndex(x => x.Action == c.Action);
-            if (i < 0)
-            {
-                list.Add(c);
-                return;
-            }
-
-            var e = list[i];
-            list[i] = e with
-            {
-                Intent = Strongest(e.Intent, c.Intent),
-                Pattern = Strongest(e.Pattern, c.Pattern),
-                Entity = Strongest(e.Entity, c.Entity),
-                IsAlternative = e.IsAlternative && c.IsAlternative,
-                IsDeterministic = e.IsDeterministic || c.IsDeterministic,
-            };
-        }
-
-        if (command is not null)
-            Add(new ConversationCandidate(command.Kind.ToString(), null, IsAlternative: action is not null, IsDeterministic: true, Intent: 1, Pattern: 1));
-        if (action is not null)
-        {
-            // Model confidence is 0-10. An action without a score is trusted (Intent stays null, so it is not ranked).
-            Add(new ConversationCandidate(action.Action, null, Intent: action.Score / 10.0,
-                Entity: action.Score is null ? null : EntityAlignment(action, entities)));
-            if (action.Score is not null)
-                foreach (var alt in action.Alternatives)
-                    Add(new ConversationCandidate(alt.Action, null, IsAlternative: true, Intent: alt.Score / 10.0));
-        }
-
-        return list.Select(c => c with { Score = Composite(c.Intent, c.Pattern, c.Entity) }).ToList();
-    }
-
-    private static double? Strongest(double? a, double? b) => a is null ? b : b is null ? a : Math.Max(a.Value, b.Value);
-
-    private static double? Composite(double? intent, double? pattern, double? entity)
-    {
-        double sum = 0, weight = 0;
-        if (intent is { } i) { sum += IntentWeight * i; weight += IntentWeight; }
-        if (pattern is { } p) { sum += PatternWeight * p; weight += PatternWeight; }
-        if (entity is { } e) { sum += EntityWeight * e; weight += EntityWeight; }
-        return weight == 0 ? null : sum / weight;
-    }
-
-    private static double? EntityAlignment(TurnAction action, IReadOnlyList<ConversationEntity> entities)
-    {
-        if (action.OrderId is not { } id) return null;
-        var numbers = entities.Where(e => e.Kind == "order_id").Select(e => int.TryParse(e.Value, out var n) ? n : -1).ToList();
-        if (numbers.Count == 0) return null;
-        return numbers.Contains(id) ? 1 : 0;
-    }
-
     /// <summary>Stage 3 + 5a for a model action alone (no deterministic command). The engine's "ask which one?" gate uses this.</summary>
-    internal static CandidateSelection SelectAction(TurnAction action, string? rawInput)
+    internal static CandidateSelection SelectAction(TurnAction action, string? rawInput, CandidateContext? context = null)
     {
-        var entities = ExtractEntities(InputTextNormalizer.Normalize(rawInput));
-        return CandidateSelector.Decide(ProduceCandidates(action, null, entities), OrderReferenceConflicts(action, entities));
+        var input = InputTextNormalizer.Normalize(rawInput);
+        var generated = CandidateGenerationService.Generate(input, null, action, ExtractEntities(input), context);
+        return CandidateSelector.Decide(generated.Candidates, generated.Blockers);
     }
-
-    /// <summary>The action names an order number that the message contradicts (it names other order numbers only).</summary>
-    internal static bool OrderReferenceConflicts(TurnAction? action, IReadOnlyList<ConversationEntity> entities) =>
-        action is not null && EntityAlignment(action, entities) is 0;
 
     // An order ID needs an explicit order marker ("order 12", "#12", "no. 12"). Any other number is a plain "number": never an order ID.
     private static readonly Regex OrderIdMarked = new(
         @"(?<![\p{L}])(?:orders?|odr|number|num|no|nambar|numbar|id|آرڈر|نمبر)\.?\s*[#:]?\s*(\d+)(?![\p{L}\p{N}])|#\s*(\d+)(?!\d)",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
-    private static IReadOnlyList<ConversationEntity> ExtractEntities(string input)
+    internal static IReadOnlyList<ConversationEntity> ExtractEntities(string input)
     {
         var entities = new List<ConversationEntity>();
         entities.AddRange(Phone.Matches(input).Select(m => new ConversationEntity("phone", m.Value)));
