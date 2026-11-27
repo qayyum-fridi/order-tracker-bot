@@ -69,7 +69,7 @@ public static class CandidateGenerationService
         if (command is not null)
         {
             var exact = new ConversationCandidate(CandidateMerger.Canonical(command.Kind.ToString()), null,
-                IsAlternative: hasModel, IsDeterministic: true, Intent: 1, Pattern: 1);
+                IsAlternative: hasModel, IsDeterministic: true, Intent: 1, Pattern: 1, Sources: CandidateSources.Deterministic);
             return (DeterministicOutcome.Exact, new List<ConversationCandidate> { exact });
         }
 
@@ -82,7 +82,7 @@ public static class CandidateGenerationService
         var ambiguous = near.Count > 1 && near[1].Score >= near[0].Score * AmbiguousRatio;
         var candidates = near.Take(ambiguous ? SuggestionCount : 1)
             .Select(n => new ConversationCandidate(CandidateMerger.Canonical(n.Intent.Kind), null,
-                IsAlternative: true, IsDeterministic: true, Pattern: CandidateScorer.PartialPattern))
+                IsAlternative: true, IsDeterministic: true, Pattern: CandidateScorer.PartialPattern, Sources: CandidateSources.Deterministic))
             .ToList();
         return (ambiguous ? DeterministicOutcome.Ambiguous : DeterministicOutcome.Partial, candidates);
     }
@@ -94,7 +94,7 @@ public static class CandidateGenerationService
         // An unscored action is trusted as before scoring existed: it is listed (for the logs) but has no features to rank by.
         if (model.Score is not { } score)
         {
-            yield return new ConversationCandidate(name, null);
+            yield return new ConversationCandidate(name, null, Sources: CandidateSources.Model);
             yield break;
         }
 
@@ -108,13 +108,15 @@ public static class CandidateGenerationService
             var plan = new List<string> { name };
             plan.AddRange(model.Also.Select(a => CandidateMerger.Canonical(a.Action)));
             yield return new ConversationCandidate(string.Join("+", plan.OrderBy(x => x, StringComparer.Ordinal)), null,
-                Plan: plan, Intent: intent, Entity: entity, Argument: argument);
+                Plan: plan, Intent: intent, Entity: entity, Argument: argument, Sources: CandidateSources.Model);
         }
 
-        yield return new ConversationCandidate(name, null, Intent: intent, Entity: entity, Argument: argument, Arguments: ArgumentsKey(model));
+        yield return new ConversationCandidate(name, null, Intent: intent, Entity: entity, Argument: argument, Arguments: ArgumentsKey(model),
+            Sources: CandidateSources.Model);
 
         foreach (var alt in model.Alternatives)
-            yield return new ConversationCandidate(CandidateMerger.Canonical(alt.Action), null, IsAlternative: true, Intent: alt.Score / 10.0);
+            yield return new ConversationCandidate(CandidateMerger.Canonical(alt.Action), null, IsAlternative: true, Intent: alt.Score / 10.0,
+                Sources: CandidateSources.Model);
     }
 
     /// <summary>The identifying arguments the action states, as one key. Null when it states none (so it is not a difference from another source).</summary>

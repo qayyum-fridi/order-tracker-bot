@@ -44,6 +44,39 @@ public sealed class CandidateStageTests
     }
 
     [Fact]
+    public void Merge_KeepsTheUnionOfGeneratorSources()
+    {
+        var deterministic = new ConversationCandidate("cancel_order", null, IsDeterministic: true, Intent: 1, Sources: CandidateSources.Deterministic);
+        var model = new ConversationCandidate("cancel_order", null, Intent: 0.9, Sources: CandidateSources.Model);
+
+        var merged = Assert.Single(CandidateMerger.Merge(new[] { deterministic, model }));
+
+        Assert.Equal(CandidateSources.Deterministic | CandidateSources.Model, merged.Sources);
+    }
+
+    [Fact]
+    public void Select_ClearIntentWithMissingArguments_IsIncompleteNotSelect()
+    {
+        var winner = new ConversationCandidate("create_order", 0.95, Sources: CandidateSources.Model);
+
+        var selection = CandidateSelector.Decide(new[] { winner }, missingFields: new[] { "order details" });
+
+        Assert.Equal(CandidateDecision.Incomplete, selection.Decision);
+        Assert.Equal("required_fields_missing", selection.Reason);
+    }
+
+    [Fact]
+    public void Select_AmbiguousIntentWithMissingArguments_StaysClarify()
+    {
+        var first = new ConversationCandidate("cancel_order", 0.6);
+        var second = new ConversationCandidate("update_status", 0.58);
+
+        var selection = CandidateSelector.Decide(new[] { first, second }, missingFields: new[] { "order id" });
+
+        Assert.Equal(CandidateDecision.Clarify, selection.Decision);
+    }
+
+    [Fact]
     public void Merge_PlanMembersAreNotAlsoListedAlone()
     {
         var plan = new ConversationCandidate("cancel_order+create_order", null, Plan: new[] { "cancel_order", "create_order" }, Intent: 0.9);

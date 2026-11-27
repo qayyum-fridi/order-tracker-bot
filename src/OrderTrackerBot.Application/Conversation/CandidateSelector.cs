@@ -1,12 +1,16 @@
 namespace OrderTrackerBot.Application.Conversation;
 
-public enum CandidateDecision { Select, Clarify, Reject }
+/// <summary>
+/// Select: run the action. Incomplete: the intent is clear but required arguments are missing (ask for them, do not ask which action).
+/// Clarify: several meanings or a contradiction (ask which one). Reject: nothing fits.
+/// </summary>
+public enum CandidateDecision { Select, Incomplete, Clarify, Reject }
 
 public sealed record CandidateSelection(CandidateDecision Decision, ConversationCandidate? Top, double Margin, string Reason);
 
 /// <summary>
-/// Stage 5a. Chooses one candidate from the merged list by composite score, margin over the runner-up, and blockers.
-/// Intent is judged here; missing arguments are judged in Stage 5b, so a clear intent with missing fields still selects.
+/// Stage 5a/5b. Chooses one candidate from the merged list by composite score, margin over the runner-up, and blockers.
+/// Intent is judged first. A selectable intent with missing required arguments is Incomplete, not Select.
 /// Thresholds are starting values to tune on labelled seller messages, not measured accuracy.
 /// </summary>
 public static class CandidateSelector
@@ -16,7 +20,17 @@ public static class CandidateSelector
     public const double ClarifyScore = 0.55;
 
     /// <param name="blockers">Reasons not to choose on score alone (for example a contradictory order number).</param>
-    public static CandidateSelection Decide(IReadOnlyList<ConversationCandidate> candidates, IReadOnlyList<string>? blockers = null)
+    /// <param name="missingFields">Required arguments of the chosen action that the message does not supply (null or empty = complete).</param>
+    public static CandidateSelection Decide(
+        IReadOnlyList<ConversationCandidate> candidates, IReadOnlyList<string>? blockers = null, IReadOnlyList<string>? missingFields = null)
+    {
+        var selection = DecideIntent(candidates, blockers);
+        if (selection.Decision == CandidateDecision.Select && missingFields is { Count: > 0 })
+            return selection with { Decision = CandidateDecision.Incomplete, Reason = "required_fields_missing" };
+        return selection;
+    }
+
+    private static CandidateSelection DecideIntent(IReadOnlyList<ConversationCandidate> candidates, IReadOnlyList<string>? blockers)
     {
         var ranked = candidates
             .Where(c => c.Score is not null)
