@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Abstractions;
@@ -565,6 +565,13 @@ public partial class ConversationEngine
         await LoadOrCreateSellerAsync(fromPhoneNumber, ct);
         await _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("engine.004"), ct);
     }
+
+    /// <summary>
+    /// Stage 7: a save lost a race with another change (the order or a confirmation changed while the message was handled). The failed save
+    /// changed nothing, so the seller is asked to send the command again.
+    /// </summary>
+    public Task SendChangedRecordNoticeAsync(string fromPhoneNumber, CancellationToken ct = default) =>
+        _sender.SendTextMessageAsync(fromPhoneNumber, MessageTemplates.Get("guided.gateway.stale"), ct);
 
     public Task SendSystemErrorAsync(string fromPhoneNumber, string? issueCode = null, CancellationToken ct = default) =>
         _sender.SendTextMessageAsync(fromPhoneNumber,

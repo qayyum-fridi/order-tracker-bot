@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Conversation;
@@ -132,6 +132,14 @@ public sealed class WebhookWorkerService : BackgroundService
                 _logger.LogWarning("Slow WhatsApp message from {From}: handled in {Ms} ms", work.From, clock.ElapsedMilliseconds);
             else
                 _logger.LogInformation("WhatsApp message from {From} handled in {Ms} ms", work.From, clock.ElapsedMilliseconds);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            // Not a system fault: another change won the race for a record this message was writing. The failed save changed nothing;
+            // the message is finished (not retried) and the seller is asked to send the command again.
+            _logger.LogWarning(ex, "Concurrent change while handling inbound WhatsApp message from {From}", work.From);
+            try { await engine.SendChangedRecordNoticeAsync(work.From, CancellationToken.None); }
+            catch (Exception noticeEx) { _logger.LogWarning(noticeEx, "Could not send change notice to {From}", work.From); }
         }
         catch (Exception ex)
         {
