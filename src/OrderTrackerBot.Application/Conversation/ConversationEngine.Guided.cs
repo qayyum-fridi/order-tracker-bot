@@ -122,7 +122,7 @@ public partial class ConversationEngine
             question = MessageTemplates.Get("guided.nocustomer", action.CustomerName!.Trim()) + "\n" + question;
 
         var options = orders.Select(o => new ChoiceOption(OrderChoiceLabel(o), "#" + o.Id)).ToList();
-        AwaitGuidedChoice(session, ctx, action, message, options);
+        await AwaitGuidedChoiceAsync(seller, session, ctx, action, message, question, options, ct);
         await SendChoicesAsync(seller.WhatsAppPhoneNumber, question, options, ct);
         return true;
     }
@@ -137,8 +137,9 @@ public partial class ConversationEngine
         if (matches.Count > 1)
         {
             var options = matches.Select(c => new ChoiceOption(string.IsNullOrWhiteSpace(c.Phone) ? c.Name : $"{c.Name} · {c.Phone}", "@" + c.Id)).ToList();
-            AwaitGuidedChoice(session, ctx, action, message, options);
-            await SendChoicesAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("guided.customer.which", action.CustomerName!.Trim(), matches.Count), options, ct);
+            var which = MessageTemplates.Get("guided.customer.which", action.CustomerName!.Trim(), matches.Count);
+            await AwaitGuidedChoiceAsync(seller, session, ctx, action, message, which, options, ct);
+            await SendChoicesAsync(seller.WhatsAppPhoneNumber, which, options, ct);
             return true;
         }
 
@@ -167,8 +168,9 @@ public partial class ConversationEngine
         if (products.Count == 0) return false;
         if (beforeAsk is not null) await beforeAsk();
         var options = products.Select(p => new ChoiceOption($"{Formatters.ProductLabel(p)} · {Formatters.Money(p.Price)}", "%" + p.Id)).ToList();
-        AwaitGuidedChoice(session, ctx, action, message, options);
-        await SendChoicesAsync(seller.WhatsAppPhoneNumber, MessageTemplates.Get("guided.product.delete"), options, ct);
+        var question = MessageTemplates.Get("guided.product.delete");
+        await AwaitGuidedChoiceAsync(seller, session, ctx, action, message, question, options, ct);
+        await SendChoicesAsync(seller.WhatsAppPhoneNumber, question, options, ct);
         return true;
     }
 
@@ -178,11 +180,63 @@ public partial class ConversationEngine
         return $"#{o.Id} {o.Customer?.Name} — {items}";
     }
 
-    private void AwaitGuidedChoice(ConversationSession session, SessionContextData ctx, TurnAction action, string message, IReadOnlyList<ChoiceOption> options)
+    /// <summary>The one field a guided question asks for: which of the listed records is meant.</summary>
+    private const string GuidedChoiceField = "choice";
+
+    /// <summary>
+    /// Opens a guided question. Stage 6: it is also saved as a PendingActions row bound to this seller and user, with the question and an
+    /// expiry equal to <see cref="PickQuestionExpiry"/>, and any older waiting question is cancelled. The reply is checked against this row.
+    /// </summary>
+    private async Task AwaitGuidedChoiceAsync(Seller seller, ConversationSession session, SessionContextData ctx, TurnAction action, string message,
+        string question, IReadOnlyList<ChoiceOption> options, CancellationToken ct)
     {
         ctx.GuidedTurn = new QueuedModelTurn(Plain(action), message);
         ctx.ClarificationOptions = options.Select(o => o.Value).ToList();
         SetState(session, ConversationState.AwaitingClarificationChoice);
+
+        var store = new ClarificationStore(_db);
+        await store.CancelWaitingAsync(seller.Id, seller.WhatsAppPhoneNumber, ct);
+        var pending = ClarificationManager.Create(Guid.NewGuid().ToString("N"), seller.Id, seller.WhatsAppPhoneNumber, action.Action,
+            new[] { GuidedChoiceField }, question, _clock.GetUtcNow().UtcDateTime, PickQuestionExpiry);
+        await store.TrackAsync(pending, ct);
+        ctx.PendingActionId = pending.Id;
+    }
+
+    /// <summary>The option a reply picks: the tap itself ("#12" / "@5"), or its number in the list ("2"). Null when it picks none.</summary>
+    private static string? MatchGuidedOption(IReadOnlyList<string> options, string message)
+    {
+        var text = message.Trim();
+        return options.FirstOrDefault(o => string.Equals(o, text, StringComparison.OrdinalIgnoreCase))
+               ?? (int.TryParse(text, out var n) && n >= 1 && n <= options.Count ? options[n - 1] : null);
+    }
+
+    /// <summary>
+    /// Stage 6: a tap or number sent for a guided question whose time has run out is not run as a new message (a stale "2" could mean
+    /// anything now): the record is marked Expired and the seller is asked to start again. False = not that case; the usual paths go on.
+    /// </summary>
+    private async Task<bool> TryReplyStaleGuidedAnswerAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
+    {
+        if (session.State != ConversationState.AwaitingClarificationChoice || ctx.GuidedTurn is null || ctx.ModelQueue.Count > 0
+            || ctx.PendingActionId is not { } id || ctx.ClarificationOptions is not { } options)
+            return false;
+
+        var store = new ClarificationStore(_db);
+        var pending = await store.FindAsync(id, seller.Id, seller.WhatsAppPhoneNumber, ct);
+        if (pending is { Status: PendingStatus.Waiting } && _clock.GetUtcNow().UtcDateTime < pending.ExpiresAt) return false;   // still open
+        if (MatchGuidedOption(options, message) is null) return false;   // not an answer to it: dropped and handled as a new message as before
+
+        if (pending is not null)
+        {
+            ClarificationManager.Expire(pending);
+            await store.TrackAsync(pending, ct);
+        }
+        ctx.GuidedTurn = null;
+        ctx.ClarificationOptions = null;
+        ctx.PendingActionId = null;
+        ctx.PickAskedAt = null;
+        SetState(session, ConversationState.Idle);
+        await ReplyAsync(seller, MessageTemplates.Get("guided.expired"), ct);
+        return true;
     }
 
     /// <summary>
@@ -192,14 +246,51 @@ public partial class ConversationEngine
     private async Task<bool> TryHandleGuidedChoiceAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         if (ctx.GuidedTurn is not { } turn) return false;
-        var options = ctx.ClarificationOptions ?? new List<string>();
-        var text = message.Trim();
-        var pick = options.FirstOrDefault(o => string.Equals(o, text, StringComparison.OrdinalIgnoreCase))
-                   ?? (int.TryParse(text, out var n) && n >= 1 && n <= options.Count ? options[n - 1] : null);
+        var pick = MatchGuidedOption(ctx.ClarificationOptions ?? new List<string>(), message);
+        var pendingId = ctx.PendingActionId;
 
         ctx.GuidedTurn = null;
         ctx.ClarificationOptions = null;
+        ctx.PendingActionId = null;
         SetState(session, ConversationState.Idle);
+
+        // Stage 6: the reply is matched to the question's own record (same seller, same user, still waiting, not expired).
+        // Sessions saved before pending actions existed carry no id and keep the older path.
+        if (pendingId is not null)
+        {
+            var store = new ClarificationStore(_db);
+            var pending = await store.FindAsync(pendingId, seller.Id, seller.WhatsAppPhoneNumber, ct);
+            var result = pending is null ? null
+                : ClarificationManager.Answer(pending, seller.Id, seller.WhatsAppPhoneNumber, message, _clock.GetUtcNow().UtcDateTime, (_, _) => pick);
+            switch (result?.Outcome)
+            {
+                case ClarificationOutcome.Ready:
+                    // The answer is taken. It still goes through the usual reference and safety checks below (RunGuidedAsync → CanRunAsync),
+                    // never straight to a handler.
+                    ClarificationManager.Complete(pending!);
+                    await store.TrackAsync(pending!, ct);
+                    break;
+                case ClarificationOutcome.Invalid:
+                    // Not an answer to this question: it stops waiting, and the message is handled as a new one.
+                    ClarificationManager.Cancel(pending!);
+                    await store.TrackAsync(pending!, ct);
+                    break;
+                default:
+                    // No record, already closed, expired, or not this seller's: nothing from the old question runs.
+                    if (pending is not null)
+                    {
+                        ClarificationManager.Expire(pending);
+                        await store.TrackAsync(pending, ct);
+                    }
+                    if (pick is not null)
+                    {
+                        await ReplyAsync(seller, MessageTemplates.Get("guided.expired"), ct);
+                        return true;
+                    }
+                    break;
+            }
+        }
+
         if (pick is null)
         {
             await HandleIdleAsync(seller, session, ctx, message, ct);

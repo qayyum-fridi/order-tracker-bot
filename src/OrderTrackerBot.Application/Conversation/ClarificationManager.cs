@@ -89,6 +89,12 @@ public static class ClarificationManager
 
     public static void Cancel(PendingAction pending) => pending.Status = PendingStatus.Cancelled;
 
+    /// <summary>Closes a question whose time ran out. A record that is already closed keeps its status.</summary>
+    public static void Expire(PendingAction pending)
+    {
+        if (pending.Status == PendingStatus.Waiting) pending.Status = PendingStatus.Expired;
+    }
+
     /// <summary>Plain wording for one field's question. The engine's templates replace this when the record is wired in.</summary>
     public static string QuestionFor(string field) => $"Barae meherbani {field} batayein.";
 }

@@ -353,6 +353,13 @@ public partial class ConversationEngine
             return;
         }
 
+        // Stage 6: a tap or number answering a guided question that has expired is not run as a new message; the seller is asked to start again.
+        if (await TryReplyStaleGuidedAnswerAsync(seller, session, ctx, message, ct))
+        {
+            await PersistAsync(session, ctx, ct);
+            return;
+        }
+
         // A 1 / 2 pick question left open for a long time is dropped, so it cannot swallow every later message (ConversationEngine.Parking.cs).
         await DropExpiredPickQuestionAsync(seller, session, ctx, ct);
 

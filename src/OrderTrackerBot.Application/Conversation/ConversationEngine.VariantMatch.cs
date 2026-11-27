@@ -64,10 +64,11 @@ public partial class ConversationEngine
             .Select(name => new ChoiceOption(name, "~" + catalog.First(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)).Id))
             .Append(new ChoiceOption(MessageTemplates.Get("variant.new"), "~new"))
             .ToList();
-        AwaitGuidedChoice(session, ctx, action, product.Name, options);
-        await SendChoicesAsync(seller.WhatsAppPhoneNumber, matches.Count == 1
+        var question = matches.Count == 1
             ? MessageTemplates.Get("variant.match.one", matches[0], label)
-            : MessageTemplates.Get("variant.match.many", label), options, ct);
+            : MessageTemplates.Get("variant.match.many", label);
+        await AwaitGuidedChoiceAsync(seller, session, ctx, action, product.Name, question, options, ct);
+        await SendChoicesAsync(seller.WhatsAppPhoneNumber, question, options, ct);
         return true;
     }
 

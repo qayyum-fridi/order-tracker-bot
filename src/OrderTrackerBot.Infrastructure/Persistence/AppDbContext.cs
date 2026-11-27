@@ -52,6 +52,7 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<FeatureAreaRow> FeatureAreas => Set<FeatureAreaRow>();
     public DbSet<LearnedKeywordVote> LearnedKeywordVotes => Set<LearnedKeywordVote>();
     public DbSet<RouterDecision> RouterDecisions => Set<RouterDecision>();
+    public DbSet<PendingActionRecord> PendingActions => Set<PendingActionRecord>();
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -72,6 +73,16 @@ public class AppDbContext : DbContext, IAppDbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<UnplacedUtterance>(e => e.HasIndex(u => u.CreatedAt));
+        modelBuilder.Entity<PendingActionRecord>(e =>
+        {
+            e.HasKey(p => p.Id);
+            e.Property(p => p.Id).HasMaxLength(32);
+            e.Property(p => p.UserId).HasMaxLength(40);
+            e.Property(p => p.Action).HasMaxLength(60);
+            e.Property(p => p.Status).HasMaxLength(20);
+            e.HasIndex(p => new { p.SellerId, p.UserId, p.Status });
+            e.HasIndex(p => p.ExpiresAt);
+        });
         modelBuilder.Entity<UnknownNumberWord>(e => { e.HasIndex(w => w.Word).IsUnique(); e.Property(w => w.Word).HasMaxLength(40); });
         modelBuilder.Entity<RouterDecision>(e =>
         {

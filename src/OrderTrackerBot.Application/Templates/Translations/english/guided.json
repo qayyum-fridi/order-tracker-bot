@@ -22,5 +22,6 @@
   "model-restore.001": "❓ Put {0} back in the catalog? Type YES for yes, NO for no.",
   "model-restore.002": "✅ {0} is back in the catalog.",
   "model-restore.003": "Sorry, no removed product named \"{0}\" was found. Type \"catalog\" to see the list.",
-  "model-restore.004": "ℹ️ {0} is already in the catalog. Type \"catalog\" to see the list."
+  "model-restore.004": "ℹ️ {0} is already in the catalog. Type \"catalog\" to see the list.",
+  "guided.expired": "⌛ Sorry, that question had expired, so nothing was changed. Please send your request again."
 }

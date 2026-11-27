@@ -48,6 +48,7 @@ public interface IAppDbContext
     DbSet<FeatureAreaRow> FeatureAreas { get; }
     DbSet<LearnedKeywordVote> LearnedKeywordVotes { get; }
     DbSet<RouterDecision> RouterDecisions { get; }
+    DbSet<PendingActionRecord> PendingActions { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

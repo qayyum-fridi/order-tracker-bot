@@ -218,6 +218,12 @@ public sealed class SessionContextData
     /// <summary>A guided question is open (ConversationEngine.Guided.cs): the understood action waiting for the tapped order ("#12") or customer ("@5").</summary>
     public QueuedModelTurn? GuidedTurn { get; set; }
 
+    /// <summary>
+    /// Stage 6: the PendingActions row for the open guided question. Null for sessions saved before pending actions existed:
+    /// those keep the older path, so a deploy never strands an open question.
+    /// </summary>
+    public string? PendingActionId { get; set; }
+
     public int? CodCollectedOrderId { get; set; }
     public string? RuntimeFilterCommand { get; set; }
     public int? TrackingPromptOrderId { get; set; }
