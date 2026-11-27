@@ -570,8 +570,23 @@ public class MockupFeatureTests : IDisposable
         Assert.Contains(_sent, m => m.Contains("Shirt - Rs.1,800 (stock 5)"));
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-2)]
+    [InlineData(1000)]
+    public async Task OrderWithAZeroNegativeOrHugeQuantity_IsNotDrafted(int qty)
+    {
+        using var db = _dbFactory.CreateContext();
+        var engine = await OnboardAsync(db);
+        AiReturns(Order("Sara", "Shirt", qty));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara shirt 03001234567", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        Assert.Contains(_sent, m => m.Contains($"quantity {qty} sahi nahi"));
+        Assert.Equal(0, await db.Orders.CountAsync());
+    }
+
     [Fact]
-    public async Task Stock_AddAndOff_AndOverselling_IsFlagged()
+    public async Task Stock_AddAndOff_AndOverselling_IsBlocked()
     {
         using var db = _dbFactory.CreateContext();
         var engine = await OnboardAsync(db);
@@ -579,11 +594,22 @@ public class MockupFeatureTests : IDisposable
         await engine.HandleIncomingMessageAsync(Phone, "stock Shirt +1", default);
         Assert.Equal(2, await StockOf(db, "Shirt"));
 
+        // 3 ordered, 2 in stock: the YES saves nothing and says what is short.
+        var ordersBefore = await db.Orders.CountAsync();
         AiReturns(Order("Sara", "Shirt", 3));
         await engine.HandleIncomingMessageAsync(Phone, "Sara, 3 shirt, 03001234567", default);
         await engine.HandleIncomingMessageAsync(Phone, "yes", default);
-        Assert.Equal(-1, await StockOf(db, "Shirt"));
-        Assert.Contains(_sent, m => m.Contains("Shirt: stock khatam (-1)"));
+        Assert.Equal(2, await StockOf(db, "Shirt"));
+        Assert.Equal(ordersBefore, await db.Orders.CountAsync());
+        Assert.Contains(_sent, m => m.Contains("stock kam hai") && m.Contains("stock 2, order 3"));
+
+        // Exactly the stock left: saved, and the last piece is flagged.
+        AiReturns(Order("Sara", "Shirt", 2));
+        await engine.HandleIncomingMessageAsync(Phone, "Sara, 2 shirt, 03001234567", default);
+        await engine.HandleIncomingMessageAsync(Phone, "yes", default);
+        Assert.Equal(0, await StockOf(db, "Shirt"));
+        Assert.Equal(ordersBefore + 1, await db.Orders.CountAsync());
+        Assert.Contains(_sent, m => m.Contains("Shirt: stock khatam (0)"));
 
         await engine.HandleIncomingMessageAsync(Phone, "stock shirt off", default);
         Assert.Null(await StockOf(db, "Shirt"));

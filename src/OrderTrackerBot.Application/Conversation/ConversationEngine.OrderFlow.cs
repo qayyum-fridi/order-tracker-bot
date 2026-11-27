@@ -208,8 +208,15 @@ public partial class ConversationEngine
             return;
         }
 
-        var drafts = new[] { analysis.Order }.Concat(analysis.AdditionalOrders)
-            .Select(d => BuildPendingOrder(d, catalog, fromScreenshot)).ToList();
+        // A zero, negative or absurd quantity from the reading is a misread, not a 1: say so instead of drafting a quantity the seller never wrote.
+        var allOrders = new[] { analysis.Order }.Concat(analysis.AdditionalOrders).ToList();
+        if (allOrders.SelectMany(o => o.Items).FirstOrDefault(i => i.Quantity is <= 0 or > MaxOrderQuantity) is { } badItem)
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("order-flow.badquantity", badItem.ProductName, badItem.Quantity, MaxOrderQuantity), ct);
+            return;
+        }
+
+        var drafts = allOrders.Select(d => BuildPendingOrder(d, catalog, fromScreenshot)).ToList();
 
         // A screenshot sent while the phone was offline is the order of its send time, not of the later "yes" that saves it.
         var shotAt = RecordTimeUtc();
@@ -269,6 +276,9 @@ public partial class ConversationEngine
         ctx.PendingOrder = drafts[0];
         await ContinueResolvingDraftAsync(seller, session, ctx, ct);
     }
+
+    /// <summary>Largest quantity one order line may carry; the same cap walk-in sales and counter returns use.</summary>
+    private const int MaxOrderQuantity = 999;
 
     private static bool IsDraftComplete(PendingOrderData d) =>
         !string.IsNullOrWhiteSpace(d.CustomerName) && (!string.IsNullOrWhiteSpace(d.Phone) || d.PhoneLater) && d.Items.Count > 0 && d.Items.All(i => i.UnitPrice >= 0);
@@ -860,6 +870,11 @@ public partial class ConversationEngine
                 await ReplyAsync(seller, MessageTemplates.Get("order-flow.011"), ct);
                 return;
             }
+            if (await StockShortfallReplyAsync(seller, new[] { pending }, ct) is { } stockShort)
+            {
+                await ReplyAsync(seller, stockShort, ct);
+                return;
+            }
             var order = await SaveOrderFromDraftAsync(seller, pending, ct);
             RememberAutoPriceUse(ctx, pending, order);
             RememberTextDeliveryUse(ctx, pending, order);
@@ -1019,6 +1034,11 @@ public partial class ConversationEngine
 
         ctx.MultiOrders = null;
         SetState(session, ConversationState.Idle);
+        if (await StockShortfallReplyAsync(seller, chosen, ct) is { } stockShort)
+        {
+            await ReplyAsync(seller, stockShort, ct);
+            return;
+        }
         // All or nothing: a failure on the second order must not leave the first one saved.
         var saved = await InSaveTransactionAsync(async () =>
         {
@@ -1596,6 +1616,11 @@ public partial class ConversationEngine
             var pending = ctx.PendingOrder!;
             ctx.PendingOrder = null;
             SetState(session, ConversationState.Idle);
+            if (await StockShortfallReplyAsync(seller, new[] { pending }, ct) is { } stockShort)
+            {
+                await ReplyAsync(seller, stockShort, ct);
+                return;
+            }
             var order = await SaveOrderFromDraftAsync(seller, pending, ct);
             await ReplyAsync(seller, SavedText(seller, order, pending), ct);
             await SendOrderActionButtonsAsync(seller, order, ct);

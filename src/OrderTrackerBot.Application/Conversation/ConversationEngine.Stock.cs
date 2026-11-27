@@ -37,6 +37,28 @@ public partial class ConversationEngine
         }
     }
 
+    /// <summary>
+    /// The reply that refuses a save because tracked stock is below what the drafts order, or null when every tracked product has
+    /// enough. Untracked products (StockQty null) never block. Lines are matched to products the same way the save does (id, else name).
+    /// </summary>
+    private async Task<string?> StockShortfallReplyAsync(Seller seller, IEnumerable<PendingOrderData> drafts, CancellationToken ct)
+    {
+        var wanted = new Dictionary<int, (Product Product, int Quantity)>();
+        foreach (var item in drafts.SelectMany(d => d.Items))
+        {
+            var product = item.ProductId is { } pid
+                ? await _db.Products.FirstOrDefaultAsync(p => p.SellerId == seller.Id && p.Id == pid, ct)
+                : await _db.Products.FirstOrDefaultAsync(p => p.SellerId == seller.Id && p.Name == item.ProductName, ct);
+            if (product?.StockQty is null) continue;
+            wanted[product.Id] = (product, wanted.GetValueOrDefault(product.Id).Quantity + item.Quantity);
+        }
+
+        var short_ = wanted.Values.Where(w => w.Quantity > w.Product.StockQty).ToList();
+        if (short_.Count == 0) return null;
+        var lines = short_.Select(w => MessageTemplates.Get("order-flow.stockshort.line", Formatters.ProductLabel(w.Product), w.Product.StockQty!, w.Quantity));
+        return MessageTemplates.Get("order-flow.stockshort", string.Join("\n", lines), short_[0].Product.Name);
+    }
+
     private async Task FlushStockWarningsAsync(string phone, CancellationToken ct)
     {
         if (_stockWarnings.Count == 0) return;
