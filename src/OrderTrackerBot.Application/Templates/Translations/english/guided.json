@@ -25,5 +25,7 @@
   "model-restore.004": "ℹ️ {0} is already in the catalog. Type \"catalog\" to see the list.",
   "guided.expired": "⌛ Sorry, that question had expired, so nothing was changed. Please send your request again.",
   "guided.gateway.stale": "❓ That order changed after I asked. Please send the command again.",
-  "guided.gateway.expired": "❓ The confirmation has expired. Please send the command again."
+  "guided.gateway.expired": "❓ The confirmation has expired. Please send the command again.",
+  "model-held.001": "❓ Your message also says \"no / don't\", so I am asking first: {0}, is this what you want? Type YES for yes, NO for no.",
+  "model-confirm.expired": "⌛ Sorry, the earlier YES / NO question was more than 10 minutes old, so nothing was changed. Please send your request again."
 }

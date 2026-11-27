@@ -320,11 +320,30 @@ public partial class ConversationEngine
         return await _db.Customers.FirstOrDefaultAsync(c => c.Id == id && c.SellerId == seller.Id && c.DeletedAt == null, ct);
     }
 
+    /// <summary>Actions this path runs without a YES. The rest (money, status, edits, deletes) always ask first, so a "nahi" there costs nothing.</summary>
+    private static readonly HashSet<string> UnconfirmedWrites = new()
+    {
+        TurnAction.AddProduct, TurnAction.AddStock, TurnAction.AddCustomer, TurnAction.RestoreCustomer, TurnAction.CreateCategory,
+    };
+
+    internal const string HeldNegatedKind = "held_negated";
+
     /// <summary>Runs the four core actions with the handlers the typed commands already use. False = not one of them (or not enough detail): the older pipeline answers.</summary>
+    /// <param name="confirmed">The seller already said YES to this action (a held one): it is not held again.</param>
     private async Task<bool> RunTurnActionAsync(Seller seller, ConversationSession session, SessionContextData ctx, TurnAction action,
-        List<CatalogEntry> catalog, string message, CancellationToken ct, bool fromScreenshot)
+        List<CatalogEntry> catalog, string message, CancellationToken ct, bool fromScreenshot, bool confirmed = false)
     {
         Trace.SelectAction(action.Action);
+        // The message also says no / don't / wrong: the model may have read the opposite of what was meant ("kurti 5 aur nahi aayi"). A write that would
+        // run straight away waits for YES instead. A product screenshot or pasted page is shown for YES anyway (below), so it is not held twice.
+        var shownForYes = action.Action == TurnAction.AddProduct && (fromScreenshot || IsPastedProductBlock(message));
+        if (!confirmed && !shownForYes && UnconfirmedWrites.Contains(action.Action) && ActionRisk.SaysNo(message))
+        {
+            ctx.ModelEdit = new ModelEditData { Kind = HeldNegatedKind, Held = new QueuedModelTurn(Plain(action), message) };
+            SetState(session, ConversationState.AwaitingModelStatusConfirmation);
+            await AskYesNoAsync(seller, MessageTemplates.Get("model-held.001", ActionLabels.GetValueOrDefault(action.Action, action.Action)), ct);
+            return true;
+        }
         // A price, cost or delivery charge the model returned must be a figure the seller actually said. Otherwise nothing runs; the seller is asked.
         // Figures and details taken from the shop's own records are not "unsaid": the catalog price of an item, the usual delivery charge,
         // and a saved customer's name and phone ("Bilal ko do kurti" comes back as Bilal Ahmed, his number and Rs.1800 each).
@@ -756,7 +775,12 @@ public partial class ConversationEngine
         ctx.ModelEdit = null;
         if (edit is not null && CommandParser.IsAffirmative(message))
         {
-            if (edit.Kind == TurnAction.EditProduct)
+            if (edit.Kind == HeldNegatedKind && edit.Held is { } held)
+            {
+                if (!await RunTurnActionAsync(seller, session, ctx, held.Action, await LoadCatalogAsync(seller, ct), held.Message, ct, false, confirmed: true))
+                    await ReplyNotRunAsync(seller, held.Action, ct);
+            }
+            else if (edit.Kind == TurnAction.EditProduct)
                 await HandleEditProductAsync(seller, new ParsedCommand { Kind = CommandKind.EditProduct, Text = edit.Name, Amount = edit.Amount }, ct);
             else if (edit.Kind == TurnAction.DeleteProduct)
                 await HandleDeleteProductAsync(seller, edit.Name, ct);

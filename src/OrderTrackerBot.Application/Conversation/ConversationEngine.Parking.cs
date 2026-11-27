@@ -96,4 +96,24 @@ public partial class ConversationEngine
         if (ctx.ModelQueue.Count > 0) await ReplyAsync(seller, MessageTemplates.Get("park.003"), ct);
         return true;
     }
+
+    /// <summary>
+    /// Drops an open model YES / NO (<see cref="ConversationState.AwaitingModelStatusConfirmation"/>) asked more than <see cref="Safety.SafetyGateway.ConfirmationTtl"/>
+    /// ago, the same limit as a gateway confirmation. Nothing it asked about changes. True when it was dropped.
+    /// </summary>
+    private async Task<bool> DropExpiredModelConfirmationAsync(Seller seller, ConversationSession session, SessionContextData ctx, CancellationToken ct)
+    {
+        if (session.State != ConversationState.AwaitingModelStatusConfirmation || ctx.ModelConfirmAskedAt is not { } asked
+            || _clock.GetUtcNow().UtcDateTime - asked <= Safety.SafetyGateway.ConfirmationTtl)
+            return false;
+        // A gateway record left pending is unusable without its id, and expires on its own TTL.
+        ctx.ModelEdit = null;
+        ctx.ModelStatusOrderId = null;
+        ctx.ModelStatusValue = null;
+        ctx.ConfirmationId = null;
+        ctx.ModelConfirmAskedAt = null;
+        SetState(session, ConversationState.Idle);
+        await ReplyAsync(seller, MessageTemplates.Get("model-confirm.expired"), ct);
+        return true;
+    }
 }

@@ -213,6 +213,8 @@ public sealed class SessionContextData
     public string? ModelStatusValue { get; set; }
     /// <summary>A product price or customer detail change Features:ModelFirst picked, waiting for YES/NO in the same state.</summary>
     public ModelEditData? ModelEdit { get; set; }
+    /// <summary>When the open AwaitingModelStatusConfirmation question was first asked; an older one is dropped, so a late YES changes nothing.</summary>
+    public DateTime? ModelConfirmAskedAt { get; set; }
 
     /// <summary>Actions from one message that run once the open yes/no question is answered, in order.</summary>
     public List<QueuedModelTurn> ModelQueue { get; set; } = new();
@@ -383,6 +385,8 @@ public sealed class ModelEditData
     public int? ItemNo { get; set; }
     /// <summary>edit_order: the "edit order" instructions to run after YES, one per line ("1 = 3", "remove 2", "add Shirt 1").</summary>
     public List<string> Lines { get; set; } = new();
+    /// <summary>held_negated: an action that would run without a YES, held because the message also said no / don't; it runs after YES.</summary>
+    public QueuedModelTurn? Held { get; set; }
 }
 
 /// <summary>A message the model could not place with confidence: its words and the actions offered as taps.</summary>

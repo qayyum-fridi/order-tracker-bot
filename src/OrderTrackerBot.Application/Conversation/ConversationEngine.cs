@@ -368,6 +368,13 @@ public partial class ConversationEngine
 
         // A 1 / 2 pick question left open for a long time is dropped, so it cannot swallow every later message (ConversationEngine.Parking.cs).
         await DropExpiredPickQuestionAsync(seller, session, ctx, ct);
+        // The same for a YES / NO the model path asked (payment, expense, price, delete, ...): a YES sent much later must not change anything.
+        // A bare YES / NO answered that dead question: the expiry reply is the whole answer, it is not read as a new message.
+        if (await DropExpiredModelConfirmationAsync(seller, session, ctx, ct) && (CommandParser.IsAffirmative(message) || CommandParser.IsNegative(message)))
+        {
+            await PersistAsync(session, ctx, ct);
+            return;
+        }
 
         // An order draft left waiting for a long time is dropped: a phone or name sent hours later must not be taken as its answer.
         if (session.State is ConversationState.AwaitingOrderConfirmation or ConversationState.AwaitingOrderMissingFields
@@ -769,6 +776,8 @@ public partial class ConversationEngine
         // An open pick question keeps its first-asked time even while parked messages keep the session busy (UpdatedAt moves on every message).
         if (session.State == ConversationState.AwaitingClarificationChoice) ctx.PickAskedAt ??= _clock.GetUtcNow().UtcDateTime;
         else ctx.PickAskedAt = null;
+        if (session.State == ConversationState.AwaitingModelStatusConfirmation) ctx.ModelConfirmAskedAt ??= _clock.GetUtcNow().UtcDateTime;
+        else ctx.ModelConfirmAskedAt = null;
         session.ContextJson = ctx.ToJson();
         session.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);

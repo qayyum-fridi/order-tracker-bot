@@ -39,6 +39,17 @@ public static class ActionRisk
     public static bool IsRetractedCommand(string message) =>
         CommandParser.TryParse(message) is { } command && RetractionSensitive.Contains(command.Kind) && Retraction.IsMatch(message);
 
+    // Whole words only, Urdu script included ("مت" is inside "قیمت"). Not "nai" (also "new": "nai kurti") and not "sorry" (a polite opener).
+    private static readonly Regex Negation = new(
+        @"(?<![\p{L}\p{N}])(?:nahi|nahin|nhi|mat|galat|wrong|dont|don't|not|نہیں|مت|غلط)(?![\p{L}\p{N}])",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    /// <summary>
+    /// True when the message says no / don't / wrong anywhere. An action the model read from such a message may be the opposite of what was meant
+    /// ("kurti 5 aur nahi aayi"), so a write that would run without a YES asks first.
+    /// </summary>
+    public static bool SaysNo(string message) => Negation.IsMatch(message);
+
     /// <summary>True when the step names a money or order-state word, or parses to a risky command.</summary>
     public static bool IsRiskyStep(string step) =>
         RiskyWord.IsMatch(step) || CommandParser.TryParse(step) is { } command && RiskyCommands.Contains(command.Kind);

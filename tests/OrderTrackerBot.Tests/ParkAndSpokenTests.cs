@@ -266,4 +266,122 @@ public class ParkAndSpokenTests : IDisposable
         Assert.Contains("Sara Khan", said);
         Assert.DoesNotContain("❓", said);
     }
+
+    // ----- A "nahi / mat" in the message holds a write that would run without a YES -----
+
+    private const string NegatedStock = "shirt 5 aur nahi aayi";
+    private static TurnAction ShirtStock() => new() { Action = TurnAction.AddStock, Products = { new AiNewProduct { Name = "Shirt", Stock = 5 } } };
+    private static async Task<int?> ShirtStockAsync(AppDbContext db) => (await db.Products.AsNoTracking().SingleAsync(p => p.Name == "Shirt")).StockQty;
+
+    [Fact]
+    public async Task AStockWrite_FromAMessageThatSaysNahi_WaitsForYes_ThenRuns()
+    {
+        var (db, type, _) = await ShopAsync();
+        using var _db = db;
+        _model[NegatedStock] = ShirtStock();
+
+        await type(NegatedStock);
+        Assert.Null(await ShirtStockAsync(db));   // nothing changed yet
+        Assert.Contains(_sent, m => m == MessageTemplates.Get("model-held.001", "Stock barhana"));
+        Assert.Equal(ConversationState.AwaitingModelStatusConfirmation, (await db.Sessions.AsNoTracking().SingleAsync()).State);
+
+        await type("yes");
+        Assert.Equal(5, await ShirtStockAsync(db));
+    }
+
+    [Fact]
+    public async Task AStockWrite_FromAMessageThatSaysNahi_AnsweredNo_ChangesNothing()
+    {
+        var (db, type, _) = await ShopAsync();
+        using var _db = db;
+        _model[NegatedStock] = ShirtStock();
+
+        await type(NegatedStock);
+        await type("no");
+
+        Assert.Null(await ShirtStockAsync(db));
+        Assert.Equal(ConversationState.Idle, (await db.Sessions.AsNoTracking().SingleAsync()).State);
+    }
+
+    [Fact]
+    public async Task AStockWrite_WithoutANegation_StillRunsStraightAway()
+    {
+        var (db, type, _) = await ShopAsync();
+        using var _db = db;
+        const string message = "shirt 5 aur aa gayi";
+        _model[message] = ShirtStock();
+
+        await type(message);
+
+        Assert.Equal(5, await ShirtStockAsync(db));
+        Assert.DoesNotContain(_sent, m => m == MessageTemplates.Get("model-held.001", "Stock barhana"));
+    }
+
+    [Theory]
+    [InlineData("cancel mat karna", true)]
+    [InlineData("kurti 5 aur nahi aayi", true)]
+    [InlineData("don't add it", true)]
+    [InlineData("یہ آرڈر نہیں بھیجنا", true)]
+    [InlineData("nai kurti 1500 ki", false)]          // "nai" is also "new"
+    [InlineData("kurti ki قیمت 1500", false)]         // "مت" inside "قیمت" is not a word
+    [InlineData("sorry, kurti 5 aur aa gayi", false)]
+    [InlineData("kurti 5 aur aa gayi", false)]
+    public void SaysNo_MatchesWholeNegationWordsOnly(string message, bool expected) => Assert.Equal(expected, ActionRisk.SaysNo(message));
+
+    // ----- An open model YES / NO expires after 10 minutes -----
+
+    private async Task<int> WaitForShippedYesAskedAsync(AppDbContext db, int askedMinutesAgo)
+    {
+        var saraOrder = await WaitForShippedYesAsync(db);
+        var session = await db.Sessions.SingleAsync();
+        var ctx = SessionContextData.FromJson(session.ContextJson);
+        ctx.ModelConfirmAskedAt = DateTime.UtcNow.AddMinutes(-askedMinutesAgo);
+        session.ContextJson = ctx.ToJson();
+        await db.SaveChangesAsync();
+        return saraOrder;
+    }
+
+    [Fact]
+    public async Task AYes_ToAModelQuestionOlderThanTenMinutes_ChangesNothing()
+    {
+        var (db, type, _) = await ShopAsync();
+        using var _db = db;
+        var saraOrder = await WaitForShippedYesAskedAsync(db, askedMinutesAgo: 11);
+
+        await type("yes");
+
+        Assert.NotEqual(OrderStatus.Shipped, (await db.Orders.AsNoTracking().SingleAsync(o => o.Id == saraOrder)).Status);
+        Assert.Contains(_sent, m => m == MessageTemplates.Get("model-confirm.expired"));
+        var session = await db.Sessions.AsNoTracking().SingleAsync();
+        Assert.Equal(ConversationState.Idle, session.State);
+        var ctx = SessionContextData.FromJson(session.ContextJson);
+        Assert.Null(ctx.ModelStatusOrderId);
+        Assert.Null(ctx.ModelConfirmAskedAt);
+    }
+
+    [Fact]
+    public async Task AYes_ToAModelQuestionWithinTenMinutes_StillRuns()
+    {
+        var (db, type, _) = await ShopAsync();
+        using var _db = db;
+        var saraOrder = await WaitForShippedYesAskedAsync(db, askedMinutesAgo: 5);
+
+        await type("yes");
+
+        Assert.Equal(OrderStatus.Shipped, (await db.Orders.AsNoTracking().SingleAsync(o => o.Id == saraOrder)).Status);
+        Assert.DoesNotContain(_sent, m => m == MessageTemplates.Get("model-confirm.expired"));
+    }
+
+    [Fact]
+    public async Task AModelQuestion_GetsItsAskedTime_WhenItIsOpened()
+    {
+        var (db, type, _) = await ShopAsync();
+        using var _db = db;
+        _model[NegatedStock] = ShirtStock();
+
+        await type(NegatedStock);
+
+        var ctx = SessionContextData.FromJson((await db.Sessions.AsNoTracking().SingleAsync()).ContextJson);
+        Assert.NotNull(ctx.ModelConfirmAskedAt);
+    }
 }
