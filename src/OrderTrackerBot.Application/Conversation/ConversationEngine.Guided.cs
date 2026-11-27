@@ -209,10 +209,12 @@ public partial class ConversationEngine
         if (pick.StartsWith('#') && int.TryParse(pick[1..], out var orderId))
             await RunGuidedAsync(seller, session, ctx, turn, orderId, null, ct);
         else if (pick.StartsWith('@') && int.TryParse(pick[1..], out var customerId)
-                 && await _db.Customers.FirstOrDefaultAsync(c => c.Id == customerId && c.SellerId == seller.Id && c.DeletedAt == null, ct) is { } customer)
+                 && await new ReferenceResolver(_db).ResolveCustomerByIdAsync(seller.Id, customerId, ct) is { Status: ReferenceStatus.Resolved, Id: { } resolvedCustomer }
+                 && await _db.Customers.AsNoTracking().FirstAsync(c => c.Id == resolvedCustomer, ct) is { } customer)
             await RunGuidedAsync(seller, session, ctx, turn, null, customer.Name, ct);
         else if (pick.StartsWith('%') && int.TryParse(pick[1..], out var productId)
-                 && await _db.Products.FirstOrDefaultAsync(p => p.Id == productId && p.SellerId == seller.Id && p.IsActive, ct) is { } product)
+                 && await new ReferenceResolver(_db).ResolveProductByIdAsync(seller.Id, productId, ct) is { Status: ReferenceStatus.Resolved, Id: { } resolvedProduct }
+                 && await _db.Products.AsNoTracking().FirstAsync(p => p.Id == resolvedProduct, ct) is { } product)
             await RunGuidedAsync(seller, session, ctx, turn, null, null, ct, Formatters.ProductLabel(product));
         else if (pick.StartsWith('~'))
             await RunVariantPickAsync(seller, session, ctx, turn, pick, ct);   // ConversationEngine.VariantMatch.cs
