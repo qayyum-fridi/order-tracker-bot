@@ -163,4 +163,36 @@ public class GuidedPendingActionTests : IDisposable
         Assert.Equal("Cancelled", rows[0].Status);
         Assert.Equal("Waiting", rows[1].Status);
     }
+
+    [Fact]
+    public async Task MissingValueQuestion_IsPending_AndAFittingReplyRunsTheEditAfterItsOwnYes()
+    {
+        var (db, say) = await ShopAsync();
+        using var _ = db;
+        _model["sara ka phone badal do"] = new TurnAction { Action = TurnAction.EditCustomer, CustomerName = "Sara Khan", Field = "phone" };
+
+        await say("sara ka phone badal do");
+        var asked = Assert.Single(await Pendings(db));
+        Assert.Equal("Waiting", asked.Status);
+        Assert.Equal(MessageTemplates.Get("guided.customer.value", "Sara Khan", "phone", "03001234567"), asked.CurrentQuestion);
+
+        await say("03009998877");
+        Assert.Equal("Completed", Assert.Single(await Pendings(db)).Status);
+        await say("yes");
+        Assert.Equal("03009998877", (await db.Customers.AsNoTracking().SingleAsync(c => c.Id == _saraId)).Phone);
+    }
+
+    [Fact]
+    public async Task MissingValueQuestion_ReplyThatDoesNotFitTheField_CancelsAndRunsNothing()
+    {
+        var (db, say) = await ShopAsync();
+        using var _ = db;
+        _model["sara ka phone badal do"] = new TurnAction { Action = TurnAction.EditCustomer, CustomerName = "Sara Khan", Field = "phone" };
+
+        await say("sara ka phone badal do");
+        await say("abc");
+
+        Assert.Equal("Cancelled", Assert.Single(await Pendings(db)).Status);
+        Assert.Null((await db.Customers.AsNoTracking().SingleAsync(c => c.Id == _saraId)).Phone);
+    }
 }

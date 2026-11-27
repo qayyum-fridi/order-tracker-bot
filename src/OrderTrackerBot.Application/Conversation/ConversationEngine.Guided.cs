@@ -147,15 +147,22 @@ public partial class ConversationEngine
         if (action.Action == TurnAction.DeleteCustomer) return false;
         // One customer, but the new value (or which detail) was not said: ask for exactly that, with the sentence to say.
         var name = matches[0].Name;
-        await ReplyAsync(seller, action.Field is { } field
-            ? MessageTemplates.Get("guided.customer.value", name, ModelFieldLabel(field), field switch
-            {
-                "phone" => "03001234567",
-                "city" => "Lahore",
-                "name" => name,
-                _ => "Model Town Lahore",
-            })
-            : MessageTemplates.Get("guided.customer.what", name), ct);
+        if (action.Field is not { } field)
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("guided.customer.what", name), ct);
+            return true;
+        }
+        // The value question is a PendingAction bound to this seller and user: the next reply is validated for this field, then run.
+        var question = MessageTemplates.Get("guided.customer.value", name, ModelFieldLabel(field), field switch
+        {
+            "phone" => "03001234567",
+            "city" => "Lahore",
+            "name" => name,
+            _ => "Model Town Lahore",
+        });
+        await AwaitGuidedValueAsync(seller, session, ctx, new TurnAction { Action = action.Action, CustomerName = name, Field = field }, message,
+            field, question, ct);
+        await ReplyAsync(seller, question, ct);
         return true;
     }
 
@@ -194,12 +201,36 @@ public partial class ConversationEngine
         ctx.ClarificationOptions = options.Select(o => o.Value).ToList();
         SetState(session, ConversationState.AwaitingClarificationChoice);
 
+        await TrackQuestionAsync(seller, ctx, action, GuidedChoiceField, question, ct);
+    }
+
+    /// <summary>A guided question for one missing value ("Ali ka naya phone?"): the next reply is that value, checked by <see cref="ValueFromReply"/>.</summary>
+    private async Task AwaitGuidedValueAsync(Seller seller, ConversationSession session, SessionContextData ctx, TurnAction action, string message,
+        string field, string question, CancellationToken ct)
+    {
+        ctx.GuidedTurn = new QueuedModelTurn(Plain(action), message);
+        ctx.ClarificationOptions = null;
+        SetState(session, ConversationState.AwaitingClarificationChoice);
+        await TrackQuestionAsync(seller, ctx, action, field, question, ct);
+    }
+
+    /// <summary>Saves the question's record (any older waiting question is cancelled) and links it to the session.</summary>
+    private async Task TrackQuestionAsync(Seller seller, SessionContextData ctx, TurnAction action, string field, string question, CancellationToken ct)
+    {
         var store = new ClarificationStore(_db);
         await store.CancelWaitingAsync(seller.Id, seller.WhatsAppPhoneNumber, ct);
         var pending = ClarificationManager.Create(Guid.NewGuid().ToString("N"), seller.Id, seller.WhatsAppPhoneNumber, action.Action,
-            new[] { GuidedChoiceField }, question, _clock.GetUtcNow().UtcDateTime, PickQuestionExpiry);
+            new[] { field }, question, _clock.GetUtcNow().UtcDateTime, PickQuestionExpiry);
         await store.TrackAsync(pending, ct);
         ctx.PendingActionId = pending.Id;
+    }
+
+    /// <summary>A reply to a value question: the value if it fits the field, otherwise null (the question is then dropped as before).</summary>
+    private static string? ValueFromReply(string field, string reply)
+    {
+        var text = reply.Trim();
+        if (text.Length == 0) return null;
+        return field == "phone" ? (text.Count(char.IsDigit) >= 7 ? text : null) : text;
     }
 
     /// <summary>The option a reply picks: the tap itself ("#12" / "@5"), or its number in the list ("2"). Null when it picks none.</summary>
@@ -246,7 +277,9 @@ public partial class ConversationEngine
     private async Task<bool> TryHandleGuidedChoiceAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         if (ctx.GuidedTurn is not { } turn) return false;
-        var pick = MatchGuidedOption(ctx.ClarificationOptions ?? new List<string>(), message);
+        // A value question has no options: its reply is the value itself (HandleGuidedValueAsync).
+        var valueQuestion = ctx.ClarificationOptions is null or { Count: 0 };
+        var pick = valueQuestion ? null : MatchGuidedOption(ctx.ClarificationOptions!, message);
         var pendingId = ctx.PendingActionId;
 
         ctx.GuidedTurn = null;
@@ -254,8 +287,15 @@ public partial class ConversationEngine
         ctx.PendingActionId = null;
         SetState(session, ConversationState.Idle);
 
+        if (valueQuestion)
+        {
+            await HandleGuidedValueAsync(seller, session, ctx, turn, pendingId, message, ct);
+            return true;
+        }
+
         // Stage 6: the reply is matched to the question's own record (same seller, same user, still waiting, not expired).
         // Sessions saved before pending actions existed carry no id and keep the older path.
+        string? settleId = null;
         if (pendingId is not null)
         {
             var store = new ClarificationStore(_db);
@@ -265,10 +305,10 @@ public partial class ConversationEngine
             switch (result?.Outcome)
             {
                 case ClarificationOutcome.Ready:
-                    // The answer is taken. It still goes through the usual reference and safety checks below (RunGuidedAsync → CanRunAsync),
-                    // never straight to a handler.
-                    ClarificationManager.Complete(pending!);
+                    // The answer is saved, but the record stays open until the action has run or been refused (SettleGuidedPendingAsync).
+                    // The action still goes through the reference and safety checks in RunGuidedAsync, never straight to a handler.
                     await store.TrackAsync(pending!, ct);
+                    settleId = pendingId;
                     break;
                 case ClarificationOutcome.Invalid:
                     // Not an answer to this question: it stops waiting, and the message is handled as a new one.
@@ -298,20 +338,67 @@ public partial class ConversationEngine
         }
 
         if (pick.StartsWith('#') && int.TryParse(pick[1..], out var orderId))
-            await RunGuidedAsync(seller, session, ctx, turn, orderId, null, ct);
+            await RunGuidedAsync(seller, session, ctx, turn, orderId, null, ct, null, settleId);
         else if (pick.StartsWith('@') && int.TryParse(pick[1..], out var customerId)
                  && await new ReferenceResolver(_db).ResolveCustomerByIdAsync(seller.Id, customerId, ct) is { Status: ReferenceStatus.Resolved, Id: { } resolvedCustomer }
                  && await _db.Customers.AsNoTracking().FirstAsync(c => c.Id == resolvedCustomer, ct) is { } customer)
-            await RunGuidedAsync(seller, session, ctx, turn, null, customer.Name, ct);
+            await RunGuidedAsync(seller, session, ctx, turn, null, customer.Name, ct, null, settleId);
         else if (pick.StartsWith('%') && int.TryParse(pick[1..], out var productId)
                  && await new ReferenceResolver(_db).ResolveProductByIdAsync(seller.Id, productId, ct) is { Status: ReferenceStatus.Resolved, Id: { } resolvedProduct }
                  && await _db.Products.AsNoTracking().FirstAsync(p => p.Id == resolvedProduct, ct) is { } product)
-            await RunGuidedAsync(seller, session, ctx, turn, null, null, ct, Formatters.ProductLabel(product));
+            await RunGuidedAsync(seller, session, ctx, turn, null, null, ct, Formatters.ProductLabel(product), settleId);
         else if (pick.StartsWith('~'))
+        {
             await RunVariantPickAsync(seller, session, ctx, turn, pick, ct);   // ConversationEngine.VariantMatch.cs
+            await SettleGuidedPendingAsync(seller, settleId, true, ct);
+        }
         else
+        {
+            await SettleGuidedPendingAsync(seller, settleId, false, ct);
             await HandleIdleAsync(seller, session, ctx, message, ct);
+        }
         return true;
+    }
+
+    /// <summary>
+    /// The reply to a value question ("Ali ka naya phone?"). A reply that fits the field is filled in and run like a tapped choice; anything else
+    /// closes the question and is handled as a new message (no stale value is run).
+    /// </summary>
+    private async Task HandleGuidedValueAsync(Seller seller, ConversationSession session, SessionContextData ctx, QueuedModelTurn turn, string? pendingId,
+        string message, CancellationToken ct)
+    {
+        var store = new ClarificationStore(_db);
+        var pending = pendingId is null ? null : await store.FindAsync(pendingId, seller.Id, seller.WhatsAppPhoneNumber, ct);
+        var result = pending is null ? null
+            : ClarificationManager.Answer(pending, seller.Id, seller.WhatsAppPhoneNumber, message, _clock.GetUtcNow().UtcDateTime, ValueFromReply);
+        if (result?.Outcome == ClarificationOutcome.Ready)
+        {
+            var (field, value) = pending!.Answers.Single();
+            await store.TrackAsync(pending, ct);
+            // The reply is the seller's words for this run: the value must be among them (UnquotedDetails), so the message is the reply, not the first sentence.
+            var filled = new QueuedModelTurn(new TurnAction { Action = turn.Action.Action, CustomerName = turn.Action.CustomerName, Field = field, Value = value }, message);
+            await RunGuidedAsync(seller, session, ctx, filled, null, null, ct, null, pending.Id);
+            return;
+        }
+        if (pending is not null)
+        {
+            if (result?.Outcome == ClarificationOutcome.Invalid) ClarificationManager.Cancel(pending);
+            else ClarificationManager.Expire(pending);
+            await store.TrackAsync(pending, ct);
+        }
+        await HandleIdleAsync(seller, session, ctx, message, ct);
+    }
+
+    /// <summary>Closes a guided question's record once its action has run (<paramref name="ran"/>) or was not run. A record a newer question already cancelled stays so.</summary>
+    private async Task SettleGuidedPendingAsync(Seller seller, string? pendingId, bool ran, CancellationToken ct)
+    {
+        if (pendingId is null) return;
+        var store = new ClarificationStore(_db);
+        var pending = await store.FindAsync(pendingId, seller.Id, seller.WhatsAppPhoneNumber, ct);
+        if (pending is not { Status: PendingStatus.Waiting }) return;
+        if (ran) ClarificationManager.Complete(pending);
+        else ClarificationManager.Cancel(pending);
+        await store.TrackAsync(pending, ct);
     }
 
     /// <summary>
@@ -319,7 +406,7 @@ public partial class ConversationEngine
     /// spoken detail passes (the order number was said, the name was said) pass for a tapped one. Still missing a value (the new phone): ask for it.
     /// </summary>
     private async Task RunGuidedAsync(Seller seller, ConversationSession session, SessionContextData ctx, QueuedModelTurn turn, int? orderId, string? customerName,
-        CancellationToken ct, string? productName = null)
+        CancellationToken ct, string? productName = null, string? settlePendingId = null)
     {
         var a = turn.Action;
         var filled = new TurnAction
@@ -337,14 +424,24 @@ public partial class ConversationEngine
             if (_guidedDepth == 0)
             {
                 _guidedDepth++;
-                try { if (await TryGuideAsync(seller, session, ctx, filled, said, null, ct)) return; }
+                try
+                {
+                    if (await TryGuideAsync(seller, session, ctx, filled, said, null, ct))
+                    {
+                        await SettleGuidedPendingAsync(seller, settlePendingId, false, ct);
+                        return;
+                    }
+                }
                 finally { _guidedDepth--; }
             }
+            await SettleGuidedPendingAsync(seller, settlePendingId, false, ct);
             await ReplyNotRunAsync(seller, filled, ct);
             return;
         }
         var catalog = await LoadCatalogAsync(seller, ct);
-        if (!await RunTurnActionAsync(seller, session, ctx, filled, catalog, said, ct, false))
+        var ran = await RunTurnActionAsync(seller, session, ctx, filled, catalog, said, ct, false);
+        await SettleGuidedPendingAsync(seller, settlePendingId, ran, ct);
+        if (!ran)
             await ReplyNotRunAsync(seller, filled, ct);
     }
 }
