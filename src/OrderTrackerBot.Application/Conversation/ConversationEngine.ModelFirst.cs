@@ -1,3 +1,4 @@
+﻿using OrderTrackerBot.Application.Safety;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using OrderTrackerBot.Application.Ai;
@@ -406,10 +407,8 @@ public partial class ConversationEngine
 
             case TurnAction.UpdateStatus when orderId is { } statusId && action.Status is not null:
                 // A status the model picked (maybe from a misheard voice note) waits for YES/NO before the order changes.
-                ctx.ModelStatusOrderId = statusId;
-                ctx.ModelStatusValue = action.Status;
-                SetState(session, ConversationState.AwaitingModelStatusConfirmation);
-                await AskYesNoAsync(seller, MessageTemplates.Get("model-status.001", statusId, action.Status), ct);
+                await AskStatusConfirmationAsync(seller, session, ctx, statusId, action.Status,
+                    MessageTemplates.Get("model-status.001", statusId, action.Status), ct);
                 return true;
 
             case TurnAction.CancelOrder when orderId is { } cancelId:
@@ -427,10 +426,8 @@ public partial class ConversationEngine
             case TurnAction.UpdateStatus when action.Status is not null && SaidName(action.CustomerName, message)
                                               && await ModelCustomerAsync(seller, action.CustomerName, ct) is { } statusCustomer
                                               && await FindLatestOrderByCustomerNameAsync(seller, statusCustomer.Name, ct) is { } latest:
-                ctx.ModelStatusOrderId = latest.Id;
-                ctx.ModelStatusValue = action.Status;
-                SetState(session, ConversationState.AwaitingModelStatusConfirmation);
-                await AskYesNoAsync(seller, MessageTemplates.Get("model-status.002", latest.Id, statusCustomer.Name, action.Status), ct);
+                await AskStatusConfirmationAsync(seller, session, ctx, latest.Id, action.Status,
+                    MessageTemplates.Get("model-status.002", latest.Id, statusCustomer.Name, action.Status), ct);
                 return true;
 
             case TurnAction.EditProduct when action.Products.Count > 0 && action.Products[0].Price is > 0:
@@ -719,10 +716,36 @@ public partial class ConversationEngine
         return missing.Distinct().ToList();
     }
 
+    /// <summary>
+    /// Stage 7: a status change the model picked waits for YES, bound to a ConfirmationRecord. The gateway checks the seller owns the order;
+    /// the question is refused (with the order not found reply) when it does not.
+    /// </summary>
+    private async Task AskStatusConfirmationAsync(Seller seller, ConversationSession session, SessionContextData ctx, int orderId, string status,
+        string question, CancellationToken ct)
+    {
+        var decision = await new SafetyGateway(_db).AuthorizeAsync(seller, seller.WhatsAppPhoneNumber, TurnAction.UpdateStatus, orderId, status,
+            _clock.GetUtcNow().UtcDateTime, ct);
+        if (decision.Decision != SafetyDecision.RequireConfirmation)
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("commands.028", orderId), ct);
+            return;
+        }
+        ctx.ConfirmationId = decision.ConfirmationId;
+        SetState(session, ConversationState.AwaitingModelStatusConfirmation);
+        await AskYesNoAsync(seller, question, ct);
+    }
+
     /// <summary>The seller's answer to a status change the model picked: only YES runs it; anything else leaves the order as it was.</summary>
     private async Task HandleModelStatusConfirmationAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         SetState(session, ConversationState.Idle);
+        // A gateway confirmation is only the open question when no older payload is waiting on the same state.
+        if (ctx.ConfirmationId is { } confirmationId && ctx.ModelEdit is null && ctx.ModelStatusOrderId is null)
+        {
+            ctx.ConfirmationId = null;
+            await HandleGatewayStatusAsync(seller, session, ctx, confirmationId, message, ct);
+            return;
+        }
         var orderId = ctx.ModelStatusOrderId;
         var status = ctx.ModelStatusValue;
         ctx.ModelStatusOrderId = null;
@@ -799,6 +822,27 @@ public partial class ConversationEngine
         ctx.LastListOrderIds = null;
         await HandleMarkStatusAsync(seller, session, ctx,
             new ParsedCommand { Kind = CommandKind.MarkStatus, Number = orderId, Text = status }, ct);
+    }
+
+    /// <summary>Stage 7: a YES runs the status change only if the gateway still allows it for the order it was asked about.</summary>
+    private async Task HandleGatewayStatusAsync(Seller seller, ConversationSession session, SessionContextData ctx, string confirmationId, string message,
+        CancellationToken ct)
+    {
+        var gateway = new SafetyGateway(_db);
+        if (!CommandParser.IsAffirmative(message))
+        {
+            await gateway.RejectAsync(confirmationId, ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands2.005"), ct);
+            return;
+        }
+        var result = await gateway.ReauthorizeAsync(seller, seller.WhatsAppPhoneNumber, confirmationId, _clock.GetUtcNow().UtcDateTime, ct);
+        if (result.Decision != SafetyDecision.Allow || result.OrderId is not { } orderId || result.Value is not { } status)
+        {
+            await ReplyGatewayRefusalAsync(seller, result.Decision, ct);
+            return;
+        }
+        ctx.LastListOrderIds = null;
+        await HandleMarkStatusAsync(seller, session, ctx, new ParsedCommand { Kind = CommandKind.MarkStatus, Number = orderId, Text = status }, ct);
     }
 
     /// <summary>The model's period name mapped to the phrase the report code reads; null = today.</summary>

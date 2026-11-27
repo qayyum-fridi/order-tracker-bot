@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using OrderTrackerBot.Domain.Enums;
 
 namespace OrderTrackerBot.Application.Conversation;
@@ -206,6 +206,8 @@ public sealed class SessionContextData
     /// <summary>What the pending bulk YES does: null = shipped (the "pending as shipped" bulk); "delivered" = today's shipped orders.</summary>
     public string? BulkStatusTarget { get; set; }
     public int? CancelOrderId { get; set; }
+    /// <summary>Stage 7: the ConfirmationRecord the open YES/NO asks under (cancel or status). Null for the older, ungated questions.</summary>
+    public string? ConfirmationId { get; set; }
     /// <summary>A status change Features:ModelFirst picked, waiting for YES/NO (AwaitingModelStatusConfirmation).</summary>
     public int? ModelStatusOrderId { get; set; }
     public string? ModelStatusValue { get; set; }

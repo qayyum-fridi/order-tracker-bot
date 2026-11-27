@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Domain.Entities;
 
 namespace OrderTrackerBot.Application.Abstractions;
@@ -49,6 +49,7 @@ public interface IAppDbContext
     DbSet<LearnedKeywordVote> LearnedKeywordVotes { get; }
     DbSet<RouterDecision> RouterDecisions { get; }
     DbSet<PendingActionRecord> PendingActions { get; }
+    DbSet<ConfirmationRecord> ConfirmationRecords { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

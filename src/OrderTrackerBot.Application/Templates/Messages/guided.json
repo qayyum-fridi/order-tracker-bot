@@ -23,5 +23,7 @@
   "model-restore.002": "✅ {0} wapas catalog mein aa gaya.",
   "model-restore.003": "Maaf kijiye, \"{0}\" naam ka hataya hua product nahi mila. \"catalog\" likh kar list dekhein.",
   "model-restore.004": "ℹ️ {0} pehle se catalog mein hai. \"catalog\" likh kar list dekhein.",
-  "guided.expired": "⌛ Maaf kijiye, yeh sawal purana ho gaya tha, is liye kuch nahi badla. Barae meherbani apni baat dobara likhein."
+  "guided.expired": "⌛ Maaf kijiye, yeh sawal purana ho gaya tha, is liye kuch nahi badla. Barae meherbani apni baat dobara likhein.",
+  "guided.gateway.stale": "❓ Is order ki halat badal gayi hai. Barae meherbani command dobara likhein.",
+  "guided.gateway.expired": "❓ Is ki tasdeeq ka waqt guzar gaya hai. Barae meherbani command dobara likhein."
 }

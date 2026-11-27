@@ -1,8 +1,9 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Moq;
 using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Ai;
 using OrderTrackerBot.Application.Conversation;
+using OrderTrackerBot.Application.Safety;
 using OrderTrackerBot.Application.Templates;
 using OrderTrackerBot.Domain.Entities;
 using OrderTrackerBot.Domain.Enums;
@@ -234,6 +235,116 @@ public class GuidedPendingActionTests : IDisposable
 
         Assert.Equal("Waiting", Assert.Single(await Pendings(db)).Status);
         Assert.Contains(MessageTemplates.Get("guided.customer.what", "Sara Khan"), _sent);
+    }
+
+    private static Task<List<ConfirmationRecord>> Confirmations(AppDbContext db) => db.ConfirmationRecords.AsNoTracking().ToListAsync();
+
+    [Fact]
+    public async Task CancelYes_RunsOnlyTheOrderTheQuestionWasAskedFor_AndConsumesTheConfirmation()
+    {
+        var (db, say) = await ShopAsync();
+        using var _ = db;
+        _model["ek order cancel karna hai"] = new TurnAction { Action = TurnAction.CancelOrder };
+
+        await say("ek order cancel karna hai");
+        await say("2");
+        var asked = Assert.Single(await Confirmations(db));
+        Assert.Equal("Pending", asked.Status);
+
+        await say("yes");
+        Assert.Equal(OrderStatus.Cancelled, await StatusOf(db, _saraId));
+        Assert.Equal(OrderStatus.Pending, await StatusOf(db, _bilalId));
+        var used = Assert.Single(await Confirmations(db));
+        Assert.Equal("Consumed", used.Status);
+        Assert.NotNull(used.ConsumedAt);
+    }
+
+    [Fact]
+    public async Task CancelYes_AfterTheOrderChanged_RunsNothing_AndSaysItChanged()
+    {
+        var (db, say) = await ShopAsync();
+        using var _ = db;
+        _model["ek order cancel karna hai"] = new TurnAction { Action = TurnAction.CancelOrder };
+
+        await say("ek order cancel karna hai");
+        await say("2");
+        var sara = await db.Orders.SingleAsync(o => o.CustomerId == _saraId);
+        sara.Status = OrderStatus.Shipped;
+        await db.SaveChangesAsync();
+        _sent.Clear();
+
+        await say("yes");
+        Assert.Equal(OrderStatus.Shipped, await StatusOf(db, _saraId));
+        Assert.Equal("Stale", Assert.Single(await Confirmations(db)).Status);
+        Assert.Contains(MessageTemplates.Get("guided.gateway.stale"), _sent);
+    }
+
+    [Fact]
+    public async Task CancelYes_AfterTheConfirmationExpired_RunsNothing_AndAsksToStartAgain()
+    {
+        var (db, say) = await ShopAsync();
+        using var _ = db;
+        _model["ek order cancel karna hai"] = new TurnAction { Action = TurnAction.CancelOrder };
+
+        await say("ek order cancel karna hai");
+        await say("2");
+        _clock.Now += SafetyGateway.ConfirmationTtl + TimeSpan.FromMinutes(1);
+        _sent.Clear();
+
+        await say("yes");
+        Assert.Equal(OrderStatus.Pending, await StatusOf(db, _saraId));
+        Assert.Equal("Expired", Assert.Single(await Confirmations(db)).Status);
+        Assert.Contains(MessageTemplates.Get("guided.gateway.expired"), _sent);
+    }
+
+    [Fact]
+    public async Task StatusYes_RunsTheStatusChange_OnlyThroughTheGateway()
+    {
+        var (db, say) = await ShopAsync();
+        using var _ = db;
+        var sara = await db.Orders.SingleAsync(o => o.CustomerId == _saraId);
+        var text = $"Sara wala order #{sara.Id} ka status badal dena";
+        _model[text] = new TurnAction { Action = TurnAction.UpdateStatus, Status = "shipped", OrderId = sara.Id };
+
+        await say(text);
+        Assert.Equal("Pending", Assert.Single(await Confirmations(db)).Status);
+        Assert.Equal(OrderStatus.Pending, await StatusOf(db, _saraId));
+
+        await say("yes");
+        Assert.Equal(OrderStatus.Shipped, await StatusOf(db, _saraId));
+        Assert.Equal("Consumed", Assert.Single(await Confirmations(db)).Status);
+    }
+
+    [Fact]
+    public async Task Gateway_RefusesAnOrderOfAnotherSeller_AndAnotherUser()
+    {
+        var (db, _) = await ShopAsync();
+        using var _ = db;
+        var seller = await db.Sellers.SingleAsync();
+        var gateway = new SafetyGateway(db);
+        var now = _clock.GetUtcNow().UtcDateTime;
+        var sara = await db.Orders.SingleAsync(o => o.CustomerId == _saraId);
+
+        Assert.Equal(SafetyDecision.Block, (await gateway.AuthorizeAsync(seller, Phone, TurnAction.CancelOrder, 999999, null, now, default)).Decision);
+        Assert.Equal(SafetyDecision.Block, (await gateway.AuthorizeAsync(seller, "923009999999", TurnAction.CancelOrder, sara.Id, null, now, default)).Decision);
+        Assert.Empty(await Confirmations(db));
+    }
+
+    [Fact]
+    public async Task Gateway_ConsumesAConfirmationOnlyOnce()
+    {
+        var (db, _) = await ShopAsync();
+        using var _ = db;
+        var seller = await db.Sellers.SingleAsync();
+        var gateway = new SafetyGateway(db);
+        var now = _clock.GetUtcNow().UtcDateTime;
+        var sara = await db.Orders.SingleAsync(o => o.CustomerId == _saraId);
+
+        var asked = await gateway.AuthorizeAsync(seller, Phone, TurnAction.CancelOrder, sara.Id, null, now, default);
+        Assert.Equal(SafetyDecision.RequireConfirmation, asked.Decision);
+        await db.SaveChangesAsync();   // the engine saves once per message; the YES comes in a later message
+        Assert.Equal(SafetyDecision.Allow, (await gateway.ReauthorizeAsync(seller, Phone, asked.ConfirmationId!, now, default)).Decision);
+        Assert.Equal(SafetyDecision.Block, (await gateway.ReauthorizeAsync(seller, Phone, asked.ConfirmationId!, now, default)).Decision);
     }
 
     [Fact]

@@ -1,3 +1,5 @@
+﻿using OrderTrackerBot.Application.Ai;
+using OrderTrackerBot.Application.Safety;
 using OrderTrackerBot.Application.Time;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -21,6 +23,15 @@ public partial class ConversationEngine
             return;
         }
 
+        // Stage 7: the gateway checks ownership and risk, and binds the YES to this confirmation (see HandleCancelConfirmationAsync).
+        var decision = await new SafetyGateway(_db).AuthorizeAsync(seller, seller.WhatsAppPhoneNumber, TurnAction.CancelOrder, order.Id, null,
+            _clock.GetUtcNow().UtcDateTime, ct);
+        if (decision.Decision != SafetyDecision.RequireConfirmation)
+        {
+            await ReplyAsync(seller, MessageTemplates.Get("commands.028", cmd.Number), ct);
+            return;
+        }
+        ctx.ConfirmationId = decision.ConfirmationId;
         ctx.CancelOrderId = order.Id;
         SetState(session, ConversationState.AwaitingCancelConfirmation);
         await AskYesNoAsync(seller,
@@ -30,6 +41,13 @@ public partial class ConversationEngine
     private async Task HandleCancelConfirmationAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         SetState(session, ConversationState.Idle);
+        if (ctx.ConfirmationId is { } confirmationId)
+        {
+            ctx.ConfirmationId = null;
+            ctx.CancelOrderId = null;
+            await HandleGatewayCancelAsync(seller, ctx, confirmationId, message, ct);
+            return;
+        }
         if (!CommandParser.IsAffirmative(message))
         {
             ctx.CancelOrderId = null;
@@ -40,6 +58,33 @@ public partial class ConversationEngine
         var order = await _db.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == ctx.CancelOrderId && o.SellerId == seller.Id, ct);
         ctx.CancelOrderId = null;
         if (order is null) return;
+        await ApplyCancelAsync(seller, ctx, order, ct);
+    }
+
+    /// <summary>Stage 7: a YES only cancels the order the question was asked under, and only if the gateway still allows it.</summary>
+    private async Task HandleGatewayCancelAsync(Seller seller, SessionContextData ctx, string confirmationId, string message, CancellationToken ct)
+    {
+        var gateway = new SafetyGateway(_db);
+        if (!CommandParser.IsAffirmative(message))
+        {
+            await gateway.RejectAsync(confirmationId, ct);
+            await ReplyAsync(seller, MessageTemplates.Get("commands2.002"), ct);
+            return;
+        }
+
+        var result = await gateway.ReauthorizeAsync(seller, seller.WhatsAppPhoneNumber, confirmationId, _clock.GetUtcNow().UtcDateTime, ct);
+        if (result.Decision != SafetyDecision.Allow)
+        {
+            await ReplyGatewayRefusalAsync(seller, result.Decision, ct);
+            return;
+        }
+        var order = await _db.Orders.Include(o => o.Items).FirstOrDefaultAsync(o => o.Id == result.OrderId && o.SellerId == seller.Id, ct);
+        if (order is null) return;
+        await ApplyCancelAsync(seller, ctx, order, ct);
+    }
+
+    private async Task ApplyCancelAsync(Seller seller, SessionContextData ctx, Order order, CancellationToken ct)
+    {
         RememberOrder(ctx, order.Id);
         var stockBefore = StockFootprint(order);
 
@@ -55,6 +100,18 @@ public partial class ConversationEngine
         await RecordCorrectionAsync(seller, order, ct);
         await ApplyStockChangeAsync(seller, stockBefore, StockFootprint(order), ct);
         await ReplyAsync(seller, MessageTemplates.Get("commands2.003", order.Id), ct);
+    }
+
+    /// <summary>The reply for a YES the gateway did not allow: an expired or changed order says so; anything else is the usual "not done".</summary>
+    private async Task ReplyGatewayRefusalAsync(Seller seller, SafetyDecision decision, CancellationToken ct)
+    {
+        var key = decision switch
+        {
+            SafetyDecision.Expired => "guided.gateway.expired",
+            SafetyDecision.Stale => "guided.gateway.stale",
+            _ => "commands2.005",
+        };
+        await ReplyAsync(seller, MessageTemplates.Get(key), ct);
     }
 
     /// <summary>"sab aaj wale delivered": the shipped orders of today (seller's day), listed for YES before anything changes.</summary>

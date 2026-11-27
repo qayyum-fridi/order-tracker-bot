@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Domain.Entities;
 
@@ -53,6 +53,7 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<LearnedKeywordVote> LearnedKeywordVotes => Set<LearnedKeywordVote>();
     public DbSet<RouterDecision> RouterDecisions => Set<RouterDecision>();
     public DbSet<PendingActionRecord> PendingActions => Set<PendingActionRecord>();
+    public DbSet<ConfirmationRecord> ConfirmationRecords => Set<ConfirmationRecord>();
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -82,6 +83,17 @@ public class AppDbContext : DbContext, IAppDbContext
             e.Property(p => p.Status).HasMaxLength(20);
             e.HasIndex(p => new { p.SellerId, p.UserId, p.Status });
             e.HasIndex(p => p.ExpiresAt);
+        });
+        modelBuilder.Entity<ConfirmationRecord>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.Property(c => c.Id).HasMaxLength(32);
+            e.Property(c => c.UserId).HasMaxLength(40);
+            e.Property(c => c.Action).HasMaxLength(60);
+            e.Property(c => c.Value).HasMaxLength(60);
+            e.Property(c => c.RecordVersion).HasMaxLength(64);
+            e.Property(c => c.Status).HasMaxLength(20);
+            e.HasIndex(c => new { c.SellerId, c.UserId, c.Status });
         });
         modelBuilder.Entity<UnknownNumberWord>(e => { e.HasIndex(w => w.Word).IsUnique(); e.Property(w => w.Word).HasMaxLength(40); });
         modelBuilder.Entity<RouterDecision>(e =>
