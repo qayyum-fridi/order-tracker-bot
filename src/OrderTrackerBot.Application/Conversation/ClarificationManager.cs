@@ -24,6 +24,10 @@ public sealed class PendingAction
     public required DateTime CreatedAt { get; init; }
     public required DateTime ExpiresAt { get; init; }
     public PendingStatus Status { get; set; } = PendingStatus.Waiting;
+    /// <summary>The original command the question belongs to. The reply completes this action, never a new one.</summary>
+    public Ai.TurnAction? Plan { get; set; }
+    /// <summary>Replies so far that did not fit the field (see <see cref="ClarificationManager.MaxInvalidReplies"/>).</summary>
+    public int Attempts { get; set; }
 }
 
 public enum ClarificationOutcome { Ask, Invalid, Ready, Expired, Closed, NotForThisPending }
@@ -38,6 +42,9 @@ public sealed record ClarificationResult(ClarificationOutcome Outcome, PendingAc
 public static class ClarificationManager
 {
     public static readonly TimeSpan DefaultTtl = TimeSpan.FromMinutes(30);
+
+    /// <summary>Invalid replies allowed before the question is dropped: the seller is asked again, then the question closes.</summary>
+    public const int MaxInvalidReplies = 2;
 
     public static PendingAction Create(
         string id, int sellerId, string userId, string action, IReadOnlyList<string> missingFields, string firstQuestion,
@@ -73,7 +80,11 @@ public static class ClarificationManager
 
         var field = pending.MissingFields[0];
         var value = parse(field, reply);
-        if (value is null) return new(ClarificationOutcome.Invalid, pending, pending.CurrentQuestion);
+        if (value is null)
+        {
+            pending.Attempts++;
+            return new(ClarificationOutcome.Invalid, pending, pending.CurrentQuestion);
+        }
 
         pending.Answers[field] = value;
         pending.MissingFields.RemoveAt(0);

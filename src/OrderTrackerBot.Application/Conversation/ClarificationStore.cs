@@ -36,6 +36,8 @@ public sealed class ClarificationStore
         record.CreatedAt = pending.CreatedAt;
         record.ExpiresAt = pending.ExpiresAt;
         record.Status = pending.Status.ToString();
+        record.ActionJson = pending.Plan is null ? "" : JsonSerializer.Serialize(pending.Plan);
+        record.Attempts = pending.Attempts;
     }
 
     /// <summary>The record with this id, only if it belongs to this seller and user; any status. Null otherwise.</summary>
@@ -69,6 +71,8 @@ public sealed class ClarificationStore
             Id = record.Id, SellerId = record.SellerId, UserId = record.UserId, Action = record.Action,
             CurrentQuestion = record.CurrentQuestion, CreatedAt = record.CreatedAt, ExpiresAt = record.ExpiresAt,
             Status = Enum.Parse<PendingStatus>(record.Status),
+            Plan = string.IsNullOrEmpty(record.ActionJson) ? null : JsonSerializer.Deserialize<Ai.TurnAction>(record.ActionJson),
+            Attempts = record.Attempts,
         };
         foreach (var kv in JsonSerializer.Deserialize<Dictionary<string, int>>(record.ResolvedReferencesJson) ?? new()) pending.ResolvedReferences[kv.Key] = kv.Value;
         pending.MissingFields.AddRange(JsonSerializer.Deserialize<List<string>>(record.MissingFieldsJson) ?? new());

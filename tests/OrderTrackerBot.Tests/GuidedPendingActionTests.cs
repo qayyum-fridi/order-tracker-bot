@@ -190,9 +190,65 @@ public class GuidedPendingActionTests : IDisposable
         _model["sara ka phone badal do"] = new TurnAction { Action = TurnAction.EditCustomer, CustomerName = "Sara Khan", Field = "phone" };
 
         await say("sara ka phone badal do");
+        _sent.Clear();
         await say("abc");
 
+        // First invalid reply: the same question is asked again and the record keeps waiting.
+        var asked = Assert.Single(await Pendings(db));
+        Assert.Equal("Waiting", asked.Status);
+        Assert.Contains(MessageTemplates.Get("guided.customer.value", "Sara Khan", "phone", "03001234567"), _sent);
+
+        // Second invalid reply reaches the limit: the question closes and runs nothing.
+        await say("xyz");
         Assert.Equal("Cancelled", Assert.Single(await Pendings(db)).Status);
         Assert.Null((await db.Customers.AsNoTracking().SingleAsync(c => c.Id == _saraId)).Phone);
+    }
+
+    [Fact]
+    public async Task WhatToChangeQuestion_ReplyNamingAField_RunsTheEditAfterYes()
+    {
+        var (db, say) = await ShopAsync();
+        using var _ = db;
+        _model["sara ka kuch badlna hai"] = new TurnAction { Action = TurnAction.EditCustomer, CustomerName = "Sara Khan" };
+
+        await say("sara ka kuch badlna hai");
+        var asked = Assert.Single(await Pendings(db));
+        Assert.Equal(MessageTemplates.Get("guided.customer.what", "Sara Khan"), asked.CurrentQuestion);
+
+        await say("city Lahore");
+        Assert.Equal("Completed", Assert.Single(await Pendings(db)).Status);
+        await say("yes");
+        Assert.Equal("Lahore", (await db.Customers.AsNoTracking().SingleAsync(c => c.Id == _saraId)).City);
+    }
+
+    [Fact]
+    public async Task WhatToChangeQuestion_ReplyWithoutAField_IsAskedAgain()
+    {
+        var (db, say) = await ShopAsync();
+        using var _ = db;
+        _model["sara ka kuch badlna hai"] = new TurnAction { Action = TurnAction.EditCustomer, CustomerName = "Sara Khan" };
+
+        await say("sara ka kuch badlna hai");
+        _sent.Clear();
+        await say("kuch bhi");
+
+        Assert.Equal("Waiting", Assert.Single(await Pendings(db)).Status);
+        Assert.Contains(MessageTemplates.Get("guided.customer.what", "Sara Khan"), _sent);
+    }
+
+    [Fact]
+    public async Task GuidedQuestion_StoresTheOriginalCommand_AndTheTappedReference()
+    {
+        var (db, say) = await ShopAsync();
+        using var _ = db;
+        _model["ek order cancel karna hai"] = new TurnAction { Action = TurnAction.CancelOrder };
+
+        await say("ek order cancel karna hai");
+        Assert.Contains(TurnAction.CancelOrder, Assert.Single(await db.PendingActions.AsNoTracking().ToListAsync()).ActionJson);
+
+        await say("2");
+        var done = Assert.Single(await Pendings(db));
+        Assert.Equal("Completed", done.Status);
+        Assert.Contains("\"order\"", done.ResolvedReferencesJson);
     }
 }

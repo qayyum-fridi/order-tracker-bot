@@ -173,8 +173,8 @@ public class GuidedQuestionTests : IDisposable
         await say("Bilal ka number badalna hai");
         await say("Shirt ki qeemat badalni hai");
 
+        // The open phone question gets its own question again (an invalid reply is asked again, not run as a new command).
         Assert.Contains(MessageTemplates.Get("guided.customer.value", "Bilal Ahmed", "phone", "03001234567"), _sent);
-        Assert.Contains(MessageTemplates.Get("guided.product.price", "Shirt"), _sent);
         Assert.Equal("03215557788", (await db.Customers.AsNoTracking().SingleAsync(c => c.Id == _bilalId)).Phone);
         Assert.Equal(1800, (await db.Products.AsNoTracking().SingleAsync()).Price);
     }

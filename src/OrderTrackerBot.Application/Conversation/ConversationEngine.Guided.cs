@@ -149,7 +149,10 @@ public partial class ConversationEngine
         var name = matches[0].Name;
         if (action.Field is not { } field)
         {
-            await ReplyAsync(seller, MessageTemplates.Get("guided.customer.what", name), ct);
+            // No field said: the reply must name one ("phone 0300…", "city Lahore"); the record keeps the command until then.
+            var what = MessageTemplates.Get("guided.customer.what", name);
+            await AwaitGuidedValueAsync(seller, session, ctx, new TurnAction { Action = action.Action, CustomerName = name }, message, GuidedWhatField, what, ct);
+            await ReplyAsync(seller, what, ct);
             return true;
         }
         // The value question is a PendingAction bound to this seller and user: the next reply is validated for this field, then run.
@@ -204,6 +207,9 @@ public partial class ConversationEngine
         await TrackQuestionAsync(seller, ctx, action, GuidedChoiceField, question, ct);
     }
 
+    /// <summary>The missing field of "what should I change for {customer}?": the reply itself names the field.</summary>
+    private const string GuidedWhatField = "what";
+
     /// <summary>A guided question for one missing value ("Ali ka naya phone?"): the next reply is that value, checked by <see cref="ValueFromReply"/>.</summary>
     private async Task AwaitGuidedValueAsync(Seller seller, ConversationSession session, SessionContextData ctx, TurnAction action, string message,
         string field, string question, CancellationToken ct)
@@ -221,8 +227,40 @@ public partial class ConversationEngine
         await store.CancelWaitingAsync(seller.Id, seller.WhatsAppPhoneNumber, ct);
         var pending = ClarificationManager.Create(Guid.NewGuid().ToString("N"), seller.Id, seller.WhatsAppPhoneNumber, action.Action,
             new[] { field }, question, _clock.GetUtcNow().UtcDateTime, PickQuestionExpiry);
+        pending.Plan = Plain(action);   // the command the question belongs to; the reply completes this, not a new one
         await store.TrackAsync(pending, ct);
         ctx.PendingActionId = pending.Id;
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex PhoneInReply = new(@"\+?\d[\d -]{6,}\d");
+    private static readonly System.Text.RegularExpressions.Regex DetailWord = new(@"^(?<key>city|shehar|sheher|address|pata|name|naam)\b\s*", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    private static readonly System.Text.RegularExpressions.Regex LinkWords = new(@"^(?:(?:ka|ki|ko|hai)\b|[:\-])\s*",System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    /// <summary>
+    /// The field a free-text reply gives ("phone 0300…", "city Lahore", "pata Model Town", "naam Ali"). Rule-based: a phone number, or a field word
+    /// followed by the value. Null when the reply names no field.
+    /// </summary>
+    private static (string Field, string Value)? DetectCustomerDetail(string reply)
+    {
+        var text = reply.Trim();
+        var phone = PhoneInReply.Match(text);
+        if (phone.Success)
+        {
+            var digits = new string(phone.Value.Where(char.IsDigit).ToArray());
+            return digits.Length >= 7 ? ("phone", digits) : null;
+        }
+        var word = DetailWord.Match(text);
+        if (!word.Success) return null;
+        var value = text[word.Length..].Trim();
+        while (LinkWords.Match(value) is { Success: true } link && link.Length > 0) value = value[link.Length..].Trim();
+        if (value.Length == 0) return null;
+        var field = word.Groups["key"].Value.ToLowerInvariant() switch
+        {
+            "city" or "shehar" or "sheher" => "city",
+            "address" or "pata" => "address",
+            _ => "name",
+        };
+        return (field, value);
     }
 
     /// <summary>A reply to a value question: the value if it fits the field, otherwise null (the question is then dropped as before).</summary>
@@ -307,6 +345,9 @@ public partial class ConversationEngine
                 case ClarificationOutcome.Ready:
                     // The answer is saved, but the record stays open until the action has run or been refused (SettleGuidedPendingAsync).
                     // The action still goes through the reference and safety checks in RunGuidedAsync, never straight to a handler.
+                    // The tapped record is the resolved reference; the run below re-checks that it still exists for this seller.
+                    if (pick[0] is '#' or '@' or '%' && int.TryParse(pick[1..], out var refId))
+                        pending!.ResolvedReferences[pick[0] switch { '#' => "order", '@' => "customer", _ => "product" }] = refId;
                     await store.TrackAsync(pending!, ct);
                     settleId = pendingId;
                     break;
@@ -369,19 +410,40 @@ public partial class ConversationEngine
     {
         var store = new ClarificationStore(_db);
         var pending = pendingId is null ? null : await store.FindAsync(pendingId, seller.Id, seller.WhatsAppPhoneNumber, ct);
+        // For the "what should I change" question the reply names its own field; that field is kept alongside the value.
+        string? namedField = null;
         var result = pending is null ? null
-            : ClarificationManager.Answer(pending, seller.Id, seller.WhatsAppPhoneNumber, message, _clock.GetUtcNow().UtcDateTime, ValueFromReply);
+            : ClarificationManager.Answer(pending, seller.Id, seller.WhatsAppPhoneNumber, message, _clock.GetUtcNow().UtcDateTime, (f, r) =>
+            {
+                if (f != GuidedWhatField) return ValueFromReply(f, r);
+                var detail = DetectCustomerDetail(r);
+                namedField = detail?.Field;
+                return detail?.Value;
+            });
         if (result?.Outcome == ClarificationOutcome.Ready)
         {
-            var (field, value) = pending!.Answers.Single();
+            var (_, value) = pending!.Answers.Single();
+            var field = namedField ?? pending.Answers.Keys.Single();
             await store.TrackAsync(pending, ct);
-            // The reply is the seller's words for this run: the value must be among them (UnquotedDetails), so the message is the reply, not the first sentence.
-            var filled = new QueuedModelTurn(new TurnAction { Action = turn.Action.Action, CustomerName = turn.Action.CustomerName, Field = field, Value = value }, message);
+            // The command comes from the record it was asked under; the reply is the seller's words for this run (the value must be among them).
+            var plan = pending.Plan ?? turn.Action;
+            var filled = new QueuedModelTurn(new TurnAction { Action = plan.Action, CustomerName = plan.CustomerName, Field = field, Value = value }, message);
             await RunGuidedAsync(seller, session, ctx, filled, null, null, ct, null, pending.Id);
+            return;
+        }
+        if (pending is not null && result?.Outcome == ClarificationOutcome.Invalid && pending.Attempts < ClarificationManager.MaxInvalidReplies)
+        {
+            // Ask again: the record keeps waiting for this field, so the seller is not stuck and can answer with the same question.
+            await store.TrackAsync(pending, ct);
+            ctx.GuidedTurn = turn;
+            ctx.PendingActionId = pending.Id;
+            SetState(session, ConversationState.AwaitingClarificationChoice);
+            await ReplyAsync(seller, result.Question!, ct);
             return;
         }
         if (pending is not null)
         {
+            // The limit is reached (or the question timed out): the question closes and the message is handled as a new one.
             if (result?.Outcome == ClarificationOutcome.Invalid) ClarificationManager.Cancel(pending);
             else ClarificationManager.Expire(pending);
             await store.TrackAsync(pending, ct);

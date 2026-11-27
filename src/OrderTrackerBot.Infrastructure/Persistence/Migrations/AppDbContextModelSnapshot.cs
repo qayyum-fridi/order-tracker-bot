@@ -1315,6 +1315,13 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                         .HasMaxLength(60)
                         .HasColumnType("nvarchar(60)");
 
+                    b.Property<int>("Attempts")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ActionJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("AnswersJson")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");

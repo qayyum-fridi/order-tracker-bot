@@ -20,6 +20,10 @@ public class PendingActionRecord
     public string CurrentQuestion { get; set; } = "";
     public DateTime CreatedAt { get; set; }
     public DateTime ExpiresAt { get; set; }
+    /// <summary>The original command (the parsed action, as JSON). Empty when none was stored.</summary>
+    public string ActionJson { get; set; } = "";
+    /// <summary>Replies that did not fit the field being asked. The question is dropped after the limit.</summary>
+    public int Attempts { get; set; }
     /// <summary>Waiting | Completed | Expired | Cancelled.</summary>
     public string Status { get; set; } = "Waiting";
 }
