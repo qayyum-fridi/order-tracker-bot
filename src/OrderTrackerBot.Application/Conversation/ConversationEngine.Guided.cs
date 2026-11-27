@@ -70,10 +70,12 @@ public partial class ConversationEngine
     }
 
     /// <summary>A runnable edit_customer whose name fits several saved customers ("Ali" = Ali Raza and Ali Hassan) must not guess one of them.</summary>
-    private async Task<bool> NeedsCustomerChoiceAsync(Seller seller, TurnAction action, CancellationToken ct) =>
-        action.Action is TurnAction.EditCustomer or TurnAction.DeleteCustomer && !string.IsNullOrWhiteSpace(action.CustomerName)
-        && !await _db.Customers.AnyAsync(c => c.SellerId == seller.Id && c.DeletedAt == null && c.Name.ToLower() == action.CustomerName!.Trim().ToLower(), ct)
-        && (await CustomersNamedAsync(seller, action.CustomerName!, ct)).Count > 1;
+    private async Task<bool> NeedsCustomerChoiceAsync(Seller seller, TurnAction action, CancellationToken ct)
+    {
+        if (action.Action is not (TurnAction.EditCustomer or TurnAction.DeleteCustomer) || string.IsNullOrWhiteSpace(action.CustomerName)) return false;
+        var reference = await new ReferenceResolver(_db).ResolveCustomerAsync(seller.Id, action.CustomerName!, ct);
+        return reference.Status == ReferenceStatus.Multiple;
+    }
 
     private Task<List<Customer>> CustomersNamedAsync(Seller seller, string name, CancellationToken ct)
     {
