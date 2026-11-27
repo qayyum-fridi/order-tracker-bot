@@ -106,6 +106,9 @@ public partial class ConversationEngine
     /// <paramref name="sentAtUtc"/> is when the message was really sent. A seller whose phone was offline sends entries that arrive much later;
     /// records created from them (orders, expenses) keep the send time, not the arrival time.
     /// </summary>
+    /// <summary>Stage 9: what this message did. The engine is created per message (per worker scope), so this is that message's trace.</summary>
+    public ConversationTrace Trace { get; } = new();
+
     public async Task HandleIncomingMessageAsync(string fromPhoneNumber, string rawMessage, CancellationToken ct = default, DateTime? sentAtUtc = null)
     {
         _sentAtUtc = sentAtUtc;
@@ -192,7 +195,7 @@ public partial class ConversationEngine
         // A rule the AI overruled is not a miss for the seller: the message still goes on to be answered.
         if (!path.StartsWith("rule-overruled", StringComparison.Ordinal)) _turnMissed = true;
         if (!_features.TurnLog || string.IsNullOrWhiteSpace(text)) return;
-        _logger?.LogInformation("NotUnderstood path={Path} state={State} text={Text}", path, state, text.Length > 300 ? text[..300] : text);
+        _logger?.LogInformation("NotUnderstood path={Path} state={State} length={Length}", path, state, text.Length);
     }
 
     private static readonly TimeSpan DraftExpiry = TimeSpan.FromMinutes(20);
@@ -203,7 +206,9 @@ public partial class ConversationEngine
         var message = InputTextNormalizer.Normalize(rawMessage);
         if (message.Length == 0) return;
 
-        var inputPipeline = ConversationPipeline.Analyze(message, command: CommandParser.TryParse(message));
+        var typedCommand = CommandParser.TryParse(message);
+        if (typedCommand is not null) Trace.SelectAction(typedCommand.Kind.ToString());
+        var inputPipeline = ConversationPipeline.Analyze(message, command: typedCommand);
         _logger?.LogInformation("ConversationPipeline input={InputKind} stage={Stage} entities={Entities} candidates={Candidates}",
             "text", inputPipeline.Stage, inputPipeline.Entities.Count, inputPipeline.Candidates.Count);
 

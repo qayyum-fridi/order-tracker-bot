@@ -31,7 +31,7 @@ public partial class ConversationEngine
         var catalog = await LoadCatalogAsync(seller, ct);
         var context = await BuildTurnContextAsync(seller, catalog, message, fromVoice, null, ct);
 
-        var action = await _turnInterpreter.UnderstandAsync(context, message, image, ct);
+        var action = await Trace.AiAsync(() => _turnInterpreter.UnderstandAsync(context, message, image, ct));
         // Metadata only: the message holds customer names and phone numbers, so its text is never logged.
         _logger?.LogInformation("ModelFirst {Mode}: action={Action} actions={Count} length={Length}", _features.ModelFirst, action?.Action ?? "none",
             action is null ? 0 : 1 + action.Also.Count, message.Length);
@@ -104,6 +104,7 @@ public partial class ConversationEngine
 
     private void RecordPipelineOutcome(ConversationPipelineResult pipeline, ConversationPipelineStage outcome)
     {
+        Trace.ReachedStage(outcome);
         _logger?.LogInformation("ConversationPipeline outcome={Outcome} inputStage={InputStage} candidateCount={CandidateCount} reason={Reason}",
             outcome, pipeline.Stage, pipeline.Candidates.Count, pipeline.Reason ?? "none");
     }
@@ -323,6 +324,7 @@ public partial class ConversationEngine
     private async Task<bool> RunTurnActionAsync(Seller seller, ConversationSession session, SessionContextData ctx, TurnAction action,
         List<CatalogEntry> catalog, string message, CancellationToken ct, bool fromScreenshot)
     {
+        Trace.SelectAction(action.Action);
         // A price, cost or delivery charge the model returned must be a figure the seller actually said. Otherwise nothing runs; the seller is asked.
         // Figures and details taken from the shop's own records are not "unsaid": the catalog price of an item, the usual delivery charge,
         // and a saved customer's name and phone ("Bilal ko do kurti" comes back as Bilal Ahmed, his number and Rs.1800 each).

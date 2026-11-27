@@ -21,6 +21,7 @@ public class GuidedPendingActionTests : IDisposable
     private readonly Dictionary<string, TurnAction> _model = new();
     private readonly ManualClock _clock = new();
     private int _saraId, _bilalId;
+    private ConversationEngine? _lastEngine;
 
     public void Dispose() => _dbFactory.Dispose();
 
@@ -70,6 +71,7 @@ public class GuidedPendingActionTests : IDisposable
         return (db, async message =>
         {
             var engine = new ConversationEngine(db, older.Object, sender.Object, Mock.Of<IFounderAlertNotifier>(), features: features, turn: turn.Object, clock: _clock);
+            _lastEngine = engine;
             await engine.HandleIncomingMessageAsync(Phone, message, default);
         });
     }
@@ -397,6 +399,40 @@ public class GuidedPendingActionTests : IDisposable
         await first.SaveChangesAsync();
         await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => second.SaveChangesAsync());
         Assert.Equal("Consumed", (await Confirmations(db)).Single().Status);
+    }
+
+    [Fact]
+    public async Task Trace_OfAGuidedQuestion_CountsTheQuestionAndAiCall_AndIsStoredWithoutText()
+    {
+        var (db, say) = await ShopAsync();
+        using var _ = db;
+        _model["ek order cancel karna hai"] = new TurnAction { Action = TurnAction.CancelOrder };
+
+        await say("ek order cancel karna hai");
+        var trace = _lastEngine!.Trace;
+        Assert.Equal("Clarified", trace.Outcome);
+        Assert.Equal(1, trace.ClarificationCount);
+        Assert.True(trace.AiCalls >= 1);
+
+        var row = trace.ToRow(_clock.GetUtcNow().UtcDateTime);
+        db.PipelineTraces.Add(row);
+        await db.SaveChangesAsync();
+        var stored = await db.PipelineTraces.AsNoTracking().SingleAsync();
+        Assert.Equal(32, stored.TraceId.Length);
+        Assert.Equal(1, stored.ClarificationCount);
+        Assert.Equal("Clarified", stored.Outcome);
+        Assert.DoesNotContain(Phone, stored.TraceId + stored.Outcome + (stored.SelectedAction ?? "") + (stored.Stage ?? ""));
+    }
+
+    [Fact]
+    public void Trace_OfAFailure_KeepsTheExceptionTypeOnly()
+    {
+        var trace = new ConversationTrace();
+        trace.Failed(new InvalidOperationException("order 12 for 03001234567 is wrong"));
+        var row = trace.ToRow(DateTime.UtcNow);
+        Assert.Equal("Failed", row.Outcome);
+        Assert.Equal("InvalidOperationException", row.FailureReason);
+        Assert.DoesNotContain("03001234567", row.FailureReason!);
     }
 
     [Fact]

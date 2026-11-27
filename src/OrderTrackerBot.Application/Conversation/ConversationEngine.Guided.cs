@@ -230,6 +230,7 @@ public partial class ConversationEngine
         pending.Plan = Plain(action);   // the command the question belongs to; the reply completes this, not a new one
         await store.TrackAsync(pending, ct);
         ctx.PendingActionId = pending.Id;
+        Trace.AskedBack();
     }
 
     private static readonly System.Text.RegularExpressions.Regex PhoneInReply = new(@"\+?\d[\d -]{6,}\d");

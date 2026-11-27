@@ -50,6 +50,7 @@ public interface IAppDbContext
     DbSet<RouterDecision> RouterDecisions { get; }
     DbSet<PendingActionRecord> PendingActions { get; }
     DbSet<ConfirmationRecord> ConfirmationRecords { get; }
+    DbSet<PipelineTrace> PipelineTraces { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

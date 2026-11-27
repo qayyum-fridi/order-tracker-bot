@@ -1364,6 +1364,58 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     b.ToTable("ConfirmationRecords");
                 });
 
+            modelBuilder.Entity("OrderTrackerBot.Domain.Entities.PipelineTrace", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AiCalls")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AiMs")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ClarificationCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("SelectedAction")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("Stage")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<int>("TotalMs")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TraceId")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.ToTable("PipelineTraces");
+                });
+
             modelBuilder.Entity("OrderTrackerBot.Domain.Entities.PendingActionRecord", b =>
                 {
                     b.Property<string>("Id")

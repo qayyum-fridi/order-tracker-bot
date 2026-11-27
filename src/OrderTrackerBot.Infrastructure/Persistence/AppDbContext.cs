@@ -54,6 +54,7 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<RouterDecision> RouterDecisions => Set<RouterDecision>();
     public DbSet<PendingActionRecord> PendingActions => Set<PendingActionRecord>();
     public DbSet<ConfirmationRecord> ConfirmationRecords => Set<ConfirmationRecord>();
+    public DbSet<PipelineTrace> PipelineTraces => Set<PipelineTrace>();
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -117,6 +118,15 @@ public class AppDbContext : DbContext, IAppDbContext
             e.Property(c => c.RecordVersion).HasMaxLength(64);
             e.Property(c => c.Status).HasMaxLength(20);
             e.HasIndex(c => new { c.SellerId, c.UserId, c.Status });
+        });
+        modelBuilder.Entity<PipelineTrace>(e =>
+        {
+            e.Property(t => t.TraceId).HasMaxLength(32);
+            e.Property(t => t.SelectedAction).HasMaxLength(60);
+            e.Property(t => t.Stage).HasMaxLength(40);
+            e.Property(t => t.Outcome).HasMaxLength(20);
+            e.Property(t => t.FailureReason).HasMaxLength(80);
+            e.HasIndex(t => t.CreatedAt);
         });
         modelBuilder.Entity<UnknownNumberWord>(e => { e.HasIndex(w => w.Word).IsUnique(); e.Property(w => w.Word).HasMaxLength(40); });
         modelBuilder.Entity<RouterDecision>(e =>

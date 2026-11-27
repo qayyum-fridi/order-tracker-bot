@@ -138,12 +138,14 @@ public sealed class WebhookWorkerService : BackgroundService
             // Not a system fault: another change won the race for a record this message was writing. The failed save changed nothing;
             // the message is finished (not retried) and the seller is asked to send the command again.
             _logger.LogWarning(ex, "Concurrent change while handling inbound WhatsApp message from {From}", work.From);
+            engine.Trace.Failed(ex);
             try { await engine.SendChangedRecordNoticeAsync(work.From, CancellationToken.None); }
             catch (Exception noticeEx) { _logger.LogWarning(noticeEx, "Could not send change notice to {From}", work.From); }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to process inbound WhatsApp message from {From} ({Code})", work.From, work.FailureCode.Code);
+            engine.Trace.Failed(ex);
             try
             {
                 var issues = scope.ServiceProvider.GetRequiredService<IIssueReporter>();
@@ -158,6 +160,16 @@ public sealed class WebhookWorkerService : BackgroundService
         }
         finally
         {
+            // Stage 9: one trace row per message, written in its own scope so a failed write cannot touch the message's own work.
+            try
+            {
+                using var traceScope = _scopes.CreateScope();
+                var traceDb = traceScope.ServiceProvider.GetRequiredService<IAppDbContext>();
+                traceDb.PipelineTraces.Add(engine.Trace.ToRow(DateTime.UtcNow));
+                await traceDb.SaveChangesAsync(CancellationToken.None);
+            }
+            catch (Exception ex) { _logger.LogWarning(ex, "Could not record the trace for a message from {From}", work.From); }
+
             // Done (or failed and already reported): the message must not be recovered again.
             if (work.MessageId is not null)
             {

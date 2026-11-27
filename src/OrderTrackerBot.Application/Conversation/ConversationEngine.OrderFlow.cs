@@ -69,7 +69,7 @@ public partial class ConversationEngine
     private async Task HandleFreeformMessageAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
     {
         var catalog = await LoadCatalogAsync(seller, ct);
-        var analysis = await _ai.AnalyzeMessageAsync(AiContext(seller, catalog, ctx, _features.AiCancelUndo), message, ct);
+        var analysis = await Trace.AiAsync(() => _ai.AnalyzeMessageAsync(AiContext(seller, catalog, ctx, _features.AiCancelUndo), message, ct));
         // Features:AiCancelUndo: "cancel" / "undo" the reader picked are run through the intent router (its cancel asks YES, undo is the usual undo);
         // when the router does not place it, the message is treated as unclear, as before.
         if (_features.AiCancelUndo && analysis.Intent is "cancel_order" or "undo")

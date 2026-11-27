@@ -50,9 +50,9 @@ public partial class ConversationEngine
         }
 
         // With the flag on and a seller known, the router also gets the seller's context (what kind of shop, its products, what the bot was doing, the last messages).
-        var route = seller is not null && _features.RouterContext
+        var route = await Trace.AiAsync(async () => seller is not null && _features.RouterContext
             ? await _ai.RouteIntentWithContextAsync(message, IntentCatalog.All, await BuildRouteContextAsync(seller, message, ct), ct)
-            : await _ai.RouteIntentAsync(message, IntentCatalog.All, ct);
+            : await _ai.RouteIntentAsync(message, IntentCatalog.All, ct));
         // A guess the router is not sure of (between the two bars) is offered to the seller as a Yes / No tap instead of run.
         if (!isHowTo && route is not null && route.Confidence >= MinGuessConfidence && route.Confidence < MinRouteConfidence
             && IntentCatalog.Find(route.Intent) is { } guessed && guessed.Id != IntentCatalog.HowToId

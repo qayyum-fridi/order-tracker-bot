@@ -324,6 +324,13 @@ public partial class ConversationEngine
                 heard += $"\n{MessageTemplates.Get("voice-confirm.020", nameHeard, nameMatched)}";
 
         // Money-changing or hard-to-reverse actions (price edit, cancel, status change...) wait for a YES before anything runs.
+        // Stage 9 phase 1: the plan is built and its conflicts logged (counts only). The split below still decides what runs.
+        var plan = VoicePlan.Build(steps);
+        Trace.RecordPlan(plan.Steps, plan.Conflicts);
+        // Logs carry the planned actions and conflicting pairs only, never the transcript text.
+        _logger?.LogInformation("VoicePlan steps={Steps} conflicts={Conflicts} actions={Actions} conflictPairs={Pairs}", plan.Steps.Count,
+            plan.Conflicts.Count, string.Join(",", plan.Steps.Select(x => x.Action)),
+            string.Join(";", plan.Conflicts.Select(c => $"{c.EntityKey}:{c.A}/{c.B}")));
         var (safe, risky) = SplitVoiceSteps(seller, steps);
         if (risky.Count == 0)
         {
