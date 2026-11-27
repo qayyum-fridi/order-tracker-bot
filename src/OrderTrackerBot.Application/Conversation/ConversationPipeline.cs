@@ -79,7 +79,7 @@ public static class ConversationPipeline
 
         // Stage 5a/5b: the same selector the engine uses, so the logged stage matches what the seller sees.
         // Incomplete = the intent is settled but required arguments are missing (not an ambiguity).
-        var missing = MissingFieldsFor(action);
+        var missing = ActionSchema.Missing(action).Concat(ActionSchema.Invalid(action)).ToList();
         var selection = CandidateSelector.Decide(candidates, generated.Blockers, missing);
         switch (selection.Decision)
         {
@@ -126,21 +126,4 @@ public static class ConversationPipeline
         return entities;
     }
 
-    private static IReadOnlyList<string> MissingFieldsFor(TurnAction? action)
-    {
-        if (action is null) return Array.Empty<string>();
-
-        return action.Action switch
-        {
-            TurnAction.CreateOrder when action.Orders.Count == 0 => ["order details"],
-            TurnAction.AddProduct when action.Products.Count == 0 => ["product"],
-            TurnAction.EditProduct when action.Products.Count == 0 || action.Products[0].Price is not > 0 => ["product and price"],
-            TurnAction.AddStock when action.Products.Count == 0 => ["product and stock"],
-            TurnAction.AddCustomer when action.Customer is null => ["customer"],
-            TurnAction.EditCustomer when string.IsNullOrWhiteSpace(action.CustomerName) || action.Field is null || string.IsNullOrWhiteSpace(action.Value) => ["customer and changed detail"],
-            TurnAction.UpdateStatus when action.Status is null => ["status"],
-            TurnAction.RecordExpense or TurnAction.MonthlyExpense when action.Amount is not > 0 || string.IsNullOrWhiteSpace(action.Value) => ["expense and amount"],
-            _ => Array.Empty<string>(),
-        };
-    }
 }
