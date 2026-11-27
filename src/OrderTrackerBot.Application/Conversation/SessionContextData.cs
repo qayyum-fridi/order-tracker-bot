@@ -370,6 +370,8 @@ public sealed class ModelEditData
     public string? Value { get; set; }
     /// <summary>exchange_size: the order and its 1-based item number, plus the new size or colour in Value.</summary>
     public int? OrderId { get; set; }
+    /// <summary>edit_customer: the customer the name resolved to when the question was asked; checked again after YES.</summary>
+    public int? CustomerId { get; set; }
     public int? ItemNo { get; set; }
     /// <summary>edit_order: the "edit order" instructions to run after YES, one per line ("1 = 3", "remove 2", "add Shirt 1").</summary>
     public List<string> Lines { get; set; } = new();
