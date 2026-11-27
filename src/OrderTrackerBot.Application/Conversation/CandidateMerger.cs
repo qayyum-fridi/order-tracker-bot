@@ -48,6 +48,7 @@ public static class CandidateMerger
         IsDeterministic = a.IsDeterministic || b.IsDeterministic,
         Plan = a.Plan ?? b.Plan,
         Arguments = a.Arguments ?? b.Arguments,
+        Sources = a.Sources | b.Sources,
     };
 
     private static double? Max(double? x, double? y) => x is null ? y : y is null ? x : Math.Max(x.Value, y.Value);

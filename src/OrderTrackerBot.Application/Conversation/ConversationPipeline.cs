@@ -18,9 +18,19 @@ public enum ConversationPipelineStage
 
 public sealed record ConversationEntity(string Kind, string Value);
 
+/// <summary>Which candidate generator(s) produced a candidate. Flags: a merged candidate carries the union of its sources.</summary>
+[Flags]
+public enum CandidateSources
+{
+    None = 0,
+    Deterministic = 1,
+    Model = 2,
+}
+
 /// <summary>
 /// One action with its merged evidence (each feature 0 to 1, null = not applicable). Score is the composite of the features present.
 /// Plan: the actions of a multi-action message, when this candidate is the whole plan (members are not also listed alone).
+/// Sources: the generator(s) that proposed it (kept for logs and for choosing between sources later).
 /// </summary>
 public sealed record ConversationCandidate(
     string Action,
@@ -33,7 +43,8 @@ public sealed record ConversationCandidate(
     double? Context = null,
     double? Argument = null,
     IReadOnlyList<string>? Plan = null,
-    string? Arguments = null);
+    string? Arguments = null,
+    CandidateSources Sources = CandidateSources.None);
 
 public sealed record ConversationPipelineResult(
     string Input,
@@ -66,17 +77,19 @@ public static class ConversationPipeline
         if (candidates.Count == 0)
             return new(input, entities, candidates, Array.Empty<string>(), ConversationPipelineStage.ProduceCandidates, "no_candidate");
 
-        // Stage 5a: the same selector the engine uses before it asks "which one?", so the logged stage matches what the seller sees.
-        var selection = CandidateSelector.Decide(candidates, generated.Blockers);
-        if (selection.Decision != CandidateDecision.Select)
-            return new(input, entities, candidates, Array.Empty<string>(), ConversationPipelineStage.Ambiguous, selection.Reason);
-
-        // Stage 5b: the intent is settled; the arguments may still be missing.
+        // Stage 5a/5b: the same selector the engine uses, so the logged stage matches what the seller sees.
+        // Incomplete = the intent is settled but required arguments are missing (not an ambiguity).
         var missing = MissingFieldsFor(action);
-        if (missing.Count > 0)
-            return new(input, entities, candidates, missing, ConversationPipelineStage.MissingFields, "required_fields_missing");
-
-        return new(input, entities, candidates, Array.Empty<string>(), ConversationPipelineStage.SafetyValidation);
+        var selection = CandidateSelector.Decide(candidates, generated.Blockers, missing);
+        switch (selection.Decision)
+        {
+            case CandidateDecision.Incomplete:
+                return new(input, entities, candidates, missing, ConversationPipelineStage.MissingFields, selection.Reason);
+            case CandidateDecision.Select:
+                return new(input, entities, candidates, Array.Empty<string>(), ConversationPipelineStage.SafetyValidation);
+            default:
+                return new(input, entities, candidates, Array.Empty<string>(), ConversationPipelineStage.Ambiguous, selection.Reason);
+        }
     }
 
     /// <summary>Stage 3 + 5a for a model action alone (no deterministic command). The engine's "ask which one?" gate uses this.</summary>
