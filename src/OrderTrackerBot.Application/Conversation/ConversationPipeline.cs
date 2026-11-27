@@ -39,9 +39,9 @@ public static class ConversationPipeline
     private static readonly Regex Number = new(@"(?<![\p{L}\p{N}])\d+(?:[.,]\d+)?(?![\p{L}\p{N}])", RegexOptions.Compiled);
     private static readonly Regex Phone = new(@"(?<!\d)(?:\+?\d[\d -]{8,14}\d)(?!\d)", RegexOptions.Compiled);
 
-    public static ConversationPipelineResult Analyze(string? rawInput, TurnAction? action = null, ParsedCommand? command = null)
+    public static ConversationPipelineResult Analyze(string? rawInput, TurnAction? action = null, ParsedCommand? command = null, InputModality modality = InputModality.Text)
     {
-        var input = InputTextNormalizer.Normalize(rawInput);
+        var input = InputNormalizationService.Normalize(rawInput, modality).Text;
         var entities = ExtractEntities(input);
         var candidates = ProduceCandidates(action, command);
 
