@@ -55,13 +55,35 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<PendingActionRecord> PendingActions => Set<PendingActionRecord>();
     public DbSet<ConfirmationRecord> ConfirmationRecords => Set<ConfirmationRecord>();
 
-    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         var now = DateTime.UtcNow;
+        var changed = new HashSet<Order>();
         foreach (var entry in ChangeTracker.Entries<Order>())
             if (entry.State is EntityState.Added or EntityState.Modified)
-                entry.Entity.UpdatedAt = now;
-        return base.SaveChangesAsync(cancellationToken);
+                changed.Add(entry.Entity);
+
+        // An item change changes its order too: the order's version moves, so a confirmation made before it is stale.
+        foreach (var entry in ChangeTracker.Entries<OrderItem>())
+        {
+            if (entry.State is not (EntityState.Added or EntityState.Modified or EntityState.Deleted)) continue;
+            var orderId = entry.State == EntityState.Deleted ? entry.OriginalValues.GetValue<int>(nameof(OrderItem.OrderId)) : entry.Entity.OrderId;
+            if (orderId == 0) continue;   // a new order in this same save: already in the set above
+            var parent = ChangeTracker.Entries<Order>().FirstOrDefault(e => e.Entity.Id == orderId)?.Entity
+                         ?? await Orders.FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken);
+            if (parent is not null) changed.Add(parent);
+        }
+
+        foreach (var order in changed)
+        {
+            order.UpdatedAt = now;
+            order.Version++;
+        }
+        // A consumed or changed confirmation moves its version too, so a second save of the same record conflicts.
+        foreach (var entry in ChangeTracker.Entries<ConfirmationRecord>())
+            if (entry.State == EntityState.Modified)
+                entry.Entity.Version++;
+        return await base.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>Every money column gets an explicit SQL Server precision (18,2), so none is left to the provider default (EF warning: silent truncation).</summary>
@@ -87,6 +109,7 @@ public class AppDbContext : DbContext, IAppDbContext
         modelBuilder.Entity<ConfirmationRecord>(e =>
         {
             e.HasKey(c => c.Id);
+            e.Property(c => c.Version).IsConcurrencyToken();
             e.Property(c => c.Id).HasMaxLength(32);
             e.Property(c => c.UserId).HasMaxLength(40);
             e.Property(c => c.Action).HasMaxLength(60);
@@ -165,6 +188,7 @@ public class AppDbContext : DbContext, IAppDbContext
 
         modelBuilder.Entity<Order>(e =>
         {
+            e.Property(o => o.Version).IsConcurrencyToken();
             e.Property(o => o.Subtotal).HasColumnType("decimal(18,2)");
             e.Property(o => o.DiscountAmount).HasColumnType("decimal(18,2)");
             e.Property(o => o.DeliveryCharge).HasColumnType("decimal(18,2)");

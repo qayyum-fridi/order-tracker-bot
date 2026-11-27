@@ -1,4 +1,4 @@
-using OrderTrackerBot.Domain.Enums;
+﻿using OrderTrackerBot.Domain.Enums;
 
 namespace OrderTrackerBot.Domain.Entities;
 
@@ -54,6 +54,11 @@ public class Order
     public bool CorrectedWithinHour { get; set; }
     public DateTime? ReturnedAt { get; set; }
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    /// <summary>
+    /// Concurrency token. Bumped by the database context on every save that changes the order or any of its items, so a confirmation
+    /// made against an older version cannot write (see SafetyGateway).
+    /// </summary>
+    public int Version { get; set; }
 
     public ICollection<OrderItem> Items { get; set; } = new List<OrderItem>();
 }

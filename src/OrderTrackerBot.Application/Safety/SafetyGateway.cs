@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using OrderTrackerBot.Application.Abstractions;
 using OrderTrackerBot.Application.Ai;
 using OrderTrackerBot.Domain.Entities;
@@ -14,7 +14,8 @@ public sealed record SafetyResult(SafetyDecision Decision, string? ConfirmationI
 /// Stage 7. The one place that decides whether a write may run: the user is the seller, the target belongs to the seller, the action's risk
 /// (confirm or allow), and, for a confirmed write, that the YES belongs to this confirmation, is still valid, and the target has not changed.
 /// It never writes the business records itself; the caller executes after <see cref="SafetyDecision.Allow"/>.
-/// Batch 1 covers the order-status writes: cancel and status change. Other actions join <see cref="ConfirmedActions"/> in later batches.
+/// Batch 1 covers the order-status writes: cancel and status change. The order's version and the record's version are database concurrency tokens,
+/// so the YES, the consume and the order write are checked again at the save. Other actions join <see cref="ConfirmedActions"/> in later batches.
 /// </summary>
 public sealed class SafetyGateway
 {
@@ -27,8 +28,8 @@ public sealed class SafetyGateway
 
     public SafetyGateway(IAppDbContext db) => _db = db;
 
-    /// <summary>The order's version: its last change time and status. Any change to either makes an earlier YES stale.</summary>
-    public static string VersionOf(Order order) => $"{order.UpdatedAt.Ticks}|{order.Status}";
+    /// <summary>The order's concurrency version. Any change to the order or its items moves it, so an earlier YES is stale.</summary>
+    public static string VersionOf(Order order) => order.Version.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>First check, before the YES question. Returns the confirmation to ask under when one is needed.</summary>
     public async Task<SafetyResult> AuthorizeAsync(Seller seller, string userId, string action, int? orderId, string? value, DateTime now, CancellationToken ct)
@@ -60,7 +61,8 @@ public sealed class SafetyGateway
     /// </summary>
     public async Task<SafetyResult> ReauthorizeAsync(Seller seller, string userId, string confirmationId, DateTime now, CancellationToken ct)
     {
-        var record = await _db.ConfirmationRecords.AsNoTracking()
+        // Tracked on purpose: consuming it is a change that commits with the order write (the caller's single save).
+        var record = await _db.ConfirmationRecords
             .FirstOrDefaultAsync(c => c.Id == confirmationId && c.SellerId == seller.Id && c.UserId == userId, ct);
         if (record is null) return new(SafetyDecision.Block, Reason: "unknown");
         if (record.Status != "Pending") return new(SafetyDecision.Block, Reason: "used");
@@ -85,9 +87,10 @@ public sealed class SafetyGateway
             }
         }
 
-        var consumed = await _db.ConfirmationRecords.Where(c => c.Id == confirmationId && c.Status == "Pending")
-            .ExecuteUpdateAsync(s => s.SetProperty(c => c.Status, "Consumed").SetProperty(c => c.ConsumedAt, now), ct);
-        if (consumed != 1) return new(SafetyDecision.Block, Reason: "used");
+        // Consumed in memory only. It is saved with the order change in the same save, and a second YES that saves the same record
+        // fails on its concurrency token, so the write cannot run twice.
+        record.Status = "Consumed";
+        record.ConsumedAt = now;
         return new(SafetyDecision.Allow, confirmationId, record.OrderId, record.Value);
     }
 

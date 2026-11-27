@@ -1,4 +1,4 @@
-namespace OrderTrackerBot.Domain.Entities;
+﻿namespace OrderTrackerBot.Domain.Entities;
 
 /// <summary>
 /// Stage 7. One YES/NO question for one write, bound to a seller, a user, the target record's version and an expiry. A YES is accepted only
@@ -24,4 +24,6 @@ public class ConfirmationRecord
     public DateTime CreatedAt { get; set; }
     public DateTime ExpiresAt { get; set; }
     public DateTime? ConsumedAt { get; set; }
+    /// <summary>Concurrency token: two YES messages cannot both consume the same record (the second save fails).</summary>
+    public int Version { get; set; }
 }

@@ -991,6 +991,10 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CustomerId");
@@ -1352,6 +1356,10 @@ namespace OrderTrackerBot.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("SellerId", "UserId", "Status");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int");
 
                     b.ToTable("ConfirmationRecords");
                 });

@@ -348,6 +348,58 @@ public class GuidedPendingActionTests : IDisposable
     }
 
     [Fact]
+    public async Task ItemChange_MovesTheOrderVersion()
+    {
+        var (db, _) = await ShopAsync();
+        using var _ = db;
+        var sara = await db.Orders.Include(o => o.Items).SingleAsync(o => o.CustomerId == _saraId);
+        var before = sara.Version;
+
+        sara.Items.Single().Quantity = 2;
+        await db.SaveChangesAsync();
+
+        Assert.True((await db.Orders.AsNoTracking().SingleAsync(o => o.Id == sara.Id)).Version > before);
+    }
+
+    [Fact]
+    public async Task SaveOverAnOrderChangedByAnotherSave_FailsOnTheVersionToken()
+    {
+        var (db, _) = await ShopAsync();
+        using var _ = db;
+        var sara = await db.Orders.SingleAsync(o => o.CustomerId == _saraId);
+        using var other = _dbFactory.CreateContext();
+        var otherSara = await other.Orders.SingleAsync(o => o.Id == sara.Id);
+        otherSara.Status = OrderStatus.Shipped;
+        await other.SaveChangesAsync();
+
+        sara.Status = OrderStatus.Delivered;
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => db.SaveChangesAsync());
+    }
+
+    [Fact]
+    public async Task TwoYesMessagesForOneConfirmation_OnlyOneSaves()
+    {
+        var (db, _) = await ShopAsync();
+        using var _ = db;
+        var seller = await db.Sellers.SingleAsync();
+        var sara = await db.Orders.SingleAsync(o => o.CustomerId == _saraId);
+        var now = _clock.GetUtcNow().UtcDateTime;
+        var asked = await new SafetyGateway(db).AuthorizeAsync(seller, Phone, TurnAction.CancelOrder, sara.Id, null, now, default);
+        await db.SaveChangesAsync();
+
+        using var first = _dbFactory.CreateContext();
+        using var second = _dbFactory.CreateContext();
+        var firstYes = await new SafetyGateway(first).ReauthorizeAsync(seller, Phone, asked.ConfirmationId!, now, default);
+        var secondYes = await new SafetyGateway(second).ReauthorizeAsync(seller, Phone, asked.ConfirmationId!, now, default);
+        Assert.Equal(SafetyDecision.Allow, firstYes.Decision);
+        Assert.Equal(SafetyDecision.Allow, secondYes.Decision);
+
+        await first.SaveChangesAsync();
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => second.SaveChangesAsync());
+        Assert.Equal("Consumed", (await Confirmations(db)).Single().Status);
+    }
+
+    [Fact]
     public async Task GuidedQuestion_StoresTheOriginalCommand_AndTheTappedReference()
     {
         var (db, say) = await ShopAsync();
