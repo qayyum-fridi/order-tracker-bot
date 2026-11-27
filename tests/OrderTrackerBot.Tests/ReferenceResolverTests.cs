@@ -116,6 +116,25 @@ public class ReferenceResolverTests : IDisposable
     }
 
     [Fact]
+    public async Task Order_NeedsOwnSellerAndOwnCustomer()
+    {
+        AddCustomer(_sellerA, "Sara");
+        AddCustomer(_sellerB, "Bilal");
+        _db.SaveChanges();
+        var sara = await _db.Customers.SingleAsync(c => c.Name == "Sara");
+        var bilal = await _db.Customers.SingleAsync(c => c.Name == "Bilal");
+        _db.Orders.Add(new Order { SellerId = _sellerA, CustomerId = sara.Id });
+        _db.Orders.Add(new Order { SellerId = _sellerA, CustomerId = bilal.Id });   // A's order, but the customer belongs to B
+        _db.SaveChanges();
+        var ok = await _db.Orders.SingleAsync(o => o.CustomerId == sara.Id);
+        var mixed = await _db.Orders.SingleAsync(o => o.CustomerId == bilal.Id);
+
+        Assert.Equal(ReferenceStatus.Resolved, (await _resolver.ResolveOrderAsync(_sellerA, ok.Id, default)).Status);
+        Assert.Equal(ReferenceStatus.NotFound, (await _resolver.ResolveOrderAsync(_sellerA, mixed.Id, default)).Status);
+        Assert.Equal(ReferenceStatus.NotFound, (await _resolver.ResolveOrderAsync(_sellerB, ok.Id, default)).Status);
+    }
+
+    [Fact]
     public async Task Product_ByName_RespectsSellerAndActiveFlag()
     {
         AddProduct(_sellerA, "Shirt");

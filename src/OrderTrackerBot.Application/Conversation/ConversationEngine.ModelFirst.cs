@@ -265,7 +265,10 @@ public partial class ConversationEngine
     private async Task<Order?> ModelPaymentOrderAsync(Seller seller, TurnAction action, string message, CancellationToken ct)
     {
         if (SaidOrderId(action, message) is { } id)
-            return await _db.Orders.Include(o => o.Customer).FirstOrDefaultAsync(o => o.SellerId == seller.Id && o.Id == id, ct);
+        {
+            if (await new ReferenceResolver(_db).ResolveOrderAsync(seller.Id, id, ct) is not { Status: ReferenceStatus.Resolved, Id: { } ownedId }) return null;
+            return await _db.Orders.Include(o => o.Customer).FirstOrDefaultAsync(o => o.Id == ownedId, ct);
+        }
         if (!SaidName(action.CustomerName, message) || await ModelCustomerAsync(seller, action.CustomerName, ct) is not { } customer) return null;
         return await _db.Orders.Include(o => o.Customer)
             .Where(o => o.SellerId == seller.Id && o.CustomerId == customer.Id && o.PaymentStatus != PaymentStatus.Paid
@@ -311,9 +314,8 @@ public partial class ConversationEngine
     private async Task<Customer?> ModelCustomerAsync(Seller seller, string? name, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(name)) return null;
-        var wanted = name.Trim().ToLower();
-        var matches = await _db.Customers.Where(c => c.SellerId == seller.Id && c.DeletedAt == null && c.Name.ToLower().Contains(wanted)).Take(5).ToListAsync(ct);
-        return matches.FirstOrDefault(c => c.Name.ToLower() == wanted) ?? (matches.Count == 1 ? matches[0] : null);
+        if (await new ReferenceResolver(_db).ResolveCustomerAsync(seller.Id, name, ct) is not { Status: ReferenceStatus.Resolved, Id: { } id }) return null;
+        return await _db.Customers.FirstOrDefaultAsync(c => c.Id == id && c.SellerId == seller.Id && c.DeletedAt == null, ct);
     }
 
     /// <summary>Runs the four core actions with the handlers the typed commands already use. False = not one of them (or not enough detail): the older pipeline answers.</summary>
@@ -449,7 +451,8 @@ public partial class ConversationEngine
                     await ReplyAsync(seller, MessageTemplates.Get("model-edit.003", newValue), ct);
                     return true;
                 }
-                ctx.ModelEdit = new ModelEditData { Kind = TurnAction.EditCustomer, Name = (await ModelCustomerAsync(seller, editName, ct))?.Name ?? editName, Field = field, Value = newValue };
+                var editCustomer = await ModelCustomerAsync(seller, editName, ct);
+                ctx.ModelEdit = new ModelEditData { Kind = TurnAction.EditCustomer, Name = editCustomer?.Name ?? editName, CustomerId = editCustomer?.Id, Field = field, Value = newValue };
                 SetState(session, ConversationState.AwaitingModelStatusConfirmation);
                 await AskYesNoAsync(seller, MessageTemplates.Get("model-edit.002", ctx.ModelEdit.Name, ModelFieldLabel(field), newValue), ct);
                 return true;
@@ -749,6 +752,12 @@ public partial class ConversationEngine
             {
                 // The model's order number is a real order id, never a position in the last list the seller saw.
                 ctx.LastListOrderIds = null;
+                // Checked again right before the money changes: the order must still belong to this seller.
+                if (await new ReferenceResolver(_db).ResolveOrderAsync(seller.Id, paidOrderId, ct) is not { Status: ReferenceStatus.Resolved })
+                {
+                    await ReplyAsync(seller, MessageTemplates.Get("commands.028", paidOrderId), ct);
+                    return;
+                }
                 if (edit.Amount is { } received) await HandleOrderPaymentAsync(seller, ctx, paidOrderId, received, ct);
                 else await HandleMarkStatusAsync(seller, session, ctx, new ParsedCommand { Kind = CommandKind.MarkStatus, Number = paidOrderId, Text = "paid" }, ct);
             }
@@ -767,6 +776,10 @@ public partial class ConversationEngine
                 await SaveScreenshotProductsAsync(seller, ctx, edit.Lines, edit.Field, ct);
             else if (edit.Kind == TurnAction.ExchangeSize)
                 await HandleSizeExchangeAsync(seller, ctx, new ParsedCommand { Kind = CommandKind.SizeExchange, Number = edit.OrderId, Text = edit.ItemNo?.ToString(), Text2 = edit.Value }, ct);
+            else if (edit.Kind == TurnAction.EditCustomer && edit.CustomerId is { } editedId
+                     && await new ReferenceResolver(_db).ResolveCustomerByIdAsync(seller.Id, editedId, ct) is not { Status: ReferenceStatus.Resolved })
+                // The customer the question named is no longer this seller's live record: nothing changes.
+                await ReplyAsync(seller, MessageTemplates.Get("customers.003", edit.Name), ct);
             else
                 await HandleCustomerUpdateAsync(seller, ctx, new ParsedCommand { Kind = CommandKind.CustomerUpdate, Text = edit.Name, Text2 = edit.Field, Text3 = edit.Value }, ct);
             return;

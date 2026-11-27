@@ -28,10 +28,11 @@ public sealed class ReferenceResolver
 
     public ReferenceResolver(IAppDbContext db) => _db = db;
 
+    /// <summary>An order id: the order must belong to the seller, and so must its customer (a customer's seller is checked on its own record).</summary>
     public async Task<ReferenceResult> ResolveOrderAsync(int sellerId, int orderId, CancellationToken ct)
     {
         var ids = await _db.Orders
-            .Where(o => o.SellerId == sellerId && o.Id == orderId)
+            .Where(o => o.SellerId == sellerId && o.Id == orderId && o.Customer!.SellerId == sellerId)
             .Select(o => o.Id)
             .Take(1)
             .ToListAsync(ct);
