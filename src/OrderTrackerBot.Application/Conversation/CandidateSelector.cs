@@ -9,28 +9,35 @@ public enum CandidateDecision { Select, Incomplete, Clarify, Reject }
 public sealed record CandidateSelection(CandidateDecision Decision, ConversationCandidate? Top, double Margin, string Reason);
 
 /// <summary>
+/// Score cut-offs. These are provisional starting values, not measured confidence: tune them on labelled real seller messages
+/// before treating any number as a calibrated limit.
+/// </summary>
+public sealed record SelectionThresholds(double SelectScore, double SelectMargin, double ClarifyScore)
+{
+    public static readonly SelectionThresholds Provisional = new(SelectScore: 0.85, SelectMargin: 0.15, ClarifyScore: 0.55);
+}
+
+/// <summary>
 /// Stage 5a/5b. Chooses one candidate from the merged list by composite score, margin over the runner-up, and blockers.
 /// Intent is judged first. A selectable intent with missing required arguments is Incomplete, not Select.
-/// Thresholds are starting values to tune on labelled seller messages, not measured accuracy.
+/// Only true alternative meanings reach Clarify; a plan whose steps contradict each other is blocked by <see cref="ActionPlanner"/>.
 /// </summary>
 public static class CandidateSelector
 {
-    public const double SelectScore = 0.85;
-    public const double SelectMargin = 0.15;
-    public const double ClarifyScore = 0.55;
-
     /// <param name="blockers">Reasons not to choose on score alone (for example a contradictory order number).</param>
     /// <param name="missingFields">Required arguments of the chosen action that the message does not supply (null or empty = complete).</param>
+    /// <param name="thresholds">Score cut-offs; defaults to the provisional values.</param>
     public static CandidateSelection Decide(
-        IReadOnlyList<ConversationCandidate> candidates, IReadOnlyList<string>? blockers = null, IReadOnlyList<string>? missingFields = null)
+        IReadOnlyList<ConversationCandidate> candidates, IReadOnlyList<string>? blockers = null, IReadOnlyList<string>? missingFields = null,
+        SelectionThresholds? thresholds = null)
     {
-        var selection = DecideIntent(candidates, blockers);
+        var selection = DecideIntent(candidates, blockers, thresholds ?? SelectionThresholds.Provisional);
         if (selection.Decision == CandidateDecision.Select && missingFields is { Count: > 0 })
             return selection with { Decision = CandidateDecision.Incomplete, Reason = "required_fields_missing" };
         return selection;
     }
 
-    private static CandidateSelection DecideIntent(IReadOnlyList<ConversationCandidate> candidates, IReadOnlyList<string>? blockers)
+    private static CandidateSelection DecideIntent(IReadOnlyList<ConversationCandidate> candidates, IReadOnlyList<string>? blockers, SelectionThresholds t)
     {
         var ranked = candidates
             .Where(c => c.Score is not null)
@@ -47,9 +54,9 @@ public static class CandidateSelector
         var margin = score - (ranked.Count > 1 ? ranked[1].Score!.Value : 0);
 
         if (blockers is { Count: > 0 }) return new(CandidateDecision.Clarify, top, margin, blockers[0]);
-        if (score < ClarifyScore) return new(CandidateDecision.Reject, top, margin, "low_confidence");
-        if (score >= SelectScore && margin >= SelectMargin) return new(CandidateDecision.Select, top, margin, "clear");
+        if (score < t.ClarifyScore) return new(CandidateDecision.Reject, top, margin, "low_confidence");
+        if (score >= t.SelectScore && margin >= t.SelectMargin) return new(CandidateDecision.Select, top, margin, "clear");
 
-        return new(CandidateDecision.Clarify, top, margin, margin < SelectMargin ? "close_candidates" : "below_select_score");
+        return new(CandidateDecision.Clarify, top, margin, margin < t.SelectMargin ? "close_candidates" : "below_select_score");
     }
 }
