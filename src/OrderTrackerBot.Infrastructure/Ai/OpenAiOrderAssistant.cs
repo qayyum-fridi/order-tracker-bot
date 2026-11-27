@@ -973,7 +973,8 @@ public class OpenAiOrderAssistant : IAiOrderAssistant
                 {
                     ProductName = item.GetProperty("product_name").GetString() ?? "",
                     MatchedCatalogProductName = GetNullableString(item, "matched_catalog_product_name"),
-                    Quantity = item.TryGetProperty("quantity", out var qty) && qty.ValueKind == JsonValueKind.Number ? qty.GetInt32() : 1,
+                    // A fractional or out-of-range number (1.5) is read as 0, which the engine refuses with "quantity sahi nahi"; GetInt32 would throw.
+                    Quantity = item.TryGetProperty("quantity", out var qty) && qty.ValueKind == JsonValueKind.Number ? (qty.TryGetInt32(out var whole) ? whole : 0) : 1,
                     StatedUnitPrice = item.TryGetProperty("unit_price", out var up) && up.ValueKind == JsonValueKind.Number && up.TryGetDecimal(out var unitPrice) && unitPrice > 0 ? unitPrice : null
                 });
             }

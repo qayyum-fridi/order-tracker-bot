@@ -69,6 +69,28 @@ public class OpenAiOrderAssistantTests
 
         Assert.Null(result.Order!.DeliveryCharge);
     }
+
+    [Fact]
+    public async Task FractionalQuantity_IsReadAsZero_InsteadOfThrowing()
+    {
+        var analysis = new
+        {
+            intent = "new_order", is_order_attempt = true,
+            orders = new[]
+            {
+                new
+                {
+                    customer_name = "Sara", phone = "03001234567", missing_required_fields = Array.Empty<string>(),
+                    items = new[] { new { product_name = "Sugar", quantity = 1.5 } }
+                }
+            }
+        };
+        var (assistant, _) = Create(analysis);
+
+        var result = await assistant.AnalyzeMessageAsync(Context, "Sara 1.5 kg sugar");
+
+        Assert.Equal(0, Assert.Single(result.Order!.Items).Quantity);
+    }
 }
 
 public class OpenAiRetryTests
