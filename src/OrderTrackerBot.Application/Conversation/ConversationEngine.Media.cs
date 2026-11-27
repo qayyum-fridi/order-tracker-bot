@@ -187,9 +187,9 @@ public partial class ConversationEngine
         }
 
         // Typed text and voice transcripts must enter the same parser with the same Unicode, digit and whitespace rules.
-        text = InputTextNormalizer.Normalize(text);
+        text = InputNormalizationService.Normalize(text, InputModality.Voice).Text;
         // Same candidate step as typed text (ConversationEngine.cs HandleIncomingCoreAsync): only the transcription differs.
-        var voicePipeline = ConversationPipeline.Analyze(text, command: CommandParser.TryParse(text));
+        var voicePipeline = ConversationPipeline.Analyze(text, command: CommandParser.TryParse(text), modality: InputModality.Voice);
         _logger?.LogInformation("ConversationPipeline input={InputKind} stage={Stage} entities={Entities} candidates={Candidates}",
             "voice", voicePipeline.Stage, voicePipeline.Entities.Count, voicePipeline.Candidates.Count);
 
@@ -1233,8 +1233,8 @@ public partial class ConversationEngine
         var ctx = SessionContextData.FromJson(session.ContextJson);
         // A photo sent after "photo customers" (etc.) is read as that kind, when it has no caption of its own.
         caption = PhotoCaptionFor(ctx, caption);
-        caption = string.IsNullOrWhiteSpace(caption) ? caption : InputTextNormalizer.Normalize(caption);
-        var imagePipeline = ConversationPipeline.Analyze(caption);
+        caption = string.IsNullOrWhiteSpace(caption) ? caption : InputNormalizationService.Normalize(caption, InputModality.ImageCaption).Text;
+        var imagePipeline = ConversationPipeline.Analyze(caption, modality: InputModality.ImageCaption);
         _logger?.LogInformation("ConversationPipeline input={InputKind} stage={Stage} entities={Entities} candidates={Candidates}",
             "image", imagePipeline.Stage, imagePipeline.Entities.Count, imagePipeline.Candidates.Count);
 
