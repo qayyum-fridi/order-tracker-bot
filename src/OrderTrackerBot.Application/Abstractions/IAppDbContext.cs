@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using OrderTrackerBot.Domain.Entities;
 
 namespace OrderTrackerBot.Application.Abstractions;
@@ -51,6 +52,9 @@ public interface IAppDbContext
     DbSet<PendingActionRecord> PendingActions { get; }
     DbSet<ConfirmationRecord> ConfirmationRecords { get; }
     DbSet<PipelineTrace> PipelineTraces { get; }
+
+    /// <summary>Transactions for a save that must commit or roll back as one (see ConversationEngine.InSaveTransactionAsync).</summary>
+    DatabaseFacade Database { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

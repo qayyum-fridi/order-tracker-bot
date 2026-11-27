@@ -1019,8 +1019,13 @@ public partial class ConversationEngine
 
         ctx.MultiOrders = null;
         SetState(session, ConversationState.Idle);
-        var saved = new List<Order>();
-        foreach (var draft in chosen) saved.Add(await SaveOrderFromDraftAsync(seller, draft, ct));
+        // All or nothing: a failure on the second order must not leave the first one saved.
+        var saved = await InSaveTransactionAsync(async () =>
+        {
+            var orders = new List<Order>();
+            foreach (var draft in chosen) orders.Add(await SaveOrderFromDraftAsync(seller, draft, ct));
+            return orders;
+        }, ct);
         await ReplyAsync(seller, saved.Count == 1
             ? MessageTemplates.Get("order-flow.036", saved[0].Id)
             : MessageTemplates.Get("order-flow.037", saved.Count, string.Join(", ", saved.Select(o => $"#{o.Id}"))), ct);
@@ -1433,7 +1438,29 @@ public partial class ConversationEngine
         FromScreenshot = source.FromScreenshot
     };
 
-    private async Task<Order> SaveOrderFromDraftAsync(Seller seller, PendingOrderData pending, CancellationToken ct)
+    private Task<Order> SaveOrderFromDraftAsync(Seller seller, PendingOrderData pending, CancellationToken ct) =>
+        InSaveTransactionAsync(async () =>
+        {
+            var order = await SaveOrderFromDraftCoreAsync(seller, pending, ct);
+            // Stock and the action log were changed in memory by the core; this save writes them with the order.
+            await _db.SaveChangesAsync(ct);
+            return order;
+        }, ct);
+
+    /// <summary>
+    /// Runs one save as a single DB transaction: every write commits together or none does. When the caller already opened one
+    /// (a multi-order save), the work joins it, so the caller's commit or rollback covers every order.
+    /// </summary>
+    private async Task<T> InSaveTransactionAsync<T>(Func<Task<T>> save, CancellationToken ct)
+    {
+        if (_db.Database.CurrentTransaction is not null) return await save();
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        var result = await save();
+        await tx.CommitAsync(ct);
+        return result;
+    }
+
+    private async Task<Order> SaveOrderFromDraftCoreAsync(Seller seller, PendingOrderData pending, CancellationToken ct)
     {
         var lowerName = pending.CustomerName!.ToLower();
         var customer = await _db.Customers.FirstOrDefaultAsync(c => c.SellerId == seller.Id && c.Name.ToLower() == lowerName, ct);
