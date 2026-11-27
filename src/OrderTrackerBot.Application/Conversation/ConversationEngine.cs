@@ -271,8 +271,11 @@ public partial class ConversationEngine
             return;
         }
 
+        // Button titles are stored as written ("…" included), so a tap is matched on the raw text, not the NFKC-normalized one ("…" → "...").
+        var tapText = TextHygiene.StripInvisible(rawMessage ?? string.Empty).Trim();
+
         // A tap-by-tap order in progress (ConversationEngine.TapFlow.cs): product taps, "➕ 1 aur", a number, "✅ Order banayein".
-        if (await TryTapCartAsync(seller, session, ctx, message, ct))
+        if (await TryTapCartAsync(seller, session, ctx, message, tapText, ct))
         {
             await PersistAsync(session, ctx, ct);
             return;
@@ -280,8 +283,6 @@ public partial class ConversationEngine
 
         // A tap on a product button: an answer to the unknown-product question ("2 <product>" / "1"), or one of the customer's usual items after "order for Sara"
         // (read as her items). With no such question waiting it is a stale tap.
-        // Button titles are stored as written ("…" included), so the tap is matched on the raw text, not the NFKC-normalized one.
-        var tapText = TextHygiene.StripInvisible(rawMessage ?? string.Empty).Trim();
         if (ctx.ProductSuggestions is { Count: > 0 } offered
             && (tapText == NewProductButtonTitle || offered.Any(o => o.Title == tapText)))
         {

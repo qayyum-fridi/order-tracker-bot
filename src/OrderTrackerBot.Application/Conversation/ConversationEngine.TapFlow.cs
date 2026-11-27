@@ -283,7 +283,7 @@ public partial class ConversationEngine
     /// "🛍️ Aur product" shows the products again, "✅ Order banayein" turns the cart into the usual order draft (confirm, Save).
     /// Anything else leaves the cart and runs as usual. Returns true when handled here.
     /// </summary>
-    private async Task<bool> TryTapCartAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, CancellationToken ct)
+    private async Task<bool> TryTapCartAsync(Seller seller, ConversationSession session, SessionContextData ctx, string message, string tapText, CancellationToken ct)
     {
         // "🔁 Pichla order": the customer's last order again, straight to the usual confirm screen (change anything with Edit).
         if (message.Trim() == RepeatLastOrder && ctx.OrderForCustomer is { } repeatFor && session.State == ConversationState.Idle)
@@ -299,7 +299,8 @@ public partial class ConversationEngine
         var text = message.Trim();
         target.At = DateTime.UtcNow; // each tap keeps the request open
 
-        if (ctx.ProductSuggestions?.FirstOrDefault(p => p.Title == text) is { } tapped)
+        // A product row's title may end in "…", which normalization rewrites: matched on the tap's raw text.
+        if (ctx.ProductSuggestions?.FirstOrDefault(p => p.Title == tapText) is { } tapped)
         {
             var label = tapped.Label.Replace(",", "");
             if (cart.FirstOrDefault(i => i.Label == label) is { } same) same.Qty++;
